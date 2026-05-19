@@ -15,9 +15,9 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const PORT = process.env.PORT || 3001;
 
 const USERS = {
-  Anita: { password: process.env.PASSWORD_ANITA, role: 'operador' },
-  Mariana: { password: process.env.PASSWORD_MARIANA, role: 'operador' },
-  Fabio: { password: process.env.PASSWORD_FABIO, role: 'admin' },
+  superadmin: { password: process.env.PASSWORD_SUPERADMIN, role: 'admin' },
+  admin: { password: process.env.PASSWORD_ADMIN, role: 'operador' },
+  empleado: { password: process.env.PASSWORD_EMPLEADO, role: 'operador' },
 };
 
 function auth(req, res, next) {
@@ -46,8 +46,7 @@ app.post('/api/login', (req, res) => {
   const { usuario, password } = req.body;
   const user = USERS[usuario];
   if (!user) return res.status(401).json({ error: 'Usuario incorrecto' });
-  const sinContrasena = !user.password;
-  if (!sinContrasena && user.password !== password) {
+  if (user.password !== password) {
     return res.status(401).json({ error: 'Contraseña incorrecta' });
   }
   const token = jwt.sign({ usuario, role: user.role }, JWT_SECRET, { expiresIn: '12h' });

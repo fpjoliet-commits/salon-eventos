@@ -28,8 +28,8 @@ function formatDate(str) {
 
 const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
-// Marcador para sugerencias de Anita almacenadas en observaciones
-const SUGERENCIA_REGEX = /\[SUGERENCIA_NOMBRE: "([^"]+)" · Anita · [^\]]+\]\n?/;
+// Marcador para sugerencias de Empleado almacenadas en observaciones
+const SUGERENCIA_REGEX = /\[SUGERENCIA_NOMBRE: "([^"]+)" · [^\]]+\]\n?/;
 
 function esc(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -111,11 +111,11 @@ function clearSession() {
 }
 
 function isAdmin() { return currentUser?.role === 'admin'; }
-function canManagePagos() { return isAdmin() || currentUser?.usuario === 'Mariana'; }
+function canManagePagos() { return isAdmin() || currentUser?.usuario === 'admin'; }
 function canEditNombre() { return canManagePagos(); }
 
 // Usuarios sin contraseña
-const USUARIOS_SIN_PASSWORD = ['Anita'];
+const USUARIOS_SIN_PASSWORD = [];
 
 $('login-usuario').addEventListener('change', () => {
   const usuario = $('login-usuario').value;
@@ -172,8 +172,8 @@ function initApp() {
     el.style.display = isAdmin() ? '' : 'none';
   });
 
-  // Calendario: visible para Fabio y Mariana
-  const canSeeCalendar = isAdmin() || currentUser.usuario === 'Mariana';
+  // Calendario: visible para superadmin y admin
+  const canSeeCalendar = isAdmin() || currentUser.usuario === 'admin';
   document.querySelectorAll('.calendar-access').forEach(el => {
     el.style.display = canSeeCalendar ? '' : 'none';
   });
@@ -607,7 +607,7 @@ function renderPagosTab(cliente) {
   $('pago-fecha').value = new Date().toISOString().split('T')[0];
   hide('pago-error'); hide('pago-success');
 
-  // Historial visible para Fabio y Mariana
+  // Historial visible para Super Admin y Admin
   if (canManagePagos()) {
     showEl($('pagos-admin-content'));
     loadPagosCliente(cliente);
@@ -619,7 +619,7 @@ function renderPagosTab(cliente) {
     const msg = document.createElement('p');
     msg.className = 'no-access-msg';
     msg.style.cssText = 'color:#999;font-size:13px;margin-top:12px';
-    msg.textContent = 'Solo Fabio y Mariana pueden registrar pagos.';
+    msg.textContent = 'Solo Super Admin y Admin pueden registrar pagos.';
     $('tab-pagos').appendChild(msg);
   }
 }
@@ -963,7 +963,7 @@ async function loadCuotasTab(cliente) {
   const con = $('cuotas-content');
   if (!con) return;
   if (!canManagePagos()) {
-    con.innerHTML = '<p style="color:#999;font-size:13px;margin-top:12px">Solo Fabio y Mariana pueden gestionar el plan de pagos.</p>';
+    con.innerHTML = '<p style="color:#999;font-size:13px;margin-top:12px">Solo Super Admin y Admin pueden gestionar el plan de pagos.</p>';
     return;
   }
   con.innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';
@@ -1304,13 +1304,13 @@ function injectNombreAcciones(cliente) {
     btn.addEventListener('click', () => startInlineNombreEdit(cliente));
     wrap.appendChild(btn);
 
-    // Si hay sugerencia pendiente de Anita, mostrar banner
+    // Si hay sugerencia pendiente de Empleado, mostrar banner
     if (match && sugerenciaArea) {
       renderSugerenciaBanner(sugerenciaArea, match[1], cliente);
     }
-  } else if (currentUser.usuario === 'Anita') {
+  } else if (currentUser.usuario === 'empleado') {
     if (match) {
-      // Anita ya sugirió — mostrar su sugerencia y opción de cambiarla
+      // Empleado ya sugirió — mostrar su sugerencia y opción de cambiarla
       const tag = document.createElement('span');
       tag.className = 'nombre-sugerida-tag nombre-accion';
       tag.title = `Sugeriste: "${match[1]}"`;
@@ -1324,7 +1324,7 @@ function injectNombreAcciones(cliente) {
       btn.addEventListener('click', () => showSugerirNombreForm(cliente));
       wrap.appendChild(btn);
     } else {
-      // Anita no ha sugerido aún — botón de bandera
+      // Empleado no ha sugerido aún — botón de bandera
       const btn = document.createElement('button');
       btn.className = 'btn-nombre-icono sugerir-icon nombre-accion';
       btn.title = 'Sugerir corrección de nombre';
@@ -1377,7 +1377,7 @@ async function saveNombreEdit(cliente, nuevoNombre) {
   if (btn) btn.disabled = true;
 
   try {
-    // Al guardar, limpiar también la sugerencia de Anita
+    // Al guardar, limpiar también la sugerencia del empleado
     const obsLimpio = (cliente.observaciones || '').replace(SUGERENCIA_REGEX, '').trim();
     const body = buildClienteBody(cliente, { apellidoNombre: nuevoNombre, observaciones: obsLimpio });
 
@@ -1442,7 +1442,7 @@ async function saveSugerenciaNombre(cliente, nombreSugerido) {
 
   try {
     const fecha = new Date().toLocaleDateString('es-AR');
-    const marker = `[SUGERENCIA_NOMBRE: "${nombreSugerido}" · Anita · ${fecha}]`;
+    const marker = `[SUGERENCIA_NOMBRE: "${nombreSugerido}" · Empleado · ${fecha}]`;
     const obsBase = (cliente.observaciones || '').replace(SUGERENCIA_REGEX, '').trim();
     const obsNuevo = obsBase ? `${marker}\n${obsBase}` : marker;
 
@@ -1468,7 +1468,7 @@ function renderSugerenciaBanner(container, nombreSugerido, cliente) {
     <div class="sugerencia-nombre-banner">
       <span style="font-size:16px;flex-shrink:0">⚑</span>
       <div class="sugerencia-banner-body">
-        <strong>Anita sugiere corregir el nombre a:</strong>
+        <strong>Empleado sugiere corregir el nombre a:</strong>
         <span class="sugerencia-banner-nombre"> "${esc(nombreSugerido)}"</span>
       </div>
       <div class="sugerencia-banner-acciones">
@@ -1482,7 +1482,7 @@ function renderSugerenciaBanner(container, nombreSugerido, cliente) {
   });
 
   $('btn-descartar-sugerencia').addEventListener('click', async () => {
-    if (!confirm('¿Descartás la sugerencia de Anita?')) return;
+    if (!confirm('¿Descartás la sugerencia del empleado?')) return;
     const obsLimpio = (cliente.observaciones || '').replace(SUGERENCIA_REGEX, '').trim();
     try {
       const body = buildClienteBody(cliente, { observaciones: obsLimpio });
