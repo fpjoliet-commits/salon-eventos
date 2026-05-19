@@ -168,6 +168,49 @@ app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
+// Cuotas
+app.get('/api/cuotas/cliente/:idCliente', auth, async (req, res) => {
+  try { res.json(await sheets.getCuotasByCliente(req.params.idCliente)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/cuotas/plan', auth, async (req, res) => {
+  try {
+    const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio } = req.body;
+    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/cuotas/pagar', auth, async (req, res) => {
+  try {
+    const { rowIndices, fechaPago, notas } = req.body;
+    await sheets.pagarCuotas(rowIndices, fechaPago, notas);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/cuotas/ipc', auth, async (req, res) => {
+  try {
+    const { idCliente, porcentaje } = req.body;
+    res.json(await sheets.aplicarIPC(idCliente, porcentaje));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/cuotas/ajustar', auth, async (req, res) => {
+  try {
+    const { idCliente, nuevoValor } = req.body;
+    res.json(await sheets.ajustarValorCuotas(idCliente, nuevoValor));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
+  try {
+    await sheets.cancelarPlan(req.params.idCliente);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  sheets.initSheets();
 });

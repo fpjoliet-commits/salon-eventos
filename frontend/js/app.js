@@ -285,6 +285,7 @@ function openClienteModal(cliente) {
   renderClienteDetail(cliente);
   loadRestriccionesModal(cliente);
   renderPagosTab(cliente);
+  loadCuotasTab(cliente);
 
   showEl($('modal-overlay'));
 }
@@ -667,6 +668,255 @@ function openEditForm(cliente) {
   $('presupuesto-select').dispatchEvent(new Event('change'));
 
   navigateTo('nuevo-cliente');
+}
+
+/* ===================== CUOTAS ===================== */
+async function loadCuotasTab(cliente) {
+  const con = $('cuotas-content');
+  if (!con) return;
+  if (!canManagePagos()) {
+    con.innerHTML = '<p style="color:#999;font-size:13px;margin-top:12px">Solo Fabio y Mariana pueden gestionar el plan de pagos.</p>';
+    return;
+  }
+  con.innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';
+  try {
+    const cuotas = await apiFetch(`/cuotas/cliente/${cliente.id}`);
+    renderCuotas(cliente, cuotas);
+  } catch (e) {
+    con.innerHTML = `<p class="error-msg">${e.message}</p>`;
+  }
+}
+
+function renderCuotas(cliente, cuotas) {
+  const con = $('cuotas-content');
+  const pendientes = cuotas.filter(c => c.estado === 'pendiente');
+  const pagadas = cuotas.filter(c => c.estado === 'pagada');
+
+  if (!cuotas.length) {
+    con.innerHTML = `
+      <p style="color:#666;font-size:13px;margin-bottom:16px">No hay plan de pagos para este cliente.</p>
+      ${formCrearPlan(cliente.id)}`;
+    bindFormCrearPlan(cliente);
+    return;
+  }
+
+  const totalContrato = cuotas.reduce((s, c) => s + c.valorOriginal, 0);
+  const totalPagado = pagadas.reduce((s, c) => s + c.montoPagado, 0);
+  const saldoPendiente = pendientes.reduce((s, c) => s + c.valorActual, 0);
+  const valorCuotaActual = pendientes.length ? pendientes[0].valorActual : (pagadas[pagadas.length - 1]?.montoPagado || 0);
+
+  con.innerHTML = `
+    <div class="cuotas-resumen">
+      <div class="cuota-stat"><div class="cuota-stat-label">Contrato original</div><div class="cuota-stat-val">${formatMoney(totalContrato)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Total cobrado</div><div class="cuota-stat-val verde">${formatMoney(totalPagado)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Saldo pendiente</div><div class="cuota-stat-val ${saldoPendiente > 0 ? 'rojo' : 'verde'}">${formatMoney(saldoPendiente)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Valor cuota actual</div><div class="cuota-stat-val">${formatMoney(valorCuotaActual)}</div></div>
+    </div>
+
+    <div id="cuotas-acciones" class="cuotas-acciones">
+      ${pendientes.length ? `
+        <button class="btn btn-sm btn-secondary" id="btn-pagar-sel">✓ Marcar seleccionadas como pagadas</button>
+        <div class="ipc-inline">
+          <input type="number" id="ipc-pct" placeholder="IPC %" min="0" max="100" step="0.1" style="width:90px">
+          <button class="btn btn-sm btn-secondary" id="btn-ipc">Actualizar por IPC</button>
+          <button class="btn btn-sm btn-secondary" id="btn-ajustar-val">Fijar valor</button>
+          <input type="number" id="nuevo-valor" placeholder="Nuevo valor $" min="0" style="width:120px">
+        </div>
+      ` : ''}
+      ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
+    </div>
+
+    <div id="fecha-pago-row" class="hidden" style="margin:10px 0;display:flex;gap:10px;align-items:center">
+      <label style="font-size:13px;font-weight:600">Fecha del pago:</label>
+      <input type="date" id="fecha-pago-input" value="${new Date().toISOString().split('T')[0]}" style="width:160px">
+      <input type="text" id="notas-pago-input" placeholder="Notas (opcional)" style="flex:1">
+      <button class="btn btn-sm btn-primary" id="btn-confirmar-pago">Confirmar</button>
+      <button class="btn btn-sm btn-secondary" id="btn-cancelar-pago">Cancelar</button>
+    </div>
+
+    <div class="cuotas-lista">
+      ${cuotas.map(c => `
+        <div class="cuota-item cuota-${c.estado}" data-row="${c.rowIndex}">
+          ${c.estado === 'pendiente' ? `<input type="checkbox" class="cuota-check" data-row="${c.rowIndex}">` : '<span class="cuota-check-ph"></span>'}
+          <span class="cuota-num">Cuota ${c.numeroCuota}</span>
+          <span class="cuota-vence">${formatDateWithDay(c.fechaVencimiento)}</span>
+          <span class="cuota-valor">${formatMoney(c.valorActual)}</span>
+          <span class="cuota-badge cuota-badge-${c.estado}">${c.estado === 'pagada' ? `✓ Pagada ${formatDate(c.fechaPago)}` : 'Pendiente'}</span>
+          ${c.estado === 'pagada' && c.montoPagado ? `<span style="font-size:11px;color:#888">cobrado: ${formatMoney(c.montoPagado)}</span>` : ''}
+        </div>
+      `).join('')}
+    </div>
+
+    <div style="margin-top:20px;border-top:1px solid var(--gris-borde);padding-top:16px">
+      <p style="font-size:12px;color:#999;margin-bottom:10px">¿Necesitás agregar más cuotas al plan?</p>
+      ${formAgregarCuotas(cliente.id, cuotas.length)}
+    </div>
+  `;
+
+  bindCuotasAcciones(cliente, cuotas);
+}
+
+function formCrearPlan(idCliente) {
+  return `
+    <form id="form-crear-plan" class="cuotas-form">
+      <h4>Crear plan de pagos</h4>
+      <div class="form-grid small-grid">
+        <div class="form-group">
+          <label>Monto total del contrato</label>
+          <input type="number" id="plan-monto" min="0" required placeholder="600000">
+        </div>
+        <div class="form-group">
+          <label>Cantidad de cuotas</label>
+          <input type="number" id="plan-ncuotas" min="1" max="60" required placeholder="6">
+        </div>
+        <div class="form-group">
+          <label>Valor por cuota (opcional)</label>
+          <input type="number" id="plan-valor-cuota" min="0" placeholder="Se calcula automático">
+        </div>
+        <div class="form-group">
+          <label>Fecha 1° cuota</label>
+          <input type="date" id="plan-fecha" required value="${new Date().toISOString().split('T')[0]}">
+        </div>
+      </div>
+      <p id="plan-preview" style="font-size:13px;color:#555;margin:6px 0"></p>
+      <button type="submit" class="btn btn-primary btn-sm">Crear plan</button>
+    </form>`;
+}
+
+function formAgregarCuotas(idCliente, totalActual) {
+  return `
+    <form id="form-agregar-cuotas" class="cuotas-form" style="margin-top:0">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:12px">Agregar cuotas</label>
+          <input type="number" id="agregar-ncuotas" min="1" max="24" placeholder="Cantidad" style="width:100px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:12px">Valor c/u</label>
+          <input type="number" id="agregar-valor" min="0" placeholder="$" style="width:120px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:12px">Fecha 1°</label>
+          <input type="date" id="agregar-fecha" value="${new Date().toISOString().split('T')[0]}" style="width:150px">
+        </div>
+        <button type="submit" class="btn btn-sm btn-secondary">+ Agregar</button>
+      </div>
+    </form>`;
+}
+
+function bindFormCrearPlan(cliente) {
+  const updatePreview = () => {
+    const monto = parseFloat($('plan-monto')?.value) || 0;
+    const n = parseInt($('plan-ncuotas')?.value) || 0;
+    const valorCustom = parseFloat($('plan-valor-cuota')?.value) || 0;
+    if (monto && n) {
+      const v = valorCustom || Math.round(monto / n);
+      $('plan-preview').textContent = `→ ${n} cuotas de ${formatMoney(v)} c/u`;
+    } else {
+      $('plan-preview').textContent = '';
+    }
+  };
+  $('plan-monto')?.addEventListener('input', updatePreview);
+  $('plan-ncuotas')?.addEventListener('input', updatePreview);
+  $('plan-valor-cuota')?.addEventListener('input', updatePreview);
+
+  $('form-crear-plan')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      await apiFetch('/cuotas/plan', { method: 'POST', body: {
+        idCliente: cliente.id,
+        montoTotal: parseFloat($('plan-monto').value),
+        cantidadCuotas: parseInt($('plan-ncuotas').value),
+        valorCuota: parseFloat($('plan-valor-cuota').value) || null,
+        fechaInicio: $('plan-fecha').value,
+      }});
+      loadCuotasTab(cliente);
+    } catch (err) { alert(err.message); btn.disabled = false; }
+  });
+}
+
+function bindCuotasAcciones(cliente, cuotas) {
+  // Pagar seleccionadas
+  $('btn-pagar-sel')?.addEventListener('click', () => {
+    const checked = document.querySelectorAll('.cuota-check:checked');
+    if (!checked.length) { alert('Seleccioná al menos una cuota.'); return; }
+    const row = $('fecha-pago-row');
+    row.style.display = 'flex';
+    row.classList.remove('hidden');
+  });
+
+  $('btn-cancelar-pago')?.addEventListener('click', () => {
+    $('fecha-pago-row').style.display = 'none';
+    document.querySelectorAll('.cuota-check').forEach(c => { c.checked = false; });
+  });
+
+  $('btn-confirmar-pago')?.addEventListener('click', async () => {
+    const checked = [...document.querySelectorAll('.cuota-check:checked')];
+    if (!checked.length) return;
+    const rowIndices = checked.map(c => parseInt(c.dataset.row));
+    const fechaPago = $('fecha-pago-input').value;
+    const notas = $('notas-pago-input').value;
+    try {
+      await apiFetch('/cuotas/pagar', { method: 'PUT', body: { rowIndices, fechaPago, notas } });
+      loadCuotasTab(cliente);
+    } catch (err) { alert(err.message); }
+  });
+
+  // IPC
+  $('btn-ipc')?.addEventListener('click', async () => {
+    const pct = parseFloat($('ipc-pct').value);
+    if (!pct || pct <= 0) { alert('Ingresá un porcentaje válido.'); return; }
+    if (!confirm(`¿Aplicar ${pct}% de IPC a todas las cuotas pendientes?`)) return;
+    try {
+      const r = await apiFetch('/cuotas/ipc', { method: 'PUT', body: { idCliente: cliente.id, porcentaje: pct } });
+      alert(`IPC aplicado a ${r.updated} cuota(s).`);
+      loadCuotasTab(cliente);
+    } catch (err) { alert(err.message); }
+  });
+
+  // Ajustar valor fijo
+  $('btn-ajustar-val')?.addEventListener('click', async () => {
+    const val = parseFloat($('nuevo-valor').value);
+    if (!val || val <= 0) { alert('Ingresá el nuevo valor de cuota.'); return; }
+    if (!confirm(`¿Fijar ${formatMoney(val)} como valor de todas las cuotas pendientes?`)) return;
+    try {
+      const r = await apiFetch('/cuotas/ajustar', { method: 'PUT', body: { idCliente: cliente.id, nuevoValor: val } });
+      alert(`Valor actualizado en ${r.updated} cuota(s).`);
+      loadCuotasTab(cliente);
+    } catch (err) { alert(err.message); }
+  });
+
+  // Borrar plan (admin)
+  $('btn-reset-plan')?.addEventListener('click', async () => {
+    if (!confirm('¿Borrar todo el plan de pagos? Esta acción no se puede deshacer.')) return;
+    try {
+      await apiFetch(`/cuotas/plan/${cliente.id}`, { method: 'DELETE' });
+      loadCuotasTab(cliente);
+    } catch (err) { alert(err.message); }
+  });
+
+  // Agregar cuotas extra
+  $('form-agregar-cuotas')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const n = parseInt($('agregar-ncuotas').value);
+    const valor = parseFloat($('agregar-valor').value);
+    const fecha = $('agregar-fecha').value;
+    if (!n || !valor || !fecha) { alert('Completá todos los campos.'); return; }
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      await apiFetch('/cuotas/plan', { method: 'POST', body: {
+        idCliente: cliente.id,
+        montoTotal: valor * n,
+        cantidadCuotas: n,
+        valorCuota: valor,
+        fechaInicio: fecha,
+      }});
+      loadCuotasTab(cliente);
+    } catch (err) { alert(err.message); btn.disabled = false; }
+  });
 }
 
 /* ===================== SESSION RESTORE ===================== */

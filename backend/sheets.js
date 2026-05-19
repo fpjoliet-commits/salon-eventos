@@ -29,6 +29,7 @@ if (!tieneCredenciales) {
 let memClientes = [];
 let memIngresos = [];
 let memRestricciones = [];
+let memCuotas = [];
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -233,9 +234,212 @@ async function deleteRestriccion(rowIndex) {
   });
 }
 
+/* ===================== CUOTAS ===================== */
+// Columnas A-J: id, idCliente, numeroCuota, valorOriginal, valorActual,
+//               fechaVencimiento, estado, fechaPago, montoPagado, notas
+
+function rowToCuota(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    idCliente: row[1] || '',
+    numeroCuota: parseInt(row[2]) || 0,
+    valorOriginal: parseFloat(row[3]) || 0,
+    valorActual: parseFloat(row[4]) || 0,
+    fechaVencimiento: row[5] || '',
+    estado: row[6] || 'pendiente',
+    fechaPago: row[7] || '',
+    montoPagado: parseFloat(row[8]) || 0,
+    notas: row[9] || '',
+  };
+}
+
+function cuotaToRow(c) {
+  return [
+    c.id, c.idCliente, c.numeroCuota, c.valorOriginal, c.valorActual,
+    c.fechaVencimiento, c.estado, c.fechaPago || '', c.montoPagado || 0, c.notas || '',
+  ].map(v => (v !== undefined && v !== null) ? String(v) : '');
+}
+
+async function getCuotasByCliente(idCliente) {
+  if (!tieneCredenciales) {
+    return memCuotas.filter(c => c.idCliente === idCliente && c.estado !== 'cancelada');
+  }
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Cuotas!A2:J',
+  });
+  return (res.data.values || [])
+    .map((row, i) => rowToCuota(row, i))
+    .filter(c => c.idCliente === idCliente && c.estado !== 'cancelada');
+}
+
+async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio) {
+  // valorCuota puede venir explícito (si el usuario lo ajustó) o calculado
+  const valor = valorCuota || Math.round(montoTotal / cantidadCuotas);
+  const [y, m, d] = fechaInicio.split('-').map(Number);
+  const cuotas = [];
+  for (let i = 0; i < cantidadCuotas; i++) {
+    const fecha = new Date(y, m - 1 + i, d);
+    const fv = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`;
+    cuotas.push({
+      id: generateId('CUO'),
+      idCliente,
+      numeroCuota: i + 1,
+      valorOriginal: valor,
+      valorActual: valor,
+      fechaVencimiento: fv,
+      estado: 'pendiente',
+      fechaPago: '',
+      montoPagado: 0,
+      notas: '',
+    });
+  }
+  if (!tieneCredenciales) {
+    cuotas.forEach(c => { c.rowIndex = memCuotas.length + 2; memCuotas.push(c); });
+    return cuotas;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Cuotas!A:J',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: cuotas.map(cuotaToRow) },
+  });
+  return cuotas;
+}
+
+async function pagarCuotas(rowIndices, fechaPago, notas) {
+  if (!tieneCredenciales) {
+    rowIndices.forEach(ri => {
+      const idx = memCuotas.findIndex(c => c.rowIndex === ri);
+      if (idx !== -1) {
+        memCuotas[idx].estado = 'pagada';
+        memCuotas[idx].fechaPago = fechaPago;
+        memCuotas[idx].montoPagado = memCuotas[idx].valorActual;
+        memCuotas[idx].notas = notas || '';
+      }
+    });
+    return;
+  }
+  const sheets = getSheets();
+  // Leer valorActual actual de cada cuota para guardarlo como montoPagado
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Cuotas!A2:J',
+  });
+  const rows = res.data.values || [];
+  const data = rowIndices.map(ri => {
+    const row = rows[ri - 2] || [];
+    const valorActual = parseFloat(row[4]) || 0;
+    return {
+      range: `Cuotas!G${ri}:J${ri}`,
+      values: [['pagada', fechaPago, valorActual, notas || '']],
+    };
+  });
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: { valueInputOption: 'USER_ENTERED', data },
+  });
+}
+
+async function aplicarIPC(idCliente, porcentaje) {
+  const cuotas = await getCuotasByCliente(idCliente);
+  const pendientes = cuotas.filter(c => c.estado === 'pendiente');
+  if (!pendientes.length) return { updated: 0 };
+  if (!tieneCredenciales) {
+    pendientes.forEach(c => {
+      const idx = memCuotas.findIndex(mc => mc.rowIndex === c.rowIndex);
+      if (idx !== -1) memCuotas[idx].valorActual = Math.round(c.valorActual * (1 + porcentaje / 100));
+    });
+    return { updated: pendientes.length };
+  }
+  const sheets = getSheets();
+  const data = pendientes.map(c => ({
+    range: `Cuotas!E${c.rowIndex}`,
+    values: [[Math.round(c.valorActual * (1 + porcentaje / 100))]],
+  }));
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: { valueInputOption: 'USER_ENTERED', data },
+  });
+  return { updated: pendientes.length };
+}
+
+async function ajustarValorCuotas(idCliente, nuevoValor) {
+  const cuotas = await getCuotasByCliente(idCliente);
+  const pendientes = cuotas.filter(c => c.estado === 'pendiente');
+  if (!pendientes.length) return { updated: 0 };
+  if (!tieneCredenciales) {
+    pendientes.forEach(c => {
+      const idx = memCuotas.findIndex(mc => mc.rowIndex === c.rowIndex);
+      if (idx !== -1) memCuotas[idx].valorActual = nuevoValor;
+    });
+    return { updated: pendientes.length };
+  }
+  const sheets = getSheets();
+  const data = pendientes.map(c => ({
+    range: `Cuotas!E${c.rowIndex}`,
+    values: [[nuevoValor]],
+  }));
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: { valueInputOption: 'USER_ENTERED', data },
+  });
+  return { updated: pendientes.length };
+}
+
+async function cancelarPlan(idCliente) {
+  const cuotas = await getCuotasByCliente(idCliente);
+  if (!cuotas.length) return;
+  if (!tieneCredenciales) {
+    cuotas.forEach(c => {
+      const idx = memCuotas.findIndex(mc => mc.rowIndex === c.rowIndex);
+      if (idx !== -1) memCuotas[idx].estado = 'cancelada';
+    });
+    return;
+  }
+  const sheets = getSheets();
+  const data = cuotas.map(c => ({
+    range: `Cuotas!G${c.rowIndex}`,
+    values: [['cancelada']],
+  }));
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: { valueInputOption: 'USER_ENTERED', data },
+  });
+}
+
+async function initSheets() {
+  if (!tieneCredenciales) return;
+  try {
+    const sheets = getSheets();
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const existing = spreadsheet.data.sheets.map(s => s.properties.title);
+    if (!existing.includes('Cuotas')) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        resource: { requests: [{ addSheet: { properties: { title: 'Cuotas' } } }] },
+      });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'Cuotas!A1:J1',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas']] },
+      });
+      console.log('✅ Hoja "Cuotas" creada automáticamente.');
+    }
+  } catch (e) {
+    console.error('Error en initSheets:', e.message);
+  }
+}
+
 module.exports = {
   getClientes, addCliente, updateCliente,
   getIngresos, addIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
+  getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, ajustarValorCuotas, cancelarPlan,
+  initSheets,
   tieneCredenciales,
 };
