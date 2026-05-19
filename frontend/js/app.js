@@ -7,6 +7,7 @@ let token = null;
 let allClientes = [];
 let allIngresos = [];
 let currentClienteModal = null;
+let calYear, calMonth;
 
 /* ===================== UTILS ===================== */
 const $ = id => document.getElementById(id);
@@ -20,6 +21,17 @@ function formatDate(str) {
   if (str.includes('-') && str.length === 10) {
     const [y, m, d] = str.split('-');
     return `${d}/${m}/${y}`;
+  }
+  return str;
+}
+
+const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function formatDateWithDay(str) {
+  if (!str) return '—';
+  if (str.includes('-') && str.length === 10) {
+    const [y, m, d] = str.split('-');
+    const dia = DIAS[new Date(+y, +m - 1, +d).getDay()];
+    return `${d}/${m}/${y} — ${dia}`;
   }
   return str;
 }
@@ -83,6 +95,7 @@ function clearSession() {
 }
 
 function isAdmin() { return currentUser?.role === 'admin'; }
+function canManagePagos() { return isAdmin() || currentUser?.usuario === 'Mariana'; }
 
 // Usuarios sin contraseña
 const USUARIOS_SIN_PASSWORD = ['Anita'];
@@ -209,7 +222,7 @@ function renderClientes(clientes) {
       <td><strong>${c.apellidoNombre || '—'}</strong></td>
       <td>${c.telefono || '—'}</td>
       <td>${c.tipoEvento || '—'}</td>
-      <td>${formatDate(c.fechaEvento)}</td>
+      <td>${formatDateWithDay(c.fechaEvento)}</td>
       <td>${estadoBadge(c.estado)}</td>
       <td class="${segClass}">${formatDate(c.proximoSeguimiento)}</td>
       <td>${c.origen || '—'}</td>
@@ -297,7 +310,7 @@ function renderClienteDetail(c) {
     <div class="detail-item"><span class="detail-label">Gmail</span><span class="detail-value">${c.gmail || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Tipo de evento</span><span class="detail-value">${c.tipoEvento || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Formato</span><span class="detail-value">${c.formato || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Fecha del evento</span><span class="detail-value">${formatDate(c.fechaEvento)}</span></div>
+    <div class="detail-item"><span class="detail-label">Fecha del evento</span><span class="detail-value">${formatDateWithDay(c.fechaEvento)}</span></div>
     <div class="detail-item"><span class="detail-label">Estado de la fecha</span><span class="detail-value">${c.estadoFecha || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Invitados</span><span class="detail-value">${c.cantidadInvitados || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Turno</span><span class="detail-value">${c.turno || '—'}</span></div>
@@ -376,12 +389,23 @@ function renderPagosTab(cliente) {
   $('pago-fecha').value = new Date().toISOString().split('T')[0];
   hide('pago-error'); hide('pago-success');
 
-  const adminContent = $('pagos-admin-content');
   if (isAdmin()) {
-    showEl(adminContent);
+    showEl($('pagos-admin-content'));
     loadPagosCliente(cliente);
   } else {
-    hideEl(adminContent);
+    hideEl($('pagos-admin-content'));
+  }
+
+  if (canManagePagos()) {
+    showEl($('pago-form'));
+  } else {
+    hideEl($('pago-form'));
+    $('tab-pagos').querySelector('.no-access-msg')?.remove();
+    const msg = document.createElement('p');
+    msg.className = 'no-access-msg';
+    msg.style.cssText = 'color:#999;font-size:13px;margin-top:12px';
+    msg.textContent = 'Solo Fabio y Mariana pueden registrar pagos.';
+    $('tab-pagos').appendChild(msg);
   }
 }
 
@@ -474,33 +498,69 @@ function renderIngresos(ingresos) {
 
 /* ===================== CALENDARIO ===================== */
 function loadCalendario() {
-  const con = $('calendario-container');
-  const eventos = allClientes
-    .filter(c => c.fechaEvento && c.estado !== 'Cancelado')
-    .sort((a, b) => new Date(a.fechaEvento) - new Date(b.fechaEvento));
+  if (calYear === undefined) {
+    const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth();
+  }
+  renderCalendario();
+}
 
-  if (!eventos.length) {
-    con.innerHTML = '<p class="empty-msg">No hay eventos agendados.</p>';
-    return;
+function renderCalendario() {
+  const con = $('calendario-container');
+  const MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+  const eventMap = {};
+  allClientes.filter(c => c.fechaEvento && c.estado !== 'Cancelado').forEach(c => {
+    if (!eventMap[c.fechaEvento]) eventMap[c.fechaEvento] = [];
+    eventMap[c.fechaEvento].push(c);
+  });
+
+  const firstDay = new Date(calYear, calMonth, 1);
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  let startDow = firstDay.getDay();
+  startDow = startDow === 0 ? 6 : startDow - 1;
+
+  const t = new Date();
+  const todayStr = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+
+  const pillClass = {
+    'Confirmado': 'cal-pill-confirmado',
+    'Visita agendada': 'cal-pill-visita',
+    'Por cerrar': 'cal-pill-cerrar',
+    'Consulta': 'cal-pill-consulta',
+    'Realizado': 'cal-pill-realizado',
+  };
+
+  let cells = '';
+  for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-cell-empty"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = ds === todayStr;
+    const evs = eventMap[ds] || [];
+    cells += `<div class="cal-cell${isToday ? ' cal-cell-today' : ''}">
+      <span class="cal-cell-num${isToday ? ' cal-num-today' : ''}">${d}</span>
+      ${evs.map(c => `<div class="cal-pill ${pillClass[c.estado] || ''}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${c.apellidoNombre}${c.tipoEvento ? ' — '+c.tipoEvento : ''}${c.turno ? ' · '+c.turno : ''}">${c.apellidoNombre}</div>`).join('')}
+    </div>`;
   }
 
   con.innerHTML = `
-    <p style="color:#666;margin-bottom:16px">Próximos ${eventos.length} eventos agendados</p>
-    <div class="cal-grid">
-      ${eventos.map(c => `
-        <div class="cal-event-card" onclick="openClienteModal(window._cmap['${c.id}'])">
-          <div class="cal-event-date">${formatDate(c.fechaEvento)} · ${c.turno || ''}</div>
-          <div class="cal-event-nombre">${c.apellidoNombre}</div>
-          <div class="cal-event-tipo">${c.tipoEvento || '—'} · ${c.cantidadInvitados || '?'} inv.</div>
-          <div style="margin-top:6px">${estadoBadge(c.estado)}</div>
-        </div>
-      `).join('')}
+    <div class="cal-nav">
+      <button class="btn btn-secondary btn-sm" id="cal-prev">&#8249;</button>
+      <span class="cal-month-label">${MES[calMonth]} ${calYear}</span>
+      <button class="btn btn-secondary btn-sm" id="cal-next">&#8250;</button>
+      <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
     </div>
-  `;
+    <div class="cal-month-grid">
+      ${DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')}
+      ${cells}
+    </div>`;
 
-  // Map para acceso desde onclick
   window._cmap = {};
   allClientes.forEach(c => { window._cmap[c.id] = c; });
+
+  $('cal-prev').addEventListener('click', () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendario(); });
+  $('cal-next').addEventListener('click', () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendario(); });
+  $('cal-today').addEventListener('click', () => { const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth(); renderCalendario(); });
 }
 
 /* ===================== FORM CLIENTE ===================== */

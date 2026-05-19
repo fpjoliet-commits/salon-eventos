@@ -249,16 +249,23 @@ textarea { resize: vertical; min-height: 70px; }
 
 /* ===================== CALENDARIO ===================== */
 #calendario-container { background: var(--blanco); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
-.cal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
-.cal-event-card {
-  border-left: 4px solid var(--rosa); background: var(--blanco);
-  border-radius: 8px; padding: 14px 16px; box-shadow: var(--shadow);
-  cursor: pointer; transition: transform .15s;
-}
-.cal-event-card:hover { transform: translateY(-2px); }
-.cal-event-date { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--rosa); margin-bottom: 4px; }
-.cal-event-nombre { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
-.cal-event-tipo { font-size: 12px; color: var(--gris-texto); }
+.cal-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.cal-month-label { flex: 1; text-align: center; font-size: 20px; font-weight: 700; color: var(--rosa-oscuro); }
+.cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--gris-borde); border-radius: 8px; overflow: hidden; }
+.cal-dow { background: var(--rosa-oscuro); color: #fff; text-align: center; padding: 8px 4px; font-size: 12px; font-weight: 600; }
+.cal-cell { border-right: 1px solid var(--gris-borde); border-bottom: 1px solid var(--gris-borde); min-height: 90px; padding: 6px; background: #fff; overflow: hidden; }
+.cal-cell:nth-child(7n+8) { border-right: none; }
+.cal-cell-empty { background: var(--gris-bg); }
+.cal-cell-today { background: #fff8fb; }
+.cal-cell-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; font-size: 13px; font-weight: 600; margin-bottom: 3px; border-radius: 50%; }
+.cal-num-today { background: var(--rosa); color: #fff; }
+.cal-pill { display: block; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-pill:hover { opacity: 0.8; }
+.cal-pill-confirmado { background: #d5f5e3; color: #1a5632; }
+.cal-pill-visita { background: #d6eaf8; color: #1a5276; }
+.cal-pill-cerrar { background: #fdebd0; color: #784212; }
+.cal-pill-consulta { background: #fef9e7; color: #7d6608; }
+.cal-pill-realizado { background: #eaecee; color: #566573; }
 
 /* ===================== SEGUIMIENTO ALERTA ===================== */
 .seguimiento-urgente { color: var(--rojo); font-weight: 700; }
