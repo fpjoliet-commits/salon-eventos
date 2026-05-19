@@ -772,14 +772,19 @@ async function migrarClientesAPersonasEventos() {
   const rows = (res.data.values || []).filter(r => r[0]); // filtra filas con id
   if (!rows.length) return { migradas: 0, msg: 'Hoja Clientes vacía o no existe.' };
 
-  // Verificar que Personas y Eventos estén vacíos para no duplicar
-  const [pRes, eRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:A' }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:A' }),
-  ]);
-  if ((pRes.data.values || []).length > 0 || (eRes.data.values || []).length > 0) {
-    throw new Error('Personas o Eventos ya tienen datos. Migración cancelada para evitar duplicados.');
+  // Solo bloquear si Eventos ya tiene datos (migración ya ejecutada)
+  const eRes = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:A',
+  });
+  const eventosConId = (eRes.data.values || []).filter(r => r[0]?.trim());
+  if (eventosConId.length > 0) {
+    throw new Error('La migración ya fue ejecutada (Eventos tiene datos). Si necesitás re-migrar, vaciá las hojas Personas y Eventos desde Google Sheets primero.');
   }
+
+  // Si Personas tiene datos de un intento previo, limpiarla antes de volver a poblar
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K',
+  });
 
   // Old Clientes columns (0-indexed):
   // 0:id 1:estado 2:cargadoPor 3:fechaCarga 4:apellidoNombre 5:telefono 6:gmail
