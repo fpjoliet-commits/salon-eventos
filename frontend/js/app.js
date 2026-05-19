@@ -575,14 +575,14 @@ function cargarEventosAnteriores(cliente) {
 }
 
 function abrirNuevoEventoParaPersona(clienteBase) {
-  // Guarda la persona en los hidden inputs y navega al form
+  const form = $('cliente-form');
+  form.reset();
+
+  // Setear hidden inputs DESPUÉS del reset para que no los borre
   $('edit-row-index').value = '';
   $('edit-cliente-id').value = '';
   $('edit-persona-id').value = clienteBase.personaId || '';
   $('edit-persona-row-index').value = clienteBase.personaRowIndex || '';
-
-  const form = $('cliente-form');
-  form.reset();
 
   // Pre-fill datos de persona (solo lectura semántica, el usuario puede cambiarlos)
   const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
@@ -608,6 +608,7 @@ function abrirNuevoEventoParaPersona(clienteBase) {
   $('form-titulo').textContent = 'Nuevo evento — ' + (clienteBase.apellidoNombre || 'mismo cliente');
   $('tipo-cliente-select').dispatchEvent(new Event('change'));
   $('presupuesto-select').dispatchEvent(new Event('change'));
+  actualizarCampoAgasajado();
   navigateTo('nuevo-cliente');
 }
 
@@ -618,6 +619,7 @@ function renderClienteDetail(c) {
     <div class="detail-item"><span class="detail-label">Teléfono</span><span class="detail-value">${c.telefono || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Gmail</span><span class="detail-value">${c.gmail || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Tipo de evento</span><span class="detail-value">${c.tipoEvento || '—'}</span></div>
+    ${c.nombreAgasajado ? `<div class="detail-item"><span class="detail-label">Agasajad@</span><span class="detail-value" style="font-weight:600">${esc(c.nombreAgasajado)}</span></div>` : ''}
     <div class="detail-item"><span class="detail-label">Formato</span><span class="detail-value">${c.formato || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Fecha del evento</span><span class="detail-value">${formatDateWithDay(c.fechaEvento)}</span></div>
     <div class="detail-item"><span class="detail-label">Estado de la fecha</span><span class="detail-value">${c.estadoFecha || '—'}</span></div>
@@ -1114,6 +1116,32 @@ $('tipo-cliente-select').addEventListener('change', () => {
   $('excliente-nota-group').style.display = v === 'Excliente' ? '' : 'none';
 });
 
+const AGASAJADO_LABELS = {
+  'Boda': 'Nombre de los novios',
+  'XV años': 'Nombre de la quinceañera',
+  'Bautismo': 'Nombre del/la bautizad@',
+  'Comunión': 'Nombre del/la comulgante',
+  'Egresados': 'Nombre del curso / egresados',
+};
+const TIPOS_SIN_AGASAJADO = ['Corporativo', 'Otro', ''];
+
+document.querySelector('[name="tipoEvento"]')?.addEventListener('change', actualizarCampoAgasajado);
+
+function actualizarCampoAgasajado() {
+  const tipo = document.querySelector('[name="tipoEvento"]')?.value || '';
+  const grupo = $('agasajado-group');
+  const label = $('agasajado-label');
+  if (!grupo) return;
+  if (TIPOS_SIN_AGASAJADO.includes(tipo)) {
+    grupo.style.display = 'none';
+    return;
+  }
+  let lbl = AGASAJADO_LABELS[tipo];
+  if (!lbl) lbl = tipo.startsWith('Cumpleaños') ? 'Nombre del/la festejad@' : 'Nombre del/la agasajad@';
+  label.textContent = lbl;
+  grupo.style.display = '';
+}
+
 $('presupuesto-select').addEventListener('change', () => {
   $('monto-group').style.display = $('presupuesto-select').value === 'Sí, tiene monto' ? '' : 'none';
 });
@@ -1228,6 +1256,23 @@ $('cliente-form').addEventListener('submit', async e => {
   const rowIndex = $('edit-row-index').value;
   const isEdit = !!rowIndex;
 
+  // Validar: gmail obligatorio y único para personas nuevas
+  const personaIdExistente = $('edit-persona-id').value;
+  if (!personaIdExistente && !isEdit) {
+    const gmail = (form.gmail.value || '').trim().toLowerCase();
+    if (!gmail) {
+      $('form-error').textContent = 'El Gmail es obligatorio para registrar un nuevo cliente.';
+      show('form-error');
+      return;
+    }
+    const duplicado = allPersonas.find(p => p.gmail && p.gmail.toLowerCase() === gmail);
+    if (duplicado) {
+      $('form-error').textContent = `Ya existe un cliente con ese Gmail: "${duplicado.apellidoNombre}". Buscalo en el campo de búsqueda de arriba ("¿Es un cliente que ya consultó antes?") para cargarle un nuevo evento.`;
+      show('form-error');
+      return;
+    }
+  }
+
   // Validar: no se puede reservar fecha sin seña
   if (form.estadoFecha.value === 'Reservada') {
     if (!isEdit) {
@@ -1298,6 +1343,7 @@ $('cliente-form').addEventListener('submit', async e => {
     menuPrimerPlato: form.menuPrimerPlato.value,
     menuPrincipal: form.menuPrincipal.value,
     menuPostre: form.menuPostre.value,
+    nombreAgasajado: form.nombreAgasajado.value,
     cargadoPor: currentUser.usuario,
   };
 
@@ -1360,9 +1406,11 @@ function openEditForm(cliente) {
   setVal('menuPrimerPlato', cliente.menuPrimerPlato);
   setVal('menuPrincipal', cliente.menuPrincipal);
   setVal('menuPostre', cliente.menuPostre);
+  setVal('nombreAgasajado', cliente.nombreAgasajado);
 
   $('tipo-cliente-select').dispatchEvent(new Event('change'));
   $('presupuesto-select').dispatchEvent(new Event('change'));
+  document.querySelector('[name="tipoEvento"]')?.dispatchEvent(new Event('change'));
   navigateTo('nuevo-cliente');
 }
 
@@ -1692,6 +1740,7 @@ function buildClienteBody(c, overrides = {}) {
     menuPrimerPlato: c.menuPrimerPlato,
     menuPrincipal: c.menuPrincipal,
     menuPostre: c.menuPostre,
+    nombreAgasajado: c.nombreAgasajado,
     cargadoPor: c.cargadoPor,
     fechaCarga: c.fechaCarga,
     ...overrides,

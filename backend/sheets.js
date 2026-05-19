@@ -75,11 +75,12 @@ function personaToRow(p) {
 }
 
 /* ===================== EVENTOS ===================== */
-// Columnas A-V: id, personaId, estado, cargadoPor, fechaCarga, tipoEvento,
+// Columnas A-W: id, personaId, estado, cargadoPor, fechaCarga, tipoEvento,
 //               formato, fechaEvento, estadoFecha, cantidadInvitados, turno,
 //               presupuesto, montoPresupuesto, menuInfantil, otrosPedidos,
 //               observaciones, proximoSeguimiento,
-//               menuRecepcion, menuIslas, menuPrimerPlato, menuPrincipal, menuPostre
+//               menuRecepcion, menuIslas, menuPrimerPlato, menuPrincipal, menuPostre,
+//               nombreAgasajado
 
 function rowToEvento(row, index) {
   return {
@@ -106,6 +107,7 @@ function rowToEvento(row, index) {
     menuPrimerPlato: row[19] || '',
     menuPrincipal: row[20] || '',
     menuPostre: row[21] || '',
+    nombreAgasajado: row[22] || '',
   };
 }
 
@@ -116,6 +118,7 @@ function eventoToRow(e) {
     e.cantidadInvitados, e.turno, e.presupuesto, e.montoPresupuesto,
     e.menuInfantil, e.otrosPedidos, e.observaciones, e.proximoSeguimiento,
     e.menuRecepcion, e.menuIslas, e.menuPrimerPlato, e.menuPrincipal, e.menuPostre,
+    e.nombreAgasajado,
   ].map(v => v || '');
 }
 
@@ -203,7 +206,7 @@ async function getClientes() {
   }
   const sheets = getSheets();
   const [evRes, perRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:V' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:W' }),
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K' }),
   ]);
   const personas = (perRes.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
@@ -262,6 +265,7 @@ async function addCliente(data) {
     menuPrimerPlato: data.menuPrimerPlato,
     menuPrincipal: data.menuPrincipal,
     menuPostre: data.menuPostre,
+    nombreAgasajado: data.nombreAgasajado,
   };
 
   if (!tieneCredenciales) {
@@ -278,7 +282,7 @@ async function addCliente(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Eventos!A:V',
+    range: 'Eventos!A:W',
     valueInputOption: 'USER_ENTERED',
     resource: { values: [eventoToRow(evento)] },
   });
@@ -302,7 +306,7 @@ async function updateCliente(rowIndex, data) {
         observaciones: data.observaciones, proximoSeguimiento: data.proximoSeguimiento,
         menuRecepcion: data.menuRecepcion, menuIslas: data.menuIslas,
         menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
-        menuPostre: data.menuPostre,
+        menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
       };
     }
     if (data.personaRowIndex) {
@@ -331,13 +335,13 @@ async function updateCliente(rowIndex, data) {
     observaciones: data.observaciones, proximoSeguimiento: data.proximoSeguimiento,
     menuRecepcion: data.menuRecepcion, menuIslas: data.menuIslas,
     menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
-    menuPostre: data.menuPostre,
+    menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
   };
 
   const ops = [
     sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Eventos!A${rowIndex}:V${rowIndex}`,
+      range: `Eventos!A${rowIndex}:W${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [eventoToRow(eventoData)] },
     }),
@@ -753,9 +757,9 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Eventos!A${rowIndex}:V${rowIndex}`,
+    range: `Eventos!A${rowIndex}:W${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(22).fill('')] },
+    resource: { values: [Array(23).fill('')] },
   });
 }
 
