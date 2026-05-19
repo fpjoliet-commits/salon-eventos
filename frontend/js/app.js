@@ -866,10 +866,18 @@ function renderCuotas(cliente, cuotas) {
       ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
     </div>
 
-    <div id="fecha-pago-row" class="hidden" style="margin:10px 0;display:flex;gap:10px;align-items:center">
-      <label style="font-size:13px;font-weight:600">Fecha del pago:</label>
-      <input type="date" id="fecha-pago-input" value="${new Date().toISOString().split('T')[0]}" style="width:160px">
-      <input type="text" id="notas-pago-input" placeholder="Notas (opcional)" style="flex:1">
+    <div id="fecha-pago-row" class="hidden" style="margin:10px 0;flex-wrap:wrap;display:flex;gap:10px;align-items:center">
+      <label style="font-size:13px;font-weight:600">Fecha:</label>
+      <input type="date" id="fecha-pago-input" value="${new Date().toISOString().split('T')[0]}" style="width:150px">
+      <select id="forma-pago-cuota" style="width:150px">
+        <option value="">Forma de pago...</option>
+        <option>Efectivo</option>
+        <option>Transferencia</option>
+        <option>Cheque</option>
+        <option>Mercado Pago</option>
+        <option>Otro</option>
+      </select>
+      <input type="text" id="notas-pago-input" placeholder="Notas (opcional)" style="flex:1;min-width:120px">
       <button class="btn btn-sm btn-primary" id="btn-confirmar-pago">Confirmar</button>
       <button class="btn btn-sm btn-secondary" id="btn-cancelar-pago">Cancelar</button>
     </div>
@@ -877,7 +885,7 @@ function renderCuotas(cliente, cuotas) {
     <div class="cuotas-lista">
       ${cuotas.map(c => `
         <div class="cuota-item cuota-${c.estado}" data-row="${c.rowIndex}">
-          ${c.estado === 'pendiente' ? `<input type="checkbox" class="cuota-check" data-row="${c.rowIndex}">` : '<span class="cuota-check-ph"></span>'}
+          ${c.estado === 'pendiente' ? `<input type="checkbox" class="cuota-check" data-row="${c.rowIndex}" data-valor="${c.valorActual}" data-num="${c.numeroCuota}">` : '<span class="cuota-check-ph"></span>'}
           <span class="cuota-num">Cuota ${c.numeroCuota}</span>
           <span class="cuota-vence">${formatDateWithDay(c.fechaVencimiento)}</span>
           <span class="cuota-valor">${formatMoney(c.valorActual)}</span>
@@ -996,10 +1004,20 @@ function bindCuotasAcciones(cliente, cuotas) {
     const checked = [...document.querySelectorAll('.cuota-check:checked')];
     if (!checked.length) return;
     const rowIndices = checked.map(c => parseInt(c.dataset.row));
+    const numeros = checked.map(c => c.dataset.num);
+    const montoTotal = checked.reduce((s, c) => s + (parseFloat(c.dataset.valor) || 0), 0);
+    const descripcion = `Cuota${numeros.length > 1 ? 's' : ''} ${numeros.join(', ')}`;
     const fechaPago = $('fecha-pago-input').value;
+    const formaPago = $('forma-pago-cuota').value;
     const notas = $('notas-pago-input').value;
     try {
-      await apiFetch('/cuotas/pagar', { method: 'PUT', body: { rowIndices, fechaPago, notas } });
+      await apiFetch('/cuotas/pagar', { method: 'PUT', body: {
+        rowIndices, fechaPago, notas,
+        idCliente: cliente.id,
+        formaPago,
+        montoTotal,
+        descripcion,
+      }});
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); }
   });

@@ -183,8 +183,18 @@ app.post('/api/cuotas/plan', auth, async (req, res) => {
 
 app.put('/api/cuotas/pagar', auth, async (req, res) => {
   try {
-    const { rowIndices, fechaPago, notas } = req.body;
+    const { rowIndices, fechaPago, notas, idCliente, formaPago, montoTotal, descripcion } = req.body;
     await sheets.pagarCuotas(rowIndices, fechaPago, notas);
+    if (idCliente && montoTotal > 0) {
+      await sheets.addIngreso({
+        idCliente,
+        tipoIngreso: descripcion || 'Cuota',
+        monto: montoTotal,
+        fecha: fechaPago,
+        formaPago: formaPago || '',
+        notas: notas || '',
+      });
+    }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
