@@ -958,6 +958,122 @@ textarea { resize: vertical; min-height: 70px; }
   .view-header h2 { font-size: 28px; }
 }
 
+/* ===================== NOMBRE — EDICIÓN / SUGERENCIA ===================== */
+.modal-nombre-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.modal-nombre-wrap h3 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Lápiz / bandera — botón icónico sutil */
+.btn-nombre-icono {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color .14s, background .14s;
+}
+.btn-nombre-icono:hover {
+  color: var(--text-primary);
+  background: var(--cream);
+}
+.btn-nombre-icono.sugerir-icon { color: var(--gold); }
+.btn-nombre-icono.sugerir-icon:hover { color: var(--warning); background: var(--gold-light); }
+
+/* Estado "ya sugeriste" para Anita */
+.nombre-sugerida-tag {
+  font-size: 10.5px;
+  color: var(--gold);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  flex-shrink: 1;
+}
+
+/* Input inline de edición de nombre (Fabio/Mariana) */
+.nombre-edit-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.nombre-edit-inline input {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
+  padding: 5px 10px;
+  flex: 1;
+  min-width: 0;
+  border-color: var(--gold);
+  background: var(--cream);
+}
+
+/* Formulario sugerencia (Anita) */
+.sugerir-nombre-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.sugerir-nombre-form .sugerir-arrow {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sugerir-nombre-form input {
+  font-size: 13.5px;
+  flex: 1;
+  min-width: 0;
+  border-color: var(--gold);
+}
+
+/* Banner de sugerencia pendiente (visible para Fabio/Mariana) */
+.sugerencia-nombre-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gold-light);
+  border: 1px solid var(--gold-border);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.sugerencia-banner-body {
+  flex: 1;
+  font-size: 13px;
+  min-width: 180px;
+  color: var(--text-secondary);
+}
+.sugerencia-banner-nombre {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.sugerencia-banner-acciones {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 /* ===================== SCROLLBAR ===================== */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

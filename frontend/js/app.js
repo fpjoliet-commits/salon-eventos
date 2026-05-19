@@ -27,6 +27,13 @@ function formatDate(str) {
 }
 
 const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+
+// Marcador para sugerencias de Anita almacenadas en observaciones
+const SUGERENCIA_REGEX = /\[SUGERENCIA_NOMBRE: "([^"]+)" · Anita · [^\]]+\]\n?/;
+
+function esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function formatDateWithDay(str) {
   if (!str) return '—';
   if (str.includes('-') && str.length === 10) {
@@ -97,6 +104,7 @@ function clearSession() {
 
 function isAdmin() { return currentUser?.role === 'admin'; }
 function canManagePagos() { return isAdmin() || currentUser?.usuario === 'Mariana'; }
+function canEditNombre() { return canManagePagos(); }
 
 // Usuarios sin contraseña
 const USUARIOS_SIN_PASSWORD = ['Anita'];
@@ -323,10 +331,14 @@ $('filter-evento').addEventListener('change', applyFilters);
 /* ===================== MODAL CLIENTE ===================== */
 function openClienteModal(cliente, tabInicial = 'info') {
   currentClienteModal = cliente;
-  $('modal-titulo').textContent = cliente.apellidoNombre || 'Cliente';
+
+  // Restaurar header si estaba en modo edición
+  const wrap = document.querySelector('.modal-nombre-wrap');
+  wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
 
   activateTab(tabInicial);
   renderClienteDetail(cliente);
+  injectNombreAcciones(cliente);
   loadRestriccionesModal(cliente);
   renderPagosTab(cliente);
   loadCuotasTab(cliente);
@@ -373,8 +385,8 @@ function renderClienteDetail(c) {
     <div class="detail-item"><span class="detail-label">Fecha de carga</span><span class="detail-value">${formatDate(c.fechaCarga)}</span></div>
     ${c.exclienteReferencia ? `<div class="detail-item"><span class="detail-label">Ex-cliente ref.</span><span class="detail-value">${c.exclienteReferencia}</span></div>` : ''}
     ${c.exclienteNota ? `<div class="detail-item"><span class="detail-label">Ex-cliente nota</span><span class="detail-value">${c.exclienteNota}</span></div>` : ''}
-    ${c.otrosPedidos ? `<div class="detail-item detail-full"><span class="detail-label">Otros pedidos</span><span class="detail-value">${c.otrosPedidos}</span></div>` : ''}
-    ${c.observaciones ? `<div class="detail-item detail-full"><span class="detail-label">Observaciones</span><span class="detail-value">${c.observaciones}</span></div>` : ''}
+    ${c.otrosPedidos ? `<div class="detail-item detail-full"><span class="detail-label">Otros pedidos</span><span class="detail-value">${esc(c.otrosPedidos)}</span></div>` : ''}
+    ${(c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim() ? `<div class="detail-item detail-full"><span class="detail-label">Observaciones</span><span class="detail-value">${esc((c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim())}</span></div>` : ''}
   `;
 }
 
@@ -1204,6 +1216,251 @@ function bindCuotasAcciones(cliente, cuotas) {
       }});
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); btn.disabled = false; }
+  });
+}
+
+/* ===================== CORRECCIÓN DE NOMBRE ===================== */
+
+// Construye el body completo para un PUT de cliente, con overrides opcionales
+function buildClienteBody(c, overrides = {}) {
+  return {
+    id: c.id,
+    estado: c.estado,
+    apellidoNombre: c.apellidoNombre,
+    telefono: c.telefono,
+    gmail: c.gmail,
+    redSocial: c.redSocial,
+    tipoEvento: c.tipoEvento,
+    formato: c.formato,
+    fechaEvento: c.fechaEvento,
+    estadoFecha: c.estadoFecha,
+    cantidadInvitados: c.cantidadInvitados,
+    turno: c.turno,
+    tipoCliente: c.tipoCliente,
+    exclienteReferencia: c.exclienteReferencia,
+    exclienteNota: c.exclienteNota,
+    origen: c.origen,
+    presupuesto: c.presupuesto,
+    montoPresupuesto: c.montoPresupuesto,
+    menuInfantil: c.menuInfantil,
+    otrosPedidos: c.otrosPedidos,
+    observaciones: c.observaciones,
+    proximoSeguimiento: c.proximoSeguimiento,
+    cargadoPor: c.cargadoPor,
+    fechaCarga: c.fechaCarga,
+    ...overrides,
+  };
+}
+
+function injectNombreAcciones(cliente) {
+  const wrap = document.querySelector('.modal-nombre-wrap');
+  const sugerenciaArea = $('nombre-sugerencia-area');
+  if (!wrap) return;
+
+  // Limpiar acciones previas (todo excepto el h3)
+  wrap.querySelectorAll('.nombre-accion').forEach(el => el.remove());
+  if (sugerenciaArea) sugerenciaArea.innerHTML = '';
+
+  const obs = cliente.observaciones || '';
+  const match = obs.match(SUGERENCIA_REGEX);
+
+  if (canEditNombre()) {
+    // Botón lápiz para editar nombre
+    const btn = document.createElement('button');
+    btn.className = 'btn-nombre-icono nombre-accion';
+    btn.title = 'Editar nombre';
+    btn.innerHTML = '✎';
+    btn.addEventListener('click', () => startInlineNombreEdit(cliente));
+    wrap.appendChild(btn);
+
+    // Si hay sugerencia pendiente de Anita, mostrar banner
+    if (match && sugerenciaArea) {
+      renderSugerenciaBanner(sugerenciaArea, match[1], cliente);
+    }
+  } else if (currentUser.usuario === 'Anita') {
+    if (match) {
+      // Anita ya sugirió — mostrar su sugerencia y opción de cambiarla
+      const tag = document.createElement('span');
+      tag.className = 'nombre-sugerida-tag nombre-accion';
+      tag.title = `Sugeriste: "${match[1]}"`;
+      tag.textContent = `→ "${match[1]}"`;
+      wrap.appendChild(tag);
+
+      const btn = document.createElement('button');
+      btn.className = 'btn-nombre-icono sugerir-icon nombre-accion';
+      btn.title = 'Cambiar sugerencia';
+      btn.innerHTML = '✎';
+      btn.addEventListener('click', () => showSugerirNombreForm(cliente));
+      wrap.appendChild(btn);
+    } else {
+      // Anita no ha sugerido aún — botón de bandera
+      const btn = document.createElement('button');
+      btn.className = 'btn-nombre-icono sugerir-icon nombre-accion';
+      btn.title = 'Sugerir corrección de nombre';
+      btn.innerHTML = '⚑';
+      btn.addEventListener('click', () => showSugerirNombreForm(cliente));
+      wrap.appendChild(btn);
+    }
+  }
+}
+
+function startInlineNombreEdit(cliente, valorInicial = null) {
+  const wrap = document.querySelector('.modal-nombre-wrap');
+  if (!wrap) return;
+  const val = valorInicial !== null ? valorInicial : (cliente.apellidoNombre || '');
+
+  wrap.innerHTML = `
+    <div class="nombre-edit-inline">
+      <input id="nombre-edit-input" type="text" value="${esc(val)}" placeholder="Apellido y nombre">
+      <button class="btn btn-sm btn-primary" id="btn-nombre-save">Guardar</button>
+      <button class="btn btn-sm btn-secondary" id="btn-nombre-cancel">Cancelar</button>
+    </div>`;
+
+  const input = $('nombre-edit-input');
+  input.focus();
+  input.select();
+
+  const cancelar = () => {
+    wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
+    injectNombreAcciones(cliente);
+  };
+
+  $('btn-nombre-cancel').addEventListener('click', cancelar);
+  $('btn-nombre-save').addEventListener('click', () => saveNombreEdit(cliente, input.value.trim()));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveNombreEdit(cliente, input.value.trim());
+    if (e.key === 'Escape') cancelar();
+  });
+}
+
+async function saveNombreEdit(cliente, nuevoNombre) {
+  if (!nuevoNombre) return;
+  if (nuevoNombre === cliente.apellidoNombre) {
+    const wrap = document.querySelector('.modal-nombre-wrap');
+    wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
+    injectNombreAcciones(cliente);
+    return;
+  }
+
+  const btn = $('btn-nombre-save');
+  if (btn) btn.disabled = true;
+
+  try {
+    // Al guardar, limpiar también la sugerencia de Anita
+    const obsLimpio = (cliente.observaciones || '').replace(SUGERENCIA_REGEX, '').trim();
+    const body = buildClienteBody(cliente, { apellidoNombre: nuevoNombre, observaciones: obsLimpio });
+
+    await apiFetch(`/clientes/${cliente.rowIndex}`, { method: 'PUT', body });
+
+    // Actualizar estado local
+    cliente.apellidoNombre = nuevoNombre;
+    cliente.observaciones = obsLimpio;
+    const idx = allClientes.findIndex(c => c.id === cliente.id);
+    if (idx !== -1) Object.assign(allClientes[idx], { apellidoNombre: nuevoNombre, observaciones: obsLimpio });
+
+    const wrap = document.querySelector('.modal-nombre-wrap');
+    wrap.innerHTML = `<h3 id="modal-titulo">${esc(nuevoNombre)}</h3>`;
+    injectNombreAcciones(cliente);
+    renderClienteDetail(cliente);
+
+  } catch (err) {
+    alert('Error al guardar: ' + err.message);
+    if (btn) btn.disabled = false;
+  }
+}
+
+function showSugerirNombreForm(cliente) {
+  const wrap = document.querySelector('.modal-nombre-wrap');
+  if (!wrap) return;
+
+  const obs = cliente.observaciones || '';
+  const match = obs.match(SUGERENCIA_REGEX);
+  const valorActual = match ? match[1] : '';
+
+  wrap.innerHTML = `
+    <h3 style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>
+    <div class="sugerir-nombre-form">
+      <span class="sugerir-arrow">→ debería ser:</span>
+      <input id="nombre-sugerido-input" type="text" value="${esc(valorActual)}" placeholder="Nombre correcto...">
+      <button class="btn btn-sm btn-primary" id="btn-sugerencia-save">Sugerir</button>
+      <button class="btn btn-sm btn-secondary" id="btn-sugerencia-cancel">Cancelar</button>
+    </div>`;
+
+  const input = $('nombre-sugerido-input');
+  input.focus();
+
+  const cancelar = () => {
+    wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
+    injectNombreAcciones(cliente);
+  };
+
+  $('btn-sugerencia-cancel').addEventListener('click', cancelar);
+  $('btn-sugerencia-save').addEventListener('click', () => {
+    const s = input.value.trim();
+    if (s) saveSugerenciaNombre(cliente, s);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const s = input.value.trim(); if (s) saveSugerenciaNombre(cliente, s); }
+    if (e.key === 'Escape') cancelar();
+  });
+}
+
+async function saveSugerenciaNombre(cliente, nombreSugerido) {
+  const btn = $('btn-sugerencia-save');
+  if (btn) btn.disabled = true;
+
+  try {
+    const fecha = new Date().toLocaleDateString('es-AR');
+    const marker = `[SUGERENCIA_NOMBRE: "${nombreSugerido}" · Anita · ${fecha}]`;
+    const obsBase = (cliente.observaciones || '').replace(SUGERENCIA_REGEX, '').trim();
+    const obsNuevo = obsBase ? `${marker}\n${obsBase}` : marker;
+
+    const body = buildClienteBody(cliente, { observaciones: obsNuevo });
+    await apiFetch(`/clientes/${cliente.rowIndex}`, { method: 'PUT', body });
+
+    cliente.observaciones = obsNuevo;
+    const idx = allClientes.findIndex(c => c.id === cliente.id);
+    if (idx !== -1) allClientes[idx].observaciones = obsNuevo;
+
+    const wrap = document.querySelector('.modal-nombre-wrap');
+    wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
+    injectNombreAcciones(cliente);
+
+  } catch (err) {
+    alert('Error al guardar: ' + err.message);
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderSugerenciaBanner(container, nombreSugerido, cliente) {
+  container.innerHTML = `
+    <div class="sugerencia-nombre-banner">
+      <span style="font-size:16px;flex-shrink:0">⚑</span>
+      <div class="sugerencia-banner-body">
+        <strong>Anita sugiere corregir el nombre a:</strong>
+        <span class="sugerencia-banner-nombre"> "${esc(nombreSugerido)}"</span>
+      </div>
+      <div class="sugerencia-banner-acciones">
+        <button class="btn btn-sm btn-primary" id="btn-aplicar-sugerencia">Aplicar</button>
+        <button class="btn btn-sm btn-secondary" id="btn-descartar-sugerencia">Descartar</button>
+      </div>
+    </div>`;
+
+  $('btn-aplicar-sugerencia').addEventListener('click', () => {
+    startInlineNombreEdit(cliente, nombreSugerido);
+  });
+
+  $('btn-descartar-sugerencia').addEventListener('click', async () => {
+    if (!confirm('¿Descartás la sugerencia de Anita?')) return;
+    const obsLimpio = (cliente.observaciones || '').replace(SUGERENCIA_REGEX, '').trim();
+    try {
+      const body = buildClienteBody(cliente, { observaciones: obsLimpio });
+      await apiFetch(`/clientes/${cliente.rowIndex}`, { method: 'PUT', body });
+      cliente.observaciones = obsLimpio;
+      const idx = allClientes.findIndex(c => c.id === cliente.id);
+      if (idx !== -1) allClientes[idx].observaciones = obsLimpio;
+      container.innerHTML = '';
+    } catch (err) { alert(err.message); }
   });
 }
 
