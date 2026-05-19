@@ -151,8 +151,8 @@ app.delete('/api/restricciones/:rowIndex', auth, async (req, res) => {
   }
 });
 
-// Totales por cliente (solo admin)
-app.get('/api/ingresos/totales/:idCliente', auth, adminOnly, async (req, res) => {
+// Totales por cliente (Fabio y Mariana)
+app.get('/api/ingresos/totales/:idCliente', auth, async (req, res) => {
   try {
     const todos = await sheets.getIngresos();
     const filtrados = todos.filter(i => i.idCliente === req.params.idCliente);
@@ -161,11 +161,6 @@ app.get('/api/ingresos/totales/:idCliente', auth, adminOnly, async (req, res) =>
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
-
-// Serve frontend
-app.get('/{*path}', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 // Cuotas
@@ -218,6 +213,11 @@ app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
     await sheets.cancelarPlan(req.params.idCliente);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Serve frontend — debe ir ÚLTIMO para no capturar rutas API
+app.get('/{*path}', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 app.listen(PORT, () => {

@@ -165,8 +165,8 @@
                 <input type="text" name="apellidoNombre" required placeholder="García, María">
               </div>
               <div class="form-group">
-                <label>Teléfono</label>
-                <input type="text" name="telefono" placeholder="11-1234-5678">
+                <label>Teléfono *</label>
+                <input type="text" name="telefono" required placeholder="11-1234-5678">
               </div>
               <div class="form-group">
                 <label>Gmail</label>
@@ -200,8 +200,8 @@
             <h3>Evento</h3>
             <div class="form-grid">
               <div class="form-group">
-                <label>Tipo de evento</label>
-                <select name="tipoEvento">
+                <label>Tipo de evento *</label>
+                <select name="tipoEvento" required>
                   <option value="">—</option>
                   <option>Boda</option>
                   <option>XV años</option>
@@ -334,6 +334,23 @@
       <section id="view-ingresos" class="view hidden">
         <div class="view-header">
           <h2>Ingresos</h2>
+          <div class="header-actions">
+            <input type="text" id="ingresos-search" class="search-input" placeholder="Buscar por cliente...">
+            <select id="ingresos-filter-tipo" class="filter-select">
+              <option value="">Todos los tipos</option>
+              <option>Seña</option>
+              <option>Cuota</option>
+              <option>Saldo final</option>
+              <option>Ajuste por inflación</option>
+            </select>
+            <select id="ingresos-filter-forma" class="filter-select">
+              <option value="">Todas las formas</option>
+              <option>Efectivo</option>
+              <option>Transferencia</option>
+              <option>Cheque</option>
+              <option>Mercado Pago</option>
+            </select>
+          </div>
         </div>
         <div id="ingresos-loading" class="loading-msg">Cargando ingresos...</div>
         <div id="ingresos-error" class="error-msg hidden"></div>

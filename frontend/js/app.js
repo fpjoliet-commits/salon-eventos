@@ -534,16 +534,13 @@ function renderPagosTab(cliente) {
   $('pago-fecha').value = new Date().toISOString().split('T')[0];
   hide('pago-error'); hide('pago-success');
 
-  if (isAdmin()) {
+  // Historial visible para Fabio y Mariana
+  if (canManagePagos()) {
     showEl($('pagos-admin-content'));
     loadPagosCliente(cliente);
-  } else {
-    hideEl($('pagos-admin-content'));
-  }
-
-  if (canManagePagos()) {
     showEl($('pago-form'));
   } else {
+    hideEl($('pagos-admin-content'));
     hideEl($('pago-form'));
     $('tab-pagos').querySelector('.no-access-msg')?.remove();
     const msg = document.createElement('p');
@@ -607,7 +604,7 @@ async function loadIngresos() {
   hide('ingresos-error');
   try {
     allIngresos = await apiFetch('/ingresos');
-    renderIngresos(allIngresos);
+    applyIngresosFilters();
   } catch (e) {
     $('ingresos-error').textContent = e.message;
     show('ingresos-error');
@@ -616,30 +613,59 @@ async function loadIngresos() {
   }
 }
 
-function renderIngresos(ingresos) {
-  const total = ingresos.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
-  $('ingresos-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total ingresos</div><div class="stat-value verde">${formatMoney(total)}</div></div>
-    <div class="stat-card"><div class="stat-label">Registros</div><div class="stat-value">${ingresos.length}</div></div>
-  `;
-
+function applyIngresosFilters() {
+  const search = $('ingresos-search')?.value.toLowerCase() || '';
+  const tipo = $('ingresos-filter-tipo')?.value || '';
+  const forma = $('ingresos-filter-forma')?.value || '';
   const clienteMap = {};
   allClientes.forEach(c => { clienteMap[c.id] = c.apellidoNombre; });
 
+  const filtrados = allIngresos.filter(i => {
+    const nombre = (clienteMap[i.idCliente] || '').toLowerCase();
+    const matchSearch = !search || nombre.includes(search);
+    const matchTipo = !tipo || (i.tipoIngreso || '').startsWith(tipo === 'Cuota' ? 'Cuota' : tipo);
+    const matchForma = !forma || i.formaPago === forma;
+    return matchSearch && matchTipo && matchForma;
+  });
+
+  renderIngresos(filtrados, clienteMap);
+}
+
+function renderIngresos(ingresos, clienteMap) {
+  if (!clienteMap) {
+    clienteMap = {};
+    allClientes.forEach(c => { clienteMap[c.id] = c.apellidoNombre; });
+  }
+  const total = ingresos.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+  $('ingresos-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total filtrado</div><div class="stat-value verde">${formatMoney(total)}</div></div>
+    <div class="stat-card"><div class="stat-label">Registros</div><div class="stat-value">${ingresos.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Total general</div><div class="stat-value">${formatMoney(allIngresos.reduce((s,i)=>s+(parseFloat(i.monto)||0),0))}</div></div>
+  `;
+
   const tbody = $('ingresos-tbody');
   tbody.innerHTML = ingresos.slice().reverse().map(i => `
-    <tr>
-      <td>${clienteMap[i.idCliente] || i.idCliente}</td>
+    <tr style="cursor:pointer" onclick="openClienteModalById('${i.idCliente}')">
+      <td><strong>${clienteMap[i.idCliente] || i.idCliente}</strong></td>
       <td>${i.tipoIngreso}</td>
       <td><strong>${formatMoney(i.monto)}</strong></td>
       <td>${formatDate(i.fecha)}</td>
-      <td>${i.formaPago}</td>
+      <td>${i.formaPago || '—'}</td>
       <td>${i.notas || '—'}</td>
     </tr>
   `).join('');
 
   show('ingresos-content');
 }
+
+window.openClienteModalById = (idCliente) => {
+  const c = allClientes.find(cl => cl.id === idCliente);
+  if (c) openClienteModal(c, 'pagos');
+};
+
+$('ingresos-search')?.addEventListener('input', applyIngresosFilters);
+$('ingresos-filter-tipo')?.addEventListener('change', applyIngresosFilters);
+$('ingresos-filter-forma')?.addEventListener('change', applyIngresosFilters);
 
 /* ===================== CALENDARIO ===================== */
 function loadCalendario() {
@@ -724,11 +750,25 @@ $('cancel-form-btn').addEventListener('click', () => navigateTo('clientes'));
 $('cliente-form').addEventListener('submit', async e => {
   e.preventDefault();
   hide('form-error'); hide('form-success');
-  $('submit-cliente-btn').disabled = true;
 
   const form = $('cliente-form');
   const rowIndex = $('edit-row-index').value;
   const isEdit = !!rowIndex;
+
+  // Validar: no se puede reservar fecha sin seña en clientes existentes
+  if (isEdit && form.estadoFecha.value === 'Reservada') {
+    try {
+      const { ingresos } = await apiFetch(`/ingresos/totales/${$('edit-cliente-id').value}`);
+      const tieneSeña = ingresos.some(i => i.tipoIngreso === 'Seña');
+      if (!tieneSeña) {
+        $('form-error').textContent = 'No se puede marcar la fecha como Reservada sin haber registrado una seña. Cargá el pago primero desde la ficha del cliente.';
+        show('form-error');
+        return;
+      }
+    } catch {}
+  }
+
+  $('submit-cliente-btn').disabled = true;
 
   const body = {
     id: $('edit-cliente-id').value || undefined,
