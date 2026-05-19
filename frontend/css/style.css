@@ -270,8 +270,9 @@ textarea { resize: vertical; min-height: 70px; }
 .cal-pill-realizado { background: #eaecee; color: #566573; }
 
 /* VIP / coronita en restricciones */
-.list-item-vip { background: #fffbea; border-left: 3px solid #f39c12; }
-.list-item-vip .list-item-label { color: #7d5a00; }
+.list-item.list-item-vip { background: #fff8e1; border-left: 4px solid #f39c12; }
+.list-item.list-item-vip .list-item-label { color: #7d5a00; font-weight: 700; }
+.list-item.list-item-vip .list-item-sub { color: #b7860b; }
 
 /* ===================== CUOTAS ===================== */
 .cuotas-resumen { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }

@@ -494,19 +494,20 @@ async function loadRestriccionesModal(cliente) {
 }
 
 function renderRestriccionesList(lista) {
+  const hint = '<p style="color:#999;font-size:12px;margin-top:8px">Tip: para marcar solo algunos de un mismo tipo como mesa principal, cargalos en dos entradas separadas (ej: "Vegano 3" y "👑 Vegano 1").</p>';
   if (!lista.length) {
-    $('restricciones-list').innerHTML = '<p style="color:#999;font-size:13px;margin-bottom:12px">Sin restricciones registradas.</p>';
+    $('restricciones-list').innerHTML = '<p style="color:#999;font-size:13px;margin-bottom:12px">Sin restricciones registradas.</p>' + hint;
     return;
   }
   $('restricciones-list').innerHTML = `<div class="item-list">${lista.map(r => `
     <div class="list-item${r.coronita ? ' list-item-vip' : ''}">
       <div class="list-item-info">
         <div class="list-item-label">${r.coronita ? '👑 ' : ''}${r.tipoRestriccion}</div>
-        <div class="list-item-sub">Cantidad: ${r.cantidad}${r.coronita ? ' — Mesa principal' : ''}</div>
+        <div class="list-item-sub">${r.coronita ? '★ Mesa principal · ' : ''}${r.cantidad} persona${r.cantidad != 1 ? 's' : ''}</div>
       </div>
       <button class="btn btn-sm btn-danger" onclick="deleteRestriccion(${r.rowIndex})">✕</button>
     </div>
-  `).join('')}</div>`;
+  `).join('')}</div>` + hint;
 }
 
 window.deleteRestriccion = async (rowIndex) => {
@@ -1007,8 +1008,8 @@ function formCrearPlan(idCliente) {
           <input type="number" id="plan-ncuotas" min="1" max="60" required placeholder="6">
         </div>
         <div class="form-group">
-          <label>Valor por cuota (opcional)</label>
-          <input type="number" id="plan-valor-cuota" min="0" placeholder="Se calcula automático">
+          <label>Valor por cuota</label>
+          <input type="number" id="plan-valor-cuota" min="0" placeholder="Auto (monto ÷ cuotas)">
         </div>
         <div class="form-group">
           <label>Fecha 1° cuota</label>
