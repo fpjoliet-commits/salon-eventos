@@ -227,8 +227,13 @@ function renderClientes(clientes) {
       <td>${estadoBadge(c.estado)}</td>
       <td class="${segClass}">${formatDate(c.proximoSeguimiento)}</td>
       <td>${c.origen || '—'}</td>
-      <td><button class="btn btn-sm btn-secondary">Ver</button></td>
+      <td class="acciones-col">
+        <button class="btn btn-sm btn-secondary btn-ver">Ver</button>
+        ${canManagePagos() ? `<button class="btn btn-sm btn-pago-rapido">$ Pago</button>` : ''}
+      </td>
     `;
+    tr.querySelector('.btn-ver').addEventListener('click', e => { e.stopPropagation(); openClienteModal(c); });
+    tr.querySelector('.btn-pago-rapido')?.addEventListener('click', e => { e.stopPropagation(); openClienteModal(c, 'pagos'); });
     tr.addEventListener('click', () => openClienteModal(c));
     tbody.appendChild(tr);
   });
@@ -278,11 +283,11 @@ $('filter-estado').addEventListener('change', applyFilters);
 $('filter-evento').addEventListener('change', applyFilters);
 
 /* ===================== MODAL CLIENTE ===================== */
-function openClienteModal(cliente) {
+function openClienteModal(cliente, tabInicial = 'info') {
   currentClienteModal = cliente;
   $('modal-titulo').textContent = cliente.apellidoNombre || 'Cliente';
 
-  activateTab('info');
+  activateTab(tabInicial);
   renderClienteDetail(cliente);
   loadRestriccionesModal(cliente);
   renderPagosTab(cliente);
@@ -343,9 +348,11 @@ $('btn-imprimir-cocina').addEventListener('click', () => {
 });
 
 function imprimirFichaCocina(c, restricciones) {
-  const restRows = restricciones.length
-    ? restricciones.map(r => `<tr><td>${r.tipoRestriccion}</td><td>${r.cantidad}</td></tr>`).join('')
-    : '<tr><td colspan="2" style="color:#888;font-style:italic">Sin restricciones registradas</td></tr>';
+  const restFilas = restricciones.map(r => `
+    <div class="rest-fila">
+      <span class="rest-tipo">${r.tipoRestriccion}</span>
+      <span class="rest-cant">${r.cantidad}</span>
+    </div>`).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -354,61 +361,112 @@ function imprimirFichaCocina(c, restricciones) {
   <title>Ficha Cocina — ${c.apellidoNombre}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; font-size: 14px; color: #111; padding: 24px; }
-    h1 { font-size: 22px; margin-bottom: 4px; }
-    .subtitulo { font-size: 13px; color: #666; margin-bottom: 20px; }
-    .seccion { margin-bottom: 18px; }
-    .seccion h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #888; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 10px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
-    .campo label { font-size: 11px; color: #888; display: block; }
-    .campo span { font-weight: 700; font-size: 15px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 7px 10px; border: 1px solid #ddd; font-size: 13px; }
-    th { background: #f0f0f0; font-weight: 700; text-align: left; }
-    .destacado { background: #fff3cd; border-left: 4px solid #f39c12; padding: 10px 14px; margin-bottom: 18px; border-radius: 4px; font-size: 13px; }
-    .footer { margin-top: 24px; font-size: 11px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
-    @media print { body { padding: 12px; } }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #111; background: #fff; }
+    .pagina { max-width: 720px; margin: 0 auto; padding: 32px 36px; }
+
+    /* CABECERA EVENTO */
+    .cabecera { border-bottom: 3px solid #8f2e4d; padding-bottom: 16px; margin-bottom: 24px; }
+    .cab-marca { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #8f2e4d; font-weight: 700; margin-bottom: 6px; }
+    .cab-cliente { font-size: 26px; font-weight: 700; margin-bottom: 10px; }
+    .cab-datos { display: flex; gap: 32px; flex-wrap: wrap; }
+    .cab-dato label { font-size: 11px; color: #888; display: block; text-transform: uppercase; letter-spacing: .5px; }
+    .cab-dato span { font-size: 15px; font-weight: 600; }
+    .cab-num { font-size: 28px !important; color: #8f2e4d; font-weight: 800 !important; }
+
+    /* SECCIÓN COCINA */
+    .cocina-header { display: flex; align-items: center; gap: 8px; background: #f5f5f5; border-radius: 8px 8px 0 0; padding: 12px 16px; border: 1px solid #ddd; border-bottom: none; margin-top: 24px; }
+    .cocina-icon { font-size: 18px; }
+    .cocina-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .cocina-subtitulo { font-size: 11px; color: #888; margin-top: 2px; }
+    .cocina-body { border: 1px solid #ddd; border-radius: 0 0 8px 8px; padding: 20px; }
+
+    /* MENÚ INFANTIL */
+    .menu-infantil-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #eee; }
+    .menu-infantil-label { font-size: 13px; font-weight: 600; }
+    .menu-infantil-num { font-size: 36px; font-weight: 800; color: #8f2e4d; background: #f7d6e2; border-radius: 8px; width: 70px; height: 56px; display: flex; align-items: center; justify-content: center; }
+
+    /* RESTRICCIONES */
+    .rest-label { font-size: 12px; color: #666; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
+    .rest-tabla { border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+    .rest-cabecera { display: flex; background: #f0f0f0; padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #666; border-bottom: 1px solid #ddd; }
+    .rest-fila { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+    .rest-fila:last-child { border-bottom: none; }
+    .rest-tipo { flex: 1; }
+    .rest-cant { font-weight: 700; font-size: 15px; min-width: 60px; text-align: center; }
+    .rest-vacio { padding: 14px 12px; color: #aaa; font-style: italic; font-size: 13px; }
+
+    /* OTROS PEDIDOS */
+    .otros-label { font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+    .otros-box { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 14px; min-height: 70px; font-size: 13px; line-height: 1.5; background: #fafafa; }
+    .otros-box.vacio { color: #bbb; font-style: italic; }
+
+    .footer { margin-top: 28px; font-size: 11px; color: #bbb; border-top: 1px solid #eee; padding-top: 10px; text-align: right; }
+    @media print { .pagina { padding: 16px 20px; } }
   </style>
 </head>
 <body>
-  <h1>Ficha de Cocina</h1>
-  <div class="subtitulo">Joliet Eventos — impreso ${new Date().toLocaleDateString('es-AR')}</div>
+<div class="pagina">
 
-  <div class="seccion">
-    <h2>Evento</h2>
-    <div class="grid">
-      <div class="campo"><label>Cliente</label><span>${c.apellidoNombre || '—'}</span></div>
-      <div class="campo"><label>Tipo de evento</label><span>${c.tipoEvento || '—'}</span></div>
-      <div class="campo"><label>Fecha</label><span>${formatDateWithDay(c.fechaEvento)}</span></div>
-      <div class="campo"><label>Turno</label><span>${c.turno || '—'}</span></div>
-      <div class="campo"><label>Cantidad de invitados</label><span style="font-size:22px;color:#c0416a">${c.cantidadInvitados || '—'}</span></div>
-      <div class="campo"><label>Menú infantil</label><span style="font-size:22px;color:#c0416a">${c.menuInfantil || '0'}</span></div>
+  <div class="cabecera">
+    <div class="cab-marca">Joliet Eventos — Ficha de Cocina</div>
+    <div class="cab-cliente">${c.apellidoNombre || '—'}</div>
+    <div class="cab-datos">
+      <div class="cab-dato">
+        <label>Fecha del evento</label>
+        <span>${formatDateWithDay(c.fechaEvento)}</span>
+      </div>
+      <div class="cab-dato">
+        <label>Turno</label>
+        <span>${c.turno || '—'}</span>
+      </div>
+      <div class="cab-dato">
+        <label>Tipo de evento</label>
+        <span>${c.tipoEvento || '—'}</span>
+      </div>
+      <div class="cab-dato">
+        <label>Invitados</label>
+        <span class="cab-num">${c.cantidadInvitados || '—'}</span>
+      </div>
     </div>
   </div>
 
-  ${restricciones.length ? `
-  <div class="seccion">
-    <h2>Restricciones alimentarias</h2>
-    <table>
-      <thead><tr><th>Restricción</th><th>Cantidad de personas</th></tr></thead>
-      <tbody>${restRows}</tbody>
-    </table>
-  </div>` : ''}
+  <div class="cocina-header">
+    <span class="cocina-icon">🍴</span>
+    <div>
+      <div class="cocina-titulo">Pedidos especiales de cocina</div>
+      <div class="cocina-subtitulo">Completar cuando el evento esté confirmado y se afinen los detalles.</div>
+    </div>
+  </div>
+  <div class="cocina-body">
 
-  ${c.otrosPedidos ? `
-  <div class="destacado">
-    <strong>Pedidos especiales:</strong><br>${c.otrosPedidos}
-  </div>` : ''}
+    <div class="menu-infantil-row">
+      <span class="menu-infantil-label">Menú infantil</span>
+      <div class="menu-infantil-num">${c.menuInfantil || '0'}</div>
+    </div>
 
-  ${c.observaciones ? `
-  <div class="seccion">
-    <h2>Observaciones generales</h2>
-    <p style="font-size:13px">${c.observaciones}</p>
-  </div>` : ''}
+    <div class="rest-label">Restricciones alimentarias</div>
+    <div class="rest-tabla">
+      <div class="rest-cabecera">
+        <span style="flex:1">Tipo de restricción</span>
+        <span style="min-width:60px;text-align:center">Cantidad</span>
+      </div>
+      ${restricciones.length ? restFilas : '<div class="rest-vacio">Sin restricciones registradas</div>'}
+    </div>
 
-  <div class="footer">Generado desde el CRM de Joliet Eventos</div>
+    <div class="otros-label">Otros pedidos</div>
+    <div class="otros-box ${c.otrosPedidos ? '' : 'vacio'}">${c.otrosPedidos || 'Sin pedidos especiales'}</div>
 
-  <script>window.onload = () => { window.print(); }<\/script>
+    ${c.observaciones ? `
+    <div style="margin-top:16px">
+      <div class="otros-label">Observaciones</div>
+      <div class="otros-box">${c.observaciones}</div>
+    </div>` : ''}
+
+  </div>
+
+  <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
+</div>
+<script>window.onload = () => { window.print(); }<\/script>
 </body>
 </html>`;
 

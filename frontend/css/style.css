@@ -304,6 +304,10 @@ textarea { resize: vertical; min-height: 70px; }
 .seguimiento-hoy { color: var(--amarillo); font-weight: 700; }
 .seguimiento-ok { color: var(--verde); }
 
+.acciones-col { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.btn-pago-rapido { background: #eafaf1; color: var(--verde); border: 1px solid #b2dfdb; font-weight: 700; }
+.btn-pago-rapido:hover { background: #d5f5e3; }
+
 /* ===================== RESPONSIVE ===================== */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
