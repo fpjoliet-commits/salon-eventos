@@ -265,6 +265,14 @@ app.delete('/api/timming/:rowIndex', auth, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Migración única: Clientes → Personas + Eventos (solo superadmin)
+app.post('/api/migrar-clientes', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await sheets.migrarClientesAPersonasEventos();
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));

@@ -1075,6 +1075,16 @@ textarea { resize: vertical; min-height: 70px; }
 }
 
 /* ===================== TIMING PLANNER ===================== */
+.timing-global-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.timing-global-selector label { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.timing-global-selector select { min-width: 280px; max-width: 420px; }
+
 .timming-wrap { padding: 4px 0; }
 
 .timming-header-row {

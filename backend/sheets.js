@@ -759,6 +759,74 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   });
 }
 
+/* ===================== MIGRACIÓN Clientes → Personas+Eventos ===================== */
+async function migrarClientesAPersonasEventos() {
+  if (!tieneCredenciales) throw new Error('Solo se puede migrar con credenciales de Google.');
+  const sheets = getSheets();
+
+  // Leer hoja Clientes vieja
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Clientes!A2:X',
+  });
+  const rows = (res.data.values || []).filter(r => r[0]); // filtra filas con id
+  if (!rows.length) return { migradas: 0, msg: 'Hoja Clientes vacía o no existe.' };
+
+  // Verificar que Personas y Eventos estén vacíos para no duplicar
+  const [pRes, eRes] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:A' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:A' }),
+  ]);
+  if ((pRes.data.values || []).length > 0 || (eRes.data.values || []).length > 0) {
+    throw new Error('Personas o Eventos ya tienen datos. Migración cancelada para evitar duplicados.');
+  }
+
+  // Old Clientes columns (0-indexed):
+  // 0:id 1:estado 2:cargadoPor 3:fechaCarga 4:apellidoNombre 5:telefono 6:gmail
+  // 7:redSocial 8:tipoEvento 9:formato 10:fechaEvento 11:estadoFecha 12:cantidadInvitados
+  // 13:turno 14:tipoCliente 15:exclienteReferencia 16:exclienteNota 17:origen
+  // 18:presupuesto 19:montoPresupuesto 20:menuInfantil 21:otrosPedidos 22:observaciones 23:proximoSeguimiento
+
+  const personaRows = [];
+  const eventoRows = [];
+
+  for (const r of rows) {
+    const g = i => (r[i] || '');
+    const oldId = g(0);
+    const perId = `PER-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+    // Persona: id, apellidoNombre, telefono, gmail, redSocial, origen, tipoCliente,
+    //          exclienteReferencia, exclienteNota, fechaCarga, cargadoPor
+    personaRows.push([perId, g(4), g(5), g(6), g(7), g(17), g(14), g(15), g(16), g(3), g(2)]);
+
+    // Evento usa el ID ORIGINAL del cliente (preserva vínculos con Ingresos/Timming)
+    // id, personaId, estado, cargadoPor, fechaCarga, tipoEvento, formato, fechaEvento,
+    // estadoFecha, cantidadInvitados, turno, presupuesto, montoPresupuesto, menuInfantil,
+    // otrosPedidos, observaciones, proximoSeguimiento, menuRecepcion, menuIslas,
+    // menuPrimerPlato, menuPrincipal, menuPostre
+    eventoRows.push([oldId, perId, g(1), g(2), g(3), g(8), g(9), g(10), g(11), g(12), g(13),
+      g(18), g(19), g(20), g(21), g(22), g(23), '', '', '', '', '']);
+
+    // Pequeña pausa para evitar IDs duplicados en el timestamp
+    await new Promise(r2 => setTimeout(r2, 1));
+  }
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Personas!A:K',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: personaRows },
+  });
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Eventos!A:V',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: eventoRows },
+  });
+
+  return { migradas: rows.length };
+}
+
 /* ===================== INIT SHEETS ===================== */
 async function initSheets() {
   if (!tieneCredenciales) return;
@@ -818,5 +886,6 @@ module.exports = {
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, ajustarValorCuotas, cancelarPlan,
   initSheets,
+  migrarClientesAPersonasEventos,
   tieneCredenciales,
 };

@@ -68,6 +68,9 @@
         <a href="#" class="nav-item admin-only" data-view="historico">
           <span class="nav-icon">📦</span> Carga histórica
         </a>
+        <a href="#" class="nav-item admin-only" data-view="timing-global">
+          <span class="nav-icon">⏱</span> Timing Planner
+        </a>
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
@@ -518,6 +521,20 @@
             <span id="hist-contador" style="font-size:13px;color:#888"></span>
           </div>
         </form>
+      </section>
+
+      <!-- VISTA: TIMING PLANNER (solo admin) -->
+      <section id="view-timing-global" class="view hidden">
+        <div class="view-header">
+          <h2>Timing Planner</h2>
+        </div>
+        <div class="timing-global-selector">
+          <label for="timing-cliente-select">Elegí un cliente para armar su timing:</label>
+          <select id="timing-cliente-select">
+            <option value="">-- Seleccioná un cliente --</option>
+          </select>
+        </div>
+        <div id="timing-global-content"></div>
       </section>
 
     </main>

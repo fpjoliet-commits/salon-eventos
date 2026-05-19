@@ -204,6 +204,36 @@ function navigateTo(view) {
   if (view === 'ingresos' && isAdmin()) loadIngresos();
   if (view === 'calendario') loadCalendario();
   if (view === 'nuevo-cliente' && !$('edit-row-index').value) resetNuevoClienteForm();
+  if (view === 'timing-global') initTimingGlobal();
+}
+
+/* ===================== TIMING PLANNER GLOBAL ===================== */
+function initTimingGlobal() {
+  const sel = $('timing-cliente-select');
+  const content = $('timing-global-content');
+  if (!sel || !content) return;
+
+  // Llenar select con clientes ordenados
+  const clientes = [...allClientes].sort((a, b) =>
+    (a.apellidoNombre || '').localeCompare(b.apellidoNombre || '')
+  );
+  sel.innerHTML = '<option value="">-- Seleccioná un cliente --</option>' +
+    clientes.map(c => {
+      const fecha = c.fechaEvento ? ` (${formatDate(c.fechaEvento)})` : '';
+      return `<option value="${c.id}">${esc(c.apellidoNombre)}${fecha}</option>`;
+    }).join('');
+
+  content.innerHTML = '';
+
+  // Evitar re-bind si ya estaba inicializado
+  sel.onchange = async () => {
+    const id = sel.value;
+    if (!id) { content.innerHTML = ''; return; }
+    const cliente = allClientes.find(c => c.id === id);
+    if (!cliente) return;
+    content.innerHTML = '<div id="timming-content"></div>';
+    await loadTimmingTab(cliente);
+  };
 }
 
 /* ===================== CARGA HISTÓRICA ===================== */
