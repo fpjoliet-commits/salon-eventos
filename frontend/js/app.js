@@ -948,9 +948,11 @@ function renderCuotas(cliente, cuotas) {
         <button class="btn btn-sm btn-secondary" id="btn-pagar-sel">✓ Marcar seleccionadas como pagadas</button>
         <div class="ipc-inline">
           <input type="number" id="ipc-pct" placeholder="IPC %" min="0" max="100" step="0.1" style="width:90px">
+          <span class="tip" data-tip="Ingresá el porcentaje de aumento (ej: 8.4 para un 8,4%). Solo se actualizan las cuotas PENDIENTES. Las ya cobradas no cambian.">?</span>
           <button class="btn btn-sm btn-secondary" id="btn-ipc">Actualizar por IPC</button>
           <button class="btn btn-sm btn-secondary" id="btn-ajustar-val">Fijar valor</button>
           <input type="number" id="nuevo-valor" placeholder="Nuevo valor $" min="0" style="width:120px">
+          <span class="tip" data-tip="Fijá un importe exacto para todas las cuotas pendientes, reemplazando el valor actual. Útil cuando renegociás el precio de la cuota.">?</span>
         </div>
       ` : ''}
       ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
@@ -1000,19 +1002,19 @@ function formCrearPlan(idCliente) {
       <h4>Crear plan de pagos</h4>
       <div class="form-grid small-grid">
         <div class="form-group">
-          <label>Monto total del contrato</label>
+          <label>Monto total del contrato <span class="tip" data-tip="El importe total acordado con el cliente por todo el servicio. Las cuotas se calculan sobre este monto.">?</span></label>
           <input type="number" id="plan-monto" min="0" required placeholder="600000">
         </div>
         <div class="form-group">
-          <label>Cantidad de cuotas</label>
+          <label>Cantidad de cuotas <span class="tip" data-tip="En cuántos pagos mensuales se divide. El sistema genera automáticamente una cuota por mes a partir de la fecha de inicio.">?</span></label>
           <input type="number" id="plan-ncuotas" min="1" max="60" required placeholder="6">
         </div>
         <div class="form-group">
-          <label>Valor por cuota</label>
+          <label>Valor por cuota <span class="tip" data-tip="Opcional. Si lo dejás vacío se calcula automáticamente (monto ÷ cuotas). Completalo solo si el valor pactado es distinto, por redondeo o descuento especial.">?</span></label>
           <input type="number" id="plan-valor-cuota" min="0" placeholder="Auto (monto ÷ cuotas)">
         </div>
         <div class="form-group">
-          <label>Fecha 1° cuota</label>
+          <label>Fecha 1° cuota <span class="tip" data-tip="Fecha de vencimiento de la primera cuota. Las siguientes se generan mes a mes desde esta fecha.">?</span></label>
           <input type="date" id="plan-fecha" required value="${new Date().toISOString().split('T')[0]}">
         </div>
       </div>

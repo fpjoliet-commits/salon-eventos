@@ -233,7 +233,7 @@
                 <input type="date" name="fechaEvento">
               </div>
               <div class="form-group">
-                <label>Estado de la fecha</label>
+                <label>Estado de la fecha <span class="tip" data-tip="Tentativa: el cliente está interesado pero no pagó seña aún. Reservada: fecha confirmada con seña pagada. No podés marcarla como Reservada sin tener una Seña cargada en Pagos.">?</span></label>
                 <select name="estadoFecha">
                   <option value="">—</option>
                   <option>Tentativa</option>
@@ -440,6 +440,7 @@
               <input type="number" id="rest-cantidad" placeholder="Cant." min="1" required style="width:70px">
               <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;cursor:pointer">
                 <input type="checkbox" id="rest-coronita"> 👑 Mesa principal
+                <span class="tip" data-tip="Marcalo si esta persona está en la mesa principal: el festejado, quien paga, padres, pareja, etc. Se resalta con corona en la ficha de cocina.">?</span>
               </label>
               <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
             </div>
@@ -457,7 +458,7 @@
             <h4>Registrar ingreso</h4>
             <div class="form-grid small-grid">
               <div class="form-group">
-                <label>Tipo</label>
+                <label>Tipo <span class="tip" data-tip="Seña: primer pago que confirma el interés y reserva la fecha. Cuota: pago de un plan de cuotas. Saldo final: lo que queda por pagar antes del evento. Otro: cualquier concepto extra.">?</span></label>
                 <select id="pago-tipo" required>
                   <option value="">—</option>
                   <option>Seña</option>
