@@ -81,6 +81,9 @@
     <!-- MAIN -->
     <main class="main-content">
 
+      <!-- BARRA DE RECORDATORIOS -->
+      <div id="reminders-bar" class="reminders-bar hidden"></div>
+
       <!-- VISTA: CLIENTES -->
       <section id="view-clientes" class="view active">
         <div class="view-header">
@@ -150,9 +153,24 @@
         <form id="cliente-form" class="crm-form">
           <input type="hidden" id="edit-row-index">
           <input type="hidden" id="edit-cliente-id">
+          <input type="hidden" id="edit-persona-id">
+          <input type="hidden" id="edit-persona-row-index">
+
+          <!-- Búsqueda de persona existente (solo en modo nuevo) -->
+          <div class="form-section" id="persona-search-section">
+            <h3>¿Es un cliente que ya consultó antes?</h3>
+            <div id="persona-search-wrap" class="persona-search-wrap">
+              <div class="persona-search-row">
+                <input type="text" id="persona-search-input" placeholder="Buscar por nombre o teléfono..." autocomplete="off">
+                <button type="button" id="persona-search-clear" class="btn btn-secondary btn-sm hidden">✕ Nueva persona</button>
+              </div>
+              <div id="persona-search-results" class="persona-search-results hidden"></div>
+              <div id="persona-seleccionada-card" class="persona-seleccionada-card hidden"></div>
+            </div>
+          </div>
 
           <div class="form-section">
-            <h3>Datos generales</h3>
+            <h3>Datos de la persona</h3>
             <div class="form-grid">
               <div class="form-group">
                 <label>Estado *</label>
@@ -322,6 +340,32 @@
               <div class="form-group full-width">
                 <label>Observaciones</label>
                 <textarea name="observaciones" rows="3"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section" id="menu-section">
+            <h3>Menú del evento <span style="font-size:12px;font-weight:400;color:var(--text-muted)">(completar cuando esté confirmado)</span></h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Recepción</label>
+                <input type="text" name="menuRecepcion" placeholder="Ej: Empanadas y bruschettas">
+              </div>
+              <div class="form-group">
+                <label>Islas</label>
+                <input type="text" name="menuIslas" placeholder="Ej: Tabla de fiambres y quesos">
+              </div>
+              <div class="form-group">
+                <label>Primer plato</label>
+                <input type="text" name="menuPrimerPlato" placeholder="Ej: Ravioles con crema">
+              </div>
+              <div class="form-group">
+                <label>Principal</label>
+                <input type="text" name="menuPrincipal" placeholder="Ej: Pollo al horno con ensaladas">
+              </div>
+              <div class="form-group full-width">
+                <label>Postre / Mesa dulce</label>
+                <input type="text" name="menuPostre" placeholder="Ej: Torta 3 pisos + mesa dulce">
               </div>
             </div>
           </div>
@@ -505,7 +549,10 @@
           <div class="modal-actions">
             <button id="btn-editar-cliente" class="btn btn-primary">Editar</button>
             <button id="btn-imprimir-cocina" class="btn btn-secondary">🖨 Ficha cocina</button>
+            <button id="btn-nuevo-evento" class="btn btn-secondary admin-only-btn hidden" title="Crear un nuevo evento para esta misma persona">➕ Nuevo evento</button>
+            <button id="btn-eliminar-cliente" class="btn btn-danger admin-only-btn hidden" title="Eliminar este evento">🗑 Eliminar</button>
           </div>
+          <div id="cliente-eventos-anteriores" class="eventos-anteriores hidden"></div>
         </div>
 
         <!-- Tab: Cuotas -->

@@ -3,8 +3,6 @@ const path = require('path');
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 
-// Credenciales: primero busca variable de entorno (Railway/producción),
-// después busca el archivo local credentials.json (desarrollo local)
 let credencialesJSON = null;
 if (process.env.GOOGLE_CREDENTIALS_JSON) {
   try {
@@ -25,8 +23,9 @@ if (!tieneCredenciales) {
   console.warn('⚠️  Sin credenciales de Google — usando almacenamiento en memoria (los datos no persisten al reiniciar).');
 }
 
-/* ===================== MODO MEMORIA (sin credenciales) ===================== */
-let memClientes = [];
+/* ===================== MODO MEMORIA ===================== */
+let memPersonas = [];
+let memEventos = [];
 let memIngresos = [];
 let memRestricciones = [];
 let memCuotas = [];
@@ -36,7 +35,7 @@ function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
-/* ===================== MODO GOOGLE SHEETS ===================== */
+/* ===================== GOOGLE SHEETS CLIENT ===================== */
 function getSheets() {
   const { google } = require('googleapis');
   const auth = new google.auth.GoogleAuth({
@@ -46,47 +45,328 @@ function getSheets() {
   return google.sheets({ version: 'v4', auth });
 }
 
-function rowToCliente(row, index) {
+/* ===================== PERSONAS ===================== */
+// Columnas A-K: id, apellidoNombre, telefono, gmail, redSocial, origen,
+//               tipoCliente, exclienteReferencia, exclienteNota, fechaCarga, cargadoPor
+
+function rowToPersona(row, index) {
   return {
     rowIndex: index + 2,
     id: row[0] || '',
-    estado: row[1] || '',
-    cargadoPor: row[2] || '',
-    fechaCarga: row[3] || '',
-    apellidoNombre: row[4] || '',
-    telefono: row[5] || '',
-    gmail: row[6] || '',
-    redSocial: row[7] || '',
-    tipoEvento: row[8] || '',
-    formato: row[9] || '',
-    fechaEvento: row[10] || '',
-    estadoFecha: row[11] || '',
-    cantidadInvitados: row[12] || '',
-    turno: row[13] || '',
-    tipoCliente: row[14] || '',
-    exclienteReferencia: row[15] || '',
-    exclienteNota: row[16] || '',
-    origen: row[17] || '',
-    presupuesto: row[18] || '',
-    montoPresupuesto: row[19] || '',
-    menuInfantil: row[20] || '',
-    otrosPedidos: row[21] || '',
-    observaciones: row[22] || '',
-    proximoSeguimiento: row[23] || '',
+    apellidoNombre: row[1] || '',
+    telefono: row[2] || '',
+    gmail: row[3] || '',
+    redSocial: row[4] || '',
+    origen: row[5] || '',
+    tipoCliente: row[6] || '',
+    exclienteReferencia: row[7] || '',
+    exclienteNota: row[8] || '',
+    fechaCarga: row[9] || '',
+    cargadoPor: row[10] || '',
   };
 }
 
-function clienteToRow(c) {
+function personaToRow(p) {
   return [
-    c.id, c.estado, c.cargadoPor, c.fechaCarga, c.apellidoNombre,
-    c.telefono, c.gmail, c.redSocial, c.tipoEvento, c.formato,
-    c.fechaEvento, c.estadoFecha, c.cantidadInvitados, c.turno,
-    c.tipoCliente, c.exclienteReferencia, c.exclienteNota, c.origen,
-    c.presupuesto, c.montoPresupuesto, c.menuInfantil, c.otrosPedidos,
-    c.observaciones, c.proximoSeguimiento,
+    p.id, p.apellidoNombre, p.telefono, p.gmail, p.redSocial,
+    p.origen, p.tipoCliente, p.exclienteReferencia, p.exclienteNota,
+    p.fechaCarga, p.cargadoPor,
   ].map(v => v || '');
 }
 
+/* ===================== EVENTOS ===================== */
+// Columnas A-V: id, personaId, estado, cargadoPor, fechaCarga, tipoEvento,
+//               formato, fechaEvento, estadoFecha, cantidadInvitados, turno,
+//               presupuesto, montoPresupuesto, menuInfantil, otrosPedidos,
+//               observaciones, proximoSeguimiento,
+//               menuRecepcion, menuIslas, menuPrimerPlato, menuPrincipal, menuPostre
+
+function rowToEvento(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    personaId: row[1] || '',
+    estado: row[2] || '',
+    cargadoPor: row[3] || '',
+    fechaCarga: row[4] || '',
+    tipoEvento: row[5] || '',
+    formato: row[6] || '',
+    fechaEvento: row[7] || '',
+    estadoFecha: row[8] || '',
+    cantidadInvitados: row[9] || '',
+    turno: row[10] || '',
+    presupuesto: row[11] || '',
+    montoPresupuesto: row[12] || '',
+    menuInfantil: row[13] || '',
+    otrosPedidos: row[14] || '',
+    observaciones: row[15] || '',
+    proximoSeguimiento: row[16] || '',
+    menuRecepcion: row[17] || '',
+    menuIslas: row[18] || '',
+    menuPrimerPlato: row[19] || '',
+    menuPrincipal: row[20] || '',
+    menuPostre: row[21] || '',
+  };
+}
+
+function eventoToRow(e) {
+  return [
+    e.id, e.personaId, e.estado, e.cargadoPor, e.fechaCarga,
+    e.tipoEvento, e.formato, e.fechaEvento, e.estadoFecha,
+    e.cantidadInvitados, e.turno, e.presupuesto, e.montoPresupuesto,
+    e.menuInfantil, e.otrosPedidos, e.observaciones, e.proximoSeguimiento,
+    e.menuRecepcion, e.menuIslas, e.menuPrimerPlato, e.menuPrincipal, e.menuPostre,
+  ].map(v => v || '');
+}
+
+// Combina Evento + Persona en un objeto plano backward-compatible con el frontend
+function enrichEvento(evento, persona, eventosCount) {
+  return {
+    ...evento,
+    apellidoNombre: persona?.apellidoNombre || '',
+    telefono: persona?.telefono || '',
+    gmail: persona?.gmail || '',
+    redSocial: persona?.redSocial || '',
+    origen: persona?.origen || '',
+    tipoCliente: persona?.tipoCliente || '',
+    exclienteReferencia: persona?.exclienteReferencia || '',
+    exclienteNota: persona?.exclienteNota || '',
+    personaRowIndex: persona?.rowIndex || null,
+    eventosCount: eventosCount || 1,
+  };
+}
+
+/* ===================== API PÚBLICA ===================== */
+
+async function getPersonas() {
+  if (!tieneCredenciales) return memPersonas.filter(p => p.id);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Personas!A2:K',
+  });
+  return (res.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
+}
+
+async function addPersona(data) {
+  const id = generateId('PER');
+  const now = new Date().toLocaleDateString('es-AR');
+  const persona = { ...data, id, fechaCarga: data.fechaCarga || now };
+  if (!tieneCredenciales) {
+    persona.rowIndex = memPersonas.length + 2;
+    memPersonas.push(persona);
+    return persona;
+  }
+  const sheets = getSheets();
+  const colA = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Personas!A:A',
+  });
+  const nextRow = (colA.data.values || []).length + 1;
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Personas!A:K',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [personaToRow(persona)] },
+  });
+  persona.rowIndex = nextRow;
+  return persona;
+}
+
+async function updatePersona(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memPersonas.findIndex(p => p.rowIndex === rowIndex);
+    if (idx !== -1) memPersonas[idx] = { ...memPersonas[idx], ...data };
+    return data;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Personas!A${rowIndex}:K${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [personaToRow(data)] },
+  });
+  return data;
+}
+
+async function getClientes() {
+  if (!tieneCredenciales) {
+    const personaMap = {};
+    memPersonas.filter(p => p.id).forEach(p => { personaMap[p.id] = p; });
+    const countMap = {};
+    memEventos.filter(e => e.id).forEach(e => {
+      countMap[e.personaId] = (countMap[e.personaId] || 0) + 1;
+    });
+    return memEventos.filter(e => e.id).map(e =>
+      enrichEvento(e, personaMap[e.personaId], countMap[e.personaId])
+    );
+  }
+  const sheets = getSheets();
+  const [evRes, perRes] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:V' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K' }),
+  ]);
+  const personas = (perRes.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
+  const personaMap = {};
+  personas.forEach(p => { personaMap[p.id] = p; });
+  const eventos = (evRes.data.values || []).map((row, i) => rowToEvento(row, i)).filter(e => e.id);
+  const countMap = {};
+  eventos.forEach(e => { countMap[e.personaId] = (countMap[e.personaId] || 0) + 1; });
+  return eventos.map(e => enrichEvento(e, personaMap[e.personaId], countMap[e.personaId]));
+}
+
+async function addCliente(data) {
+  const now = new Date().toLocaleDateString('es-AR');
+  let persona;
+
+  if (data.personaId) {
+    const personas = await getPersonas();
+    persona = personas.find(p => p.id === data.personaId);
+  }
+
+  if (!persona) {
+    persona = await addPersona({
+      apellidoNombre: data.apellidoNombre,
+      telefono: data.telefono,
+      gmail: data.gmail,
+      redSocial: data.redSocial,
+      origen: data.origen,
+      tipoCliente: data.tipoCliente,
+      exclienteReferencia: data.exclienteReferencia,
+      exclienteNota: data.exclienteNota,
+      cargadoPor: data.cargadoPor,
+    });
+  }
+
+  const eventoId = generateId('EVT');
+  const evento = {
+    id: eventoId,
+    personaId: persona.id,
+    estado: data.estado,
+    cargadoPor: data.cargadoPor,
+    fechaCarga: now,
+    tipoEvento: data.tipoEvento,
+    formato: data.formato,
+    fechaEvento: data.fechaEvento,
+    estadoFecha: data.estadoFecha,
+    cantidadInvitados: data.cantidadInvitados,
+    turno: data.turno,
+    presupuesto: data.presupuesto,
+    montoPresupuesto: data.montoPresupuesto,
+    menuInfantil: data.menuInfantil,
+    otrosPedidos: data.otrosPedidos,
+    observaciones: data.observaciones,
+    proximoSeguimiento: data.proximoSeguimiento,
+    menuRecepcion: data.menuRecepcion,
+    menuIslas: data.menuIslas,
+    menuPrimerPlato: data.menuPrimerPlato,
+    menuPrincipal: data.menuPrincipal,
+    menuPostre: data.menuPostre,
+  };
+
+  if (!tieneCredenciales) {
+    evento.rowIndex = memEventos.length + 2;
+    memEventos.push(evento);
+    return enrichEvento(evento, persona, 1);
+  }
+
+  const sheets = getSheets();
+  const colA = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Eventos!A:A',
+  });
+  const nextRow = (colA.data.values || []).length + 1;
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Eventos!A:V',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [eventoToRow(evento)] },
+  });
+  evento.rowIndex = nextRow;
+  return enrichEvento(evento, persona, 1);
+}
+
+async function updateCliente(rowIndex, data) {
+  // rowIndex = fila en hoja Eventos
+  // data.personaRowIndex = fila en hoja Personas (si se envía, se actualiza la persona también)
+  if (!tieneCredenciales) {
+    const eIdx = memEventos.findIndex(e => e.rowIndex === rowIndex);
+    if (eIdx !== -1) {
+      memEventos[eIdx] = {
+        ...memEventos[eIdx],
+        estado: data.estado, tipoEvento: data.tipoEvento, formato: data.formato,
+        fechaEvento: data.fechaEvento, estadoFecha: data.estadoFecha,
+        cantidadInvitados: data.cantidadInvitados, turno: data.turno,
+        presupuesto: data.presupuesto, montoPresupuesto: data.montoPresupuesto,
+        menuInfantil: data.menuInfantil, otrosPedidos: data.otrosPedidos,
+        observaciones: data.observaciones, proximoSeguimiento: data.proximoSeguimiento,
+        menuRecepcion: data.menuRecepcion, menuIslas: data.menuIslas,
+        menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
+        menuPostre: data.menuPostre,
+      };
+    }
+    if (data.personaRowIndex) {
+      const pIdx = memPersonas.findIndex(p => p.rowIndex === data.personaRowIndex);
+      if (pIdx !== -1) {
+        memPersonas[pIdx] = {
+          ...memPersonas[pIdx],
+          apellidoNombre: data.apellidoNombre, telefono: data.telefono,
+          gmail: data.gmail, redSocial: data.redSocial, origen: data.origen,
+          tipoCliente: data.tipoCliente, exclienteReferencia: data.exclienteReferencia,
+          exclienteNota: data.exclienteNota,
+        };
+      }
+    }
+    return data;
+  }
+
+  const sheets = getSheets();
+  const eventoData = {
+    id: data.id, personaId: data.personaId, estado: data.estado,
+    cargadoPor: data.cargadoPor, fechaCarga: data.fechaCarga,
+    tipoEvento: data.tipoEvento, formato: data.formato, fechaEvento: data.fechaEvento,
+    estadoFecha: data.estadoFecha, cantidadInvitados: data.cantidadInvitados,
+    turno: data.turno, presupuesto: data.presupuesto, montoPresupuesto: data.montoPresupuesto,
+    menuInfantil: data.menuInfantil, otrosPedidos: data.otrosPedidos,
+    observaciones: data.observaciones, proximoSeguimiento: data.proximoSeguimiento,
+    menuRecepcion: data.menuRecepcion, menuIslas: data.menuIslas,
+    menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
+    menuPostre: data.menuPostre,
+  };
+
+  const ops = [
+    sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Eventos!A${rowIndex}:V${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [eventoToRow(eventoData)] },
+    }),
+  ];
+
+  if (data.personaRowIndex) {
+    const personaData = {
+      id: data.personaId,
+      apellidoNombre: data.apellidoNombre, telefono: data.telefono,
+      gmail: data.gmail, redSocial: data.redSocial, origen: data.origen,
+      tipoCliente: data.tipoCliente, exclienteReferencia: data.exclienteReferencia,
+      exclienteNota: data.exclienteNota, fechaCarga: data.fechaCarga,
+      cargadoPor: data.cargadoPor,
+    };
+    ops.push(
+      sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `Personas!A${data.personaRowIndex}:K${data.personaRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [personaToRow(personaData)] },
+      })
+    );
+  }
+
+  await Promise.all(ops);
+  return data;
+}
+
+/* ===================== INGRESOS ===================== */
 function rowToIngreso(row, index) {
   return {
     rowIndex: index + 2,
@@ -102,69 +382,6 @@ function rowToIngreso(row, index) {
 
 function ingresoToRow(i) {
   return [i.id, i.idCliente, i.tipoIngreso, i.monto, i.fecha, i.formaPago, i.notas].map(v => v || '');
-}
-
-function rowToRestriccion(row, index) {
-  return {
-    rowIndex: index + 2,
-    id: row[0] || '',
-    idCliente: row[1] || '',
-    tipoRestriccion: row[2] || '',
-    cantidad: row[3] || '',
-    // Sheets con USER_ENTERED convierte 'true'/'false' a boolean nativo al leer
-    coronita: row[4] === true || String(row[4]).toLowerCase() === 'true',
-  };
-}
-
-function restriccionToRow(r) {
-  return [r.id, r.idCliente, r.tipoRestriccion, r.cantidad, r.coronita ? 'true' : 'false'].map(v => v || '');
-}
-
-/* ===================== API PÚBLICA ===================== */
-
-async function getClientes() {
-  if (!tieneCredenciales) return memClientes;
-  const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Clientes!A2:X',
-  });
-  return (res.data.values || []).map((row, i) => rowToCliente(row, i));
-}
-
-async function addCliente(data) {
-  const id = generateId('CLI');
-  const now = new Date().toLocaleDateString('es-AR');
-  const cliente = { ...data, id, fechaCarga: now };
-  if (!tieneCredenciales) {
-    cliente.rowIndex = memClientes.length + 2;
-    memClientes.push(cliente);
-    return cliente;
-  }
-  const sheets = getSheets();
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Clientes!A:X',
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [clienteToRow(cliente)] },
-  });
-  return cliente;
-}
-
-async function updateCliente(rowIndex, data) {
-  if (!tieneCredenciales) {
-    const idx = memClientes.findIndex(c => c.rowIndex === rowIndex);
-    if (idx !== -1) memClientes[idx] = { ...memClientes[idx], ...data };
-    return data;
-  }
-  const sheets = getSheets();
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Clientes!A${rowIndex}:X${rowIndex}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [clienteToRow(data)] },
-  });
-  return data;
 }
 
 async function getIngresos() {
@@ -193,6 +410,22 @@ async function addIngreso(data) {
     resource: { values: [ingresoToRow(ingreso)] },
   });
   return ingreso;
+}
+
+/* ===================== RESTRICCIONES ===================== */
+function rowToRestriccion(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    idCliente: row[1] || '',
+    tipoRestriccion: row[2] || '',
+    cantidad: row[3] || '',
+    coronita: row[4] === true || String(row[4]).toLowerCase() === 'true',
+  };
+}
+
+function restriccionToRow(r) {
+  return [r.id, r.idCliente, r.tipoRestriccion, r.cantidad, r.coronita ? 'true' : 'false'].map(v => v || '');
 }
 
 async function getRestricciones() {
@@ -238,7 +471,6 @@ async function deleteRestriccion(rowIndex) {
 }
 
 /* ===================== TIMMING ===================== */
-
 function rowToTimming(row, index) {
   return {
     rowIndex: index + 2,
@@ -317,8 +549,8 @@ async function deleteTimmingItem(rowIndex) {
 }
 
 /* ===================== CUOTAS ===================== */
-// Columnas A-J: id, idCliente, numeroCuota, valorOriginal, valorActual,
-//               fechaVencimiento, estado, fechaPago, montoPagado, notas
+// Columnas A-K: id, idCliente (=idEvento), numeroCuota, valorOriginal, valorActual,
+//               fechaVencimiento, estado, fechaPago, montoPagado, notas, moneda
 
 function rowToCuota(row, index) {
   return {
@@ -360,7 +592,6 @@ async function getCuotasByCliente(idCliente) {
 }
 
 async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS') {
-  // valorCuota puede venir explícito (si el usuario lo ajustó) o calculado
   const valor = valorCuota || Math.round(montoTotal / cantidadCuotas);
   const [y, m, d] = fechaInicio.split('-').map(Number);
   const cuotas = [];
@@ -388,7 +619,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A:J',
+    range: 'Cuotas!A:K',
     valueInputOption: 'USER_ENTERED',
     resource: { values: cuotas.map(cuotaToRow) },
   });
@@ -409,7 +640,6 @@ async function pagarCuotas(rowIndices, fechaPago, notas) {
     return;
   }
   const sheets = getSheets();
-  // Leer valorActual actual de cada cuota para guardarlo como montoPagado
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: 'Cuotas!A2:J',
@@ -496,37 +726,84 @@ async function cancelarPlan(idCliente) {
   });
 }
 
+/* ===================== PAPELERA ===================== */
+// Columnas A-E: fechaEliminacion, eliminadoPor, tipo, id, datosJSON
+// Solo se puede leer desde el Google Sheets directamente (no hay ruta API)
+
+async function archivarEnPapelera(tipo, id, datos, eliminadoPor) {
+  const fecha = new Date().toLocaleString('es-AR');
+  const fila = [fecha, eliminadoPor, tipo, id, JSON.stringify(datos)];
+  if (!tieneCredenciales) return; // en modo memoria no hay papelera
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Papelera!A:E',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [fila] },
+  });
+}
+
+async function deleteEvento(rowIndex, clienteData, usuario) {
+  await archivarEnPapelera('Evento', clienteData.id, clienteData, usuario);
+  if (!tieneCredenciales) {
+    const idx = memEventos.findIndex(e => e.rowIndex === rowIndex);
+    if (idx !== -1) memEventos[idx] = { ...memEventos[idx], id: '' }; // blank out
+    return;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Eventos!A${rowIndex}:V${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [Array(22).fill('')] },
+  });
+}
+
+/* ===================== INIT SHEETS ===================== */
 async function initSheets() {
   if (!tieneCredenciales) return;
   try {
     const sheets = getSheets();
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
     const existing = spreadsheet.data.sheets.map(s => s.properties.title);
-    if (!existing.includes('Timming')) {
+
+    const toCreate = [];
+    if (!existing.includes('Personas')) toCreate.push('Personas');
+    if (!existing.includes('Eventos')) toCreate.push('Eventos');
+    if (!existing.includes('Timming')) toCreate.push('Timming');
+    if (!existing.includes('Cuotas')) toCreate.push('Cuotas');
+    if (!existing.includes('Papelera')) toCreate.push('Papelera');
+
+    if (toCreate.length) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SPREADSHEET_ID,
-        resource: { requests: [{ addSheet: { properties: { title: 'Timming' } } }] },
+        resource: { requests: toCreate.map(title => ({ addSheet: { properties: { title } } })) },
       });
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: 'Timming!A1:D1',
-        valueInputOption: 'USER_ENTERED',
-        resource: { values: [['id', 'idCliente', 'hora', 'actividad']] },
-      });
-      console.log('✅ Hoja "Timming" creada automáticamente.');
+    }
+
+    const headers = [];
+    if (!existing.includes('Personas')) {
+      headers.push({ range: 'Personas!A1:K1', values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor']] });
+    }
+    if (!existing.includes('Eventos')) {
+      headers.push({ range: 'Eventos!A1:V1', values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre']] });
+    }
+    if (!existing.includes('Timming')) {
+      headers.push({ range: 'Timming!A1:D1', values: [['id','idCliente','hora','actividad']] });
     }
     if (!existing.includes('Cuotas')) {
-      await sheets.spreadsheets.batchUpdate({
+      headers.push({ range: 'Cuotas!A1:K1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda']] });
+    }
+    if (!existing.includes('Papelera')) {
+      headers.push({ range: 'Papelera!A1:E1', values: [['fechaEliminacion','eliminadoPor','tipo','id','datosJSON']] });
+    }
+
+    if (headers.length) {
+      await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: SPREADSHEET_ID,
-        resource: { requests: [{ addSheet: { properties: { title: 'Cuotas' } } }] },
+        resource: { valueInputOption: 'USER_ENTERED', data: headers },
       });
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: 'Cuotas!A1:J1',
-        valueInputOption: 'USER_ENTERED',
-        resource: { values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda']] },
-      });
-      console.log('✅ Hoja "Cuotas" creada automáticamente.');
+      console.log('✅ Hojas creadas:', toCreate.join(', '));
     }
   } catch (e) {
     console.error('Error en initSheets:', e.message);
@@ -534,7 +811,8 @@ async function initSheets() {
 }
 
 module.exports = {
-  getClientes, addCliente, updateCliente,
+  getPersonas, addPersona, updatePersona,
+  getClientes, addCliente, updateCliente, deleteEvento,
   getIngresos, addIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,

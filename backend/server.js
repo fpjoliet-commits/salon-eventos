@@ -6,6 +6,7 @@ const path = require('path');
 const sheets = require('./sheets');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
@@ -54,7 +55,17 @@ app.post('/api/login', (req, res) => {
   res.json({ token, usuario, role: user.role });
 });
 
-// Clientes
+// Personas (para búsqueda al crear nuevo evento de cliente existente)
+app.get('/api/personas', auth, async (req, res) => {
+  try {
+    const personas = await sheets.getPersonas();
+    res.json(personas);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Clientes (Eventos enriquecidos)
 app.get('/api/clientes', auth, async (req, res) => {
   try {
     const clientes = await sheets.getClientes();
@@ -79,6 +90,16 @@ app.put('/api/clientes/:rowIndex', auth, async (req, res) => {
     const rowIndex = parseInt(req.params.rowIndex);
     const result = await sheets.updateCliente(rowIndex, req.body);
     res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/clientes/:rowIndex', auth, adminOnly, async (req, res) => {
+  try {
+    const rowIndex = parseInt(req.params.rowIndex);
+    await sheets.deleteEvento(rowIndex, req.body, req.user.usuario);
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

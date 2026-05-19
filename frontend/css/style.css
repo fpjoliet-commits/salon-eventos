@@ -1167,6 +1167,160 @@ textarea { resize: vertical; min-height: 70px; }
 .tim-edit-hora { width: 110px; }
 .tim-edit-act { flex: 1; }
 
+/* ===================== BARRA DE RECORDATORIOS ===================== */
+.reminders-bar {
+  background: #fffbea;
+  border-bottom: 2px solid #f0c040;
+  padding: 0;
+  margin: 0 -32px 0 -32px; /* ancho completo del main */
+}
+
+.reminders-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.reminder-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  border-right: 1px solid #f0d870;
+  transition: background .15s;
+}
+
+.reminder-item:last-child { border-right: none; }
+.reminder-item:hover { background: #fff3b0; }
+.reminder-icon { font-size: 15px; }
+.reminder-visita { color: #5a4200; }
+.reminder-evento { color: #7a2000; }
+
+/* ===================== BADGE RECURRENTE ===================== */
+.badge-recurrente {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-left: 5px;
+  vertical-align: middle;
+  cursor: default;
+}
+
+/* ===================== BÚSQUEDA DE PERSONA ===================== */
+.persona-search-wrap { position: relative; }
+
+.persona-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.persona-search-row input {
+  flex: 1;
+}
+
+.persona-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.10);
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.persona-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background .12s;
+}
+
+.persona-result-item:last-child { border-bottom: none; }
+.persona-result-item:hover { background: var(--cream); }
+.persona-result-empty { color: var(--text-muted); font-style: italic; cursor: default; }
+.persona-result-nombre { font-weight: 600; }
+.persona-result-tel { color: var(--text-muted); font-size: 12px; }
+
+.persona-seleccionada-card {
+  margin-top: 8px;
+  background: var(--gold-light);
+  border: 1px solid var(--gold-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.persona-card-inner { display: flex; align-items: center; gap: 12px; }
+.persona-card-nombre { font-weight: 600; font-size: 14px; color: var(--text-primary); }
+.persona-card-sub { font-size: 12px; color: var(--text-secondary); }
+
+/* ===================== EVENTOS ANTERIORES EN MODAL ===================== */
+.eventos-anteriores {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+
+.eventos-ant-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.eventos-ant-lista { display: flex; flex-direction: column; gap: 5px; }
+
+.evento-ant-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--cream);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background .12s;
+}
+
+.evento-ant-item:hover { background: var(--cream-deep); }
+.evento-ant-tipo { font-weight: 600; flex: 1; }
+.evento-ant-fecha { color: var(--text-muted); }
+
+/* ===================== DETALLE MENÚ ===================== */
+.detail-menu-section { margin-top: 4px; }
+
+.detail-menu-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.detail-menu-grid > div { display: flex; gap: 8px; align-items: baseline; }
+
+.menu-cat {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--text-muted);
+  min-width: 68px;
+}
+
 /* ===================== SCROLLBAR ===================== */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

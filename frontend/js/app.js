@@ -6,6 +6,7 @@ let currentUser = null;
 let token = null;
 let allClientes = [];
 let allIngresos = [];
+let allPersonas = [];
 let currentClienteModal = null;
 let currentRestricciones = [];
 let calYear, calMonth;
@@ -179,6 +180,7 @@ function initApp() {
   });
 
   loadClientes();
+  loadPersonas();
   navigateTo('clientes');
 }
 
@@ -201,6 +203,7 @@ function navigateTo(view) {
 
   if (view === 'ingresos' && isAdmin()) loadIngresos();
   if (view === 'calendario') loadCalendario();
+  if (view === 'nuevo-cliente' && !$('edit-row-index').value) resetNuevoClienteForm();
 }
 
 /* ===================== CARGA HISTÓRICA ===================== */
@@ -241,6 +244,75 @@ $('historico-form').addEventListener('submit', async e => {
   }
 });
 
+/* ===================== PERSONAS ===================== */
+async function loadPersonas() {
+  try { allPersonas = await apiFetch('/personas'); } catch {}
+}
+
+/* ===================== RECORDATORIOS ===================== */
+function calcReminders() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  const visitasHoy = allClientes.filter(c =>
+    c.estado === 'Visita agendada' && c.proximoSeguimiento === todayStr
+  );
+
+  const eventosProximos = allClientes.filter(c => {
+    if (c.estado !== 'Confirmado' || !c.fechaEvento) return false;
+    const evDate = new Date(c.fechaEvento); evDate.setHours(0, 0, 0, 0);
+    const diff = (evDate - today) / 86400000;
+    return diff >= 0 && diff <= 4;
+  });
+
+  return { visitasHoy, eventosProximos };
+}
+
+function renderRemindersBar() {
+  const bar = $('reminders-bar');
+  if (!bar) return;
+  const { visitasHoy, eventosProximos } = calcReminders();
+  if (!visitasHoy.length && !eventosProximos.length) {
+    bar.innerHTML = ''; bar.classList.add('hidden'); return;
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  let html = '<div class="reminders-inner">';
+
+  if (visitasHoy.length) {
+    const ids = visitasHoy.map(c => `'${c.id}'`).join(',');
+    html += `<div class="reminder-item reminder-visita" onclick="filterReminder([${ids}])">
+      <span class="reminder-icon">📅</span>
+      <strong>Visitas hoy:</strong>&nbsp;${visitasHoy.length} cliente${visitasHoy.length > 1 ? 's' : ''}
+    </div>`;
+  }
+
+  eventosProximos.forEach(c => {
+    const evDate = new Date(c.fechaEvento); evDate.setHours(0,0,0,0);
+    const diff = Math.round((evDate - today) / 86400000);
+    const cuando = diff === 0 ? 'HOY' : diff === 1 ? 'mañana' : `en ${diff} días`;
+    html += `<div class="reminder-item reminder-evento" onclick="abrirClientePorId('${c.id}')">
+      <span class="reminder-icon">⚠️</span>
+      <strong>${esc(c.apellidoNombre)}</strong>&nbsp;— ${c.tipoEvento || 'Evento'} ${cuando}
+    </div>`;
+  });
+
+  html += '</div>';
+  bar.innerHTML = html;
+  bar.classList.remove('hidden');
+}
+
+window.filterReminder = (ids) => {
+  navigateTo('clientes');
+  const filtered = allClientes.filter(c => ids.includes(c.id));
+  renderClientes(filtered);
+};
+
+window.abrirClientePorId = (id) => {
+  const c = allClientes.find(x => x.id === id);
+  if (c) openClienteModal(c);
+};
+
 /* ===================== CLIENTES ===================== */
 async function loadClientes() {
   $('clientes-loading').style.display = 'block';
@@ -251,6 +323,7 @@ async function loadClientes() {
   try {
     allClientes = await apiFetch('/clientes');
     renderClientes(allClientes);
+    renderRemindersBar();
   } catch (err) {
     $('clientes-error').textContent = err.message;
     show('clientes-error');
@@ -273,8 +346,9 @@ function renderClientes(clientes) {
   clientes.forEach(c => {
     const tr = document.createElement('tr');
     const segClass = seguimientoClass(c.proximoSeguimiento);
+    const recurrente = (c.eventosCount || 1) > 1;
     tr.innerHTML = `
-      <td><strong>${c.apellidoNombre || '—'}</strong></td>
+      <td><strong>${c.apellidoNombre || '—'}</strong>${recurrente ? ' <span class="badge-recurrente" title="Esta persona tiene múltiples eventos">↩</span>' : ''}</td>
       <td>${c.telefono || '—'}</td>
       <td>${c.tipoEvento || '—'}</td>
       <td>${formatDateWithDay(c.fechaEvento)}</td>
@@ -353,19 +427,53 @@ function openClienteModal(cliente, tabInicial = 'info') {
     if (tabInicial === 'timming') tabInicial = 'info';
   }
 
+  // Botones admin-only en modal
+  const btnNuevoEvento = $('btn-nuevo-evento');
+  const btnEliminar = $('btn-eliminar-cliente');
+  if (canManagePagos()) {
+    btnNuevoEvento?.classList.remove('hidden');
+    btnEliminar?.classList.remove('hidden');
+  } else {
+    btnNuevoEvento?.classList.add('hidden');
+    btnEliminar?.classList.add('hidden');
+  }
+
   activateTab(tabInicial);
   renderClienteDetail(cliente);
   injectNombreAcciones(cliente);
   loadRestriccionesModal(cliente);
   renderPagosTab(cliente);
   loadCuotasTab(cliente);
-  if (canManagePagos()) loadTimmingTab(cliente);
+  if (canManagePagos()) {
+    loadTimmingTab(cliente);
+    cargarEventosAnteriores(cliente);
+  }
 
   showEl($('modal-overlay'));
 }
 
 $('modal-close-btn').addEventListener('click', () => hideEl($('modal-overlay')));
 $('modal-overlay').addEventListener('click', e => { if (e.target === $('modal-overlay')) hideEl($('modal-overlay')); });
+
+$('btn-nuevo-evento')?.addEventListener('click', () => {
+  if (!currentClienteModal) return;
+  hideEl($('modal-overlay'));
+  abrirNuevoEventoParaPersona(currentClienteModal);
+});
+
+$('btn-eliminar-cliente')?.addEventListener('click', async () => {
+  if (!currentClienteModal) return;
+  const c = currentClienteModal;
+  const confirmMsg = `¿Eliminar el evento "${c.apellidoNombre}"?\n\nSe archivará en la Papelera de Google Sheets. Esta acción no se puede deshacer desde el CRM.`;
+  if (!confirm(confirmMsg)) return;
+  try {
+    await apiFetch(`/clientes/${c.rowIndex}`, { method: 'DELETE', body: c });
+    hideEl($('modal-overlay'));
+    allClientes = await apiFetch('/clientes');
+    renderClientes(allClientes);
+    renderRemindersBar();
+  } catch (err) { alert('Error al eliminar: ' + err.message); }
+});
 
 // Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -379,6 +487,62 @@ function activateTab(name) {
     c.classList.toggle('active', isActive);
     if (isActive) c.classList.remove('hidden');
   });
+}
+
+function cargarEventosAnteriores(cliente) {
+  const container = $('cliente-eventos-anteriores');
+  if (!container) return;
+  const otros = allClientes.filter(c => c.personaId === cliente.personaId && c.id !== cliente.id);
+  if (!otros.length) { container.classList.add('hidden'); container.innerHTML = ''; return; }
+
+  container.classList.remove('hidden');
+  container.innerHTML = `
+    <div class="eventos-ant-titulo">Otros eventos de esta persona (${otros.length}):</div>
+    <div class="eventos-ant-lista">
+      ${otros.map(c => `
+        <div class="evento-ant-item" onclick="openClienteModal(allClientes.find(x=>x.id==='${c.id}'))">
+          <span class="evento-ant-tipo">${c.tipoEvento || '—'}</span>
+          <span class="evento-ant-fecha">${formatDate(c.fechaEvento) || '—'}</span>
+          <span>${estadoBadge(c.estado)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function abrirNuevoEventoParaPersona(clienteBase) {
+  // Guarda la persona en los hidden inputs y navega al form
+  $('edit-row-index').value = '';
+  $('edit-cliente-id').value = '';
+  $('edit-persona-id').value = clienteBase.personaId || '';
+  $('edit-persona-row-index').value = clienteBase.personaRowIndex || '';
+
+  const form = $('cliente-form');
+  form.reset();
+
+  // Pre-fill datos de persona (solo lectura semántica, el usuario puede cambiarlos)
+  const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
+  setVal('apellidoNombre', clienteBase.apellidoNombre);
+  setVal('telefono', clienteBase.telefono);
+  setVal('gmail', clienteBase.gmail);
+  setVal('redSocial', clienteBase.redSocial);
+  setVal('origen', clienteBase.origen);
+  setVal('tipoCliente', 'Excliente');
+
+  // Mostrar card de persona seleccionada
+  const card = $('persona-seleccionada-card');
+  if (card) {
+    card.innerHTML = `<div class="persona-card-inner">
+      <span class="persona-card-nombre">👤 ${esc(clienteBase.apellidoNombre)}</span>
+      <span class="persona-card-sub">${clienteBase.telefono || ''}</span>
+    </div>`;
+    card.classList.remove('hidden');
+  }
+  hide('persona-search-section');
+  // No mostramos sección de búsqueda porque ya tenemos la persona
+
+  $('form-titulo').textContent = 'Nuevo evento — ' + (clienteBase.apellidoNombre || 'mismo cliente');
+  $('tipo-cliente-select').dispatchEvent(new Event('change'));
+  $('presupuesto-select').dispatchEvent(new Event('change'));
+  navigateTo('nuevo-cliente');
 }
 
 function renderClienteDetail(c) {
@@ -405,6 +569,17 @@ function renderClienteDetail(c) {
     ${c.exclienteNota ? `<div class="detail-item"><span class="detail-label">Ex-cliente nota</span><span class="detail-value">${c.exclienteNota}</span></div>` : ''}
     ${c.otrosPedidos ? `<div class="detail-item detail-full"><span class="detail-label">Otros pedidos</span><span class="detail-value">${esc(c.otrosPedidos)}</span></div>` : ''}
     ${(c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim() ? `<div class="detail-item detail-full"><span class="detail-label">Observaciones</span><span class="detail-value">${esc((c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim())}</span></div>` : ''}
+    ${(c.menuRecepcion || c.menuIslas || c.menuPrimerPlato || c.menuPrincipal || c.menuPostre) ? `
+      <div class="detail-item detail-full detail-menu-section">
+        <span class="detail-label">Menú del evento</span>
+        <div class="detail-menu-grid">
+          ${c.menuRecepcion ? `<div><span class="menu-cat">Recepción</span> ${esc(c.menuRecepcion)}</div>` : ''}
+          ${c.menuIslas ? `<div><span class="menu-cat">Islas</span> ${esc(c.menuIslas)}</div>` : ''}
+          ${c.menuPrimerPlato ? `<div><span class="menu-cat">1° plato</span> ${esc(c.menuPrimerPlato)}</div>` : ''}
+          ${c.menuPrincipal ? `<div><span class="menu-cat">Principal</span> ${esc(c.menuPrincipal)}</div>` : ''}
+          ${c.menuPostre ? `<div><span class="menu-cat">Postre</span> ${esc(c.menuPostre)}</div>` : ''}
+        </div>
+      </div>` : ''}
   `;
 }
 
@@ -552,12 +727,25 @@ function imprimirFichaCocina(c, restricciones, timmingItems = []) {
 
   </div>
 
+  ${(c.menuRecepcion || c.menuIslas || c.menuPrimerPlato || c.menuPrincipal || c.menuPostre) ? `
+  <div class="menu-sec-header">
+    <span class="cocina-icon">🍽️</span>
+    <div><div class="menu-sec-titulo">Menú del evento</div></div>
+  </div>
+  <div class="menu-sec-body">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      ${c.menuRecepcion ? `<tr><td style="padding:7px 0;font-weight:700;color:#8f2e4d;width:120px">Recepción</td><td style="padding:7px 0">${esc(c.menuRecepcion)}</td></tr>` : ''}
+      ${c.menuIslas ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">Islas</td><td style="padding:7px 0">${esc(c.menuIslas)}</td></tr>` : ''}
+      ${c.menuPrimerPlato ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">1° plato</td><td style="padding:7px 0">${esc(c.menuPrimerPlato)}</td></tr>` : ''}
+      ${c.menuPrincipal ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">Principal</td><td style="padding:7px 0">${esc(c.menuPrincipal)}</td></tr>` : ''}
+      ${c.menuPostre ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">Postre</td><td style="padding:7px 0">${esc(c.menuPostre)}</td></tr>` : ''}
+    </table>
+  </div>` : ''}
+
   ${timmingItems.length ? `
   <div class="menu-sec-header">
     <span class="cocina-icon">🕐</span>
-    <div>
-      <div class="menu-sec-titulo">Menú y cronograma del evento</div>
-    </div>
+    <div><div class="menu-sec-titulo">Cronograma del evento</div></div>
   </div>
   <div class="menu-sec-body">
     ${timmingItems.map(it => `
@@ -771,8 +959,8 @@ function renderIngresos(ingresos, clienteMap) {
   show('ingresos-content');
 }
 
-window.openClienteModalById = (idCliente) => {
-  const c = allClientes.find(cl => cl.id === idCliente);
+window.openClienteModalById = (id) => {
+  const c = allClientes.find(cl => cl.id === id);
   if (c) openClienteModal(c, 'pagos');
 };
 
@@ -864,7 +1052,107 @@ $('presupuesto-select').addEventListener('change', () => {
   $('monto-group').style.display = $('presupuesto-select').value === 'Sí, tiene monto' ? '' : 'none';
 });
 
-$('cancel-form-btn').addEventListener('click', () => navigateTo('clientes'));
+$('cancel-form-btn').addEventListener('click', () => { resetNuevoClienteForm(); navigateTo('clientes'); });
+
+function resetNuevoClienteForm() {
+  $('form-titulo').textContent = 'Nuevo cliente';
+  $('edit-row-index').value = '';
+  $('edit-cliente-id').value = '';
+  $('edit-persona-id').value = '';
+  $('edit-persona-row-index').value = '';
+  show('persona-search-section');
+  const card = $('persona-seleccionada-card');
+  if (card) { card.classList.add('hidden'); card.innerHTML = ''; }
+  const results = $('persona-search-results');
+  if (results) { results.classList.add('hidden'); results.innerHTML = ''; }
+  const searchInput = $('persona-search-input');
+  if (searchInput) searchInput.value = '';
+  $('persona-search-clear')?.classList.add('hidden');
+}
+
+// Búsqueda de persona existente
+$('persona-search-input')?.addEventListener('input', () => {
+  const q = $('persona-search-input').value.trim().toLowerCase();
+  const results = $('persona-search-results');
+  if (!results) return;
+  if (q.length < 2) { results.classList.add('hidden'); results.innerHTML = ''; return; }
+
+  const matches = allPersonas.filter(p =>
+    p.id && (
+      (p.apellidoNombre || '').toLowerCase().includes(q) ||
+      (p.telefono || '').includes(q)
+    )
+  ).slice(0, 6);
+
+  if (!matches.length) {
+    results.innerHTML = '<div class="persona-result-item persona-result-empty">No se encontraron clientes</div>';
+    results.classList.remove('hidden');
+    return;
+  }
+  results.innerHTML = matches.map(p => `
+    <div class="persona-result-item" data-id="${p.id}">
+      <span class="persona-result-nombre">${esc(p.apellidoNombre)}</span>
+      <span class="persona-result-tel">${p.telefono || ''}</span>
+    </div>`).join('');
+  results.classList.remove('hidden');
+
+  results.querySelectorAll('.persona-result-item[data-id]').forEach(el => {
+    el.addEventListener('click', () => seleccionarPersonaExistente(el.dataset.id));
+  });
+});
+
+function seleccionarPersonaExistente(personaId) {
+  const persona = allPersonas.find(p => p.id === personaId);
+  if (!persona) return;
+
+  $('edit-persona-id').value = persona.id;
+  $('edit-persona-row-index').value = persona.rowIndex || '';
+
+  // Pre-fill campos
+  const form = $('cliente-form');
+  const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
+  setVal('apellidoNombre', persona.apellidoNombre);
+  setVal('telefono', persona.telefono);
+  setVal('gmail', persona.gmail);
+  setVal('redSocial', persona.redSocial);
+  setVal('origen', persona.origen);
+  setVal('tipoCliente', 'Excliente');
+  $('tipo-cliente-select').dispatchEvent(new Event('change'));
+
+  // Mostrar card
+  const card = $('persona-seleccionada-card');
+  if (card) {
+    // Contar eventos previos
+    const eventosCount = allClientes.filter(c => c.personaId === persona.id).length;
+    card.innerHTML = `<div class="persona-card-inner">
+      <span class="persona-card-nombre">👤 ${esc(persona.apellidoNombre)}</span>
+      <span class="persona-card-sub">${persona.telefono || ''}${eventosCount ? ` · ${eventosCount} evento${eventosCount > 1 ? 's' : ''} anterior${eventosCount > 1 ? 'es' : ''}` : ''}</span>
+    </div>`;
+    card.classList.remove('hidden');
+  }
+
+  const results = $('persona-search-results');
+  if (results) { results.classList.add('hidden'); }
+  const searchInput = $('persona-search-input');
+  if (searchInput) searchInput.value = persona.apellidoNombre;
+  $('persona-search-clear')?.classList.remove('hidden');
+}
+
+$('persona-search-clear')?.addEventListener('click', () => {
+  $('edit-persona-id').value = '';
+  $('edit-persona-row-index').value = '';
+  const card = $('persona-seleccionada-card');
+  if (card) { card.classList.add('hidden'); card.innerHTML = ''; }
+  const searchInput = $('persona-search-input');
+  if (searchInput) searchInput.value = '';
+  $('persona-search-clear')?.classList.add('hidden');
+  $('persona-search-results')?.classList.add('hidden');
+  // Reset persona fields
+  const form = $('cliente-form');
+  ['apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente'].forEach(name => {
+    if (form[name]) form[name].value = '';
+  });
+});
 
 $('cliente-form').addEventListener('submit', async e => {
   e.preventDefault();
@@ -916,6 +1204,8 @@ $('cliente-form').addEventListener('submit', async e => {
 
   const body = {
     id: $('edit-cliente-id').value || undefined,
+    personaId: $('edit-persona-id').value || undefined,
+    personaRowIndex: $('edit-persona-row-index').value ? parseInt($('edit-persona-row-index').value) : undefined,
     estado: form.estado.value,
     apellidoNombre: form.apellidoNombre.value,
     telefono: form.telefono.value,
@@ -937,6 +1227,12 @@ $('cliente-form').addEventListener('submit', async e => {
     otrosPedidos: form.otrosPedidos.value,
     observaciones: form.observaciones.value,
     proximoSeguimiento: form.proximoSeguimiento.value,
+    menuRecepcion: form.menuRecepcion.value,
+    menuIslas: form.menuIslas.value,
+    menuPrimerPlato: form.menuPrimerPlato.value,
+    menuPrincipal: form.menuPrincipal.value,
+    menuPostre: form.menuPostre.value,
+    cargadoPor: currentUser.usuario,
   };
 
   try {
@@ -945,13 +1241,11 @@ $('cliente-form').addEventListener('submit', async e => {
     } else {
       await apiFetch('/clientes', { method: 'POST', body });
     }
-    $('form-success').textContent = isEdit ? 'Cliente actualizado.' : 'Cliente guardado.';
+    $('form-success').textContent = isEdit ? 'Evento actualizado.' : 'Cliente guardado.';
     show('form-success');
     form.reset();
-    $('edit-row-index').value = '';
-    $('edit-cliente-id').value = '';
-    $('form-titulo').textContent = 'Nuevo cliente';
-    await loadClientes();
+    resetNuevoClienteForm();
+    await Promise.all([loadClientes(), loadPersonas()]);
     setTimeout(() => navigateTo('clientes'), 1000);
   } catch (err) {
     $('form-error').textContent = err.message;
@@ -962,9 +1256,14 @@ $('cliente-form').addEventListener('submit', async e => {
 });
 
 function openEditForm(cliente) {
-  $('form-titulo').textContent = 'Editar cliente';
+  $('form-titulo').textContent = 'Editar evento';
   $('edit-row-index').value = cliente.rowIndex;
   $('edit-cliente-id').value = cliente.id;
+  $('edit-persona-id').value = cliente.personaId || '';
+  $('edit-persona-row-index').value = cliente.personaRowIndex || '';
+
+  // En modo edición ocultamos la sección de búsqueda de persona
+  hide('persona-search-section');
 
   const form = $('cliente-form');
   const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
@@ -990,11 +1289,14 @@ function openEditForm(cliente) {
   setVal('otrosPedidos', cliente.otrosPedidos);
   setVal('observaciones', cliente.observaciones);
   setVal('proximoSeguimiento', cliente.proximoSeguimiento);
+  setVal('menuRecepcion', cliente.menuRecepcion);
+  setVal('menuIslas', cliente.menuIslas);
+  setVal('menuPrimerPlato', cliente.menuPrimerPlato);
+  setVal('menuPrincipal', cliente.menuPrincipal);
+  setVal('menuPostre', cliente.menuPostre);
 
-  // Trigger conditional displays
   $('tipo-cliente-select').dispatchEvent(new Event('change'));
   $('presupuesto-select').dispatchEvent(new Event('change'));
-
   navigateTo('nuevo-cliente');
 }
 
@@ -1296,6 +1598,8 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
 function buildClienteBody(c, overrides = {}) {
   return {
     id: c.id,
+    personaId: c.personaId,
+    personaRowIndex: c.personaRowIndex,
     estado: c.estado,
     apellidoNombre: c.apellidoNombre,
     telefono: c.telefono,
@@ -1317,6 +1621,11 @@ function buildClienteBody(c, overrides = {}) {
     otrosPedidos: c.otrosPedidos,
     observaciones: c.observaciones,
     proximoSeguimiento: c.proximoSeguimiento,
+    menuRecepcion: c.menuRecepcion,
+    menuIslas: c.menuIslas,
+    menuPrimerPlato: c.menuPrimerPlato,
+    menuPrincipal: c.menuPrincipal,
+    menuPostre: c.menuPostre,
     cargadoPor: c.cargadoPor,
     fechaCarga: c.fechaCarga,
     ...overrides,
