@@ -306,7 +306,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 function activateTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === `tab-${name}`));
+  document.querySelectorAll('.tab-content').forEach(c => {
+    const isActive = c.id === `tab-${name}`;
+    c.classList.toggle('active', isActive);
+    if (isActive) c.classList.remove('hidden');
+  });
 }
 
 function renderClienteDetail(c) {
