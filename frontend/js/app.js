@@ -167,7 +167,7 @@ function navigateTo(view) {
   const navItem = document.querySelector(`.nav-item[data-view="${view}"]`);
   const section = $(`view-${view}`);
   if (navItem) navItem.classList.add('active');
-  if (section) section.classList.add('active');
+  if (section) { section.classList.remove('hidden'); section.classList.add('active'); }
 
   if (view === 'ingresos' && isAdmin()) loadIngresos();
   if (view === 'calendario') loadCalendario();
