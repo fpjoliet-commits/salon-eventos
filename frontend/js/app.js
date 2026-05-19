@@ -173,6 +173,11 @@ function initApp() {
     el.style.display = isAdmin() ? '' : 'none';
   });
 
+  // Timing Planner: visible para superadmin y admin (mismo criterio que la pestaña)
+  document.querySelectorAll('.nav-item[data-view="timing-global"]').forEach(el => {
+    el.style.display = canManagePagos() ? '' : 'none';
+  });
+
   // Calendario: visible para superadmin y admin
   const canSeeCalendar = isAdmin() || currentUser.usuario === 'admin';
   document.querySelectorAll('.calendar-access').forEach(el => {
@@ -354,12 +359,43 @@ async function loadClientes() {
     allClientes = await apiFetch('/clientes');
     renderClientes(allClientes);
     renderRemindersBar();
+    if (allClientes.length === 0 && canManagePagos()) mostrarBannerMigracion();
   } catch (err) {
     $('clientes-error').textContent = err.message;
     show('clientes-error');
   } finally {
     $('clientes-loading').style.display = 'none';
   }
+}
+
+function mostrarBannerMigracion() {
+  const empty = $('clientes-empty');
+  if (!empty) return;
+  empty.innerHTML = `
+    <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:20px 24px;max-width:520px;margin:24px auto;text-align:center">
+      <p style="font-weight:700;font-size:15px;margin-bottom:8px">⚠️ No hay clientes cargados</p>
+      <p style="font-size:13px;color:#555;margin-bottom:16px">
+        Si ya tenías clientes cargados antes de la actualización, hacé click en el botón para migrar los datos al nuevo formato.
+      </p>
+      <button id="btn-migrar" class="btn btn-primary">Migrar datos de clientes</button>
+      <p id="migrar-msg" style="margin-top:12px;font-size:13px;color:#555"></p>
+    </div>`;
+  $('btn-migrar').addEventListener('click', async () => {
+    const btn = $('btn-migrar');
+    const msg = $('migrar-msg');
+    btn.disabled = true;
+    btn.textContent = 'Migrando…';
+    try {
+      const res = await apiFetch('/migrar-clientes', { method: 'POST' });
+      msg.textContent = `✅ ${res.migradas} cliente${res.migradas !== 1 ? 's' : ''} migrado${res.migradas !== 1 ? 's' : ''}. Recargando…`;
+      setTimeout(() => loadClientes(), 1500);
+    } catch (e) {
+      msg.style.color = '#c0392b';
+      msg.textContent = '❌ ' + e.message;
+      btn.disabled = false;
+      btn.textContent = 'Reintentar';
+    }
+  });
 }
 
 function renderClientes(clientes) {
