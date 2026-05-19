@@ -187,6 +187,44 @@ function navigateTo(view) {
   if (view === 'calendario') loadCalendario();
 }
 
+/* ===================== CARGA HISTÓRICA ===================== */
+let historicoCount = 0;
+
+$('historico-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nombre = $('hist-nombre').value.trim();
+  const estadoSeleccionado = document.querySelector('input[name="hist-estado"]:checked')?.value || 'Realizado';
+
+  const data = {
+    apellidoNombre: nombre,
+    telefono: $('hist-telefono').value.trim(),
+    tipoEvento: $('hist-tipo').value,
+    fechaEvento: $('hist-fecha').value,
+    cantidadInvitados: $('hist-pax').value,
+    turno: $('hist-turno').value,
+    observaciones: $('hist-obs').value.trim(),
+    estado: estadoSeleccionado,
+    estadoFecha: estadoSeleccionado === 'Confirmado' ? 'Tentativa' : '',
+    cargadoPor: currentUser.usuario,
+    fechaCarga: new Date().toISOString().split('T')[0],
+  };
+
+  try {
+    await apiFetch('/clientes', { method: 'POST', body: data });
+    historicoCount++;
+    const msg = $('historico-success');
+    msg.textContent = `✓ "${nombre}" guardado correctamente.`;
+    show('historico-success');
+    setTimeout(() => hide('historico-success'), 4000);
+    $('hist-contador').textContent = `${historicoCount} evento${historicoCount !== 1 ? 's' : ''} cargado${historicoCount !== 1 ? 's' : ''} en esta sesión`;
+    $('historico-form').reset();
+    $('hist-nombre').focus();
+    allClientes = await apiFetch('/clientes');
+  } catch (err) {
+    alert('Error al guardar: ' + err.message);
+  }
+});
+
 /* ===================== CLIENTES ===================== */
 async function loadClientes() {
   $('clientes-loading').style.display = 'block';
