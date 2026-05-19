@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM — Joliet Eventos</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="img/logo.png" alt="Joliet Eventos" class="login-logo-img" onerror="this.style.display='none'">
+      </div>
+      <h1>Joliet Eventos</h1>
+      <p class="login-subtitle">Ingresá con tu usuario</p>
+      <form id="login-form">
+        <div class="form-group">
+          <label>Usuario</label>
+          <select id="login-usuario" required>
+            <option value="">Seleccioná...</option>
+            <option value="Anita">Anita</option>
+            <option value="Mariana">Mariana</option>
+            <option value="Fabio">Fabio</option>
+          </select>
+        </div>
+        <div class="form-group" id="password-group">
+          <label>Contraseña</label>
+          <input type="password" id="login-password" placeholder="••••••••">
+        </div>
+        <div id="login-error" class="error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full">Ingresar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="demo-banner" class="hidden demo-banner">
+    ⚠️ Modo sin conexión a Google Sheets — los datos no se guardan al reiniciar el servidor
+  </div>
+
+  <div id="app" class="hidden">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <img src="img/logo.png" alt="Joliet" class="sidebar-logo-img" onerror="this.style.display='none'">
+        <span class="logo-text">Joliet Eventos</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-view="clientes">
+          <span class="nav-icon">👥</span> Clientes
+        </a>
+        <a href="#" class="nav-item" data-view="nuevo-cliente">
+          <span class="nav-icon">➕</span> Nuevo cliente
+        </a>
+        <a href="#" class="nav-item admin-only" data-view="ingresos">
+          <span class="nav-icon">💰</span> Ingresos
+        </a>
+        <a href="#" class="nav-item calendar-access" data-view="calendario">
+          <span class="nav-icon">📅</span> Calendario
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <span id="sidebar-user"></span>
+          <span id="sidebar-role" class="role-badge"></span>
+        </div>
+        <button id="logout-btn" class="btn-logout">Salir</button>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main-content">
+
+      <!-- VISTA: CLIENTES -->
+      <section id="view-clientes" class="view active">
+        <div class="view-header">
+          <h2>Clientes</h2>
+          <div class="header-actions">
+            <input type="text" id="search-input" class="search-input" placeholder="Buscar por nombre, teléfono...">
+            <select id="filter-estado" class="filter-select">
+              <option value="">Todos los estados</option>
+              <option>Consulta</option>
+              <option>Visita agendada</option>
+              <option>Por cerrar</option>
+              <option>Confirmado</option>
+              <option>Realizado</option>
+              <option>Cancelado</option>
+            </select>
+            <select id="filter-evento" class="filter-select">
+              <option value="">Todos los eventos</option>
+              <option>Boda</option>
+              <option>XV años</option>
+              <option>Cumpleaños — 1 año</option>
+              <option>Cumpleaños — 18</option>
+              <option>Cumpleaños — 40</option>
+              <option>Cumpleaños — 50</option>
+              <option>Cumpleaños — 60</option>
+              <option>Cumpleaños — 70</option>
+              <option>Cumpleaños — 80</option>
+              <option>Cumpleaños — 90</option>
+              <option>Bautismo</option>
+              <option>Comunión</option>
+              <option>Egresados</option>
+              <option>Corporativo</option>
+              <option>Otro</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="clientes-stats" class="stats-row"></div>
+
+        <div id="clientes-loading" class="loading-msg">Cargando clientes...</div>
+        <div id="clientes-error" class="error-msg hidden"></div>
+
+        <div id="clientes-table-wrap" class="table-wrap hidden">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Teléfono</th>
+                <th>Evento</th>
+                <th>Fecha evento</th>
+                <th>Estado</th>
+                <th>Próx. seguimiento</th>
+                <th>Origen</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="clientes-tbody"></tbody>
+          </table>
+        </div>
+        <div id="clientes-empty" class="empty-msg hidden">No hay clientes que coincidan con el filtro.</div>
+      </section>
+
+      <!-- VISTA: NUEVO CLIENTE -->
+      <section id="view-nuevo-cliente" class="view hidden">
+        <div class="view-header">
+          <h2 id="form-titulo">Nuevo cliente</h2>
+        </div>
+        <form id="cliente-form" class="crm-form">
+          <input type="hidden" id="edit-row-index">
+          <input type="hidden" id="edit-cliente-id">
+
+          <div class="form-section">
+            <h3>Datos generales</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Estado *</label>
+                <select name="estado" required>
+                  <option value="">Seleccioná...</option>
+                  <option>Consulta</option>
+                  <option>Visita agendada</option>
+                  <option>Por cerrar</option>
+                  <option>Confirmado</option>
+                  <option>Realizado</option>
+                  <option>Cancelado</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Apellido y nombre *</label>
+                <input type="text" name="apellidoNombre" required placeholder="García, María">
+              </div>
+              <div class="form-group">
+                <label>Teléfono</label>
+                <input type="text" name="telefono" placeholder="11-1234-5678">
+              </div>
+              <div class="form-group">
+                <label>Gmail</label>
+                <input type="email" name="gmail" placeholder="email@gmail.com">
+              </div>
+              <div class="form-group">
+                <label>Red social</label>
+                <select name="redSocial">
+                  <option value="">—</option>
+                  <option>Instagram</option>
+                  <option>Facebook</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Origen</label>
+                <select name="origen">
+                  <option value="">—</option>
+                  <option>Instagram</option>
+                  <option>Facebook</option>
+                  <option>WhatsApp</option>
+                  <option>Google</option>
+                  <option>Referido</option>
+                  <option>Pasó por la puerta</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Evento</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Tipo de evento</label>
+                <select name="tipoEvento">
+                  <option value="">—</option>
+                  <option>Boda</option>
+                  <option>XV años</option>
+                  <option>Cumpleaños — 1 año</option>
+                  <option>Cumpleaños — 18</option>
+                  <option>Cumpleaños — 40</option>
+                  <option>Cumpleaños — 50</option>
+                  <option>Cumpleaños — 60</option>
+                  <option>Cumpleaños — 70</option>
+                  <option>Cumpleaños — 80</option>
+                  <option>Cumpleaños — 90</option>
+                  <option>Bautismo</option>
+                  <option>Comunión</option>
+                  <option>Egresados</option>
+                  <option>Corporativo</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Formato</label>
+                <select name="formato">
+                  <option value="">—</option>
+                  <option>Formal</option>
+                  <option>Informal</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Fecha del evento</label>
+                <input type="date" name="fechaEvento">
+              </div>
+              <div class="form-group">
+                <label>Estado de la fecha</label>
+                <select name="estadoFecha">
+                  <option value="">—</option>
+                  <option>Tentativa</option>
+                  <option>Reservada</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Cantidad de invitados</label>
+                <input type="number" name="cantidadInvitados" min="0">
+              </div>
+              <div class="form-group">
+                <label>Turno</label>
+                <select name="turno">
+                  <option value="">—</option>
+                  <option>Almuerzo</option>
+                  <option>Tarde</option>
+                  <option>Noche</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Tipo de cliente</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Tipo de cliente</label>
+                <select name="tipoCliente" id="tipo-cliente-select">
+                  <option value="">—</option>
+                  <option>Nuevo</option>
+                  <option>Excliente</option>
+                  <option>Referido</option>
+                </select>
+              </div>
+              <div class="form-group" id="excliente-ref-group" style="display:none">
+                <label>Excliente referencia</label>
+                <input type="text" name="exclienteReferencia">
+              </div>
+              <div class="form-group" id="excliente-nota-group" style="display:none">
+                <label>Excliente nota</label>
+                <input type="text" name="exclienteNota">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Presupuesto</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Presupuesto</label>
+                <select name="presupuesto" id="presupuesto-select">
+                  <option value="">—</option>
+                  <option>Sí, tiene monto</option>
+                  <option>No sabe</option>
+                  <option>No dice</option>
+                </select>
+              </div>
+              <div class="form-group" id="monto-group" style="display:none">
+                <label>Monto presupuesto</label>
+                <input type="number" name="montoPresupuesto" min="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Otros detalles</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Menú infantil</label>
+                <input type="number" name="menuInfantil" min="0">
+              </div>
+              <div class="form-group">
+                <label>Próximo seguimiento</label>
+                <input type="date" name="proximoSeguimiento">
+              </div>
+              <div class="form-group full-width">
+                <label>Otros pedidos</label>
+                <textarea name="otrosPedidos" rows="2"></textarea>
+              </div>
+              <div class="form-group full-width">
+                <label>Observaciones</label>
+                <textarea name="observaciones" rows="3"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div id="form-error" class="error-msg hidden"></div>
+          <div id="form-success" class="success-msg hidden"></div>
+
+          <div class="form-actions">
+            <button type="button" id="cancel-form-btn" class="btn btn-secondary">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="submit-cliente-btn">Guardar cliente</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- VISTA: INGRESOS (solo admin) -->
+      <section id="view-ingresos" class="view hidden">
+        <div class="view-header">
+          <h2>Ingresos</h2>
+        </div>
+        <div id="ingresos-loading" class="loading-msg">Cargando ingresos...</div>
+        <div id="ingresos-error" class="error-msg hidden"></div>
+
+        <div id="ingresos-content" class="hidden">
+          <div id="ingresos-stats" class="stats-row"></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Tipo</th>
+                  <th>Monto</th>
+                  <th>Fecha</th>
+                  <th>Forma de pago</th>
+                  <th>Notas</th>
+                </tr>
+              </thead>
+              <tbody id="ingresos-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VISTA: CALENDARIO (solo admin) -->
+      <section id="view-calendario" class="view hidden">
+        <div class="view-header">
+          <h2>Calendario de eventos</h2>
+        </div>
+        <div id="calendario-container"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: Detalle cliente -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-titulo">Detalle del cliente</h3>
+        <button class="modal-close" id="modal-close-btn">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Tabs -->
+        <div class="modal-tabs">
+          <button class="tab-btn active" data-tab="info">Información</button>
+          <button class="tab-btn" data-tab="restricciones">Restricciones</button>
+          <button class="tab-btn" data-tab="pagos">Pagos</button>
+        </div>
+
+        <!-- Tab: Info -->
+        <div id="tab-info" class="tab-content active">
+          <div id="cliente-detail-grid" class="detail-grid"></div>
+          <div class="modal-actions">
+            <button id="btn-editar-cliente" class="btn btn-primary">Editar</button>
+          </div>
+        </div>
+
+        <!-- Tab: Restricciones -->
+        <div id="tab-restricciones" class="tab-content hidden">
+          <div id="restricciones-list"></div>
+          <form id="restriccion-form" class="inline-form">
+            <input type="hidden" id="rest-id-cliente">
+            <div class="inline-form-row">
+              <input type="text" id="rest-tipo" placeholder="Tipo de restricción (ej: Celíaco)" required>
+              <input type="number" id="rest-cantidad" placeholder="Cantidad" min="1" required>
+              <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Tab: Pagos -->
+        <div id="tab-pagos" class="tab-content hidden">
+          <div id="pagos-admin-content" class="admin-only-content hidden">
+            <div id="pagos-list"></div>
+            <div id="pagos-total" class="total-box"></div>
+          </div>
+          <form id="pago-form" class="inline-form">
+            <input type="hidden" id="pago-id-cliente">
+            <h4>Registrar ingreso</h4>
+            <div class="form-grid small-grid">
+              <div class="form-group">
+                <label>Tipo</label>
+                <select id="pago-tipo" required>
+                  <option value="">—</option>
+                  <option>Seña</option>
+                  <option>Cuota</option>
+                  <option>Saldo final</option>
+                  <option>Ajuste por inflación</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Monto</label>
+                <input type="number" id="pago-monto" min="0" required>
+              </div>
+              <div class="form-group">
+                <label>Fecha</label>
+                <input type="date" id="pago-fecha" required>
+              </div>
+              <div class="form-group">
+                <label>Forma de pago</label>
+                <select id="pago-forma" required>
+                  <option value="">—</option>
+                  <option>Efectivo</option>
+                  <option>Transferencia</option>
+                  <option>Cheque</option>
+                  <option>Mercado Pago</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+              <div class="form-group full-width">
+                <label>Notas</label>
+                <input type="text" id="pago-notas">
+              </div>
+            </div>
+            <div id="pago-error" class="error-msg hidden"></div>
+            <div id="pago-success" class="success-msg hidden"></div>
+            <button type="submit" class="btn btn-primary">Registrar ingreso</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
