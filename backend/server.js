@@ -265,8 +265,11 @@ app.delete('/api/timming/:rowIndex', auth, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Migración única: Clientes → Personas + Eventos (solo superadmin)
-app.post('/api/migrar-clientes', auth, adminOnly, async (req, res) => {
+// Migración única: Clientes → Personas + Eventos (superadmin y admin)
+app.post('/api/migrar-clientes', auth, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.usuario !== 'admin') {
+    return res.status(403).json({ error: 'Sin permiso' });
+  }
   try {
     const result = await sheets.migrarClientesAPersonasEventos();
     res.json(result);
