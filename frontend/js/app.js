@@ -1846,6 +1846,55 @@ function renderSugerenciaBanner(container, nombreSugerido, cliente) {
 
 /* ===================== TIMING PLANNER ===================== */
 
+const ACTIVIDADES_TIMMING = [
+  'RECEPCIÓN',
+  'ISLAS',
+  'PRIMER PLATO',
+  'PLATO CENTRAL',
+  'TORTA HOMENAJE',
+  'MESA DE DULCES',
+  'CAFETERÍA',
+  'POSTRE',
+  'FIN DE FIESTA',
+];
+
+function actividadSelectHTML(selectId, customId, valor = '') {
+  const esPredefinida = ACTIVIDADES_TIMMING.includes(valor.toUpperCase());
+  const esOtro = valor && !esPredefinida;
+  const opts = ACTIVIDADES_TIMMING.map(a =>
+    `<option${a === valor.toUpperCase() && esPredefinida ? ' selected' : ''}>${a}</option>`
+  ).join('');
+  return `
+    <select id="${selectId}" class="tim-select">
+      <option value="">-- Actividad --</option>
+      ${opts}
+      <option value="otro"${esOtro ? ' selected' : ''}>✏️ Otro (escribir)</option>
+    </select>
+    <input type="text" id="${customId}" class="tim-custom-act"
+      placeholder="Escribí la actividad…"
+      value="${esOtro ? esc(valor) : ''}"
+      ${esOtro ? '' : 'hidden'}>`;
+}
+
+function bindActividadToggle(selectId, customId) {
+  const sel = document.getElementById(selectId);
+  const inp = document.getElementById(customId);
+  if (!sel || !inp) return;
+  sel.addEventListener('change', () => {
+    if (sel.value === 'otro') { inp.hidden = false; inp.focus(); }
+    else { inp.hidden = true; inp.value = ''; }
+  });
+}
+
+function getActividadValue(selectId, customId) {
+  const sel = document.getElementById(selectId);
+  const inp = document.getElementById(customId);
+  if (!sel) return '';
+  return sel.value === 'otro' ? (inp?.value.trim() || '') : sel.value;
+}
+
+
+
 async function loadTimmingTab(cliente) {
   const con = $('timming-content');
   if (!con) return;
@@ -1885,7 +1934,9 @@ function renderTimming(cliente, items) {
 
       <form id="timming-add-form" class="tim-add-row">
         <input type="time" id="tim-hora" required>
-        <input type="text" id="tim-actividad" placeholder="Ej: Recepción y cóctel — islas en el salón…" required>
+        <div class="tim-actividad-wrap">
+          ${actividadSelectHTML('tim-actividad-select', 'tim-actividad-custom')}
+        </div>
         <button type="submit" class="btn btn-sm btn-primary">+ Agregar</button>
       </form>
     </div>`;
@@ -1894,6 +1945,9 @@ function renderTimming(cliente, items) {
 }
 
 function bindTimmingAcciones(cliente, items) {
+  // Toggle "Otro" en el form de agregar
+  bindActividadToggle('tim-actividad-select', 'tim-actividad-custom');
+
   // Editar item
   document.querySelectorAll('.btn-tim-edit').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1903,16 +1957,19 @@ function bindTimmingAcciones(cliente, items) {
       if (!item) return;
       row.innerHTML = `
         <input type="time" class="tim-edit-hora" value="${item.hora}">
-        <input type="text" class="tim-edit-act" value="${esc(item.actividad)}" style="flex:1">
+        <div class="tim-actividad-wrap" style="flex:1">
+          ${actividadSelectHTML('tim-edit-act-select', 'tim-edit-act-custom', item.actividad)}
+        </div>
         <div class="tim-acciones">
           <button class="btn-tim-save btn btn-sm btn-primary">✓</button>
           <button class="btn-tim-cancel btn btn-sm btn-secondary">✕</button>
         </div>`;
+      bindActividadToggle('tim-edit-act-select', 'tim-edit-act-custom');
       row.querySelector('.tim-edit-hora').focus();
 
       row.querySelector('.btn-tim-save').addEventListener('click', async () => {
         const hora = row.querySelector('.tim-edit-hora').value;
-        const actividad = row.querySelector('.tim-edit-act').value.trim();
+        const actividad = getActividadValue('tim-edit-act-select', 'tim-edit-act-custom');
         if (!hora || !actividad) return;
         try {
           await apiFetch(`/timming/${rowIndex}`, { method: 'PUT', body: { hora, actividad } });
@@ -1941,7 +1998,7 @@ function bindTimmingAcciones(cliente, items) {
   $('timming-add-form')?.addEventListener('submit', async e => {
     e.preventDefault();
     const hora = $('tim-hora').value;
-    const actividad = $('tim-actividad').value.trim();
+    const actividad = getActividadValue('tim-actividad-select', 'tim-actividad-custom');
     if (!hora || !actividad) return;
     const btn = e.target.querySelector('button[type=submit]');
     btn.disabled = true;
