@@ -421,9 +421,26 @@
           <div id="restricciones-list"></div>
           <form id="restriccion-form" class="inline-form">
             <input type="hidden" id="rest-id-cliente">
-            <div class="inline-form-row">
-              <input type="text" id="rest-tipo" placeholder="Tipo de restricción (ej: Celíaco)" required>
-              <input type="number" id="rest-cantidad" placeholder="Cantidad" min="1" required>
+            <div class="inline-form-row" style="flex-wrap:wrap;gap:8px">
+              <select id="rest-tipo" required style="flex:1;min-width:160px">
+                <option value="">Tipo de restricción...</option>
+                <option>Vegano</option>
+                <option>Vegetariano</option>
+                <option>Celíaco / Sin TACC</option>
+                <option>Alergia a mariscos</option>
+                <option>Alergia a frutos secos</option>
+                <option>Sin lactosa</option>
+                <option>Diabético</option>
+                <option>Sin sal</option>
+                <option>Halal</option>
+                <option>Kosher</option>
+                <option value="Otro">Otro...</option>
+              </select>
+              <input type="text" id="rest-tipo-otro" placeholder="Especificá..." style="display:none;flex:1;min-width:120px">
+              <input type="number" id="rest-cantidad" placeholder="Cant." min="1" required style="width:70px">
+              <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;cursor:pointer">
+                <input type="checkbox" id="rest-coronita"> 👑 Mesa principal
+              </label>
               <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
             </div>
           </form>

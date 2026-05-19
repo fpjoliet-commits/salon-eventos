@@ -353,8 +353,8 @@ $('btn-imprimir-cocina').addEventListener('click', () => {
 
 function imprimirFichaCocina(c, restricciones) {
   const restFilas = restricciones.map(r => `
-    <div class="rest-fila">
-      <span class="rest-tipo">${r.tipoRestriccion}</span>
+    <div class="rest-fila${r.coronita ? ' rest-fila-vip' : ''}">
+      <span class="rest-tipo">${r.coronita ? '👑 ' : ''}${r.tipoRestriccion}</span>
       <span class="rest-cant">${r.cantidad}</span>
     </div>`).join('');
 
@@ -395,6 +395,7 @@ function imprimirFichaCocina(c, restricciones) {
     .rest-cabecera { display: flex; background: #f0f0f0; padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #666; border-bottom: 1px solid #ddd; }
     .rest-fila { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
     .rest-fila:last-child { border-bottom: none; }
+    .rest-fila-vip { background: #fffbea; border-left: 3px solid #f39c12; font-weight: 600; }
     .rest-tipo { flex: 1; }
     .rest-cant { font-weight: 700; font-size: 15px; min-width: 60px; text-align: center; }
     .rest-vacio { padding: 14px 12px; color: #aaa; font-style: italic; font-size: 13px; }
@@ -448,7 +449,7 @@ function imprimirFichaCocina(c, restricciones) {
       <div class="menu-infantil-num">${c.menuInfantil || '0'}</div>
     </div>
 
-    <div class="rest-label">Restricciones alimentarias</div>
+    <div class="rest-label">Restricciones alimentarias${restricciones.some(r => r.coronita) ? ' &nbsp;👑 = Mesa principal' : ''}</div>
     <div class="rest-tabla">
       <div class="rest-cabecera">
         <span style="flex:1">Tipo de restricción</span>
@@ -498,10 +499,10 @@ function renderRestriccionesList(lista) {
     return;
   }
   $('restricciones-list').innerHTML = `<div class="item-list">${lista.map(r => `
-    <div class="list-item">
+    <div class="list-item${r.coronita ? ' list-item-vip' : ''}">
       <div class="list-item-info">
-        <div class="list-item-label">${r.tipoRestriccion}</div>
-        <div class="list-item-sub">Cantidad: ${r.cantidad}</div>
+        <div class="list-item-label">${r.coronita ? '👑 ' : ''}${r.tipoRestriccion}</div>
+        <div class="list-item-sub">Cantidad: ${r.cantidad}${r.coronita ? ' — Mesa principal' : ''}</div>
       </div>
       <button class="btn btn-sm btn-danger" onclick="deleteRestriccion(${r.rowIndex})">✕</button>
     </div>
@@ -516,14 +517,27 @@ window.deleteRestriccion = async (rowIndex) => {
   } catch (e) { alert(e.message); }
 };
 
+$('rest-tipo').addEventListener('change', () => {
+  const isOtro = $('rest-tipo').value === 'Otro';
+  $('rest-tipo-otro').style.display = isOtro ? '' : 'none';
+  $('rest-tipo-otro').required = isOtro;
+});
+
 $('restriccion-form').addEventListener('submit', async e => {
   e.preventDefault();
   const idCliente = $('rest-id-cliente').value;
-  const tipoRestriccion = $('rest-tipo').value;
+  const tipoSelect = $('rest-tipo').value;
+  const tipoRestriccion = tipoSelect === 'Otro' ? $('rest-tipo-otro').value.trim() : tipoSelect;
+  if (!tipoRestriccion) { alert('Ingresá el tipo de restricción'); return; }
   const cantidad = $('rest-cantidad').value;
+  const coronita = $('rest-coronita').checked;
   try {
-    await apiFetch('/restricciones', { method: 'POST', body: { idCliente, tipoRestriccion, cantidad } });
-    $('rest-tipo').value = ''; $('rest-cantidad').value = '';
+    await apiFetch('/restricciones', { method: 'POST', body: { idCliente, tipoRestriccion, cantidad, coronita } });
+    $('rest-tipo').value = '';
+    $('rest-tipo-otro').value = '';
+    $('rest-tipo-otro').style.display = 'none';
+    $('rest-cantidad').value = '';
+    $('rest-coronita').checked = false;
     loadRestriccionesModal(currentClienteModal);
   } catch (e) { alert(e.message); }
 });
@@ -710,7 +724,13 @@ function renderCalendario() {
     const evs = eventMap[ds] || [];
     cells += `<div class="cal-cell${isToday ? ' cal-cell-today' : ''}">
       <span class="cal-cell-num${isToday ? ' cal-num-today' : ''}">${d}</span>
-      ${evs.map(c => `<div class="cal-pill ${pillClass[c.estado] || ''}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${c.apellidoNombre}${c.tipoEvento ? ' — '+c.tipoEvento : ''}${c.turno ? ' · '+c.turno : ''}">${c.apellidoNombre}</div>`).join('')}
+      ${evs.map(c => {
+        const sub = [c.tipoEvento, c.cantidadInvitados ? `${c.cantidadInvitados} PAX` : ''].filter(Boolean).join(' · ');
+        return `<div class="cal-pill ${pillClass[c.estado] || ''}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${c.apellidoNombre}${c.turno ? ' · '+c.turno : ''}">
+          <div class="cal-pill-nombre">${c.apellidoNombre}</div>
+          ${sub ? `<div class="cal-pill-sub">${sub}</div>` : ''}
+        </div>`;
+      }).join('')}
     </div>`;
   }
 
@@ -755,8 +775,13 @@ $('cliente-form').addEventListener('submit', async e => {
   const rowIndex = $('edit-row-index').value;
   const isEdit = !!rowIndex;
 
-  // Validar: no se puede reservar fecha sin seña en clientes existentes
-  if (isEdit && form.estadoFecha.value === 'Reservada') {
+  // Validar: no se puede reservar fecha sin seña
+  if (form.estadoFecha.value === 'Reservada') {
+    if (!isEdit) {
+      $('form-error').textContent = 'Para reservar la fecha necesitás registrar una seña primero. Guardá el cliente con fecha Tentativa y luego cargá la seña desde su ficha.';
+      show('form-error');
+      return;
+    }
     try {
       const { ingresos } = await apiFetch(`/ingresos/totales/${$('edit-cliente-id').value}`);
       const tieneSeña = ingresos.some(i => i.tipoIngreso === 'Seña');
@@ -766,6 +791,26 @@ $('cliente-form').addEventListener('submit', async e => {
         return;
       }
     } catch {}
+  }
+
+  // Validar: máximo 2 eventos por día
+  const fechaEv = form.fechaEvento.value;
+  if (fechaEv) {
+    const currentId = $('edit-cliente-id').value;
+    const otrosEnFecha = allClientes.filter(c =>
+      c.fechaEvento === fechaEv &&
+      c.estado !== 'Cancelado' &&
+      c.id !== currentId
+    );
+    if (otrosEnFecha.length >= 2) {
+      $('form-error').textContent = `⚠️ Ya hay 2 eventos registrados para el ${formatDateWithDay(fechaEv)}. No se pueden cargar más de 2 eventos por día.`;
+      show('form-error');
+      return;
+    }
+    if (otrosEnFecha.length === 1) {
+      const ok = confirm(`⚠️ Ya hay un evento registrado para el ${formatDateWithDay(fechaEv)}: ${otrosEnFecha[0].apellidoNombre}.\n¿Confirmás que habrá 2 eventos ese día?`);
+      if (!ok) return;
+    }
   }
 
   $('submit-cliente-btn').disabled = true;

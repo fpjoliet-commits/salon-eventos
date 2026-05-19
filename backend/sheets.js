@@ -110,11 +110,12 @@ function rowToRestriccion(row, index) {
     idCliente: row[1] || '',
     tipoRestriccion: row[2] || '',
     cantidad: row[3] || '',
+    coronita: row[4] === 'true',
   };
 }
 
 function restriccionToRow(r) {
-  return [r.id, r.idCliente, r.tipoRestriccion, r.cantidad].map(v => v || '');
+  return [r.id, r.idCliente, r.tipoRestriccion, r.cantidad, r.coronita ? 'true' : 'false'].map(v => v || '');
 }
 
 /* ===================== API PÚBLICA ===================== */
@@ -197,7 +198,7 @@ async function getRestricciones() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Restricciones!A2:D',
+    range: 'Restricciones!A2:E',
   });
   return (res.data.values || []).map((row, i) => rowToRestriccion(row, i));
 }
@@ -213,7 +214,7 @@ async function addRestriccion(data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Restricciones!A:D',
+    range: 'Restricciones!A:E',
     valueInputOption: 'USER_ENTERED',
     resource: { values: [restriccionToRow(r)] },
   });
@@ -228,9 +229,9 @@ async function deleteRestriccion(rowIndex) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Restricciones!A${rowIndex}:D${rowIndex}`,
+    range: `Restricciones!A${rowIndex}:E${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [['', '', '', '']] },
+    resource: { values: [['', '', '', '', '']] },
   });
 }
 

@@ -259,13 +259,19 @@ textarea { resize: vertical; min-height: 70px; }
 .cal-cell-today { background: #fff8fb; }
 .cal-cell-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; font-size: 13px; font-weight: 600; margin-bottom: 3px; border-radius: 50%; }
 .cal-num-today { background: var(--rosa); color: #fff; }
-.cal-pill { display: block; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-pill { display: block; font-size: 11px; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px; cursor: pointer; overflow: hidden; }
 .cal-pill:hover { opacity: 0.8; }
+.cal-pill-nombre { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-pill-sub { font-size: 10px; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-pill-confirmado { background: #d5f5e3; color: #1a5632; }
 .cal-pill-visita { background: #d6eaf8; color: #1a5276; }
 .cal-pill-cerrar { background: #fdebd0; color: #784212; }
 .cal-pill-consulta { background: #fef9e7; color: #7d6608; }
 .cal-pill-realizado { background: #eaecee; color: #566573; }
+
+/* VIP / coronita en restricciones */
+.list-item-vip { background: #fffbea; border-left: 3px solid #f39c12; }
+.list-item-vip .list-item-label { color: #7d5a00; }
 
 /* ===================== CUOTAS ===================== */
 .cuotas-resumen { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
