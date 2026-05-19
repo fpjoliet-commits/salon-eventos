@@ -30,6 +30,7 @@ let memClientes = [];
 let memIngresos = [];
 let memRestricciones = [];
 let memCuotas = [];
+let memTimming = [];
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -236,6 +237,85 @@ async function deleteRestriccion(rowIndex) {
   });
 }
 
+/* ===================== TIMMING ===================== */
+
+function rowToTimming(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    idCliente: row[1] || '',
+    hora: row[2] || '',
+    actividad: row[3] || '',
+  };
+}
+
+function timmingToRow(t) {
+  return [t.id, t.idCliente, t.hora, t.actividad].map(v => v || '');
+}
+
+async function getTimming(idCliente) {
+  if (!tieneCredenciales) {
+    return memTimming.filter(t => t.idCliente === idCliente).sort((a, b) => a.hora.localeCompare(b.hora));
+  }
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Timming!A2:D',
+  });
+  return (res.data.values || [])
+    .map((row, i) => rowToTimming(row, i))
+    .filter(t => t.idCliente === idCliente && t.id)
+    .sort((a, b) => a.hora.localeCompare(b.hora));
+}
+
+async function addTimmingItem(data) {
+  const id = generateId('TIM');
+  const item = { ...data, id };
+  if (!tieneCredenciales) {
+    item.rowIndex = memTimming.length + 2;
+    memTimming.push(item);
+    return item;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Timming!A:D',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [timmingToRow(item)] },
+  });
+  return item;
+}
+
+async function updateTimmingItem(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memTimming.findIndex(t => t.rowIndex === rowIndex);
+    if (idx !== -1) Object.assign(memTimming[idx], data);
+    return { ok: true };
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Timming!C${rowIndex}:D${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [[data.hora, data.actividad]] },
+  });
+  return { ok: true };
+}
+
+async function deleteTimmingItem(rowIndex) {
+  if (!tieneCredenciales) {
+    memTimming = memTimming.filter(t => t.rowIndex !== rowIndex);
+    return;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Timming!A${rowIndex}:D${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [['', '', '', '']] },
+  });
+}
+
 /* ===================== CUOTAS ===================== */
 // Columnas A-J: id, idCliente, numeroCuota, valorOriginal, valorActual,
 //               fechaVencimiento, estado, fechaPago, montoPagado, notas
@@ -422,6 +502,19 @@ async function initSheets() {
     const sheets = getSheets();
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
     const existing = spreadsheet.data.sheets.map(s => s.properties.title);
+    if (!existing.includes('Timming')) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        resource: { requests: [{ addSheet: { properties: { title: 'Timming' } } }] },
+      });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'Timming!A1:D1',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [['id', 'idCliente', 'hora', 'actividad']] },
+      });
+      console.log('✅ Hoja "Timming" creada automáticamente.');
+    }
     if (!existing.includes('Cuotas')) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SPREADSHEET_ID,
@@ -444,6 +537,7 @@ module.exports = {
   getClientes, addCliente, updateCliente,
   getIngresos, addIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
+  getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, ajustarValorCuotas, cancelarPlan,
   initSheets,
   tieneCredenciales,

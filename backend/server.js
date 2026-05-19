@@ -215,6 +215,35 @@ app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Timming — solo admin y superadmin
+function canManageTimming(req) {
+  return req.user.role === 'admin' || req.user.usuario === 'admin';
+}
+
+app.get('/api/timming/cliente/:idCliente', auth, async (req, res) => {
+  if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
+  try { res.json(await sheets.getTimming(req.params.idCliente)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/timming', auth, async (req, res) => {
+  if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
+  try { res.json(await sheets.addTimmingItem(req.body)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/timming/:rowIndex', auth, async (req, res) => {
+  if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
+  try { res.json(await sheets.updateTimmingItem(parseInt(req.params.rowIndex), req.body)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/timming/:rowIndex', auth, async (req, res) => {
+  if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
+  try { await sheets.deleteTimmingItem(parseInt(req.params.rowIndex)); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));

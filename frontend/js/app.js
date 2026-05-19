@@ -344,12 +344,22 @@ function openClienteModal(cliente, tabInicial = 'info') {
   const wrap = document.querySelector('.modal-nombre-wrap');
   wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
 
+  // Mostrar u ocultar pestaña Timming según rol
+  const timmingBtn = $('tab-btn-timming');
+  if (canManagePagos()) {
+    timmingBtn.classList.remove('hidden');
+  } else {
+    timmingBtn.classList.add('hidden');
+    if (tabInicial === 'timming') tabInicial = 'info';
+  }
+
   activateTab(tabInicial);
   renderClienteDetail(cliente);
   injectNombreAcciones(cliente);
   loadRestriccionesModal(cliente);
   renderPagosTab(cliente);
   loadCuotasTab(cliente);
+  if (canManagePagos()) loadTimmingTab(cliente);
 
   showEl($('modal-overlay'));
 }
@@ -404,12 +414,16 @@ $('btn-editar-cliente').addEventListener('click', () => {
   openEditForm(currentClienteModal);
 });
 
-$('btn-imprimir-cocina').addEventListener('click', () => {
+$('btn-imprimir-cocina').addEventListener('click', async () => {
   if (!currentClienteModal) return;
-  imprimirFichaCocina(currentClienteModal, currentRestricciones);
+  let timmingItems = [];
+  if (canManagePagos()) {
+    try { timmingItems = await apiFetch(`/timming/cliente/${currentClienteModal.id}`); } catch {}
+  }
+  imprimirFichaCocina(currentClienteModal, currentRestricciones, timmingItems);
 });
 
-function imprimirFichaCocina(c, restricciones) {
+function imprimirFichaCocina(c, restricciones, timmingItems = []) {
   const restFilas = restricciones.map(r => `
     <div class="rest-fila${r.coronita ? ' rest-fila-vip' : ''}">
       <span class="rest-tipo">${r.coronita ? '👑 ' : ''}${r.tipoRestriccion}</span>
@@ -464,6 +478,17 @@ function imprimirFichaCocina(c, restricciones) {
     .otros-box.vacio { color: #bbb; font-style: italic; }
 
     .footer { margin-top: 28px; font-size: 11px; color: #bbb; border-top: 1px solid #eee; padding-top: 10px; text-align: right; }
+
+    /* MENÚ / TIMING */
+    .menu-sec-header { display: flex; align-items: center; gap: 8px; background: #f5f5f5; border-radius: 8px 8px 0 0; padding: 12px 16px; border: 1px solid #ddd; border-bottom: none; margin-top: 24px; }
+    .menu-sec-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .menu-sec-body { border: 1px solid #ddd; border-radius: 0 0 8px 8px; padding: 20px; }
+    .tim-fila { display: flex; align-items: baseline; gap: 18px; padding: 9px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .tim-fila:last-child { border-bottom: none; }
+    .tim-fila-h { font-weight: 700; color: #8f2e4d; min-width: 50px; font-variant-numeric: tabular-nums; }
+    .tim-fila-a { flex: 1; line-height: 1.4; }
+    .tim-vacio { color: #bbb; font-style: italic; font-size: 13px; padding: 8px 0; }
+
     @media print { .pagina { padding: 16px 20px; } }
   </style>
 </head>
@@ -526,6 +551,21 @@ function imprimirFichaCocina(c, restricciones) {
     </div>` : ''}
 
   </div>
+
+  ${timmingItems.length ? `
+  <div class="menu-sec-header">
+    <span class="cocina-icon">🕐</span>
+    <div>
+      <div class="menu-sec-titulo">Menú y cronograma del evento</div>
+    </div>
+  </div>
+  <div class="menu-sec-body">
+    ${timmingItems.map(it => `
+      <div class="tim-fila">
+        <span class="tim-fila-h">${it.hora}</span>
+        <span class="tim-fila-a">${esc(it.actividad)}</span>
+      </div>`).join('')}
+  </div>` : ''}
 
   <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
 </div>
@@ -1493,6 +1533,163 @@ function renderSugerenciaBanner(container, nombreSugerido, cliente) {
       container.innerHTML = '';
     } catch (err) { alert(err.message); }
   });
+}
+
+/* ===================== TIMING PLANNER ===================== */
+
+async function loadTimmingTab(cliente) {
+  const con = $('timming-content');
+  if (!con) return;
+  con.innerHTML = '<p style="color:#999;font-size:13px;padding:16px 0">Cargando timing...</p>';
+  try {
+    const items = await apiFetch(`/timming/cliente/${cliente.id}`);
+    renderTimming(cliente, items);
+  } catch (e) {
+    con.innerHTML = `<p style="color:#c0392b;font-size:13px">${e.message}</p>`;
+  }
+}
+
+function renderTimming(cliente, items) {
+  const con = $('timming-content');
+  if (!con) return;
+
+  const filas = items.length
+    ? items.map(it => `
+        <div class="tim-item" data-row="${it.rowIndex}">
+          <span class="tim-hora">${it.hora}</span>
+          <span class="tim-actividad">${esc(it.actividad)}</span>
+          <div class="tim-acciones">
+            <button class="btn-tim-edit" title="Editar">✎</button>
+            <button class="btn-tim-del" title="Eliminar">✕</button>
+          </div>
+        </div>`).join('')
+    : '<p class="tim-empty">Sin actividades cargadas aún. Usá el formulario para armar el timing.</p>';
+
+  con.innerHTML = `
+    <div class="timming-wrap">
+      <div class="timming-header-row">
+        <h4 class="timming-title">Timing del evento</h4>
+        <button id="btn-print-timming" class="btn btn-sm btn-secondary">🖨 Imprimir timing</button>
+      </div>
+
+      <div class="tim-list">${filas}</div>
+
+      <form id="timming-add-form" class="tim-add-row">
+        <input type="time" id="tim-hora" required>
+        <input type="text" id="tim-actividad" placeholder="Ej: Recepción y cóctel — islas en el salón…" required>
+        <button type="submit" class="btn btn-sm btn-primary">+ Agregar</button>
+      </form>
+    </div>`;
+
+  bindTimmingAcciones(cliente, items);
+}
+
+function bindTimmingAcciones(cliente, items) {
+  // Editar item
+  document.querySelectorAll('.btn-tim-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('.tim-item');
+      const rowIndex = parseInt(row.dataset.row);
+      const item = items.find(i => i.rowIndex === rowIndex);
+      if (!item) return;
+      row.innerHTML = `
+        <input type="time" class="tim-edit-hora" value="${item.hora}">
+        <input type="text" class="tim-edit-act" value="${esc(item.actividad)}" style="flex:1">
+        <div class="tim-acciones">
+          <button class="btn-tim-save btn btn-sm btn-primary">✓</button>
+          <button class="btn-tim-cancel btn btn-sm btn-secondary">✕</button>
+        </div>`;
+      row.querySelector('.tim-edit-hora').focus();
+
+      row.querySelector('.btn-tim-save').addEventListener('click', async () => {
+        const hora = row.querySelector('.tim-edit-hora').value;
+        const actividad = row.querySelector('.tim-edit-act').value.trim();
+        if (!hora || !actividad) return;
+        try {
+          await apiFetch(`/timming/${rowIndex}`, { method: 'PUT', body: { hora, actividad } });
+          loadTimmingTab(cliente);
+        } catch (e) { alert(e.message); }
+      });
+
+      row.querySelector('.btn-tim-cancel').addEventListener('click', () => loadTimmingTab(cliente));
+    });
+  });
+
+  // Eliminar item
+  document.querySelectorAll('.btn-tim-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('.tim-item');
+      const rowIndex = parseInt(row.dataset.row);
+      if (!confirm('¿Eliminar esta actividad del timing?')) return;
+      try {
+        await apiFetch(`/timming/${rowIndex}`, { method: 'DELETE' });
+        loadTimmingTab(cliente);
+      } catch (e) { alert(e.message); }
+    });
+  });
+
+  // Agregar item
+  $('timming-add-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const hora = $('tim-hora').value;
+    const actividad = $('tim-actividad').value.trim();
+    if (!hora || !actividad) return;
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      await apiFetch('/timming', { method: 'POST', body: { idCliente: cliente.id, hora, actividad } });
+      loadTimmingTab(cliente);
+    } catch (err) { alert(err.message); btn.disabled = false; }
+  });
+
+  // Imprimir timing
+  $('btn-print-timming')?.addEventListener('click', () => imprimirTimming(cliente, items));
+}
+
+function imprimirTimming(cliente, items) {
+  const filas = items.map(it => `
+    <div class="tim-row">
+      <span class="tim-h">${it.hora}</span>
+      <span class="tim-a">${esc(it.actividad)}</span>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Timing — ${esc(cliente.apellidoNombre)}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #111; background: #fff; }
+    .pagina { max-width: 640px; margin: 0 auto; padding: 36px 40px; }
+    .marca { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #c4993e; font-weight: 700; margin-bottom: 6px; }
+    .cliente { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+    .sub { font-size: 13px; color: #666; margin-bottom: 28px; }
+    .titulo-sec { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #888; font-weight: 700; border-bottom: 2px solid #c4993e; padding-bottom: 6px; margin-bottom: 16px; }
+    .tim-row { display: flex; align-items: baseline; gap: 20px; padding: 11px 0; border-bottom: 1px solid #f0ece4; }
+    .tim-row:last-child { border-bottom: none; }
+    .tim-h { font-size: 16px; font-weight: 700; color: #c4993e; min-width: 52px; font-variant-numeric: tabular-nums; }
+    .tim-a { font-size: 14px; flex: 1; line-height: 1.4; }
+    .footer { margin-top: 28px; font-size: 10px; color: #bbb; border-top: 1px solid #eee; padding-top: 10px; text-align: right; }
+    @media print { .pagina { padding: 16px 20px; } }
+  </style>
+</head>
+<body>
+<div class="pagina">
+  <div class="marca">Joliet Eventos — Timing del evento</div>
+  <div class="cliente">${esc(cliente.apellidoNombre) || '—'}</div>
+  <div class="sub">${cliente.fechaEvento ? formatDateWithDay(cliente.fechaEvento) : ''}${cliente.turno ? ' &nbsp;·&nbsp; ' + cliente.turno : ''}</div>
+  <div class="titulo-sec">Cronograma</div>
+  ${filas || '<p style="color:#aaa;font-style:italic">Sin actividades cargadas</p>'}
+  <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
+</div>
+<script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
 }
 
 /* ===================== SESSION RESTORE ===================== */
