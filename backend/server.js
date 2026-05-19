@@ -171,8 +171,8 @@ app.get('/api/cuotas/cliente/:idCliente', auth, async (req, res) => {
 
 app.post('/api/cuotas/plan', auth, async (req, res) => {
   try {
-    const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio } = req.body;
-    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio));
+    const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda } = req.body;
+    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

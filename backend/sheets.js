@@ -110,7 +110,8 @@ function rowToRestriccion(row, index) {
     idCliente: row[1] || '',
     tipoRestriccion: row[2] || '',
     cantidad: row[3] || '',
-    coronita: row[4] === 'true',
+    // Sheets con USER_ENTERED convierte 'true'/'false' a boolean nativo al leer
+    coronita: row[4] === true || String(row[4]).toLowerCase() === 'true',
   };
 }
 
@@ -252,6 +253,7 @@ function rowToCuota(row, index) {
     fechaPago: row[7] || '',
     montoPagado: parseFloat(row[8]) || 0,
     notas: row[9] || '',
+    moneda: row[10] || 'ARS',
   };
 }
 
@@ -259,6 +261,7 @@ function cuotaToRow(c) {
   return [
     c.id, c.idCliente, c.numeroCuota, c.valorOriginal, c.valorActual,
     c.fechaVencimiento, c.estado, c.fechaPago || '', c.montoPagado || 0, c.notas || '',
+    c.moneda || 'ARS',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -269,14 +272,14 @@ async function getCuotasByCliente(idCliente) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A2:J',
+    range: 'Cuotas!A2:K',
   });
   return (res.data.values || [])
     .map((row, i) => rowToCuota(row, i))
     .filter(c => c.idCliente === idCliente && c.estado !== 'cancelada');
 }
 
-async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio) {
+async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS') {
   // valorCuota puede venir explícito (si el usuario lo ajustó) o calculado
   const valor = valorCuota || Math.round(montoTotal / cantidadCuotas);
   const [y, m, d] = fechaInicio.split('-').map(Number);
@@ -295,6 +298,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
       fechaPago: '',
       montoPagado: 0,
       notas: '',
+      moneda: moneda || 'ARS',
     });
   }
   if (!tieneCredenciales) {
@@ -427,7 +431,7 @@ async function initSheets() {
         spreadsheetId: SPREADSHEET_ID,
         range: 'Cuotas!A1:J1',
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas']] },
+        resource: { values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda']] },
       });
       console.log('✅ Hoja "Cuotas" creada automáticamente.');
     }

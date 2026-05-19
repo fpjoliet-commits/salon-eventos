@@ -49,6 +49,14 @@ function formatMoney(n) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n);
 }
 
+function formatMoneda(n, moneda) {
+  if (moneda === 'USD') {
+    if (!n && n !== 0) return '—';
+    return `U$S ${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  }
+  return formatMoney(n);
+}
+
 function estadoBadge(estado) {
   const map = {
     'Consulta': 'badge-consulta',
@@ -980,29 +988,39 @@ function renderCuotas(cliente, cuotas) {
     return;
   }
 
+  // Detectar moneda del plan (todas las cuotas del plan tienen la misma)
+  const moneda = cuotas[0]?.moneda || 'ARS';
+  const esUSD = moneda === 'USD';
+
   const totalContrato = cuotas.reduce((s, c) => s + c.valorOriginal, 0);
   const totalPagado = pagadas.reduce((s, c) => s + c.montoPagado, 0);
   const saldoPendiente = pendientes.reduce((s, c) => s + c.valorActual, 0);
   const valorCuotaActual = pendientes.length ? pendientes[0].valorActual : (pagadas[pagadas.length - 1]?.montoPagado || 0);
 
   con.innerHTML = `
+    ${esUSD ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="background:var(--gold-light);border:1px solid var(--gold-border);color:#7a5c10;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em">U$S PLAN EN DÓLARES</span>
+    </div>` : ''}
+
     <div class="cuotas-resumen">
-      <div class="cuota-stat"><div class="cuota-stat-label">Contrato original</div><div class="cuota-stat-val">${formatMoney(totalContrato)}</div></div>
-      <div class="cuota-stat"><div class="cuota-stat-label">Total cobrado</div><div class="cuota-stat-val verde">${formatMoney(totalPagado)}</div></div>
-      <div class="cuota-stat"><div class="cuota-stat-label">Saldo pendiente</div><div class="cuota-stat-val ${saldoPendiente > 0 ? 'rojo' : 'verde'}">${formatMoney(saldoPendiente)}</div></div>
-      <div class="cuota-stat"><div class="cuota-stat-label">Valor cuota actual</div><div class="cuota-stat-val">${formatMoney(valorCuotaActual)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Contrato original</div><div class="cuota-stat-val">${formatMoneda(totalContrato, moneda)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Total cobrado</div><div class="cuota-stat-val verde">${formatMoneda(totalPagado, moneda)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Saldo pendiente</div><div class="cuota-stat-val ${saldoPendiente > 0 ? 'rojo' : 'verde'}">${formatMoneda(saldoPendiente, moneda)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Valor cuota actual</div><div class="cuota-stat-val">${formatMoneda(valorCuotaActual, moneda)}</div></div>
     </div>
 
     <div id="cuotas-acciones" class="cuotas-acciones">
       ${pendientes.length ? `
         <button class="btn btn-sm btn-secondary" id="btn-pagar-sel">✓ Marcar seleccionadas como pagadas</button>
         <div class="ipc-inline">
-          <input type="number" id="ipc-pct" placeholder="IPC %" min="0" max="100" step="0.1" style="width:90px">
-          <span class="tip" data-tip="Ingresá el porcentaje de aumento (ej: 8.4 para un 8,4%). Solo se actualizan las cuotas PENDIENTES. Las ya cobradas no cambian.">?</span>
-          <button class="btn btn-sm btn-secondary" id="btn-ipc">Actualizar por IPC</button>
+          ${!esUSD ? `
+            <input type="number" id="ipc-pct" placeholder="IPC %" min="0" max="100" step="0.1" style="width:90px">
+            <span class="tip" data-tip="Ingresá el porcentaje de aumento (ej: 8.4 para un 8,4%). Solo se actualizan las cuotas PENDIENTES. Las ya cobradas no cambian.">?</span>
+            <button class="btn btn-sm btn-secondary" id="btn-ipc">Actualizar por IPC</button>
+          ` : ''}
           <button class="btn btn-sm btn-secondary" id="btn-ajustar-val">Fijar valor</button>
-          <input type="number" id="nuevo-valor" placeholder="Nuevo valor $" min="0" style="width:120px">
-          <span class="tip" data-tip="Fijá un importe exacto para todas las cuotas pendientes, reemplazando el valor actual. Útil cuando renegociás el precio de la cuota.">?</span>
+          <input type="number" id="nuevo-valor" placeholder="Nuevo valor ${esUSD ? 'U$S' : '$'}" min="0" style="width:130px">
+          <span class="tip" data-tip="Fijá un importe exacto para todas las cuotas pendientes, reemplazando el valor actual.">?</span>
         </div>
       ` : ''}
       ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
@@ -1011,12 +1029,13 @@ function renderCuotas(cliente, cuotas) {
     <div id="fecha-pago-row" class="hidden" style="margin:10px 0;flex-wrap:wrap;display:flex;gap:10px;align-items:center">
       <label style="font-size:13px;font-weight:600">Fecha:</label>
       <input type="date" id="fecha-pago-input" value="${new Date().toISOString().split('T')[0]}" style="width:150px">
-      <select id="forma-pago-cuota" style="width:150px">
+      <select id="forma-pago-cuota" style="width:160px">
         <option value="">Forma de pago...</option>
         <option>Efectivo</option>
         <option>Transferencia</option>
         <option>Cheque</option>
         <option>Mercado Pago</option>
+        <option>USD</option>
         <option>Otro</option>
       </select>
       <input type="text" id="notas-pago-input" placeholder="Notas (opcional)" style="flex:1;min-width:120px">
@@ -1030,20 +1049,20 @@ function renderCuotas(cliente, cuotas) {
           ${c.estado === 'pendiente' ? `<input type="checkbox" class="cuota-check" data-row="${c.rowIndex}" data-valor="${c.valorActual}" data-num="${c.numeroCuota}">` : '<span class="cuota-check-ph"></span>'}
           <span class="cuota-num">Cuota ${c.numeroCuota}</span>
           <span class="cuota-vence">${formatDateWithDay(c.fechaVencimiento)}</span>
-          <span class="cuota-valor">${formatMoney(c.valorActual)}</span>
+          <span class="cuota-valor">${formatMoneda(c.valorActual, moneda)}</span>
           <span class="cuota-badge cuota-badge-${c.estado}">${c.estado === 'pagada' ? `✓ Pagada ${formatDate(c.fechaPago)}` : 'Pendiente'}</span>
-          ${c.estado === 'pagada' && c.montoPagado ? `<span style="font-size:11px;color:#888">cobrado: ${formatMoney(c.montoPagado)}</span>` : ''}
+          ${c.estado === 'pagada' && c.montoPagado ? `<span style="font-size:11px;color:#888">cobrado: ${formatMoneda(c.montoPagado, moneda)}</span>` : ''}
         </div>
       `).join('')}
     </div>
 
-    <div style="margin-top:20px;border-top:1px solid var(--gris-borde);padding-top:16px">
-      <p style="font-size:12px;color:#999;margin-bottom:10px">¿Necesitás agregar más cuotas al plan?</p>
-      ${formAgregarCuotas(cliente.id, cuotas.length)}
+    <div style="margin-top:20px;border-top:1px solid var(--border-light);padding-top:16px">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">¿Necesitás agregar más cuotas al plan?</p>
+      ${formAgregarCuotas(cliente.id, cuotas.length, moneda)}
     </div>
   `;
 
-  bindCuotasAcciones(cliente, cuotas);
+  bindCuotasAcciones(cliente, cuotas, moneda);
 }
 
 function formCrearPlan(idCliente) {
@@ -1051,6 +1070,13 @@ function formCrearPlan(idCliente) {
     <form id="form-crear-plan" class="cuotas-form">
       <h4>Crear plan de pagos</h4>
       <div class="form-grid small-grid">
+        <div class="form-group">
+          <label>Moneda</label>
+          <select id="plan-moneda" style="height:38px">
+            <option value="ARS">$ Pesos (ARS)</option>
+            <option value="USD">U$S Dólares (USD)</option>
+          </select>
+        </div>
         <div class="form-group">
           <label>Monto total del contrato <span class="tip" data-tip="El importe total acordado con el cliente por todo el servicio. Las cuotas se calculan sobre este monto.">?</span></label>
           <input type="number" id="plan-monto" min="0" required placeholder="600000">
@@ -1073,7 +1099,8 @@ function formCrearPlan(idCliente) {
     </form>`;
 }
 
-function formAgregarCuotas(idCliente, totalActual) {
+function formAgregarCuotas(idCliente, totalActual, moneda = 'ARS') {
+  const simbolo = moneda === 'USD' ? 'U$S' : '$';
   return `
     <form id="form-agregar-cuotas" class="cuotas-form" style="margin-top:0">
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -1083,7 +1110,7 @@ function formAgregarCuotas(idCliente, totalActual) {
         </div>
         <div class="form-group" style="margin:0">
           <label style="font-size:12px">Valor c/u</label>
-          <input type="number" id="agregar-valor" min="0" placeholder="$" style="width:120px">
+          <input type="number" id="agregar-valor" min="0" placeholder="${simbolo}" style="width:120px">
         </div>
         <div class="form-group" style="margin:0">
           <label style="font-size:12px">Fecha 1°</label>
@@ -1099,9 +1126,10 @@ function bindFormCrearPlan(cliente) {
     const monto = parseFloat($('plan-monto')?.value) || 0;
     const n = parseInt($('plan-ncuotas')?.value) || 0;
     const valorCustom = parseFloat($('plan-valor-cuota')?.value) || 0;
+    const moneda = $('plan-moneda')?.value || 'ARS';
     if (monto && n) {
       const v = valorCustom || Math.round(monto / n);
-      $('plan-preview').textContent = `→ ${n} cuotas de ${formatMoney(v)} c/u`;
+      $('plan-preview').textContent = `→ ${n} cuotas de ${formatMoneda(v, moneda)} c/u`;
     } else {
       $('plan-preview').textContent = '';
     }
@@ -1109,6 +1137,7 @@ function bindFormCrearPlan(cliente) {
   $('plan-monto')?.addEventListener('input', updatePreview);
   $('plan-ncuotas')?.addEventListener('input', updatePreview);
   $('plan-valor-cuota')?.addEventListener('input', updatePreview);
+  $('plan-moneda')?.addEventListener('change', updatePreview);
 
   $('form-crear-plan')?.addEventListener('submit', async e => {
     e.preventDefault();
@@ -1121,13 +1150,14 @@ function bindFormCrearPlan(cliente) {
         cantidadCuotas: parseInt($('plan-ncuotas').value),
         valorCuota: parseFloat($('plan-valor-cuota').value) || null,
         fechaInicio: $('plan-fecha').value,
+        moneda: $('plan-moneda').value || 'ARS',
       }});
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); btn.disabled = false; }
   });
 }
 
-function bindCuotasAcciones(cliente, cuotas) {
+function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
   // Pagar seleccionadas
   $('btn-pagar-sel')?.addEventListener('click', () => {
     const checked = document.querySelectorAll('.cuota-check:checked');
@@ -1180,7 +1210,7 @@ function bindCuotasAcciones(cliente, cuotas) {
   $('btn-ajustar-val')?.addEventListener('click', async () => {
     const val = parseFloat($('nuevo-valor').value);
     if (!val || val <= 0) { alert('Ingresá el nuevo valor de cuota.'); return; }
-    if (!confirm(`¿Fijar ${formatMoney(val)} como valor de todas las cuotas pendientes?`)) return;
+    if (!confirm(`¿Fijar ${formatMoneda(val, moneda)} como valor de todas las cuotas pendientes?`)) return;
     try {
       const r = await apiFetch('/cuotas/ajustar', { method: 'PUT', body: { idCliente: cliente.id, nuevoValor: val } });
       alert(`Valor actualizado en ${r.updated} cuota(s).`);
@@ -1213,6 +1243,7 @@ function bindCuotasAcciones(cliente, cuotas) {
         cantidadCuotas: n,
         valorCuota: valor,
         fechaInicio: fecha,
+        moneda,
       }});
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); btn.disabled = false; }
