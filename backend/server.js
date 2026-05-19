@@ -43,7 +43,8 @@ app.get('/api/status', (req, res) => {
 
 // Login
 app.post('/api/login', (req, res) => {
-  const { usuario, password } = req.body;
+  const { password } = req.body;
+  const usuario = req.body.usuario?.toLowerCase();
   const user = USERS[usuario];
   if (!user) return res.status(401).json({ error: 'Usuario incorrecto' });
   if (user.password !== password) {
