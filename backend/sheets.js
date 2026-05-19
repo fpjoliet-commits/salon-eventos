@@ -475,6 +475,9 @@ async function deleteRestriccion(rowIndex) {
 }
 
 /* ===================== TIMMING ===================== */
+// Columnas A-F: id, idCliente, hora, actividad, tipo, descripcion
+// tipo: 'maitre' (default) | 'cocina' (datos JSON del menú cocina en actividad)
+
 function rowToTimming(row, index) {
   return {
     rowIndex: index + 2,
@@ -482,11 +485,13 @@ function rowToTimming(row, index) {
     idCliente: row[1] || '',
     hora: row[2] || '',
     actividad: row[3] || '',
+    tipo: row[4] || 'maitre',
+    descripcion: row[5] || '',
   };
 }
 
 function timmingToRow(t) {
-  return [t.id, t.idCliente, t.hora, t.actividad].map(v => v || '');
+  return [t.id, t.idCliente, t.hora, t.actividad, t.tipo || 'maitre', t.descripcion || ''].map(v => String(v || ''));
 }
 
 async function getTimming(idCliente) {
@@ -496,7 +501,7 @@ async function getTimming(idCliente) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Timming!A2:D',
+    range: 'Timming!A2:F',
   });
   return (res.data.values || [])
     .map((row, i) => rowToTimming(row, i))
@@ -515,7 +520,7 @@ async function addTimmingItem(data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Timming!A:D',
+    range: 'Timming!A:F',
     valueInputOption: 'USER_ENTERED',
     resource: { values: [timmingToRow(item)] },
   });
@@ -531,9 +536,9 @@ async function updateTimmingItem(rowIndex, data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Timming!C${rowIndex}:D${rowIndex}`,
+    range: `Timming!C${rowIndex}:F${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [[data.hora, data.actividad]] },
+    resource: { values: [[data.hora, data.actividad, data.tipo || 'maitre', data.descripcion || '']] },
   });
   return { ok: true };
 }
@@ -546,9 +551,9 @@ async function deleteTimmingItem(rowIndex) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Timming!A${rowIndex}:D${rowIndex}`,
+    range: `Timming!A${rowIndex}:F${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [['', '', '', '']] },
+    resource: { values: [['', '', '', '', '', '']] },
   });
 }
 
@@ -776,18 +781,19 @@ async function migrarClientesAPersonasEventos() {
   const rows = (res.data.values || []).filter(r => r[0]); // filtra filas con id
   if (!rows.length) return { migradas: 0, msg: 'Hoja Clientes vacía o no existe.' };
 
-  // Solo bloquear si Eventos ya tiene datos (migración ya ejecutada)
-  const eRes = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:A',
-  });
-  const eventosConId = (eRes.data.values || []).filter(r => r[0]?.trim());
-  if (eventosConId.length > 0) {
-    throw new Error('La migración ya fue ejecutada (Eventos tiene datos). Si necesitás re-migrar, vaciá las hojas Personas y Eventos desde Google Sheets primero.');
-  }
+  // Limpiar AMBAS hojas (datos desde fila 2, preserva headers si existen)
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:W' });
 
-  // Si Personas tiene datos de un intento previo, limpiarla antes de volver a poblar
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K',
+  // Escribir headers explícitamente para garantizar que los datos vayan a fila 2
+  // (si el sheet está vacío sin header, append pondría datos en fila 1 y getClientes() los perdería)
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A1:K1', valueInputOption: 'USER_ENTERED',
+    resource: { values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor']] },
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A1:W1', valueInputOption: 'USER_ENTERED',
+    resource: { values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado']] },
   });
 
   // Old Clientes columns (0-indexed):
@@ -809,27 +815,19 @@ async function migrarClientesAPersonasEventos() {
     personaRows.push([perId, g(4), g(5), g(6), g(7), g(17), g(14), g(15), g(16), g(3), g(2)]);
 
     // Evento usa el ID ORIGINAL del cliente (preserva vínculos con Ingresos/Timming)
-    // id, personaId, estado, cargadoPor, fechaCarga, tipoEvento, formato, fechaEvento,
-    // estadoFecha, cantidadInvitados, turno, presupuesto, montoPresupuesto, menuInfantil,
-    // otrosPedidos, observaciones, proximoSeguimiento, menuRecepcion, menuIslas,
-    // menuPrimerPlato, menuPrincipal, menuPostre
+    // 23 columnas A-W (incluye nombreAgasajado en W)
     eventoRows.push([oldId, perId, g(1), g(2), g(3), g(8), g(9), g(10), g(11), g(12), g(13),
-      g(18), g(19), g(20), g(21), g(22), g(23), '', '', '', '', '']);
+      g(18), g(19), g(20), g(21), g(22), g(23), '', '', '', '', '', '']);
 
-    // Pequeña pausa para evitar IDs duplicados en el timestamp
     await new Promise(r2 => setTimeout(r2, 1));
   }
 
   await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Personas!A:K',
-    valueInputOption: 'USER_ENTERED',
+    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A:K', valueInputOption: 'USER_ENTERED',
     resource: { values: personaRows },
   });
   await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Eventos!A:V',
-    valueInputOption: 'USER_ENTERED',
+    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A:W', valueInputOption: 'USER_ENTERED',
     resource: { values: eventoRows },
   });
 
@@ -866,7 +864,7 @@ async function initSheets() {
       headers.push({ range: 'Eventos!A1:V1', values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre']] });
     }
     if (!existing.includes('Timming')) {
-      headers.push({ range: 'Timming!A1:D1', values: [['id','idCliente','hora','actividad']] });
+      headers.push({ range: 'Timming!A1:F1', values: [['id','idCliente','hora','actividad','tipo','descripcion']] });
     }
     if (!existing.includes('Cuotas')) {
       headers.push({ range: 'Cuotas!A1:K1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda']] });

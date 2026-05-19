@@ -1181,6 +1181,58 @@ textarea { resize: vertical; min-height: 70px; }
 .tim-edit-hora { width: 110px; }
 .tim-edit-act { flex: 1; }
 
+/* Sub-tabs Timing */
+.tim-subtabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 18px;
+}
+.tim-subtab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -2px;
+}
+.tim-subtab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+.tim-subtab-btn:hover:not(.active) { color: var(--text-main); }
+
+/* Timing Maitre — new form layout */
+.tim-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.tim-desc { font-size: 12px; color: var(--text-muted); font-style: italic; }
+.tim-add-form { display: flex; flex-direction: column; gap: 8px; }
+.tim-add-row1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tim-add-row1 input[type="time"] { width: 120px; }
+.tim-add-row2 { display: flex; gap: 8px; align-items: center; }
+.tim-desc-input { flex: 1; font-size: 13px; }
+.tim-edit-desc { width: 100%; margin-top: 4px; }
+
+/* Timing Cocina form */
+.coc-presets { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.btn-xs { padding: 4px 10px !important; font-size: 12px !important; }
+.coc-section { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+.coc-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold); margin-bottom: 10px; }
+.coc-group { margin-bottom: 10px; }
+.coc-group-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.coc-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.coc-check { display: flex; align-items: center; gap: 5px; font-size: 13px; background: var(--surface-alt); border-radius: 20px; padding: 4px 10px; cursor: pointer; border: 1px solid var(--border); transition: background .12s, border-color .12s; }
+.coc-check:hover { background: #f0e9f5; }
+.coc-check input[type="checkbox"]:checked + span { font-weight: 600; }
+.coc-check input { margin: 0; cursor: pointer; accent-color: var(--gold); }
+.coc-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.coc-label { font-size: 13px; font-weight: 600; min-width: 130px; }
+.coc-select { font-size: 13px; min-width: 180px; }
+.coc-input { font-size: 13px; flex: 1; min-width: 180px; }
+.coc-input-sm { width: 70px; font-size: 13px; text-align: center; }
+.coc-textarea { width: 100%; font-size: 13px; line-height: 1.5; resize: vertical; }
+.coc-hint { font-size: 12px; color: var(--text-muted); font-style: italic; margin-bottom: 6px; }
+
 /* ===================== BARRA DE RECORDATORIOS ===================== */
 .reminders-bar {
   background: #fffbea;
