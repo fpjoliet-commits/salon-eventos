@@ -7,6 +7,7 @@ let token = null;
 let allClientes = [];
 let allIngresos = [];
 let currentClienteModal = null;
+let currentRestricciones = [];
 let calYear, calMonth;
 
 /* ===================== UTILS ===================== */
@@ -336,12 +337,93 @@ $('btn-editar-cliente').addEventListener('click', () => {
   openEditForm(currentClienteModal);
 });
 
+$('btn-imprimir-cocina').addEventListener('click', () => {
+  if (!currentClienteModal) return;
+  imprimirFichaCocina(currentClienteModal, currentRestricciones);
+});
+
+function imprimirFichaCocina(c, restricciones) {
+  const restRows = restricciones.length
+    ? restricciones.map(r => `<tr><td>${r.tipoRestriccion}</td><td>${r.cantidad}</td></tr>`).join('')
+    : '<tr><td colspan="2" style="color:#888;font-style:italic">Sin restricciones registradas</td></tr>';
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ficha Cocina — ${c.apellidoNombre}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 14px; color: #111; padding: 24px; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .subtitulo { font-size: 13px; color: #666; margin-bottom: 20px; }
+    .seccion { margin-bottom: 18px; }
+    .seccion h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #888; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 10px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+    .campo label { font-size: 11px; color: #888; display: block; }
+    .campo span { font-weight: 700; font-size: 15px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 7px 10px; border: 1px solid #ddd; font-size: 13px; }
+    th { background: #f0f0f0; font-weight: 700; text-align: left; }
+    .destacado { background: #fff3cd; border-left: 4px solid #f39c12; padding: 10px 14px; margin-bottom: 18px; border-radius: 4px; font-size: 13px; }
+    .footer { margin-top: 24px; font-size: 11px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+    @media print { body { padding: 12px; } }
+  </style>
+</head>
+<body>
+  <h1>Ficha de Cocina</h1>
+  <div class="subtitulo">Joliet Eventos — impreso ${new Date().toLocaleDateString('es-AR')}</div>
+
+  <div class="seccion">
+    <h2>Evento</h2>
+    <div class="grid">
+      <div class="campo"><label>Cliente</label><span>${c.apellidoNombre || '—'}</span></div>
+      <div class="campo"><label>Tipo de evento</label><span>${c.tipoEvento || '—'}</span></div>
+      <div class="campo"><label>Fecha</label><span>${formatDateWithDay(c.fechaEvento)}</span></div>
+      <div class="campo"><label>Turno</label><span>${c.turno || '—'}</span></div>
+      <div class="campo"><label>Cantidad de invitados</label><span style="font-size:22px;color:#c0416a">${c.cantidadInvitados || '—'}</span></div>
+      <div class="campo"><label>Menú infantil</label><span style="font-size:22px;color:#c0416a">${c.menuInfantil || '0'}</span></div>
+    </div>
+  </div>
+
+  ${restricciones.length ? `
+  <div class="seccion">
+    <h2>Restricciones alimentarias</h2>
+    <table>
+      <thead><tr><th>Restricción</th><th>Cantidad de personas</th></tr></thead>
+      <tbody>${restRows}</tbody>
+    </table>
+  </div>` : ''}
+
+  ${c.otrosPedidos ? `
+  <div class="destacado">
+    <strong>Pedidos especiales:</strong><br>${c.otrosPedidos}
+  </div>` : ''}
+
+  ${c.observaciones ? `
+  <div class="seccion">
+    <h2>Observaciones generales</h2>
+    <p style="font-size:13px">${c.observaciones}</p>
+  </div>` : ''}
+
+  <div class="footer">Generado desde el CRM de Joliet Eventos</div>
+
+  <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+}
+
 /* ===================== RESTRICCIONES ===================== */
 async function loadRestriccionesModal(cliente) {
   $('restricciones-list').innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';
   $('rest-id-cliente').value = cliente.id;
   try {
     const data = await apiFetch(`/restricciones/cliente/${cliente.id}`);
+    currentRestricciones = data;
     renderRestriccionesList(data);
   } catch (e) {
     $('restricciones-list').innerHTML = `<p class="error-msg">${e.message}</p>`;
