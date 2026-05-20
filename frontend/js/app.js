@@ -1986,7 +1986,7 @@ const MENU_COCINA = {
     'Braseada suave', 'Campo verde', 'Delicia Ibérica', 'BBQ',
   ],
   recepcionOtros: [
-    'Variedad de triples de miga',
+    'Variedad de triples de miga', 'Arrollados',
   ],
   brochettes: [
     'Criolla de carne', 'Italiana', 'Criolla de pollo',
@@ -1996,7 +1996,7 @@ const MENU_COCINA = {
     'Jamón y queso', 'Cebolla y queso', 'Paquetitos de boniato y amapola', 'Pollo', 'Fingers de zanahoria',
   ],
   calientesOtros: [
-    'Daditos de mozzarella', 'Mini hamburguesas caseras', 'Pollo frito (Buffalo wings)', 'Azteca',
+    'Daditos de mozzarella', 'Mini hamburguesas caseras', 'Pollo frito (Buffalo wings)', 'Croquetitas de papa',
   ],
 };
 const PASTAS_OPT = [
@@ -2013,14 +2013,16 @@ const SALSAS_GOURMET_OPT = [
   'Portobellos y ciboulette', 'Queso azul y nuez',
 ];
 const ISLAS_OPT = [
-  'Mesa de fiambres', 'Tabla de quesos', 'Bruschettas', 'Pastas en vivo', 'Mariscos',
-  'Mesa de picada', 'Ensaladas', 'Sushi', 'Arrollados', 'Croquetas de papa',
+  'Mesa de fiambres', 'Sushi', 'Tacos',
 ];
 const PLATO_CENTRAL_AVE_OPT = [
   'Pechuga tradición', 'Pechuga caprese', 'Pechuga doble puerro',
 ];
 const PLATO_CENTRAL_CARNE_OPT = [
   'Lomo Reserva', 'Bife del bosque', 'Lomo Dijon',
+];
+const GUARNICION_OPT = [
+  'Rosti de papa', 'Papas a la suiza gratinadas', 'Milhojas de papa',
 ];
 const MESA_DULCES_OPT = [
   'Lemon pie', 'Cheese cake', 'Chocotorta', 'Torta África', 'Tarta de frutillas',
@@ -2252,12 +2254,13 @@ function getCocinaFormData() {
     salsasGourmet: getChecked('coc-salsa-gourmet'),
     horaPlatoCentral: $('coc-hora-plato-central')?.value || '',
     platoCentralAve: $('coc-plato-ave')?.value || '',
+    guarnicionAve: $('coc-guarnicion-ave')?.value || '',
     platoCentralCarne: $('coc-plato-carne')?.value || '',
+    guarnicionCarne: $('coc-guarnicion-carne')?.value || '',
     horaMesaDulces: $('coc-hora-mesa-dulces')?.value || '',
     mesaDulces: getChecked('coc-dulce'),
     postre: $('coc-postre')?.value.trim() || '',
     horaCafeteria: $('coc-hora-cafeteria')?.value || '',
-    cafeteria: $('coc-cafeteria')?.checked || false,
     finFiesta: getChecked('coc-fin-fiesta'),
   };
 }
@@ -2287,12 +2290,13 @@ function setCocinaFormData(d) {
   setChecked('coc-salsa-gourmet', d.salsasGourmet);
   if ($('coc-hora-plato-central')) $('coc-hora-plato-central').value = d.horaPlatoCentral || '';
   if ($('coc-plato-ave')) $('coc-plato-ave').value = d.platoCentralAve || '';
+  if ($('coc-guarnicion-ave')) $('coc-guarnicion-ave').value = d.guarnicionAve || '';
   if ($('coc-plato-carne')) $('coc-plato-carne').value = d.platoCentralCarne || '';
+  if ($('coc-guarnicion-carne')) $('coc-guarnicion-carne').value = d.guarnicionCarne || '';
   if ($('coc-hora-mesa-dulces')) $('coc-hora-mesa-dulces').value = d.horaMesaDulces || '';
   setChecked('coc-dulce', d.mesaDulces);
   if ($('coc-postre')) $('coc-postre').value = d.postre || '';
   if ($('coc-hora-cafeteria')) $('coc-hora-cafeteria').value = d.horaCafeteria || '';
-  if ($('coc-cafeteria')) $('coc-cafeteria').checked = !!d.cafeteria;
   setChecked('coc-fin-fiesta', d.finFiesta);
 }
 
@@ -2393,16 +2397,26 @@ function renderTimmingCocina(cliente, cocinaItem) {
         <div class="coc-row" style="gap:12px;align-items:flex-start">
           <div style="flex:1">
             <div class="coc-group-label" style="margin-bottom:6px">Base Ave</div>
-            <select id="coc-plato-ave" class="coc-select">
+            <select id="coc-plato-ave" class="coc-select" style="width:100%">
               <option value="">-- Ninguna --</option>
               ${PLATO_CENTRAL_AVE_OPT.map(p => `<option${cocinaData.platoCentralAve === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
+            </select>
+            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Guarnición Ave</div>
+            <select id="coc-guarnicion-ave" class="coc-select" style="width:100%">
+              <option value="">-- Guarnición --</option>
+              ${GUARNICION_OPT.map(g => `<option${cocinaData.guarnicionAve === g ? ' selected' : ''}>${esc(g)}</option>`).join('')}
             </select>
           </div>
           <div style="flex:1">
             <div class="coc-group-label" style="margin-bottom:6px">Base Carne</div>
-            <select id="coc-plato-carne" class="coc-select">
+            <select id="coc-plato-carne" class="coc-select" style="width:100%">
               <option value="">-- Ninguna --</option>
               ${PLATO_CENTRAL_CARNE_OPT.map(p => `<option${cocinaData.platoCentralCarne === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
+            </select>
+            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Guarnición Carne</div>
+            <select id="coc-guarnicion-carne" class="coc-select" style="width:100%">
+              <option value="">-- Guarnición --</option>
+              ${GUARNICION_OPT.map(g => `<option${cocinaData.guarnicionCarne === g ? ' selected' : ''}>${esc(g)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -2420,10 +2434,6 @@ function renderTimmingCocina(cliente, cocinaItem) {
 
       <div class="coc-section">
         ${secHeader('CAFETERÍA / FIN DE FIESTA', 'coc-hora-cafeteria', cocinaData.horaCafeteria)}
-        <label class="coc-check" style="margin-bottom:10px;font-size:13px">
-          <input type="checkbox" id="coc-cafeteria" ${cocinaData.cafeteria ? 'checked' : ''}> Incluye servicio de café
-        </label>
-        <div class="coc-group-label" style="margin-top:6px">Fin de fiesta</div>
         <div class="coc-checks">${chk('coc-fin-fiesta', FIN_FIESTA_OPT, cocinaData.finFiesta)}</div>
       </div>
 
@@ -2633,8 +2643,16 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   <div class="sec">
     ${secTit('Plato Central', d.horaPlatoCentral)}
     <div class="row-pair">
-      <div><div class="sub-title">Base Ave</div><p style="padding:4px 0">${esc(d.platoCentralAve || '—')}</p></div>
-      <div><div class="sub-title">Base Carne</div><p style="padding:4px 0">${esc(d.platoCentralCarne || '—')}</p></div>
+      <div>
+        <div class="sub-title">Base Ave</div>
+        <p style="padding:4px 0">${esc(d.platoCentralAve || '—')}</p>
+        ${d.guarnicionAve ? `<p style="font-size:12px;color:#555"><em>Guarnición: ${esc(d.guarnicionAve)}</em></p>` : ''}
+      </div>
+      <div>
+        <div class="sub-title">Base Carne</div>
+        <p style="padding:4px 0">${esc(d.platoCentralCarne || '—')}</p>
+        ${d.guarnicionCarne ? `<p style="font-size:12px;color:#555"><em>Guarnición: ${esc(d.guarnicionCarne)}</em></p>` : ''}
+      </div>
     </div>
   </div>
 
@@ -2646,8 +2664,7 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
 
   <div class="sec">
     ${secTit('Cafetería / Fin de Fiesta', d.horaCafeteria)}
-    <p style="margin-bottom:8px">${d.cafeteria ? 'Incluye servicio de café' : 'Sin servicio de café'}</p>
-    ${d.finFiesta && d.finFiesta.length ? `<ul>${lista(d.finFiesta)}</ul>` : ''}
+    ${d.finFiesta && d.finFiesta.length ? `<ul>${lista(d.finFiesta)}</ul>` : '<p style="color:#aaa;font-style:italic">—</p>'}
   </div>
 
   <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
