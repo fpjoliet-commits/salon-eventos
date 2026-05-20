@@ -981,6 +981,12 @@ function renderPagosTab(cliente) {
   $('pago-fecha').value = new Date().toISOString().split('T')[0];
   hide('pago-error'); hide('pago-success');
 
+  // Resetear toggle de historial al abrir nuevo cliente
+  const _hist = $('pagos-historial');
+  const _btnH = $('btn-toggle-historial');
+  if (_hist) _hist.style.display = '';
+  if (_btnH) _btnH.textContent = 'Ocultar historial';
+
   // Historial visible para Super Admin y Admin
   if (canManagePagos()) {
     showEl($('pagos-admin-content'));
@@ -1001,8 +1007,13 @@ function renderPagosTab(cliente) {
 async function loadPagosCliente(cliente) {
   $('pagos-list').innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';
   try {
-    const { total, ingresos } = await apiFetch(`/ingresos/totales/${cliente.id}`);
-    $('pagos-total').innerHTML = `Total cobrado: ${formatMoney(total)}`;
+    const { ingresos } = await apiFetch(`/ingresos/totales/${cliente.id}`);
+    const totalARS = ingresos.filter(i => !i.moneda || i.moneda === 'ARS').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+    const totalUSD = ingresos.filter(i => i.moneda === 'USD').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+    const partes = [];
+    if (totalARS > 0) partes.push(formatMoney(totalARS));
+    if (totalUSD > 0) partes.push(formatMoneda(totalUSD, 'USD'));
+    $('pagos-total').innerHTML = `Total cobrado: ${partes.length ? partes.join(' · ') : formatMoney(0)}`;
     if (!ingresos.length) {
       $('pagos-list').innerHTML = '<p style="color:#999;font-size:13px;margin-bottom:12px">Sin ingresos registrados.</p>';
       return;
@@ -1043,6 +1054,13 @@ $('pago-form').addEventListener('submit', async e => {
     $('pago-error').textContent = err.message;
     show('pago-error');
   }
+});
+
+$('btn-toggle-historial').addEventListener('click', () => {
+  const hist = $('pagos-historial');
+  const isHidden = hist.style.display === 'none';
+  hist.style.display = isHidden ? '' : 'none';
+  $('btn-toggle-historial').textContent = isHidden ? 'Ocultar historial' : 'Mostrar historial';
 });
 
 /* ===================== INGRESOS (admin) ===================== */

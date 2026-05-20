@@ -597,8 +597,13 @@
         <!-- Tab: Pagos -->
         <div id="tab-pagos" class="tab-content hidden">
           <div id="pagos-admin-content" class="admin-only-content hidden">
-            <div id="pagos-list"></div>
-            <div id="pagos-total" class="total-box"></div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+              <button id="btn-toggle-historial" type="button" class="btn btn-sm btn-secondary">Ocultar historial</button>
+            </div>
+            <div id="pagos-historial">
+              <div id="pagos-list"></div>
+              <div id="pagos-total" class="total-box"></div>
+            </div>
           </div>
           <form id="pago-form" class="inline-form">
             <input type="hidden" id="pago-id-cliente">
