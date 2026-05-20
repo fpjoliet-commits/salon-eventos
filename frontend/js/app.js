@@ -2720,15 +2720,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
 
 <div class="body">
 
-  <div class="r2">
-    <div class="sec">
-      <div class="sh"><span class="st">Restricciones alimentarias</span></div>
-      ${restHtml}
-    </div>
-    <div class="sec">
-      ${sHead('Islas', d.horaIslas)}
-      ${boxGrid(d.islas, 1)}
-    </div>
+  <div class="sec">
+    <div class="sh"><span class="st">Restricciones alimentarias</span></div>
+    ${restHtml}
   </div>
 
   <div class="sec">
@@ -2745,6 +2739,11 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
         ${subGrp('Bocados calientes', d.calientesOtros)}
       </div>
     </div>
+  </div>
+
+  <div class="sec">
+    ${sHead('Islas', d.horaIslas)}
+    ${boxGrid(d.islas, 1)}
   </div>
 
   <div class="r2">
