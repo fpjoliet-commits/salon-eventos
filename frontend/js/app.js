@@ -1979,33 +1979,57 @@ const ACTIVIDADES_TIMMING = [
 
 /* ===================== MENÚ COCINA ===================== */
 const MENU_COCINA = {
-  formal: {
-    recepcionFrios: [
-      'Tarteletas de palmito', 'Canapés de salmón', 'Canapés de queso y jamón crudo',
-      'Brochette de pollo', 'Bastones de queso', 'Melón con prosciutto',
-      'Ananá con jamón crudo', 'Tarteletas de espinaca y queso',
-    ],
-    recepcionCalientes: [
-      'Empanadas de carne', 'Empanadas caprese', 'Empanaditas espinaca y ricota',
-      'Croquetas de papa', 'Bombas de papa', 'Mini tartas de verdura', 'Arrollados primavera',
-    ],
-    islas: ['Mesa de fiambres', 'Tabla de quesos', 'Bruschettas', 'Pastas en vivo', 'Mariscos'],
-  },
-  informal: {
-    recepcionFrios: [
-      'Canapés variados', 'Tarteletas', 'Bruschettas', 'Tomates cherry rellenos', 'Bastones de queso',
-    ],
-    recepcionCalientes: [
-      'Empanadas de carne', 'Empanadas caprese', 'Mini pizzas', 'Croquetas de papa', 'Arrollados',
-    ],
-    islas: ['Mesa de picada', 'Tabla de quesos', 'Bruschettas'],
-  },
+  canapes: [
+    'Bocado mediterráneo', 'Jamón Imperial', 'Palma Serrana', 'Azul y Nuez', 'Bosque y Queso',
+  ],
+  bruschettas: [
+    'Braseada suave', 'Campo verde', 'Delicia Ibérica', 'BBQ',
+  ],
+  recepcionOtros: [
+    'Variedad de triples de miga',
+  ],
+  brochettes: [
+    'Criolla de carne', 'Italiana', 'Criolla de pollo',
+  ],
+  empanaditas: [
+    'Fatay de carne', 'Soles de calabaza y semillas grilladas', 'Canastitas de batata y almendra',
+    'Jamón y queso', 'Cebolla y queso', 'Paquetitos de boniato y amapola', 'Pollo', 'Fingers de zanahoria',
+  ],
+  calientesOtros: [
+    'Daditos de mozzarella', 'Mini hamburguesas caseras', 'Pollo frito (Buffalo wings)', 'Azteca',
+  ],
 };
-const PASTAS_OPT = ['Fettuccine', 'Spaguetti', 'Rigatoni', 'Ñoquis', 'Linguine', 'Penne', 'Tagliatelle'];
-const SALSAS_OPT = ['Bolognesa', 'Fileto', 'Cuatro quesos', 'Pesto', 'Arrabiata', 'Crema de hongos', 'Carbonara', 'Putanesca'];
-const ISLAS_OPT = ['Mesa de fiambres', 'Tabla de quesos', 'Bruschettas', 'Pastas en vivo', 'Mariscos', 'Mesa de picada', 'Ensaladas', 'Sushi'];
-const PLATO_CENTRAL_OPT = ['Pollo relleno', 'Cerdo agridulce', 'Lomo a la mostaza', 'Suprema napolitana', 'Filet de merluza', 'Medallones de lomo', 'Pollo al limón', 'Bondiola braseada', 'Pollo grillé'];
-const MESA_DULCES_OPT = ['Alfajores', 'Brownies', 'Petit fours', 'Cheesecake', 'Macarons', 'Medialunas', 'Tarteletas dulces', 'Bocaditos de chocolate', 'Frutas bañadas'];
+const PASTAS_OPT = [
+  'Tagliatelle', 'Sorrentinos de jamón y queso', 'Canelones de verdura y ricota',
+  'Ravioloni de espinaca y parmesano', 'Agnolotis de pollo', 'Ñoquis de papa',
+];
+const PASTAS_GOURMET_OPT = [
+  'Sorrentinos de trucha y almendras', 'Fagotinnis de cordero y romero', 'Sorrentinos de salmón y philadelphia',
+];
+const SALSAS_OPT = [
+  'Filetto', 'Bolognesa', 'Rosé', 'Cuatro quesos', 'Crema de espinaca', 'Italiana', 'Salsa blanca',
+];
+const SALSAS_GOURMET_OPT = [
+  'Portobellos y ciboulette', 'Queso azul y nuez',
+];
+const ISLAS_OPT = [
+  'Mesa de fiambres', 'Tabla de quesos', 'Bruschettas', 'Pastas en vivo', 'Mariscos',
+  'Mesa de picada', 'Ensaladas', 'Sushi', 'Arrollados', 'Croquetas de papa',
+];
+const PLATO_CENTRAL_AVE_OPT = [
+  'Pechuga tradición', 'Pechuga caprese', 'Pechuga doble puerro',
+];
+const PLATO_CENTRAL_CARNE_OPT = [
+  'Lomo Reserva', 'Bife del bosque', 'Lomo Dijon',
+];
+const MESA_DULCES_OPT = [
+  'Lemon pie', 'Cheese cake', 'Chocotorta', 'Torta África', 'Tarta de frutillas',
+  'Flan', 'Mil Hojas', 'Brownies relleno', 'Copas Heladas', 'Panqueques',
+  'Torta Homenaje', 'Presentaciones Individuales',
+];
+const FIN_FIESTA_OPT = [
+  'Café con leche y mini facturas', 'Pizza con cerveza', 'Mate con bizcochitos',
+];
 
 function actividadSelectHTML(selectId, customId, valor = '') {
   const esPredefinida = ACTIVIDADES_TIMMING.includes(valor.toUpperCase());
@@ -2208,20 +2232,33 @@ function checkboxListHTML(items, selectedArr, prefix) {
 function getCocinaFormData() {
   const getChecked = cls => [...document.querySelectorAll(`.${cls}-check:checked`)].map(el => el.value);
   return {
-    recepcionFrios: getChecked('coc-rf'),
-    recepcionCalientes: getChecked('coc-rc'),
+    horaRecepcion: $('coc-hora-recepcion')?.value || '',
+    canapes: getChecked('coc-canape'),
+    bruschettas: getChecked('coc-bruschetta'),
+    recepcionOtros: getChecked('coc-rf-otros'),
+    brochettes: getChecked('coc-brochette'),
+    empanaditas: getChecked('coc-empanadita'),
+    calientesOtros: getChecked('coc-rc-otros'),
+    horaIslas: $('coc-hora-islas')?.value || '',
     islas: [
       ...getChecked('coc-isla'),
       ...($('coc-isla-extra')?.value.trim() ? [$('coc-isla-extra').value.trim()] : []),
     ],
-    pasta: $('coc-pasta')?.value || '',
+    horaPrimerPlato: $('coc-hora-primer-plato')?.value || '',
+    pastas: getChecked('coc-pasta'),
+    pastasGourmet: getChecked('coc-pasta-gourmet'),
     cantidadSalsas: parseInt($('coc-nsalsas')?.value) || 0,
     salsas: getChecked('coc-salsa'),
-    platoCentral: $('coc-plato-central')?.value || '',
-    platoCentralOtro: $('coc-plato-otro')?.value.trim() || '',
+    salsasGourmet: getChecked('coc-salsa-gourmet'),
+    horaPlatoCentral: $('coc-hora-plato-central')?.value || '',
+    platoCentralAve: $('coc-plato-ave')?.value || '',
+    platoCentralCarne: $('coc-plato-carne')?.value || '',
+    horaMesaDulces: $('coc-hora-mesa-dulces')?.value || '',
     mesaDulces: getChecked('coc-dulce'),
-    cafeteria: $('coc-cafeteria')?.checked || false,
     postre: $('coc-postre')?.value.trim() || '',
+    horaCafeteria: $('coc-hora-cafeteria')?.value || '',
+    cafeteria: $('coc-cafeteria')?.checked || false,
+    finFiesta: getChecked('coc-fin-fiesta'),
   };
 }
 
@@ -2232,18 +2269,31 @@ function setCocinaFormData(d) {
       el.checked = arr && arr.includes(el.value);
     });
   };
-  setChecked('coc-rf', d.recepcionFrios);
-  setChecked('coc-rc', d.recepcionCalientes);
+  if ($('coc-hora-recepcion')) $('coc-hora-recepcion').value = d.horaRecepcion || '';
+  setChecked('coc-canape', d.canapes);
+  setChecked('coc-bruschetta', d.bruschettas);
+  setChecked('coc-rf-otros', d.recepcionOtros);
+  setChecked('coc-brochette', d.brochettes);
+  setChecked('coc-empanadita', d.empanaditas);
+  setChecked('coc-rc-otros', d.calientesOtros);
+  if ($('coc-hora-islas')) $('coc-hora-islas').value = d.horaIslas || '';
   setChecked('coc-isla', d.islas);
   if ($('coc-isla-extra')) $('coc-isla-extra').value = '';
-  if ($('coc-pasta')) $('coc-pasta').value = d.pasta || '';
+  if ($('coc-hora-primer-plato')) $('coc-hora-primer-plato').value = d.horaPrimerPlato || '';
+  setChecked('coc-pasta', d.pastas);
+  setChecked('coc-pasta-gourmet', d.pastasGourmet);
   if ($('coc-nsalsas')) $('coc-nsalsas').value = d.cantidadSalsas || '';
   setChecked('coc-salsa', d.salsas);
-  if ($('coc-plato-central')) $('coc-plato-central').value = d.platoCentral || '';
-  if ($('coc-plato-otro')) $('coc-plato-otro').value = d.platoCentralOtro || '';
+  setChecked('coc-salsa-gourmet', d.salsasGourmet);
+  if ($('coc-hora-plato-central')) $('coc-hora-plato-central').value = d.horaPlatoCentral || '';
+  if ($('coc-plato-ave')) $('coc-plato-ave').value = d.platoCentralAve || '';
+  if ($('coc-plato-carne')) $('coc-plato-carne').value = d.platoCentralCarne || '';
+  if ($('coc-hora-mesa-dulces')) $('coc-hora-mesa-dulces').value = d.horaMesaDulces || '';
   setChecked('coc-dulce', d.mesaDulces);
-  if ($('coc-cafeteria')) $('coc-cafeteria').checked = !!d.cafeteria;
   if ($('coc-postre')) $('coc-postre').value = d.postre || '';
+  if ($('coc-hora-cafeteria')) $('coc-hora-cafeteria').value = d.horaCafeteria || '';
+  if ($('coc-cafeteria')) $('coc-cafeteria').checked = !!d.cafeteria;
+  setChecked('coc-fin-fiesta', d.finFiesta);
 }
 
 function renderTimmingCocina(cliente, cocinaItem) {
@@ -2256,6 +2306,13 @@ function renderTimmingCocina(cliente, cocinaItem) {
     try { cocinaData = JSON.parse(cocinaItem.actividad); } catch {}
     cocinaRowIndex = cocinaItem.rowIndex;
   }
+
+  const chk = (cls, items, sel) => checkboxListHTML(items, sel, cls);
+  const secHeader = (titulo, horaId, horaVal) => `
+    <div class="coc-section-header">
+      <div class="coc-section-title">${titulo}</div>
+      <input type="time" id="${horaId}" class="coc-hora" value="${horaVal || ''}">
+    </div>`;
 
   panel.innerHTML = `
     <div class="timming-wrap">
@@ -2274,80 +2331,124 @@ function renderTimmingCocina(cliente, cocinaItem) {
       </div>
 
       <div class="coc-section">
-        <div class="coc-section-title">RECEPCIÓN</div>
+        ${secHeader('RECEPCIÓN', 'coc-hora-recepcion', cocinaData.horaRecepcion)}
         <div class="coc-group">
-          <div class="coc-group-label">Bocados fríos</div>
-          <div class="coc-checks">${checkboxListHTML([...MENU_COCINA.formal.recepcionFrios, ...MENU_COCINA.informal.recepcionFrios.filter(i => !MENU_COCINA.formal.recepcionFrios.includes(i))], cocinaData.recepcionFrios, 'coc-rf')}</div>
-        </div>
-        <div class="coc-group">
-          <div class="coc-group-label">Bocados calientes</div>
-          <div class="coc-checks">${checkboxListHTML([...MENU_COCINA.formal.recepcionCalientes, ...MENU_COCINA.informal.recepcionCalientes.filter(i => !MENU_COCINA.formal.recepcionCalientes.includes(i))], cocinaData.recepcionCalientes, 'coc-rc')}</div>
-        </div>
-      </div>
-
-      <div class="coc-section">
-        <div class="coc-section-title">ISLAS</div>
-        <div class="coc-checks">${checkboxListHTML(ISLAS_OPT, cocinaData.islas, 'coc-isla')}</div>
-        <input type="text" id="coc-isla-extra" class="coc-input" placeholder="Otra isla...">
-      </div>
-
-      <div class="coc-section">
-        <div class="coc-section-title">PRIMER PLATO</div>
-        <div class="coc-row">
-          <label class="coc-label">Pasta:</label>
-          <select id="coc-pasta" class="coc-select">
-            <option value="">-- seleccionar --</option>
-            ${PASTAS_OPT.map(p => `<option${cocinaData.pasta === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
-            <option value="Sin pasta"${cocinaData.pasta === 'Sin pasta' ? ' selected' : ''}>Sin primer plato</option>
-          </select>
-        </div>
-        <div class="coc-row">
-          <label class="coc-label">Cantidad de salsas:</label>
-          <input type="number" id="coc-nsalsas" class="coc-input-sm" min="0" max="6" value="${cocinaData.cantidadSalsas || ''}">
+          <div class="coc-group-label">Bocados fríos — Canapés</div>
+          <div class="coc-checks">${chk('coc-canape', MENU_COCINA.canapes, cocinaData.canapes)}</div>
         </div>
         <div class="coc-group">
-          <div class="coc-group-label">Salsas:</div>
-          <div class="coc-checks">${checkboxListHTML(SALSAS_OPT, cocinaData.salsas, 'coc-salsa')}</div>
+          <div class="coc-group-label">Bocados fríos — Bruschettas</div>
+          <div class="coc-checks">${chk('coc-bruschetta', MENU_COCINA.bruschettas, cocinaData.bruschettas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Otros fríos</div>
+          <div class="coc-checks">${chk('coc-rf-otros', MENU_COCINA.recepcionOtros, cocinaData.recepcionOtros)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados calientes — Brochettes</div>
+          <div class="coc-checks">${chk('coc-brochette', MENU_COCINA.brochettes, cocinaData.brochettes)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados calientes — Mini Empanaditas</div>
+          <div class="coc-checks">${chk('coc-empanadita', MENU_COCINA.empanaditas, cocinaData.empanaditas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados calientes — Otros</div>
+          <div class="coc-checks">${chk('coc-rc-otros', MENU_COCINA.calientesOtros, cocinaData.calientesOtros)}</div>
         </div>
       </div>
 
       <div class="coc-section">
-        <div class="coc-section-title">PLATO CENTRAL</div>
-        <div class="coc-row">
-          <select id="coc-plato-central" class="coc-select">
-            <option value="">-- seleccionar --</option>
-            ${PLATO_CENTRAL_OPT.map(p => `<option${cocinaData.platoCentral === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
-          </select>
-          <input type="text" id="coc-plato-otro" class="coc-input" placeholder="Otro..." value="${esc(cocinaData.platoCentralOtro || '')}">
+        ${secHeader('ISLAS', 'coc-hora-islas', cocinaData.horaIslas)}
+        <div class="coc-checks">${chk('coc-isla', ISLAS_OPT, cocinaData.islas)}</div>
+        <input type="text" id="coc-isla-extra" class="coc-input" placeholder="Otra isla..." style="margin-top:8px">
+      </div>
+
+      <div class="coc-section">
+        ${secHeader('PRIMER PLATO — Mesa Italiana', 'coc-hora-primer-plato', cocinaData.horaPrimerPlato)}
+        <div class="coc-group">
+          <div class="coc-group-label">Pastas</div>
+          <div class="coc-checks">${chk('coc-pasta', PASTAS_OPT, cocinaData.pastas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Pastas Gourmet</div>
+          <div class="coc-checks">${chk('coc-pasta-gourmet', PASTAS_GOURMET_OPT, cocinaData.pastasGourmet)}</div>
+        </div>
+        <div class="coc-row" style="margin-top:10px">
+          <label class="coc-label">Cant. de salsas:</label>
+          <input type="number" id="coc-nsalsas" class="coc-input-sm" min="0" max="10" value="${cocinaData.cantidadSalsas || ''}">
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Salsas (Filetto + a elección)</div>
+          <div class="coc-checks">${chk('coc-salsa', SALSAS_OPT, cocinaData.salsas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Salsas Gourmet</div>
+          <div class="coc-checks">${chk('coc-salsa-gourmet', SALSAS_GOURMET_OPT, cocinaData.salsasGourmet)}</div>
         </div>
       </div>
 
       <div class="coc-section">
-        <div class="coc-section-title">MESA DE DULCES</div>
-        <div class="coc-checks">${checkboxListHTML(MESA_DULCES_OPT, cocinaData.mesaDulces, 'coc-dulce')}</div>
+        ${secHeader('PLATO CENTRAL', 'coc-hora-plato-central', cocinaData.horaPlatoCentral)}
+        <div class="coc-row" style="gap:12px;align-items:flex-start">
+          <div style="flex:1">
+            <div class="coc-group-label" style="margin-bottom:6px">Base Ave</div>
+            <select id="coc-plato-ave" class="coc-select">
+              <option value="">-- Ninguna --</option>
+              ${PLATO_CENTRAL_AVE_OPT.map(p => `<option${cocinaData.platoCentralAve === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
+            </select>
+          </div>
+          <div style="flex:1">
+            <div class="coc-group-label" style="margin-bottom:6px">Base Carne</div>
+            <select id="coc-plato-carne" class="coc-select">
+              <option value="">-- Ninguna --</option>
+              ${PLATO_CENTRAL_CARNE_OPT.map(p => `<option${cocinaData.platoCentralCarne === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div class="coc-section">
-        <div class="coc-section-title">CAFETERÍA</div>
-        <label class="coc-check" style="font-size:14px">
-          <input type="checkbox" id="coc-cafeteria" ${cocinaData.cafeteria ? 'checked' : ''}> Incluye cafetería
+        ${secHeader('MESA DE DULCES', 'coc-hora-mesa-dulces', cocinaData.horaMesaDulces)}
+        <div class="coc-checks">${chk('coc-dulce', MESA_DULCES_OPT, cocinaData.mesaDulces)}</div>
+        <div class="coc-group" style="margin-top:12px">
+          <div class="coc-group-label">Postre / Torta</div>
+          <p class="coc-hint">1 opción por cada 10 invitados. Una siempre es la torta principal.</p>
+          <textarea id="coc-postre" class="coc-textarea" rows="2" placeholder="Ej: Torta principal + Lemon pie">${esc(cocinaData.postre || '')}</textarea>
+        </div>
+      </div>
+
+      <div class="coc-section">
+        ${secHeader('CAFETERÍA / FIN DE FIESTA', 'coc-hora-cafeteria', cocinaData.horaCafeteria)}
+        <label class="coc-check" style="margin-bottom:10px;font-size:13px">
+          <input type="checkbox" id="coc-cafeteria" ${cocinaData.cafeteria ? 'checked' : ''}> Incluye servicio de café
         </label>
-      </div>
-
-      <div class="coc-section">
-        <div class="coc-section-title">POSTRE / TORTA</div>
-        <p class="coc-hint">1 opción por cada 10 invitados. Una siempre es la torta principal.</p>
-        <textarea id="coc-postre" class="coc-textarea" rows="3" placeholder="Ej: Torta principal + mousse de chocolate (para ${cliente.cantidadInvitados || '?'} pax)">${esc(cocinaData.postre || '')}</textarea>
+        <div class="coc-group-label" style="margin-top:6px">Fin de fiesta</div>
+        <div class="coc-checks">${chk('coc-fin-fiesta', FIN_FIESTA_OPT, cocinaData.finFiesta)}</div>
       </div>
 
       <div id="coc-msg" style="font-size:13px;margin-top:8px;min-height:20px"></div>
     </div>`;
 
   $('coc-preset-formal')?.addEventListener('click', () => {
-    setCocinaFormData({ recepcionFrios: MENU_COCINA.formal.recepcionFrios, recepcionCalientes: MENU_COCINA.formal.recepcionCalientes, islas: MENU_COCINA.formal.islas });
+    setCocinaFormData({
+      canapes: [...MENU_COCINA.canapes],
+      bruschettas: [...MENU_COCINA.bruschettas],
+      recepcionOtros: [...MENU_COCINA.recepcionOtros],
+      brochettes: [...MENU_COCINA.brochettes],
+      empanaditas: [...MENU_COCINA.empanaditas],
+      calientesOtros: [],
+    });
   });
   $('coc-preset-informal')?.addEventListener('click', () => {
-    setCocinaFormData({ recepcionFrios: MENU_COCINA.informal.recepcionFrios, recepcionCalientes: MENU_COCINA.informal.recepcionCalientes, islas: MENU_COCINA.informal.islas });
+    setCocinaFormData({
+      canapes: [...MENU_COCINA.canapes],
+      bruschettas: [...MENU_COCINA.bruschettas],
+      recepcionOtros: [...MENU_COCINA.recepcionOtros],
+      brochettes: [...MENU_COCINA.brochettes],
+      empanaditas: [...MENU_COCINA.empanaditas],
+      calientesOtros: ['Azteca'],
+    });
   });
   $('coc-preset-clear')?.addEventListener('click', () => setCocinaFormData({}));
 
@@ -2435,11 +2536,16 @@ function imprimirTimming(cliente, items) {
 function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const d = cocinaData || {};
   const lista = (arr) => arr && arr.length ? arr.map(i => `<li>${esc(i)}</li>`).join('') : '<li style="color:#aaa">—</li>';
+  const secTit = (titulo, hora) =>
+    `<div class="sec-title">${titulo}${hora ? `<span class="sec-hora">${hora}</span>` : ''}</div>`;
   const restricFilas = (restricciones || []).map(r => `
     <tr>
       <td style="padding:8px 12px;font-size:13px">${r.coronita ? '👑 ' : ''}${esc(r.tipoRestriccion)}</td>
       <td style="padding:8px 12px;font-size:13px;font-weight:700;text-align:center">${r.cantidad}</td>
     </tr>`).join('');
+
+  const todasPastas = [...(d.pastas || []), ...(d.pastasGourmet || [])];
+  const todasSalsas = [...(d.salsas || []), ...(d.salsasGourmet || [])];
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -2457,12 +2563,13 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
     .cab-dato span { font-size: 14px; font-weight: 600; }
     .cab-num { font-size: 26px !important; color: #8f2e4d; }
     .sec { margin-top: 20px; }
-    .sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #8f2e4d; border-bottom: 2px solid #8f2e4d; padding-bottom: 5px; margin-bottom: 10px; }
-    .sub-title { font-size: 11px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; margin: 8px 0 4px; }
+    .sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #8f2e4d; border-bottom: 2px solid #8f2e4d; padding-bottom: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .sec-hora { font-size: 16px; font-weight: 800; color: #8f2e4d; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+    .sub-title { font-size: 11px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; margin: 10px 0 4px; }
     ul { padding-left: 18px; }
     ul li { padding: 3px 0; font-size: 13px; }
     .row-pair { display: flex; gap: 16px; }
-    .row-pair .sec { flex: 1; }
+    .row-pair > div { flex: 1; }
     table { width: 100%; border-collapse: collapse; }
     thead th { background: #f5f5f5; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #666; text-align: left; border-bottom: 1px solid #ddd; }
     tbody tr { border-bottom: 1px solid #eee; }
@@ -2492,46 +2599,55 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   </div>
 
   <div class="sec">
-    <div class="sec-title">Recepción</div>
+    ${secTit('Recepción', d.horaRecepcion)}
     <div class="row-pair">
-      <div class="sec"><div class="sub-title">Bocados fríos</div><ul>${lista(d.recepcionFrios)}</ul></div>
-      <div class="sec"><div class="sub-title">Bocados calientes</div><ul>${lista(d.recepcionCalientes)}</ul></div>
+      <div>
+        <div class="sub-title">Canapés</div><ul>${lista(d.canapes)}</ul>
+        <div class="sub-title">Bruschettas</div><ul>${lista(d.bruschettas)}</ul>
+        ${d.recepcionOtros && d.recepcionOtros.length ? `<div class="sub-title">Otros fríos</div><ul>${lista(d.recepcionOtros)}</ul>` : ''}
+      </div>
+      <div>
+        <div class="sub-title">Brochettes</div><ul>${lista(d.brochettes)}</ul>
+        <div class="sub-title">Mini Empanaditas</div><ul>${lista(d.empanaditas)}</ul>
+        ${d.calientesOtros && d.calientesOtros.length ? `<div class="sub-title">Otros calientes</div><ul>${lista(d.calientesOtros)}</ul>` : ''}
+      </div>
     </div>
   </div>
 
   <div class="sec">
-    <div class="sec-title">Islas</div>
+    ${secTit('Islas', d.horaIslas)}
     <ul>${lista(d.islas)}</ul>
   </div>
 
   <div class="sec">
-    <div class="sec-title">Primer Plato</div>
-    ${d.pasta && d.pasta !== 'Sin pasta' ? `
-      <p style="margin-bottom:6px"><strong>Pasta:</strong> ${esc(d.pasta)}</p>
-      ${d.cantidadSalsas ? `<p style="margin-bottom:6px"><strong>Cantidad de salsas:</strong> ${d.cantidadSalsas}</p>` : ''}
+    ${secTit('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
+    ${todasPastas.length ? `
+      <div class="sub-title">Pastas</div>
+      <ul>${lista(todasPastas)}</ul>
+      ${d.cantidadSalsas ? `<p style="margin:8px 0 4px;font-size:12px"><strong>Cant. de salsas: ${d.cantidadSalsas}</strong></p>` : ''}
       <div class="sub-title">Salsas</div>
-      <ul>${lista(d.salsas)}</ul>
+      <ul>${lista(todasSalsas)}</ul>
     ` : '<p style="color:#aaa;font-style:italic">Sin primer plato</p>'}
   </div>
 
   <div class="sec">
-    <div class="sec-title">Plato Central</div>
-    <p>${esc(d.platoCentral || '')}${d.platoCentralOtro ? (d.platoCentral ? ' — ' : '') + esc(d.platoCentralOtro) : ''|| '—'}</p>
+    ${secTit('Plato Central', d.horaPlatoCentral)}
+    <div class="row-pair">
+      <div><div class="sub-title">Base Ave</div><p style="padding:4px 0">${esc(d.platoCentralAve || '—')}</p></div>
+      <div><div class="sub-title">Base Carne</div><p style="padding:4px 0">${esc(d.platoCentralCarne || '—')}</p></div>
+    </div>
   </div>
 
   <div class="sec">
-    <div class="sec-title">Mesa de Dulces</div>
+    ${secTit('Mesa de Dulces', d.horaMesaDulces)}
     <ul>${lista(d.mesaDulces)}</ul>
+    ${d.postre ? `<p style="margin-top:8px;font-size:12px"><strong>Postre/Torta:</strong> ${esc(d.postre)}</p>` : ''}
   </div>
 
   <div class="sec">
-    <div class="sec-title">Cafetería</div>
-    <p>${d.cafeteria ? 'Sí, incluye cafetería' : 'No incluye cafetería'}</p>
-  </div>
-
-  <div class="sec">
-    <div class="sec-title">Postre / Torta</div>
-    <p style="white-space:pre-line">${esc(d.postre) || '—'}</p>
+    ${secTit('Cafetería / Fin de Fiesta', d.horaCafeteria)}
+    <p style="margin-bottom:8px">${d.cafeteria ? 'Incluye servicio de café' : 'Sin servicio de café'}</p>
+    ${d.finFiesta && d.finFiesta.length ? `<ul>${lista(d.finFiesta)}</ul>` : ''}
   </div>
 
   <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
