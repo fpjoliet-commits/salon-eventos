@@ -2626,79 +2626,90 @@ function imprimirTimming(cliente, items) {
 function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const d = cocinaData || {};
 
-  const boxes = (arr) => arr && arr.length
-    ? arr.map(i => `<span class="cbox">${esc(i)}</span>`).join('')
-    : '<span style="color:#aaa">—</span>';
+  // cols: 1=columna única, 2=dos cols, 3=tres cols, 4=cuatro cols
+  const boxGrid = (arr, cols = 2) => {
+    if (!arr || !arr.length) return '<span class="empty">—</span>';
+    const cls = ['', 'g1', 'g2', 'g3', 'g4'][cols] || 'g2';
+    return `<div class="${cls}">${arr.map(i => `<span class="cb">${esc(i)}</span>`).join('')}</div>`;
+  };
 
-  const secTit = (titulo, hora) =>
-    `<div class="sec-title">${titulo}${hora ? `<span class="sec-hora">${hora}</span>` : ''}</div>`;
-
-  const subGrp = (label, arr) => arr && arr.length
-    ? `<div class="sub-grp"><span class="sub-lbl">${label}:</span><div class="items-wrap">${boxes(arr)}</div></div>`
+  const subGrp = (label, arr, cols = 2) => arr && arr.length
+    ? `<div class="sg"><span class="sl">${label}</span>${boxGrid(arr, cols)}</div>`
     : '';
+
+  const sHead = (title, hora) =>
+    `<div class="sh"><span class="st">${title}</span>${hora ? `<span class="hora">${hora}</span>` : ''}</div>`;
 
   const todasPastas = [...(d.pastas || []), ...(d.pastasGourmet || [])];
   const todasSalsas = [...(d.salsas || []), ...(d.salsasGourmet || [])];
 
-  const restricItems = (restricciones || []).map(r =>
-    `<div class="rest-row">${r.coronita ? '👑 ' : ''}<strong>${esc(r.tipoRestriccion)}</strong> <span class="rest-cant">${r.cantidad} pax</span></div>`
-  ).join('') || '<span style="color:#aaa;font-style:italic">Sin restricciones</span>';
+  const restHtml = (restricciones || []).length
+    ? `<div class="rg">${restricciones.map(r =>
+        `<div class="rr">${r.coronita ? '👑 ' : ''}<strong>${esc(r.tipoRestriccion)}</strong> <span class="rc">${r.cantidad} pax</span></div>`
+      ).join('')}</div>`
+    : '<span class="empty">Sin restricciones</span>';
 
   const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Cocina — ${esc(cliente.apellidoNombre)}</title>
-  <style>
-    @page { size: A4 portrait; margin: 11mm 13mm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5px; color: #111; background: #fff; }
-
-    .cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #8f2e4d; padding-bottom: 5px; margin-bottom: 7px; }
-    .cab-left .marca { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: #8f2e4d; font-weight: 700; }
-    .cab-left .nombre { font-size: 17px; font-weight: 800; line-height: 1.2; }
-    .cab-right { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
-    .dato { text-align: center; }
-    .dato label { font-size: 8px; color: #888; text-transform: uppercase; letter-spacing: .3px; display: block; }
-    .dato span { font-size: 12px; font-weight: 700; }
-    .dato .big { font-size: 18px; color: #8f2e4d; }
-
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
-    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px; }
-
-    .sec { border: 1px solid #ddd; border-radius: 5px; padding: 5px 7px; margin-bottom: 5px; }
-    .sec-title { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: #8f2e4d; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
-    .sec-hora { font-size: 13px; font-weight: 900; color: #8f2e4d; font-variant-numeric: tabular-nums; }
-
-    .sub-grp { margin-bottom: 3px; }
-    .sub-lbl { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; }
-    .items-wrap { display: flex; flex-wrap: wrap; gap: 2px 4px; margin-top: 2px; }
-
-    .cbox { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; white-space: nowrap; }
-    .cbox::before { content: ''; display: inline-block; width: 10px; height: 10px; border: 1.5px solid #444; border-radius: 2px; flex-shrink: 0; }
-
-    .rest-row { font-size: 10.5px; line-height: 1.6; }
-    .rest-cant { font-size: 9px; color: #666; }
-
-    .plato-row { display: flex; gap: 4px; align-items: baseline; }
-    .plato-tipo { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; min-width: 60px; }
-    .plato-val { font-size: 10.5px; }
-    .plato-guar { font-size: 9.5px; color: #666; font-style: italic; margin-left: 4px; }
-
-    .postre-note { font-size: 10px; color: #444; margin-top: 3px; font-style: italic; }
-    .footer { margin-top: 6px; font-size: 8px; color: #bbb; text-align: right; border-top: 1px solid #eee; padding-top: 4px; }
-
-    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-  </style>
-</head>
-<body>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<title>Cocina — ${esc(cliente.apellidoNombre)}</title>
+<style>
+@page{size:A4 portrait;margin:11mm 13mm}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;background:#fff;display:flex;flex-direction:column}
+.cab{flex-shrink:0;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #8f2e4d;padding-bottom:6px;margin-bottom:8px}
+.marca{font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#8f2e4d;font-weight:700}
+.nombre{font-size:19px;font-weight:800;line-height:1.1}
+.cr{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}
+.dato{text-align:center}.dato label{font-size:7.5px;color:#888;text-transform:uppercase;display:block}
+.dato span{font-size:12px;font-weight:700}.dato .big{font-size:21px;color:#8f2e4d}
+/* body principal ocupa todo el espacio entre header y footer */
+.body{flex:1;display:flex;flex-direction:column;gap:6px}
+/* grid externo: secciones lado a lado */
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:start}
+/* sección */
+.sec{border:1.5px solid #ddd;border-radius:5px;padding:7px 10px}
+.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid #eee}
+.st{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d}
+.hora{font-size:15px;font-weight:900;color:#8f2e4d}
+/* columnas internas dentro de una sección */
+.inner2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;align-items:start}
+/* subgrupos */
+.sg{margin-bottom:6px}.sg:last-child{margin-bottom:0}
+.sl{font-size:8px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
+/* grillas de checkboxes — columnas fijas, alineación limpia */
+.g1{display:flex;flex-direction:column;gap:4px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px 8px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:3px 6px}
+.cb{display:flex;align-items:center;gap:5px;font-size:11px;line-height:1.6;min-width:0;word-break:break-word}
+.cb::before{content:'';display:inline-block;width:12px;height:12px;border:1.5px solid #555;border-radius:2px;flex-shrink:0}
+/* restricciones */
+.rg{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
+.rr{font-size:11px;line-height:1.7}.rc{font-size:9.5px;color:#666}
+/* plato central */
+.pc-row{margin-bottom:7px}.pc-row:last-child{margin-bottom:0}
+.pc-tipo{font-size:8px;font-weight:700;color:#555;text-transform:uppercase}
+.pc-val{font-size:12.5px;font-weight:700}
+.pc-guar{font-size:10.5px;color:#555;font-style:italic}
+/* notas: flex:1 → ocupa todo el espacio sobrante de la hoja */
+.notas{flex:1;border:1.5px solid #ddd;border-radius:5px;padding:7px 10px;display:flex;flex-direction:column}
+.nt{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d;margin-bottom:8px;flex-shrink:0}
+.notas-lines{flex:1;display:flex;flex-direction:column;justify-content:space-around}
+.nl{border-bottom:1px dashed #ccc}
+.empty{font-size:10.5px;color:#aaa;font-style:italic}
+.postre-note{margin-top:5px;font-size:11px;font-style:italic;color:#444}
+.footer{flex-shrink:0;margin-top:5px;font-size:7.5px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:3px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
 
 <div class="cab">
-  <div class="cab-left">
+  <div>
     <div class="marca">Joliet Eventos — Timing Cocina</div>
     <div class="nombre">${esc(cliente.apellidoNombre) || '—'}</div>
   </div>
-  <div class="cab-right">
+  <div class="cr">
     <div class="dato"><label>Fecha</label><span>${formatDateWithDay(cliente.fechaEvento)}</span></div>
     <div class="dato"><label>Turno</label><span>${esc(cliente.turno || '—')}</span></div>
     <div class="dato"><label>Tipo</label><span>${esc(cliente.tipoEvento || '—')}</span></div>
@@ -2707,66 +2718,88 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   </div>
 </div>
 
-<div class="grid2">
-  <div class="sec">
-    <div class="sec-title">Restricciones alimentarias</div>
-    ${restricItems}
-  </div>
-  <div class="sec">
-    ${secTit('Islas', d.horaIslas)}
-    <div class="items-wrap">${boxes(d.islas)}</div>
-  </div>
-</div>
+<div class="body">
 
-<div class="sec" style="margin-bottom:5px">
-  ${secTit('Recepción', d.horaRecepcion)}
-  <div class="grid2" style="margin-bottom:0">
-    <div>
-      ${subGrp('Canapés', d.canapes)}
-      ${subGrp('Bruschettas', d.bruschettas)}
-      ${d.recepcionOtros && d.recepcionOtros.length ? subGrp('Otros fríos', d.recepcionOtros) : ''}
+  <div class="r2">
+    <div class="sec">
+      <div class="sh"><span class="st">Restricciones alimentarias</span></div>
+      ${restHtml}
     </div>
-    <div>
-      ${subGrp('Brochettes', d.brochettes)}
-      ${subGrp('Mini Empanaditas', d.empanaditas)}
-      ${d.calientesOtros && d.calientesOtros.length ? subGrp('Otros calientes', d.calientesOtros) : ''}
+    <div class="sec">
+      ${sHead('Islas', d.horaIslas)}
+      ${boxGrid(d.islas, 1)}
     </div>
   </div>
-</div>
 
-<div class="grid2">
   <div class="sec">
-    ${secTit('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
-    ${todasPastas.length ? `
-      ${subGrp('Pastas', todasPastas)}
-      ${d.cantidadSalsas ? `<div class="sub-lbl" style="margin-top:3px">Salsas (${d.cantidadSalsas}):</div>` : subGrp ? `<div class="sub-lbl" style="margin-top:3px">Salsas:</div>` : ''}
-      <div class="items-wrap">${boxes(todasSalsas)}</div>
-    ` : '<span style="color:#aaa;font-style:italic">Sin primer plato</span>'}
+    ${sHead('Recepción', d.horaRecepcion)}
+    <div class="inner2">
+      <div>
+        ${subGrp('Canapés', d.canapes)}
+        ${subGrp('Bruschettas', d.bruschettas)}
+        ${subGrp('Bocados fríos', d.recepcionOtros)}
+      </div>
+      <div>
+        ${subGrp('Brochettes', d.brochettes)}
+        ${subGrp('Mini Empanaditas', d.empanaditas)}
+        ${subGrp('Bocados calientes', d.calientesOtros)}
+      </div>
+    </div>
   </div>
+
+  <div class="r2">
+    <div class="sec">
+      ${sHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
+      ${todasPastas.length ? `
+        ${subGrp('Pastas', todasPastas)}
+        <div class="sg">
+          <span class="sl">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</span>
+          ${boxGrid(todasSalsas)}
+        </div>
+      ` : '<span class="empty">Sin primer plato</span>'}
+    </div>
+    <div class="sec">
+      ${sHead('Plato Central', d.horaPlatoCentral)}
+      ${d.platoCentralAve ? `
+        <div class="pc-row">
+          <div class="pc-tipo">Ave</div>
+          <div class="pc-val">${esc(d.platoCentralAve)}</div>
+          ${d.guarnicionAve ? `<div class="pc-guar">${esc(d.guarnicionAve)}</div>` : ''}
+        </div>` : ''}
+      ${d.platoCentralCarne ? `
+        <div class="pc-row">
+          <div class="pc-tipo">Carne</div>
+          <div class="pc-val">${esc(d.platoCentralCarne)}</div>
+          ${d.guarnicionCarne ? `<div class="pc-guar">${esc(d.guarnicionCarne)}</div>` : ''}
+        </div>` : ''}
+      ${!d.platoCentralAve && !d.platoCentralCarne ? '<span class="empty">—</span>' : ''}
+    </div>
+  </div>
+
   <div class="sec">
-    ${secTit('Plato Central', d.horaPlatoCentral)}
-    ${d.platoCentralAve ? `<div class="plato-row"><span class="plato-tipo">Ave:</span><span class="plato-val">${esc(d.platoCentralAve)}</span>${d.guarnicionAve ? `<span class="plato-guar">(${esc(d.guarnicionAve)})</span>` : ''}</div>` : ''}
-    ${d.platoCentralCarne ? `<div class="plato-row" style="margin-top:3px"><span class="plato-tipo">Carne:</span><span class="plato-val">${esc(d.platoCentralCarne)}</span>${d.guarnicionCarne ? `<span class="plato-guar">(${esc(d.guarnicionCarne)})</span>` : ''}</div>` : ''}
-    ${!d.platoCentralAve && !d.platoCentralCarne ? '<span style="color:#aaa;font-style:italic">—</span>' : ''}
+    ${sHead('Mesa de Dulces', d.horaMesaDulces)}
+    ${boxGrid(d.mesaDulces, 4)}
+    ${d.postre ? `<div class="postre-note">Postre / Torta: <strong>${esc(d.postre)}</strong></div>` : ''}
   </div>
+
+  <div class="sec">
+    ${sHead('Fin de Fiesta', d.horaCafeteria)}
+    ${boxGrid(d.finFiesta && d.finFiesta.length ? d.finFiesta : [], 3)}
+  </div>
+
+  <div class="notas">
+    <div class="nt">Notas</div>
+    <div class="notas-lines">
+      ${Array(8).fill('<div class="nl"></div>').join('')}
+    </div>
+  </div>
+
 </div>
 
-<div class="sec" style="margin-bottom:5px">
-  ${secTit('Mesa de Dulces', d.horaMesaDulces)}
-  <div class="items-wrap">${boxes(d.mesaDulces)}</div>
-  ${d.postre ? `<div class="postre-note">Postre/Torta: ${esc(d.postre)}</div>` : ''}
-</div>
-
-<div class="sec">
-  ${secTit('Cafetería / Fin de Fiesta', d.horaCafeteria)}
-  <div class="items-wrap">${boxes(d.finFiesta && d.finFiesta.length ? d.finFiesta : [])}</div>
-</div>
-
-<div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
+<div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
 
 <script>window.onload = () => { window.print(); }<\/script>
-</body>
-</html>`;
+</body></html>`;
 
   const win = window.open('', '_blank');
   win.document.write(html);
