@@ -1203,6 +1203,14 @@ function renderSeguimientosPanel() {
 }
 
 /* ===================== FORM CLIENTE ===================== */
+document.querySelector('[name="estado"]')?.addEventListener('change', function() {
+  const row = $('visita-fecha-row');
+  if (!row) return;
+  const esVisita = this.value === 'Visita agendada';
+  row.style.display = esVisita ? '' : 'none';
+  if (!esVisita) $('fechaVisita').value = '';
+});
+
 $('tipo-cliente-select').addEventListener('change', () => {
   const v = $('tipo-cliente-select').value;
   $('excliente-ref-group').style.display = (v === 'Excliente' || v === 'Referido') ? '' : 'none';
@@ -1247,6 +1255,10 @@ function resetNuevoClienteForm() {
   $('edit-cliente-id').value = '';
   $('edit-persona-id').value = '';
   $('edit-persona-row-index').value = '';
+  const visitaRow = $('visita-fecha-row');
+  if (visitaRow) visitaRow.style.display = 'none';
+  const fechaVisita = $('fechaVisita');
+  if (fechaVisita) fechaVisita.value = '';
   show('persona-search-section');
   const card = $('persona-seleccionada-card');
   if (card) { card.classList.add('hidden'); card.innerHTML = ''; }
@@ -1442,7 +1454,9 @@ $('cliente-form').addEventListener('submit', async e => {
     menuInfantil: form.menuInfantil.value,
     otrosPedidos: form.otrosPedidos.value,
     observaciones: form.observaciones.value,
-    proximoSeguimiento: form.proximoSeguimiento.value,
+    proximoSeguimiento: (form.estado.value === 'Visita agendada' && form.fechaVisita?.value)
+      ? form.fechaVisita.value
+      : form.proximoSeguimiento.value,
     menuRecepcion: form.menuRecepcion.value,
     menuIslas: form.menuIslas.value,
     menuPrimerPlato: form.menuPrimerPlato.value,
@@ -1516,6 +1530,14 @@ function openEditForm(cliente) {
   $('tipo-cliente-select').dispatchEvent(new Event('change'));
   $('presupuesto-select').dispatchEvent(new Event('change'));
   document.querySelector('[name="tipoEvento"]')?.dispatchEvent(new Event('change'));
+  const estadoSel = document.querySelector('[name="estado"]');
+  if (estadoSel) {
+    estadoSel.dispatchEvent(new Event('change'));
+    if (cliente.estado === 'Visita agendada' && cliente.proximoSeguimiento) {
+      const fv = $('fechaVisita');
+      if (fv) fv.value = cliente.proximoSeguimiento;
+    }
+  }
   navigateTo('nuevo-cliente');
 }
 

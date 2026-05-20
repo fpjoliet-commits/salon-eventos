@@ -890,6 +890,30 @@ textarea { resize: vertical; min-height: 70px; }
 .seg-label-urgente { color: var(--error) !important; }
 .seg-label-hoy     { color: var(--warning) !important; }
 .seg-label-visita  { color: var(--gold) !important; }
+
+.visita-fecha-row {
+  background: var(--gold-light);
+  border: 1px solid var(--gold-border);
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  padding: 12px 14px !important;
+}
+.visita-fecha-row input[type="date"] {
+  max-width: 200px;
+  margin-top: 6px;
+  display: block;
+}
+.visita-fecha-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jet);
+}
+.visita-fecha-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 8px;
+}
 .seg-item {
   padding: 7px 10px;
   border-radius: var(--radius-sm);
