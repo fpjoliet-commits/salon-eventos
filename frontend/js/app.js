@@ -2075,14 +2075,18 @@ async function loadTimmingTab(cliente) {
   if (!con) return;
   con.innerHTML = '<p style="color:#999;font-size:13px;padding:16px 0">Cargando timing...</p>';
   try {
-    const items = await apiFetch(`/timming/cliente/${cliente.id}`);
-    renderTimming(cliente, items);
+    const [items, restricciones] = await Promise.all([
+      apiFetch(`/timming/cliente/${cliente.id}`),
+      apiFetch(`/restricciones/cliente/${cliente.id}`),
+    ]);
+    currentRestricciones = restricciones;
+    renderTimming(cliente, items, restricciones);
   } catch (e) {
     con.innerHTML = `<p style="color:#c0392b;font-size:13px">${e.message}</p>`;
   }
 }
 
-function renderTimming(cliente, items) {
+function renderTimming(cliente, items, restricciones) {
   const con = $('timming-content');
   if (!con) return;
 
@@ -2090,6 +2094,7 @@ function renderTimming(cliente, items) {
   const cocinaItem = items.find(i => i.tipo === 'cocina');
 
   con.innerHTML = `
+    <div id="tim-rest-panel"></div>
     <div class="tim-subtabs">
       <button class="tim-subtab-btn active" data-subtab="maitre">Timing Maitre</button>
       <button class="tim-subtab-btn" data-subtab="cocina">Timing Cocina</button>
@@ -2097,6 +2102,7 @@ function renderTimming(cliente, items) {
     <div id="tim-panel-maitre" class="tim-panel"></div>
     <div id="tim-panel-cocina" class="tim-panel" style="display:none"></div>`;
 
+  renderTimmingRestricciones(cliente, restricciones || []);
   renderTimmingMaitre(cliente, maitreItems);
   renderTimmingCocina(cliente, cocinaItem);
 
@@ -2107,6 +2113,80 @@ function renderTimming(cliente, items) {
       const tab = btn.dataset.subtab;
       $('tim-panel-maitre').style.display = tab === 'maitre' ? '' : 'none';
       $('tim-panel-cocina').style.display = tab === 'cocina' ? '' : 'none';
+    });
+  });
+}
+
+const TIPOS_RESTRICCION = [
+  'Sin TACC', 'Celíaco', 'Vegano', 'Vegetariano', 'Diabético', 'Hipertenso',
+  'Alérgico al mariscos', 'Alérgico al maní', 'Kosher', 'Halal', 'Otro',
+];
+
+function renderTimmingRestricciones(cliente, lista) {
+  const panel = $('tim-rest-panel');
+  if (!panel) return;
+
+  const filas = lista.length
+    ? lista.map(r => `
+        <div class="tim-rest-item">
+          <span>${r.coronita ? '👑 ' : ''}<strong>${esc(r.tipoRestriccion)}</strong> — ${r.cantidad} pax</span>
+          <button class="btn-tim-del" data-row="${r.rowIndex}">✕</button>
+        </div>`).join('')
+    : '<span class="tim-rest-empty">Sin restricciones.</span>';
+
+  panel.innerHTML = `
+    <div class="tim-rest-wrap">
+      <div class="tim-rest-header">
+        <span class="tim-rest-title">Restricciones alimentarias</span>
+        <button class="btn btn-xs btn-secondary" id="btn-toggle-rest-form">+ Agregar</button>
+      </div>
+      <div class="tim-rest-list">${filas}</div>
+      <form id="tim-rest-form" class="tim-rest-form" style="display:none">
+        <select id="tim-rest-tipo" class="form-select form-select-sm" style="flex:1;min-width:140px">
+          <option value="">-- Tipo --</option>
+          ${TIPOS_RESTRICCION.map(t => `<option>${t}</option>`).join('')}
+        </select>
+        <input type="text" id="tim-rest-tipo-otro" placeholder="Especificar..." style="display:none;flex:1" class="form-input">
+        <input type="number" id="tim-rest-cantidad" placeholder="Cant." min="1" value="1" class="form-input" style="width:64px">
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer">
+          <input type="checkbox" id="tim-rest-coronita"> 👑 Mesa principal
+        </label>
+        <button type="submit" class="btn btn-sm btn-primary">Agregar</button>
+      </form>
+    </div>`;
+
+  $('btn-toggle-rest-form')?.addEventListener('click', () => {
+    const form = $('tim-rest-form');
+    form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+    if (form.style.display !== 'none') $('tim-rest-tipo').focus();
+  });
+
+  $('tim-rest-tipo')?.addEventListener('change', () => {
+    const isOtro = $('tim-rest-tipo').value === 'Otro';
+    $('tim-rest-tipo-otro').style.display = isOtro ? '' : 'none';
+  });
+
+  $('tim-rest-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const tipoSelect = $('tim-rest-tipo').value;
+    const tipoRestriccion = tipoSelect === 'Otro' ? $('tim-rest-tipo-otro').value.trim() : tipoSelect;
+    if (!tipoRestriccion) { alert('Ingresá el tipo'); return; }
+    const cantidad = $('tim-rest-cantidad').value;
+    const coronita = $('tim-rest-coronita').checked;
+    try {
+      await apiFetch('/restricciones', { method: 'POST', body: { idCliente: cliente.id, tipoRestriccion, cantidad, coronita } });
+      loadTimmingTab(cliente);
+    } catch (err) { alert(err.message); }
+  });
+
+  panel.querySelectorAll('.btn-tim-del[data-row]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const rowIndex = parseInt(btn.dataset.row);
+      if (!confirm('¿Eliminar esta restricción?')) return;
+      try {
+        await apiFetch(`/restricciones/${rowIndex}`, { method: 'DELETE' });
+        loadTimmingTab(cliente);
+      } catch (err) { alert(err.message); }
     });
   });
 }
@@ -2545,130 +2625,145 @@ function imprimirTimming(cliente, items) {
 
 function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const d = cocinaData || {};
-  const lista = (arr) => arr && arr.length ? arr.map(i => `<li>${esc(i)}</li>`).join('') : '<li style="color:#aaa">—</li>';
+
+  const boxes = (arr) => arr && arr.length
+    ? arr.map(i => `<span class="cbox">${esc(i)}</span>`).join('')
+    : '<span style="color:#aaa">—</span>';
+
   const secTit = (titulo, hora) =>
     `<div class="sec-title">${titulo}${hora ? `<span class="sec-hora">${hora}</span>` : ''}</div>`;
-  const restricFilas = (restricciones || []).map(r => `
-    <tr>
-      <td style="padding:8px 12px;font-size:13px">${r.coronita ? '👑 ' : ''}${esc(r.tipoRestriccion)}</td>
-      <td style="padding:8px 12px;font-size:13px;font-weight:700;text-align:center">${r.cantidad}</td>
-    </tr>`).join('');
+
+  const subGrp = (label, arr) => arr && arr.length
+    ? `<div class="sub-grp"><span class="sub-lbl">${label}:</span><div class="items-wrap">${boxes(arr)}</div></div>`
+    : '';
 
   const todasPastas = [...(d.pastas || []), ...(d.pastasGourmet || [])];
   const todasSalsas = [...(d.salsas || []), ...(d.salsasGourmet || [])];
+
+  const restricItems = (restricciones || []).map(r =>
+    `<div class="rest-row">${r.coronita ? '👑 ' : ''}<strong>${esc(r.tipoRestriccion)}</strong> <span class="rest-cant">${r.cantidad} pax</span></div>`
+  ).join('') || '<span style="color:#aaa;font-style:italic">Sin restricciones</span>';
 
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Timing Cocina — ${esc(cliente.apellidoNombre)}</title>
+  <title>Cocina — ${esc(cliente.apellidoNombre)}</title>
   <style>
+    @page { size: A4 portrait; margin: 11mm 13mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #111; background: #fff; }
-    .pagina { max-width: 720px; margin: 0 auto; padding: 32px 36px; }
-    .marca { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #8f2e4d; font-weight: 700; margin-bottom: 6px; }
-    .cliente { font-size: 24px; font-weight: 700; margin-bottom: 10px; }
-    .cab-datos { display: flex; gap: 28px; flex-wrap: wrap; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 3px solid #8f2e4d; }
-    .cab-dato label { font-size: 10px; color: #888; display: block; text-transform: uppercase; letter-spacing: .5px; }
-    .cab-dato span { font-size: 14px; font-weight: 600; }
-    .cab-num { font-size: 26px !important; color: #8f2e4d; }
-    .sec { margin-top: 20px; }
-    .sec-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #8f2e4d; border-bottom: 2px solid #8f2e4d; padding-bottom: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .sec-hora { font-size: 16px; font-weight: 800; color: #8f2e4d; letter-spacing: 0; font-variant-numeric: tabular-nums; }
-    .sub-title { font-size: 11px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; margin: 10px 0 4px; }
-    ul { padding-left: 18px; }
-    ul li { padding: 3px 0; font-size: 13px; }
-    .row-pair { display: flex; gap: 16px; }
-    .row-pair > div { flex: 1; }
-    table { width: 100%; border-collapse: collapse; }
-    thead th { background: #f5f5f5; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #666; text-align: left; border-bottom: 1px solid #ddd; }
-    tbody tr { border-bottom: 1px solid #eee; }
-    tbody tr:last-child { border-bottom: none; }
-    .footer { margin-top: 28px; font-size: 10px; color: #bbb; border-top: 1px solid #eee; padding-top: 10px; text-align: right; }
-    @media print { .pagina { padding: 16px 20px; } }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5px; color: #111; background: #fff; }
+
+    .cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #8f2e4d; padding-bottom: 5px; margin-bottom: 7px; }
+    .cab-left .marca { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: #8f2e4d; font-weight: 700; }
+    .cab-left .nombre { font-size: 17px; font-weight: 800; line-height: 1.2; }
+    .cab-right { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+    .dato { text-align: center; }
+    .dato label { font-size: 8px; color: #888; text-transform: uppercase; letter-spacing: .3px; display: block; }
+    .dato span { font-size: 12px; font-weight: 700; }
+    .dato .big { font-size: 18px; color: #8f2e4d; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+
+    .sec { border: 1px solid #ddd; border-radius: 5px; padding: 5px 7px; margin-bottom: 5px; }
+    .sec-title { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: #8f2e4d; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+    .sec-hora { font-size: 13px; font-weight: 900; color: #8f2e4d; font-variant-numeric: tabular-nums; }
+
+    .sub-grp { margin-bottom: 3px; }
+    .sub-lbl { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; }
+    .items-wrap { display: flex; flex-wrap: wrap; gap: 2px 4px; margin-top: 2px; }
+
+    .cbox { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; white-space: nowrap; }
+    .cbox::before { content: ''; display: inline-block; width: 10px; height: 10px; border: 1.5px solid #444; border-radius: 2px; flex-shrink: 0; }
+
+    .rest-row { font-size: 10.5px; line-height: 1.6; }
+    .rest-cant { font-size: 9px; color: #666; }
+
+    .plato-row { display: flex; gap: 4px; align-items: baseline; }
+    .plato-tipo { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; min-width: 60px; }
+    .plato-val { font-size: 10.5px; }
+    .plato-guar { font-size: 9.5px; color: #666; font-style: italic; margin-left: 4px; }
+
+    .postre-note { font-size: 10px; color: #444; margin-top: 3px; font-style: italic; }
+    .footer { margin-top: 6px; font-size: 8px; color: #bbb; text-align: right; border-top: 1px solid #eee; padding-top: 4px; }
+
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
 <body>
-<div class="pagina">
-  <div class="marca">Joliet Eventos — Timing Cocina</div>
-  <div class="cliente">${esc(cliente.apellidoNombre) || '—'}</div>
-  <div class="cab-datos">
-    <div class="cab-dato"><label>Fecha</label><span>${formatDateWithDay(cliente.fechaEvento)}</span></div>
-    <div class="cab-dato"><label>Turno</label><span>${esc(cliente.turno || '—')}</span></div>
-    <div class="cab-dato"><label>Tipo</label><span>${esc(cliente.tipoEvento || '—')}</span></div>
-    <div class="cab-dato"><label>Invitados</label><span class="cab-num">${cliente.cantidadInvitados || '—'}</span></div>
-    <div class="cab-dato"><label>Menú infantil</label><span class="cab-num">${cliente.menuInfantil || '0'}</span></div>
-  </div>
 
+<div class="cab">
+  <div class="cab-left">
+    <div class="marca">Joliet Eventos — Timing Cocina</div>
+    <div class="nombre">${esc(cliente.apellidoNombre) || '—'}</div>
+  </div>
+  <div class="cab-right">
+    <div class="dato"><label>Fecha</label><span>${formatDateWithDay(cliente.fechaEvento)}</span></div>
+    <div class="dato"><label>Turno</label><span>${esc(cliente.turno || '—')}</span></div>
+    <div class="dato"><label>Tipo</label><span>${esc(cliente.tipoEvento || '—')}</span></div>
+    <div class="dato"><label>Invitados</label><span class="big">${cliente.cantidadInvitados || '—'}</span></div>
+    <div class="dato"><label>Inf.</label><span class="big">${cliente.menuInfantil || '0'}</span></div>
+  </div>
+</div>
+
+<div class="grid2">
   <div class="sec">
     <div class="sec-title">Restricciones alimentarias</div>
-    <table>
-      <thead><tr><th>Tipo</th><th style="text-align:center;width:80px">Cantidad</th></tr></thead>
-      <tbody>${restricFilas || '<tr><td colspan="2" style="padding:10px 12px;color:#aaa;font-style:italic">Sin restricciones registradas</td></tr>'}</tbody>
-    </table>
+    ${restricItems}
   </div>
-
-  <div class="sec">
-    ${secTit('Recepción', d.horaRecepcion)}
-    <div class="row-pair">
-      <div>
-        <div class="sub-title">Canapés</div><ul>${lista(d.canapes)}</ul>
-        <div class="sub-title">Bruschettas</div><ul>${lista(d.bruschettas)}</ul>
-        ${d.recepcionOtros && d.recepcionOtros.length ? `<div class="sub-title">Otros fríos</div><ul>${lista(d.recepcionOtros)}</ul>` : ''}
-      </div>
-      <div>
-        <div class="sub-title">Brochettes</div><ul>${lista(d.brochettes)}</ul>
-        <div class="sub-title">Mini Empanaditas</div><ul>${lista(d.empanaditas)}</ul>
-        ${d.calientesOtros && d.calientesOtros.length ? `<div class="sub-title">Otros calientes</div><ul>${lista(d.calientesOtros)}</ul>` : ''}
-      </div>
-    </div>
-  </div>
-
   <div class="sec">
     ${secTit('Islas', d.horaIslas)}
-    <ul>${lista(d.islas)}</ul>
+    <div class="items-wrap">${boxes(d.islas)}</div>
   </div>
+</div>
 
+<div class="sec" style="margin-bottom:5px">
+  ${secTit('Recepción', d.horaRecepcion)}
+  <div class="grid2" style="margin-bottom:0">
+    <div>
+      ${subGrp('Canapés', d.canapes)}
+      ${subGrp('Bruschettas', d.bruschettas)}
+      ${d.recepcionOtros && d.recepcionOtros.length ? subGrp('Otros fríos', d.recepcionOtros) : ''}
+    </div>
+    <div>
+      ${subGrp('Brochettes', d.brochettes)}
+      ${subGrp('Mini Empanaditas', d.empanaditas)}
+      ${d.calientesOtros && d.calientesOtros.length ? subGrp('Otros calientes', d.calientesOtros) : ''}
+    </div>
+  </div>
+</div>
+
+<div class="grid2">
   <div class="sec">
     ${secTit('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
     ${todasPastas.length ? `
-      <div class="sub-title">Pastas</div>
-      <ul>${lista(todasPastas)}</ul>
-      ${d.cantidadSalsas ? `<p style="margin:8px 0 4px;font-size:12px"><strong>Cant. de salsas: ${d.cantidadSalsas}</strong></p>` : ''}
-      <div class="sub-title">Salsas</div>
-      <ul>${lista(todasSalsas)}</ul>
-    ` : '<p style="color:#aaa;font-style:italic">Sin primer plato</p>'}
+      ${subGrp('Pastas', todasPastas)}
+      ${d.cantidadSalsas ? `<div class="sub-lbl" style="margin-top:3px">Salsas (${d.cantidadSalsas}):</div>` : subGrp ? `<div class="sub-lbl" style="margin-top:3px">Salsas:</div>` : ''}
+      <div class="items-wrap">${boxes(todasSalsas)}</div>
+    ` : '<span style="color:#aaa;font-style:italic">Sin primer plato</span>'}
   </div>
-
   <div class="sec">
     ${secTit('Plato Central', d.horaPlatoCentral)}
-    <div class="row-pair">
-      <div>
-        <div class="sub-title">Base Ave</div>
-        <p style="padding:4px 0">${esc(d.platoCentralAve || '—')}</p>
-        ${d.guarnicionAve ? `<p style="font-size:12px;color:#555"><em>Guarnición: ${esc(d.guarnicionAve)}</em></p>` : ''}
-      </div>
-      <div>
-        <div class="sub-title">Base Carne</div>
-        <p style="padding:4px 0">${esc(d.platoCentralCarne || '—')}</p>
-        ${d.guarnicionCarne ? `<p style="font-size:12px;color:#555"><em>Guarnición: ${esc(d.guarnicionCarne)}</em></p>` : ''}
-      </div>
-    </div>
+    ${d.platoCentralAve ? `<div class="plato-row"><span class="plato-tipo">Ave:</span><span class="plato-val">${esc(d.platoCentralAve)}</span>${d.guarnicionAve ? `<span class="plato-guar">(${esc(d.guarnicionAve)})</span>` : ''}</div>` : ''}
+    ${d.platoCentralCarne ? `<div class="plato-row" style="margin-top:3px"><span class="plato-tipo">Carne:</span><span class="plato-val">${esc(d.platoCentralCarne)}</span>${d.guarnicionCarne ? `<span class="plato-guar">(${esc(d.guarnicionCarne)})</span>` : ''}</div>` : ''}
+    ${!d.platoCentralAve && !d.platoCentralCarne ? '<span style="color:#aaa;font-style:italic">—</span>' : ''}
   </div>
-
-  <div class="sec">
-    ${secTit('Mesa de Dulces', d.horaMesaDulces)}
-    <ul>${lista(d.mesaDulces)}</ul>
-    ${d.postre ? `<p style="margin-top:8px;font-size:12px"><strong>Postre/Torta:</strong> ${esc(d.postre)}</p>` : ''}
-  </div>
-
-  <div class="sec">
-    ${secTit('Cafetería / Fin de Fiesta', d.horaCafeteria)}
-    ${d.finFiesta && d.finFiesta.length ? `<ul>${lista(d.finFiesta)}</ul>` : '<p style="color:#aaa;font-style:italic">—</p>'}
-  </div>
-
-  <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
 </div>
+
+<div class="sec" style="margin-bottom:5px">
+  ${secTit('Mesa de Dulces', d.horaMesaDulces)}
+  <div class="items-wrap">${boxes(d.mesaDulces)}</div>
+  ${d.postre ? `<div class="postre-note">Postre/Torta: ${esc(d.postre)}</div>` : ''}
+</div>
+
+<div class="sec">
+  ${secTit('Cafetería / Fin de Fiesta', d.horaCafeteria)}
+  <div class="items-wrap">${boxes(d.finFiesta && d.finFiesta.length ? d.finFiesta : [])}</div>
+</div>
+
+<div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
+
 <script>window.onload = () => { window.print(); }<\/script>
 </body>
 </html>`;
