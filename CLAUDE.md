@@ -1,13 +1,13 @@
 # Salón de Eventos — CRM
 
-Sistema de gestión de clientes y eventos para un salón de fiestas. App web fullstack deployada en Railway.
+Sistema de gestión de clientes y eventos para un salón de fiestas. App web fullstack deployada en Render.
 
 ## Stack
 
 - **Backend:** Node.js + Express, JWT auth, Google Sheets como base de datos
 - **Frontend:** HTML/CSS/JS vanilla (sin frameworks), sirve desde el mismo backend
 - **Storage:** Google Sheets vía `googleapis` — fallback en memoria si no hay credenciales
-- **Deploy:** Railway (`railway.json`) — start command: `node backend/server.js`
+- **Deploy:** Render — start command: `node backend/server.js`
 - **Dev local:** `start.bat` o `node backend/server.js` desde la raíz
 
 ## Estructura
@@ -40,7 +40,7 @@ salon-eventos/
 
 ```
 SPREADSHEET_ID=         — ID de la Google Sheet
-GOOGLE_CREDENTIALS_JSON= — JSON del service account (en Railway como var de entorno)
+GOOGLE_CREDENTIALS_JSON= — JSON del service account (en Render como var de entorno)
 JWT_SECRET=             — secreto para firmar tokens
 PORT=3001
 PASSWORD_ANITA=

@@ -178,15 +178,9 @@ function initApp() {
     el.style.display = canManagePagos() ? '' : 'none';
   });
 
-  // Calendario: visible para superadmin y admin
-  const canSeeCalendar = isAdmin() || currentUser.usuario === 'admin';
-  document.querySelectorAll('.calendar-access').forEach(el => {
-    el.style.display = canSeeCalendar ? '' : 'none';
-  });
-
   loadClientes();
   loadPersonas();
-  navigateTo('clientes');
+  navigateTo('calendario');
 }
 
 /* ===================== NAVIGATION ===================== */
@@ -409,27 +403,52 @@ function renderClientes(clientes) {
   }
   hide('clientes-empty');
 
+  // Agrupar por personaId (o por teléfono si no hay personaId) manteniendo orden de primera aparición
+  const grupKey = c => c.personaId || c.telefono || c.id;
+  const grupos = {};
+  const orden = [];
   clientes.forEach(c => {
-    const tr = document.createElement('tr');
-    const segClass = seguimientoClass(c.proximoSeguimiento);
-    const recurrente = (c.eventosCount || 1) > 1;
-    tr.innerHTML = `
-      <td><strong>${c.apellidoNombre || '—'}</strong>${recurrente ? ' <span class="badge-recurrente" title="Esta persona tiene múltiples eventos">↩</span>' : ''}</td>
-      <td>${c.telefono || '—'}</td>
-      <td>${c.tipoEvento || '—'}</td>
-      <td>${formatDateWithDay(c.fechaEvento)}</td>
-      <td>${estadoBadge(c.estado)}</td>
-      <td class="${segClass}">${formatDate(c.proximoSeguimiento)}</td>
-      <td>${c.origen || '—'}</td>
-      <td class="acciones-col">
-        <button class="btn btn-sm btn-secondary btn-ver">Ver</button>
-        ${canManagePagos() ? `<button class="btn btn-sm btn-pago-rapido">$ Pago</button>` : ''}
-      </td>
-    `;
-    tr.querySelector('.btn-ver').addEventListener('click', e => { e.stopPropagation(); openClienteModal(c); });
-    tr.querySelector('.btn-pago-rapido')?.addEventListener('click', e => { e.stopPropagation(); openClienteModal(c, 'pagos'); });
-    tr.addEventListener('click', () => openClienteModal(c));
-    tbody.appendChild(tr);
+    const k = grupKey(c);
+    if (!grupos[k]) { grupos[k] = []; orden.push(k); }
+    grupos[k].push(c);
+  });
+  // Dentro de cada grupo: orden cronológico por fechaEvento
+  Object.values(grupos).forEach(g => {
+    g.sort((a, b) => (a.fechaEvento || '').localeCompare(b.fechaEvento || ''));
+  });
+
+  orden.forEach(k => {
+    const grupo = grupos[k];
+    grupo.forEach((c, idx) => {
+      const tr = document.createElement('tr');
+      const segClass = seguimientoClass(c.proximoSeguimiento);
+      const isGroup = grupo.length > 1;
+      const isCont = isGroup && idx > 0;
+
+      if (isGroup) tr.classList.add(isCont ? 'grupo-cont' : 'grupo-first');
+
+      const nameCell = isCont
+        ? `<span class="grupo-cont-icon">└</span> <strong>${esc(c.apellidoNombre) || '—'}</strong>`
+        : `<strong>${esc(c.apellidoNombre) || '—'}</strong>`;
+
+      tr.innerHTML = `
+        <td>${nameCell}</td>
+        <td>${isCont ? '<span class="grupo-cont-tel">—</span>' : (c.telefono || '—')}</td>
+        <td>${c.tipoEvento || '—'}</td>
+        <td>${formatDateWithDay(c.fechaEvento)}</td>
+        <td>${estadoBadge(c.estado)}</td>
+        <td class="${segClass}">${formatDate(c.proximoSeguimiento)}</td>
+        <td>${c.origen || '—'}</td>
+        <td class="acciones-col">
+          <button class="btn btn-sm btn-secondary btn-ver">Ver</button>
+          ${canManagePagos() ? `<button class="btn btn-sm btn-pago-rapido">$ Pago</button>` : ''}
+        </td>
+      `;
+      tr.querySelector('.btn-ver').addEventListener('click', e => { e.stopPropagation(); openClienteModal(c); });
+      tr.querySelector('.btn-pago-rapido')?.addEventListener('click', e => { e.stopPropagation(); openClienteModal(c, 'pagos'); });
+      tr.addEventListener('click', () => openClienteModal(c));
+      tbody.appendChild(tr);
+    });
   });
 
   show('clientes-table-wrap');
@@ -1110,6 +1129,77 @@ function renderCalendario() {
   $('cal-prev').addEventListener('click', () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendario(); });
   $('cal-next').addEventListener('click', () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendario(); });
   $('cal-today').addEventListener('click', () => { const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth(); renderCalendario(); });
+
+  renderSeguimientosPanel();
+}
+
+function renderSeguimientosPanel() {
+  const aside = $('calendario-aside');
+  if (!aside) return;
+
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const en3 = new Date(hoy); en3.setDate(en3.getDate() + 3);
+  const en7 = new Date(hoy); en7.setDate(en7.getDate() + 7);
+
+  const activos = allClientes.filter(c => c.estado !== 'Cancelado' && c.estado !== 'Realizado');
+
+  const vencidos = activos.filter(c => {
+    if (!c.proximoSeguimiento) return false;
+    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    return d < hoy;
+  }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
+
+  const paraHoy = activos.filter(c => {
+    if (!c.proximoSeguimiento) return false;
+    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    return d.getTime() === hoy.getTime();
+  });
+
+  const proximos = activos.filter(c => {
+    if (!c.proximoSeguimiento) return false;
+    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    return d > hoy && d <= en3;
+  }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
+
+  const visitas = activos.filter(c => {
+    if (c.estado !== 'Visita agendada') return false;
+    if (!c.proximoSeguimiento) return true;
+    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    return d <= en7;
+  }).sort((a, b) => (a.proximoSeguimiento || '').localeCompare(b.proximoSeguimiento || ''));
+
+  const item = (c, tipo) => {
+    const fecha = c.proximoSeguimiento ? formatDate(c.proximoSeguimiento) : '';
+    return `<div class="seg-item seg-item-${tipo}" onclick="openClienteModal(window._cmap['${c.id}'])">
+      <div class="seg-item-nombre">${esc(c.apellidoNombre)}</div>
+      <div class="seg-item-meta">${c.tipoEvento || ''}${fecha ? ` · ${fecha}` : ''}</div>
+    </div>`;
+  };
+
+  let html = `<div class="seg-panel-title">Pendientes</div>`;
+
+  if (vencidos.length === 0 && paraHoy.length === 0 && proximos.length === 0 && visitas.length === 0) {
+    html += `<p class="seg-empty">Sin tareas para los próximos días ✓</p>`;
+  }
+
+  if (vencidos.length > 0) {
+    html += `<div class="seg-section-label seg-label-urgente">⚠ Vencidos (${vencidos.length})</div>`;
+    html += vencidos.map(c => item(c, 'urgente')).join('');
+  }
+  if (paraHoy.length > 0) {
+    html += `<div class="seg-section-label seg-label-hoy">Hoy</div>`;
+    html += paraHoy.map(c => item(c, 'hoy')).join('');
+  }
+  if (proximos.length > 0) {
+    html += `<div class="seg-section-label seg-label-prox">Próximos 3 días</div>`;
+    html += proximos.map(c => item(c, 'prox')).join('');
+  }
+  if (visitas.length > 0) {
+    html += `<div class="seg-section-label seg-label-visita">Visitas agendadas</div>`;
+    html += visitas.map(c => item(c, 'visita')).join('');
+  }
+
+  aside.innerHTML = html;
 }
 
 /* ===================== FORM CLIENTE ===================== */
@@ -1268,11 +1358,23 @@ $('cliente-form').addEventListener('submit', async e => {
       show('form-error');
       return;
     }
-    const duplicado = allPersonas.find(p => p.gmail && p.gmail.toLowerCase() === gmail);
-    if (duplicado) {
-      $('form-error').textContent = `Ya existe un cliente con ese Gmail: "${duplicado.apellidoNombre}". Buscalo en el campo de búsqueda de arriba ("¿Es un cliente que ya consultó antes?") para cargarle un nuevo evento.`;
+    const duplicadoGmail = allPersonas.find(p => p.gmail && p.gmail.toLowerCase() === gmail);
+    if (duplicadoGmail) {
+      $('form-error').textContent = `Ya existe un cliente con ese Gmail: "${duplicadoGmail.apellidoNombre}". Buscalo en el campo de búsqueda de arriba ("¿Es un cliente que ya consultó antes?") para cargarle un nuevo evento.`;
       show('form-error');
       return;
+    }
+
+    // Validar: teléfono duplicado (advertencia, no bloqueo)
+    const tel = (form.telefono.value || '').trim().replace(/\s/g, '');
+    if (tel) {
+      const duplicadoTel = allPersonas.find(p => p.telefono && p.telefono.replace(/\s/g, '') === tel);
+      if (duplicadoTel) {
+        const eventosExist = allClientes.filter(c => c.personaId === duplicadoTel.id);
+        const eventosStr = eventosExist.map(c => `${c.tipoEvento || '?'} (${c.estado})`).join(', ');
+        const ok = confirm(`⚠️ Ya existe un cliente con ese teléfono: "${duplicadoTel.apellidoNombre}"${eventosStr ? `\nEventos: ${eventosStr}` : ''}.\n\n¿Es un nuevo evento para la misma persona?\n→ Cancelá y buscala arriba en "¿Es un cliente que ya consultó antes?"\n\n¿Es una persona diferente con el mismo número?\n→ Aceptá para continuar.`);
+        if (!ok) return;
+      }
     }
   }
 

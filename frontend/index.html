@@ -58,7 +58,10 @@
         <span class="logo-text">Joliet Eventos</span>
       </div>
       <nav class="sidebar-nav">
-        <a href="#" class="nav-item active" data-view="clientes">
+        <a href="#" class="nav-item" data-view="calendario">
+          <span class="nav-icon">📅</span> Calendario
+        </a>
+        <a href="#" class="nav-item" data-view="clientes">
           <span class="nav-icon">👥</span> Clientes
         </a>
         <a href="#" class="nav-item" data-view="nuevo-cliente">
@@ -66,9 +69,6 @@
         </a>
         <a href="#" class="nav-item admin-only" data-view="ingresos">
           <span class="nav-icon">💰</span> Ingresos
-        </a>
-        <a href="#" class="nav-item calendar-access" data-view="calendario">
-          <span class="nav-icon">📅</span> Calendario
         </a>
         <a href="#" class="nav-item admin-only" data-view="historico">
           <span class="nav-icon">📦</span> Carga histórica
@@ -437,12 +437,17 @@
         </div>
       </section>
 
-      <!-- VISTA: CALENDARIO (solo admin) -->
+      <!-- VISTA: CALENDARIO -->
       <section id="view-calendario" class="view hidden">
         <div class="view-header">
           <h2>Calendario de eventos</h2>
         </div>
-        <div id="calendario-container"></div>
+        <div class="calendario-layout">
+          <div class="calendario-main">
+            <div id="calendario-container"></div>
+          </div>
+          <aside class="calendario-aside" id="calendario-aside"></aside>
+        </div>
       </section>
 
       <!-- VISTA: CARGA HISTÓRICA (solo admin) -->
