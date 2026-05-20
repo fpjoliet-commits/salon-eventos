@@ -210,14 +210,6 @@
                 <input type="email" name="gmail" placeholder="email@gmail.com">
               </div>
               <div class="form-group">
-                <label>Red social</label>
-                <select name="redSocial">
-                  <option value="">—</option>
-                  <option>Instagram</option>
-                  <option>Facebook</option>
-                </select>
-              </div>
-              <div class="form-group">
                 <label>Origen</label>
                 <select name="origen">
                   <option value="">—</option>
@@ -266,7 +258,7 @@
                 <select name="formato">
                   <option value="">—</option>
                   <option>Formal</option>
-                  <option>Informal</option>
+                  <option>Americano</option>
                 </select>
               </div>
               <div class="form-group">
@@ -566,7 +558,10 @@
         <div class="modal-nombre-wrap">
           <h3 id="modal-titulo">Detalle del cliente</h3>
         </div>
-        <button class="modal-close" id="modal-close-btn">✕</button>
+        <div class="modal-header-actions">
+          <button class="btn-vista-cliente" id="btn-vista-cliente" title="Ocultar datos internos para mostrar al cliente">Vista cliente</button>
+          <button class="modal-close" id="modal-close-btn">✕</button>
+        </div>
       </div>
       <div class="modal-body" id="modal-body">
         <!-- Tabs -->
@@ -575,16 +570,17 @@
           <button class="tab-btn" data-tab="cuotas">Cuotas</button>
           <button class="tab-btn" data-tab="restricciones">Restricciones</button>
           <button class="tab-btn" data-tab="pagos">Pagos</button>
-          <button class="tab-btn hidden" id="tab-btn-timming" data-tab="timming">Timming</button>
         </div>
 
         <!-- Tab: Info -->
         <div id="tab-info" class="tab-content active">
           <div id="nombre-sugerencia-area"></div>
           <div id="cliente-detail-grid" class="detail-grid"></div>
+          <div id="modal-seg-panel" class="modal-seg-panel internal-field" data-internal></div>
           <div class="modal-actions">
             <button id="btn-editar-cliente" class="btn btn-primary">Editar</button>
             <button id="btn-imprimir-cocina" class="btn btn-secondary">🖨 Ficha cocina</button>
+            <button id="btn-ver-timing" class="btn btn-secondary admin-only-btn hidden" title="Abrir el Timing Planner para este evento">⏱ Timing</button>
             <button id="btn-nuevo-evento" class="btn btn-secondary admin-only-btn hidden" title="Crear un nuevo evento para esta misma persona">➕ Nuevo evento</button>
             <button id="btn-eliminar-cliente" class="btn btn-danger admin-only-btn hidden" title="Eliminar este evento">🗑 Eliminar</button>
           </div>
@@ -648,6 +644,13 @@
                 </select>
               </div>
               <div class="form-group">
+                <label>Moneda</label>
+                <select id="pago-moneda">
+                  <option value="ARS">$ Pesos (ARS)</option>
+                  <option value="USD">U$S Dólares (USD)</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label>Monto</label>
                 <input type="number" id="pago-monto" min="0" required>
               </div>
@@ -663,7 +666,6 @@
                   <option>Transferencia</option>
                   <option>Cheque</option>
                   <option>Mercado Pago</option>
-                  <option>USD</option>
                   <option>Otro</option>
                 </select>
               </div>
@@ -676,11 +678,6 @@
             <div id="pago-success" class="success-msg hidden"></div>
             <button type="submit" class="btn btn-primary">Registrar ingreso</button>
           </form>
-        </div>
-
-        <!-- Tab: Timming -->
-        <div id="tab-timming" class="tab-content hidden">
-          <div id="timming-content"></div>
         </div>
 
       </div>

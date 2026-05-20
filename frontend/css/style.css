@@ -627,7 +627,54 @@ textarea { resize: vertical; min-height: 70px; }
   color: var(--text-primary);
 }
 .modal-body { padding: 24px 28px; overflow-y: auto; }
-.modal-actions { margin-top: 20px; display: flex; gap: 10px; }
+.modal-actions { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Header actions (Vista cliente + close) */
+.modal-header-actions { display: flex; align-items: center; gap: 8px; }
+.btn-vista-cliente {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all .14s;
+  font-family: 'DM Sans', inherit;
+}
+.btn-vista-cliente:hover { background: var(--cream); color: var(--text-primary); }
+.modal.vista-cliente .btn-vista-cliente {
+  background: var(--jet);
+  color: #fff;
+  border-color: var(--jet);
+}
+
+/* Seguimiento panel (interno, fuera del grid) */
+.modal-seg-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin: 12px 0 4px;
+  background: var(--cream);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+.modal-seg-panel .detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Vista cliente: oculta todo lo que esté marcado como interno */
+.modal.vista-cliente [data-internal] { display: none !important; }
 
 .modal-tabs {
   display: flex;

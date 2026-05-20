@@ -506,24 +506,18 @@ function openClienteModal(cliente, tabInicial = 'info') {
   const wrap = document.querySelector('.modal-nombre-wrap');
   wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
 
-  // Mostrar u ocultar pestaña Timming según rol
-  const timmingBtn = $('tab-btn-timming');
-  if (canManagePagos()) {
-    timmingBtn.classList.remove('hidden');
-  } else {
-    timmingBtn.classList.add('hidden');
-    if (tabInicial === 'timming') tabInicial = 'info';
-  }
-
   // Botones admin-only en modal
   const btnNuevoEvento = $('btn-nuevo-evento');
   const btnEliminar = $('btn-eliminar-cliente');
+  const btnVerTiming = $('btn-ver-timing');
   if (canManagePagos()) {
     btnNuevoEvento?.classList.remove('hidden');
     btnEliminar?.classList.remove('hidden');
+    btnVerTiming?.classList.remove('hidden');
   } else {
     btnNuevoEvento?.classList.add('hidden');
     btnEliminar?.classList.add('hidden');
+    btnVerTiming?.classList.add('hidden');
   }
 
   activateTab(tabInicial);
@@ -533,15 +527,40 @@ function openClienteModal(cliente, tabInicial = 'info') {
   renderPagosTab(cliente);
   loadCuotasTab(cliente);
   if (canManagePagos()) {
-    loadTimmingTab(cliente);
     cargarEventosAnteriores(cliente);
   }
 
   showEl($('modal-overlay'));
 }
 
-$('modal-close-btn').addEventListener('click', () => hideEl($('modal-overlay')));
-$('modal-overlay').addEventListener('click', e => { if (e.target === $('modal-overlay')) hideEl($('modal-overlay')); });
+$('modal-close-btn').addEventListener('click', () => {
+  $('modal-overlay').querySelector('.modal')?.classList.remove('vista-cliente');
+  $('btn-vista-cliente').textContent = 'Vista cliente';
+  hideEl($('modal-overlay'));
+});
+$('modal-overlay').addEventListener('click', e => {
+  if (e.target === $('modal-overlay')) {
+    $('modal-overlay').querySelector('.modal')?.classList.remove('vista-cliente');
+    $('btn-vista-cliente').textContent = 'Vista cliente';
+    hideEl($('modal-overlay'));
+  }
+});
+
+$('btn-vista-cliente').addEventListener('click', () => {
+  const modal = $('modal-overlay').querySelector('.modal');
+  const active = modal.classList.toggle('vista-cliente');
+  $('btn-vista-cliente').textContent = active ? 'Vista interna' : 'Vista cliente';
+});
+
+$('btn-ver-timing')?.addEventListener('click', () => {
+  if (!currentClienteModal) return;
+  hideEl($('modal-overlay'));
+  navigateTo('timing-global');
+  setTimeout(() => {
+    const sel = $('timing-cliente-select');
+    if (sel) { sel.value = currentClienteModal.id; sel.dispatchEvent(new Event('change')); }
+  }, 100);
+});
 
 $('btn-nuevo-evento')?.addEventListener('click', () => {
   if (!currentClienteModal) return;
@@ -660,7 +679,6 @@ function abrirNuevoEventoParaPersona(clienteBase) {
 function renderClienteDetail(c) {
   $('cliente-detail-grid').innerHTML = `
     <div class="detail-item"><span class="detail-label">Estado</span><span class="detail-value">${estadoBadge(c.estado)}</span></div>
-    <div class="detail-item"><span class="detail-label">Cargado por</span><span class="detail-value">${c.cargadoPor || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Teléfono</span><span class="detail-value">${c.telefono || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Gmail</span><span class="detail-value">${c.gmail || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Tipo de evento</span><span class="detail-value">${c.tipoEvento || '—'}</span></div>
@@ -670,23 +688,7 @@ function renderClienteDetail(c) {
     <div class="detail-item"><span class="detail-label">Estado de la fecha</span><span class="detail-value">${c.estadoFecha || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Invitados</span><span class="detail-value">${c.cantidadInvitados || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Turno</span><span class="detail-value">${c.turno || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Tipo de cliente</span><span class="detail-value">${c.tipoCliente || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Origen</span><span class="detail-value">${c.origen || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Presupuesto</span><span class="detail-value">${c.presupuesto || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Monto presupuesto</span><span class="detail-value">${c.montoPresupuesto ? formatMoney(c.montoPresupuesto) : '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Menú infantil</span><span class="detail-value">${c.menuInfantil || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Red social</span><span class="detail-value">${c.redSocial || '—'}</span></div>
-    <div class="detail-item detail-full">
-      <span class="detail-label">${ESTADOS_COBRO.includes(c.estado) ? 'Próxima visita de cobro' : 'Próx. seguimiento'}</span>
-      <span class="detail-value modal-seg-editor">
-        <input type="date" id="modal-seg-date" value="${c.proximoSeguimiento || ''}" class="${seguimientoClass(c.proximoSeguimiento)}">
-        <button class="btn btn-secondary btn-sm" onclick="guardarProximoSeguimiento()">Guardar</button>
-        ${c.proximoSeguimiento ? `<button class="btn btn-secondary btn-sm" onclick="limpiarProximoSeguimiento()">Borrar</button>` : ''}
-      </span>
-    </div>
-    <div class="detail-item"><span class="detail-label">Fecha de carga</span><span class="detail-value">${formatDate(c.fechaCarga)}</span></div>
-    ${c.exclienteReferencia ? `<div class="detail-item"><span class="detail-label">Ex-cliente ref.</span><span class="detail-value">${c.exclienteReferencia}</span></div>` : ''}
-    ${c.exclienteNota ? `<div class="detail-item"><span class="detail-label">Ex-cliente nota</span><span class="detail-value">${c.exclienteNota}</span></div>` : ''}
     ${c.otrosPedidos ? `<div class="detail-item detail-full"><span class="detail-label">Otros pedidos</span><span class="detail-value">${esc(c.otrosPedidos)}</span></div>` : ''}
     ${(c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim() ? `<div class="detail-item detail-full"><span class="detail-label">Observaciones</span><span class="detail-value">${esc((c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim())}</span></div>` : ''}
     ${(c.menuRecepcion || c.menuIslas || c.menuPrimerPlato || c.menuPrincipal || c.menuPostre) ? `
@@ -700,7 +702,28 @@ function renderClienteDetail(c) {
           ${c.menuPostre ? `<div><span class="menu-cat">Postre</span> ${esc(c.menuPostre)}</div>` : ''}
         </div>
       </div>` : ''}
+    <div class="detail-item detail-full internal-field" data-internal>
+      <span class="detail-label">Tipo de cliente</span>
+      <span class="detail-value">${c.tipoCliente || '—'}${c.exclienteReferencia ? ` · Ref: ${c.exclienteReferencia}` : ''}${c.exclienteNota ? ` — ${c.exclienteNota}` : ''}</span>
+    </div>
+    <div class="detail-item internal-field" data-internal><span class="detail-label">Origen</span><span class="detail-value">${c.origen || '—'}</span></div>
+    <div class="detail-item internal-field" data-internal><span class="detail-label">Presupuesto</span><span class="detail-value">${c.presupuesto || '—'}</span></div>
+    <div class="detail-item internal-field" data-internal><span class="detail-label">Monto presupuesto</span><span class="detail-value">${c.montoPresupuesto ? formatMoney(c.montoPresupuesto) : '—'}</span></div>
+    <div class="detail-item internal-field" data-internal><span class="detail-label">Cargado por</span><span class="detail-value">${c.cargadoPor || '—'}</span></div>
+    <div class="detail-item internal-field" data-internal><span class="detail-label">Fecha de carga</span><span class="detail-value">${formatDate(c.fechaCarga)}</span></div>
   `;
+
+  // Panel de seguimiento (siempre interno, fuera del grid principal)
+  const segPanel = $('modal-seg-panel');
+  if (segPanel) {
+    segPanel.innerHTML = `
+      <span class="detail-label">${ESTADOS_COBRO.includes(c.estado) ? 'Próxima visita de cobro' : 'Próx. seguimiento'}</span>
+      <span class="detail-value modal-seg-editor">
+        <input type="date" id="modal-seg-date" value="${c.proximoSeguimiento || ''}" class="${seguimientoClass(c.proximoSeguimiento)}">
+        <button class="btn btn-secondary btn-sm" onclick="guardarProximoSeguimiento()">Guardar</button>
+        ${c.proximoSeguimiento ? `<button class="btn btn-secondary btn-sm" onclick="limpiarProximoSeguimiento()">Borrar</button>` : ''}
+      </span>`;
+  }
 }
 
 $('btn-editar-cliente').addEventListener('click', () => {
@@ -987,7 +1010,7 @@ async function loadPagosCliente(cliente) {
     $('pagos-list').innerHTML = `<div class="item-list">${ingresos.map(i => `
       <div class="list-item">
         <div class="list-item-info">
-          <div class="list-item-label">${i.tipoIngreso} — ${formatMoney(i.monto)}</div>
+          <div class="list-item-label">${i.tipoIngreso} — ${formatMoneda(i.monto, i.moneda || 'ARS')}</div>
           <div class="list-item-sub">${formatDate(i.fecha)} · ${i.formaPago}${i.notas ? ' · ' + i.notas : ''}</div>
         </div>
       </div>
@@ -1003,6 +1026,7 @@ $('pago-form').addEventListener('submit', async e => {
   const body = {
     idCliente: $('pago-id-cliente').value,
     tipoIngreso: $('pago-tipo').value,
+    moneda: $('pago-moneda').value || 'ARS',
     monto: $('pago-monto').value,
     fecha: $('pago-fecha').value,
     formaPago: $('pago-forma').value,
@@ -1511,7 +1535,6 @@ $('cliente-form').addEventListener('submit', async e => {
     apellidoNombre: form.apellidoNombre.value,
     telefono: form.telefono.value,
     gmail: form.gmail.value,
-    redSocial: form.redSocial.value,
     tipoEvento: form.tipoEvento.value,
     formato: form.formato.value,
     fechaEvento: form.fechaEvento.value,
@@ -1576,7 +1599,6 @@ function openEditForm(cliente) {
   setVal('apellidoNombre', cliente.apellidoNombre);
   setVal('telefono', cliente.telefono);
   setVal('gmail', cliente.gmail);
-  setVal('redSocial', cliente.redSocial);
   setVal('tipoEvento', cliente.tipoEvento);
   setVal('formato', cliente.formato);
   setVal('fechaEvento', cliente.fechaEvento);
@@ -1644,9 +1666,11 @@ function renderCuotas(cliente, cuotas) {
     return;
   }
 
-  // Detectar moneda del plan (todas las cuotas del plan tienen la misma)
+  // Detectar moneda e indexación del plan (todas las cuotas comparten los mismos)
   const moneda = cuotas[0]?.moneda || 'ARS';
+  const indexacion = cuotas[0]?.indexacion || 'fija';
   const esUSD = moneda === 'USD';
+  const esIPC = indexacion === 'ipc';
 
   const totalContrato = cuotas.reduce((s, c) => s + c.valorOriginal, 0);
   const totalPagado = pagadas.reduce((s, c) => s + c.montoPagado, 0);
@@ -1654,9 +1678,10 @@ function renderCuotas(cliente, cuotas) {
   const valorCuotaActual = pendientes.length ? pendientes[0].valorActual : (pagadas[pagadas.length - 1]?.montoPagado || 0);
 
   con.innerHTML = `
-    ${esUSD ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <span style="background:var(--gold-light);border:1px solid var(--gold-border);color:#7a5c10;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em">U$S PLAN EN DÓLARES</span>
-    </div>` : ''}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      ${esUSD ? `<span style="background:var(--gold-light);border:1px solid var(--gold-border);color:#7a5c10;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em">U$S PLAN EN DÓLARES</span>` : ''}
+      ${esIPC ? `<span style="background:#e8f5e9;border:1px solid #a5d6a7;color:#2e7d32;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em">📈 INDEXADO POR IPC</span>` : ''}
+    </div>
 
     <div class="cuotas-resumen">
       <div class="cuota-stat"><div class="cuota-stat-label">Contrato original</div><div class="cuota-stat-val">${formatMoneda(totalContrato, moneda)}</div></div>
@@ -1669,11 +1694,14 @@ function renderCuotas(cliente, cuotas) {
       ${pendientes.length ? `
         <button class="btn btn-sm btn-secondary" id="btn-pagar-sel">✓ Marcar seleccionadas como pagadas</button>
         <div class="ipc-inline">
-          ${!esUSD ? `
+          ${esIPC ? `
+            <button class="btn btn-sm btn-secondary" id="btn-ipc-auto">📈 Aplicar IPC del mes</button>
+            <span class="tip" data-tip="Consulta el IPC mensual del INDEC (datos.gob.ar) y lo aplica automáticamente a las cuotas pendientes de este plan. Solo funciona con planes marcados como Indexados por IPC.">?</span>
+          ` : `
             <input type="number" id="ipc-pct" placeholder="IPC %" min="0" max="100" step="0.1" style="width:90px">
-            <span class="tip" data-tip="Ingresá el porcentaje de aumento (ej: 8.4 para un 8,4%). Solo se actualizan las cuotas PENDIENTES. Las ya cobradas no cambian.">?</span>
-            <button class="btn btn-sm btn-secondary" id="btn-ipc">Actualizar por IPC</button>
-          ` : ''}
+            <span class="tip" data-tip="Ingresá el porcentaje de aumento manualmente. Solo se actualizan las cuotas PENDIENTES.">?</span>
+            <button class="btn btn-sm btn-secondary" id="btn-ipc">Ajustar por %</button>
+          `}
           <button class="btn btn-sm btn-secondary" id="btn-ajustar-val">Fijar valor</button>
           <input type="number" id="nuevo-valor" placeholder="Nuevo valor ${esUSD ? 'U$S' : '$'}" min="0" style="width:130px">
           <span class="tip" data-tip="Fijá un importe exacto para todas las cuotas pendientes, reemplazando el valor actual.">?</span>
@@ -1682,19 +1710,37 @@ function renderCuotas(cliente, cuotas) {
       ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
     </div>
 
-    <div id="fecha-pago-row" class="hidden" style="margin:10px 0;flex-wrap:wrap;display:flex;gap:10px;align-items:center">
-      <label style="font-size:13px;font-weight:600">Fecha:</label>
-      <input type="date" id="fecha-pago-input" value="${new Date().toISOString().split('T')[0]}" style="width:150px">
-      <select id="forma-pago-cuota" style="width:160px">
-        <option value="">Forma de pago...</option>
-        <option>Efectivo</option>
-        <option>Transferencia</option>
-        <option>Cheque</option>
-        <option>Mercado Pago</option>
-        <option>USD</option>
-        <option>Otro</option>
-      </select>
-      <input type="text" id="notas-pago-input" placeholder="Notas (opcional)" style="flex:1;min-width:120px">
+    <div id="fecha-pago-row" class="hidden" style="margin:10px 0;flex-wrap:wrap;display:flex;gap:10px;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Fecha</label>
+        <input type="date" id="fecha-pago-input" value="${new Date().toISOString().split('T')[0]}" style="width:150px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Forma de pago</label>
+        <select id="forma-pago-cuota" style="width:160px">
+          <option value="">—</option>
+          <option>Efectivo</option>
+          <option>Transferencia</option>
+          <option>Cheque</option>
+          <option>Mercado Pago</option>
+          <option>Otro</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Moneda del pago <span class="tip" data-tip="Si el plan es en USD pero el cliente paga en pesos (o viceversa), elegí la moneda real con la que te pagaron y ajustá el monto.">?</span></label>
+        <select id="moneda-pago-cuota" style="width:140px">
+          <option value="ARS" ${moneda === 'ARS' ? 'selected' : ''}>$ Pesos (ARS)</option>
+          <option value="USD" ${moneda === 'USD' ? 'selected' : ''}>U$S Dólares (USD)</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Monto recibido <span class="tip" data-tip="Se calcula automáticamente de las cuotas seleccionadas, pero podés editarlo si el cliente paga un monto distinto o en otra moneda.">?</span></label>
+        <input type="number" id="monto-efectivo-input" min="0" style="width:130px" placeholder="Auto">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Notas</label>
+        <input type="text" id="notas-pago-input" placeholder="Opcional" style="width:100%">
+      </div>
       <button class="btn btn-sm btn-primary" id="btn-confirmar-pago">Confirmar</button>
       <button class="btn btn-sm btn-secondary" id="btn-cancelar-pago">Cancelar</button>
     </div>
@@ -1731,6 +1777,13 @@ function formCrearPlan(idCliente) {
           <select id="plan-moneda" style="height:38px">
             <option value="ARS">$ Pesos (ARS)</option>
             <option value="USD">U$S Dólares (USD)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Actualización <span class="tip" data-tip="Fija: el valor de cada cuota no cambia salvo que lo modifiques manualmente. Por IPC: el sistema actualiza las cuotas pendientes automáticamente con el dato mensual del INDEC (datos.gob.ar) cuando presionás 'Aplicar IPC del mes'.">?</span></label>
+          <select id="plan-indexacion" style="height:38px">
+            <option value="fija">Cuotas fijas</option>
+            <option value="ipc">Indexadas por IPC (INDEC)</option>
           </select>
         </div>
         <div class="form-group">
@@ -1807,6 +1860,7 @@ function bindFormCrearPlan(cliente) {
         valorCuota: parseFloat($('plan-valor-cuota').value) || null,
         fechaInicio: $('plan-fecha').value,
         moneda: $('plan-moneda').value || 'ARS',
+        indexacion: $('plan-indexacion').value || 'fija',
       }});
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); btn.disabled = false; }
@@ -1816,8 +1870,12 @@ function bindFormCrearPlan(cliente) {
 function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
   // Pagar seleccionadas
   $('btn-pagar-sel')?.addEventListener('click', () => {
-    const checked = document.querySelectorAll('.cuota-check:checked');
+    const checked = [...document.querySelectorAll('.cuota-check:checked')];
     if (!checked.length) { alert('Seleccioná al menos una cuota.'); return; }
+    // Auto-calcular monto total de las cuotas seleccionadas
+    const montoAuto = checked.reduce((s, c) => s + (parseFloat(c.dataset.valor) || 0), 0);
+    const montoInput = $('monto-efectivo-input');
+    if (montoInput) montoInput.value = montoAuto;
     const row = $('fecha-pago-row');
     row.style.display = 'flex';
     row.classList.remove('hidden');
@@ -1834,6 +1892,8 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
     const rowIndices = checked.map(c => parseInt(c.dataset.row));
     const numeros = checked.map(c => c.dataset.num);
     const montoTotal = checked.reduce((s, c) => s + (parseFloat(c.dataset.valor) || 0), 0);
+    const montoEfectivo = parseFloat($('monto-efectivo-input').value) || montoTotal;
+    const monedaPago = $('moneda-pago-cuota').value || moneda;
     const descripcion = `Cuota${numeros.length > 1 ? 's' : ''} ${numeros.join(', ')}`;
     const fechaPago = $('fecha-pago-input').value;
     const formaPago = $('forma-pago-cuota').value;
@@ -1844,20 +1904,42 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
         idCliente: cliente.id,
         formaPago,
         montoTotal,
+        montoEfectivo,
+        monedaPago,
         descripcion,
       }});
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); }
   });
 
-  // IPC
+  // IPC automático (solo para planes indexados)
+  $('btn-ipc-auto')?.addEventListener('click', async () => {
+    const btn = $('btn-ipc-auto');
+    btn.disabled = true;
+    btn.textContent = 'Consultando INDEC...';
+    try {
+      const { porcentaje, mes } = await apiFetch('/cuotas/ipc-actual');
+      const mesLabel = mes ? ` (${mes})` : '';
+      if (!confirm(`IPC del INDEC${mesLabel}: ${porcentaje}%\n\n¿Aplicar a las cuotas pendientes indexadas por IPC?`)) {
+        btn.disabled = false; btn.textContent = '📈 Aplicar IPC del mes'; return;
+      }
+      const r = await apiFetch('/cuotas/ipc-indexados', { method: 'PUT', body: { idCliente: cliente.id, porcentaje } });
+      alert(`IPC ${porcentaje}%${mesLabel} aplicado a ${r.updated} cuota(s).`);
+      loadCuotasTab(cliente);
+    } catch (err) {
+      alert('No se pudo obtener el IPC del INDEC.\n' + err.message);
+      btn.disabled = false; btn.textContent = '📈 Aplicar IPC del mes';
+    }
+  });
+
+  // IPC manual (solo para planes fijos con ajuste manual)
   $('btn-ipc')?.addEventListener('click', async () => {
     const pct = parseFloat($('ipc-pct').value);
     if (!pct || pct <= 0) { alert('Ingresá un porcentaje válido.'); return; }
-    if (!confirm(`¿Aplicar ${pct}% de IPC a todas las cuotas pendientes?`)) return;
+    if (!confirm(`¿Aplicar ${pct}% a todas las cuotas pendientes?`)) return;
     try {
       const r = await apiFetch('/cuotas/ipc', { method: 'PUT', body: { idCliente: cliente.id, porcentaje: pct } });
-      alert(`IPC aplicado a ${r.updated} cuota(s).`);
+      alert(`Ajuste aplicado a ${r.updated} cuota(s).`);
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); }
   });
@@ -1900,6 +1982,7 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
         valorCuota: valor,
         fechaInicio: fecha,
         moneda,
+        indexacion,
       }});
       loadCuotasTab(cliente);
     } catch (err) { alert(err.message); btn.disabled = false; }

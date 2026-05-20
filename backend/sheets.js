@@ -381,11 +381,12 @@ function rowToIngreso(row, index) {
     fecha: row[4] || '',
     formaPago: row[5] || '',
     notas: row[6] || '',
+    moneda: row[7] || 'ARS',
   };
 }
 
 function ingresoToRow(i) {
-  return [i.id, i.idCliente, i.tipoIngreso, i.monto, i.fecha, i.formaPago, i.notas].map(v => v || '');
+  return [i.id, i.idCliente, i.tipoIngreso, i.monto, i.fecha, i.formaPago, i.notas, i.moneda || 'ARS'].map(v => v || '');
 }
 
 async function getIngresos() {
@@ -393,7 +394,7 @@ async function getIngresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:G',
+    range: 'Ingresos!A2:H',
   });
   return (res.data.values || []).map((row, i) => rowToIngreso(row, i));
 }
@@ -409,7 +410,7 @@ async function addIngreso(data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A:G',
+    range: 'Ingresos!A:H',
     valueInputOption: 'USER_ENTERED',
     resource: { values: [ingresoToRow(ingreso)] },
   });
@@ -558,8 +559,8 @@ async function deleteTimmingItem(rowIndex) {
 }
 
 /* ===================== CUOTAS ===================== */
-// Columnas A-K: id, idCliente (=idEvento), numeroCuota, valorOriginal, valorActual,
-//               fechaVencimiento, estado, fechaPago, montoPagado, notas, moneda
+// Columnas A-L: id, idCliente (=idEvento), numeroCuota, valorOriginal, valorActual,
+//               fechaVencimiento, estado, fechaPago, montoPagado, notas, moneda, indexacion
 
 function rowToCuota(row, index) {
   return {
@@ -575,6 +576,7 @@ function rowToCuota(row, index) {
     montoPagado: parseFloat(row[8]) || 0,
     notas: row[9] || '',
     moneda: row[10] || 'ARS',
+    indexacion: row[11] || 'fija',
   };
 }
 
@@ -582,7 +584,7 @@ function cuotaToRow(c) {
   return [
     c.id, c.idCliente, c.numeroCuota, c.valorOriginal, c.valorActual,
     c.fechaVencimiento, c.estado, c.fechaPago || '', c.montoPagado || 0, c.notas || '',
-    c.moneda || 'ARS',
+    c.moneda || 'ARS', c.indexacion || 'fija',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -593,14 +595,14 @@ async function getCuotasByCliente(idCliente) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A2:K',
+    range: 'Cuotas!A2:L',
   });
   return (res.data.values || [])
     .map((row, i) => rowToCuota(row, i))
     .filter(c => c.idCliente === idCliente && c.estado !== 'cancelada');
 }
 
-async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS') {
+async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS', indexacion = 'fija') {
   const valor = valorCuota || Math.round(montoTotal / cantidadCuotas);
   const [y, m, d] = fechaInicio.split('-').map(Number);
   const cuotas = [];
@@ -619,6 +621,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
       montoPagado: 0,
       notas: '',
       moneda: moneda || 'ARS',
+      indexacion: indexacion || 'fija',
     });
   }
   if (!tieneCredenciales) {
@@ -628,7 +631,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A:K',
+    range: 'Cuotas!A:L',
     valueInputOption: 'USER_ENTERED',
     resource: { values: cuotas.map(cuotaToRow) },
   });
@@ -671,6 +674,29 @@ async function pagarCuotas(rowIndices, fechaPago, notas) {
 async function aplicarIPC(idCliente, porcentaje) {
   const cuotas = await getCuotasByCliente(idCliente);
   const pendientes = cuotas.filter(c => c.estado === 'pendiente');
+  if (!pendientes.length) return { updated: 0 };
+  if (!tieneCredenciales) {
+    pendientes.forEach(c => {
+      const idx = memCuotas.findIndex(mc => mc.rowIndex === c.rowIndex);
+      if (idx !== -1) memCuotas[idx].valorActual = Math.round(c.valorActual * (1 + porcentaje / 100));
+    });
+    return { updated: pendientes.length };
+  }
+  const sheets = getSheets();
+  const data = pendientes.map(c => ({
+    range: `Cuotas!E${c.rowIndex}`,
+    values: [[Math.round(c.valorActual * (1 + porcentaje / 100))]],
+  }));
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: { valueInputOption: 'USER_ENTERED', data },
+  });
+  return { updated: pendientes.length };
+}
+
+async function aplicarIPCIndexados(idCliente, porcentaje) {
+  const cuotas = await getCuotasByCliente(idCliente);
+  const pendientes = cuotas.filter(c => c.estado === 'pendiente' && c.indexacion === 'ipc');
   if (!pendientes.length) return { updated: 0 };
   if (!tieneCredenciales) {
     pendientes.forEach(c => {
@@ -867,7 +893,7 @@ async function initSheets() {
       headers.push({ range: 'Timming!A1:F1', values: [['id','idCliente','hora','actividad','tipo','descripcion']] });
     }
     if (!existing.includes('Cuotas')) {
-      headers.push({ range: 'Cuotas!A1:K1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda']] });
+      headers.push({ range: 'Cuotas!A1:L1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion']] });
     }
     if (!existing.includes('Papelera')) {
       headers.push({ range: 'Papelera!A1:E1', values: [['fechaEliminacion','eliminadoPor','tipo','id','datosJSON']] });
@@ -891,7 +917,7 @@ module.exports = {
   getIngresos, addIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
-  getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, ajustarValorCuotas, cancelarPlan,
+  getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,

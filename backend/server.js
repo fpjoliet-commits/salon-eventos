@@ -192,23 +192,25 @@ app.get('/api/cuotas/cliente/:idCliente', auth, async (req, res) => {
 
 app.post('/api/cuotas/plan', auth, async (req, res) => {
   try {
-    const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda } = req.body;
-    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda));
+    const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion } = req.body;
+    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/cuotas/pagar', auth, async (req, res) => {
   try {
-    const { rowIndices, fechaPago, notas, idCliente, formaPago, montoTotal, descripcion } = req.body;
+    const { rowIndices, fechaPago, notas, idCliente, formaPago, montoTotal, montoEfectivo, monedaPago, descripcion } = req.body;
     await sheets.pagarCuotas(rowIndices, fechaPago, notas);
-    if (idCliente && montoTotal > 0) {
+    const montoRegistrar = montoEfectivo || montoTotal;
+    if (idCliente && montoRegistrar > 0) {
       await sheets.addIngreso({
         idCliente,
         tipoIngreso: descripcion || 'Cuota',
-        monto: montoTotal,
+        monto: montoRegistrar,
         fecha: fechaPago,
         formaPago: formaPago || '',
         notas: notas || '',
+        moneda: monedaPago || 'ARS',
       });
     }
     res.json({ ok: true });
@@ -219,6 +221,30 @@ app.put('/api/cuotas/ipc', auth, async (req, res) => {
   try {
     const { idCliente, porcentaje } = req.body;
     res.json(await sheets.aplicarIPC(idCliente, porcentaje));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Consulta el IPC mensual del INDEC (datos.gob.ar) y lo aplica a cuotas indexadas
+app.get('/api/cuotas/ipc-actual', auth, async (req, res) => {
+  try {
+    const url = 'https://apis.datos.gob.ar/series/api/series/?ids=148.3_INUCLEOMX_DICI_M_19&limit=2&sort=desc&format=json';
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(`INDEC respondió ${r.status}`);
+    const json = await r.json();
+    const data = json.data;
+    if (!data || data.length < 2) throw new Error('Datos insuficientes del INDEC');
+    const [latest, prev] = data;
+    const porcentaje = Math.round(((latest[1] - prev[1]) / prev[1]) * 10000) / 100;
+    res.json({ porcentaje, mes: latest[0].substring(0, 7) });
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo consultar el INDEC: ' + e.message });
+  }
+});
+
+app.put('/api/cuotas/ipc-indexados', auth, async (req, res) => {
+  try {
+    const { idCliente, porcentaje } = req.body;
+    res.json(await sheets.aplicarIPCIndexados(idCliente, porcentaje));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
