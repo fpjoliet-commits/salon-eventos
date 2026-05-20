@@ -510,14 +510,17 @@ function openClienteModal(cliente, tabInicial = 'info') {
   const btnNuevoEvento = $('btn-nuevo-evento');
   const btnEliminar = $('btn-eliminar-cliente');
   const btnVerTiming = $('btn-ver-timing');
+  const tabHistorial = document.querySelector('.tab-btn[data-tab="pagos"]');
   if (canManagePagos()) {
     btnNuevoEvento?.classList.remove('hidden');
     btnEliminar?.classList.remove('hidden');
     btnVerTiming?.classList.remove('hidden');
+    tabHistorial?.classList.remove('hidden');
   } else {
     btnNuevoEvento?.classList.add('hidden');
     btnEliminar?.classList.add('hidden');
     btnVerTiming?.classList.add('hidden');
+    tabHistorial?.classList.add('hidden');
   }
 
   activateTab(tabInicial);
