@@ -485,7 +485,8 @@ function applyFilters() {
       (c.apellidoNombre || '').toLowerCase().includes(search) ||
       (c.telefono || '').includes(search) ||
       (c.gmail || '').toLowerCase().includes(search);
-    const matchEstado = !estado || c.estado === estado;
+    const matchEstado = !estado ||
+      (estado === '__con_fecha__' ? !!c.proximoSeguimiento : c.estado === estado);
     const matchEvento = !evento || c.tipoEvento === evento;
     return matchSearch && matchEstado && matchEvento;
   });
@@ -1109,6 +1110,13 @@ function renderCalendario() {
     eventMap[c.fechaEvento].push(c);
   });
 
+  // Visitas y cobros por proximoSeguimiento (excluye cancelados/realizados y los que ya tienen evento ese mismo día)
+  const segMap = {};
+  allClientes.filter(c => c.proximoSeguimiento && c.estado !== 'Cancelado' && c.estado !== 'Realizado').forEach(c => {
+    if (!segMap[c.proximoSeguimiento]) segMap[c.proximoSeguimiento] = [];
+    segMap[c.proximoSeguimiento].push(c);
+  });
+
   const firstDay = new Date(calYear, calMonth, 1);
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   let startDow = firstDay.getDay();
@@ -1131,6 +1139,7 @@ function renderCalendario() {
     const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = ds === todayStr;
     const evs = eventMap[ds] || [];
+    const segs = (segMap[ds] || []).filter(c => c.fechaEvento !== ds); // no duplicar si el evento es ese día
     cells += `<div class="cal-cell${isToday ? ' cal-cell-today' : ''}">
       <span class="cal-cell-num${isToday ? ' cal-num-today' : ''}">${d}</span>
       ${evs.map(c => {
@@ -1138,6 +1147,14 @@ function renderCalendario() {
         return `<div class="cal-pill ${pillClass[c.estado] || ''}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${c.apellidoNombre}${c.turno ? ' · '+c.turno : ''}">
           <div class="cal-pill-nombre">${c.apellidoNombre}</div>
           ${sub ? `<div class="cal-pill-sub">${sub}</div>` : ''}
+        </div>`;
+      }).join('')}
+      ${segs.map(c => {
+        const esCobro = ESTADOS_COBRO.includes(c.estado);
+        const icono = esCobro ? '💰' : '📅';
+        const cls = esCobro ? 'cal-pill-seg-cobro' : 'cal-pill-seg-visita';
+        return `<div class="cal-pill cal-pill-seg ${cls}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${esCobro ? 'Cobro' : 'Visita'}: ${c.apellidoNombre}">
+          <div class="cal-pill-nombre">${icono} ${c.apellidoNombre}</div>
         </div>`;
       }).join('')}
     </div>`;
