@@ -538,9 +538,9 @@
         <!-- Tabs -->
         <div class="modal-tabs">
           <button class="tab-btn active" data-tab="info">Información</button>
-          <button class="tab-btn" data-tab="cuotas">Cuotas</button>
+          <button class="tab-btn" data-tab="cuotas">Plan de pago</button>
           <button class="tab-btn" data-tab="restricciones">Restricciones</button>
-          <button class="tab-btn" data-tab="pagos">Pagos</button>
+          <button class="tab-btn" data-tab="pagos">Historial</button>
         </div>
 
         <!-- Tab: Info -->
@@ -558,56 +558,12 @@
           <div id="cliente-eventos-anteriores" class="eventos-anteriores hidden"></div>
         </div>
 
-        <!-- Tab: Cuotas -->
+        <!-- Tab: Plan de pago -->
         <div id="tab-cuotas" class="tab-content hidden">
           <div id="cuotas-content"></div>
-        </div>
-
-        <!-- Tab: Restricciones -->
-        <div id="tab-restricciones" class="tab-content hidden">
-          <div id="restricciones-list"></div>
-          <form id="restriccion-form" class="inline-form">
-            <input type="hidden" id="rest-id-cliente">
-            <div class="inline-form-row" style="flex-wrap:wrap;gap:8px">
-              <select id="rest-tipo" required style="flex:1;min-width:160px">
-                <option value="">Tipo de restricción...</option>
-                <option>Vegano</option>
-                <option>Vegetariano</option>
-                <option>Celíaco / Sin TACC</option>
-                <option>Alergia a mariscos</option>
-                <option>Alergia a frutos secos</option>
-                <option>Sin lactosa</option>
-                <option>Diabético</option>
-                <option>Sin sal</option>
-                <option>Halal</option>
-                <option>Kosher</option>
-                <option value="Otro">Otro...</option>
-              </select>
-              <input type="text" id="rest-tipo-otro" placeholder="Especificá..." style="display:none;flex:1;min-width:120px">
-              <input type="number" id="rest-cantidad" placeholder="Cant." min="1" required style="width:70px">
-              <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;cursor:pointer">
-                <input type="checkbox" id="rest-coronita"> 👑 Mesa principal
-                <span class="tip" data-tip="Marcalo si esta persona está en la mesa principal: el festejado, quien paga, padres, pareja, etc. Se resalta con corona en la ficha de cocina.">?</span>
-              </label>
-              <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Tab: Pagos -->
-        <div id="tab-pagos" class="tab-content hidden">
-          <div id="pagos-admin-content" class="admin-only-content hidden">
-            <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-              <button id="btn-toggle-historial" type="button" class="btn btn-sm btn-secondary">Ocultar historial</button>
-            </div>
-            <div id="pagos-historial">
-              <div id="pagos-list"></div>
-              <div id="pagos-total" class="total-box"></div>
-            </div>
-          </div>
-          <form id="pago-form" class="inline-form">
+          <form id="pago-form" class="inline-form" style="margin-top:0;padding-top:16px;border-top:1px solid var(--border-light)">
             <input type="hidden" id="pago-id-cliente">
-            <h4>Registrar ingreso</h4>
+            <h4>Registrar cobro</h4>
             <div class="form-grid small-grid">
               <div class="form-group">
                 <label>Tipo <span class="tip" data-tip="Seña: primer pago que confirma el interés y reserva la fecha. Cuota: pago de un plan de cuotas. Saldo final: lo que queda por pagar antes del evento. Otro: cualquier concepto extra.">?</span></label>
@@ -650,10 +606,60 @@
                 <input type="text" id="pago-notas">
               </div>
             </div>
+            <div id="cuotas-a-tachar" class="hidden" style="margin:10px 0 14px">
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+                ¿A qué cuotas corresponde este pago? <span class="tip" data-tip="Seleccioná las cuotas que cubre este cobro. Se marcarán como pagadas automáticamente.">?</span>
+              </div>
+              <div id="cuotas-a-tachar-lista" class="item-list" style="max-height:180px;overflow-y:auto"></div>
+            </div>
             <div id="pago-error" class="error-msg hidden"></div>
             <div id="pago-success" class="success-msg hidden"></div>
-            <button type="submit" class="btn btn-primary">Registrar ingreso</button>
+            <button type="submit" class="btn btn-primary">Registrar cobro</button>
           </form>
+        </div>
+
+        <!-- Tab: Restricciones -->
+        <div id="tab-restricciones" class="tab-content hidden">
+          <div id="restricciones-list"></div>
+          <form id="restriccion-form" class="inline-form">
+            <input type="hidden" id="rest-id-cliente">
+            <div class="inline-form-row" style="flex-wrap:wrap;gap:8px">
+              <select id="rest-tipo" required style="flex:1;min-width:160px">
+                <option value="">Tipo de restricción...</option>
+                <option>Vegano</option>
+                <option>Vegetariano</option>
+                <option>Celíaco / Sin TACC</option>
+                <option>Alergia a mariscos</option>
+                <option>Alergia a frutos secos</option>
+                <option>Sin lactosa</option>
+                <option>Diabético</option>
+                <option>Sin sal</option>
+                <option>Halal</option>
+                <option>Kosher</option>
+                <option value="Otro">Otro...</option>
+              </select>
+              <input type="text" id="rest-tipo-otro" placeholder="Especificá..." style="display:none;flex:1;min-width:120px">
+              <input type="number" id="rest-cantidad" placeholder="Cant." min="1" required style="width:70px">
+              <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;cursor:pointer">
+                <input type="checkbox" id="rest-coronita"> 👑 Mesa principal
+                <span class="tip" data-tip="Marcalo si esta persona está en la mesa principal: el festejado, quien paga, padres, pareja, etc. Se resalta con corona en la ficha de cocina.">?</span>
+              </label>
+              <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Tab: Historial -->
+        <div id="tab-pagos" class="tab-content hidden">
+          <div id="pagos-admin-content" class="admin-only-content hidden">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+              <button id="btn-toggle-historial" type="button" class="btn btn-sm btn-secondary">Ocultar historial</button>
+            </div>
+            <div id="pagos-historial">
+              <div id="pagos-list"></div>
+              <div id="pagos-total" class="total-box"></div>
+            </div>
+          </div>
         </div>
 
       </div>

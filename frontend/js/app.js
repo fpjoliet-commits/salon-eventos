@@ -524,7 +524,8 @@ function openClienteModal(cliente, tabInicial = 'info') {
   renderClienteDetail(cliente);
   injectNombreAcciones(cliente);
   loadRestriccionesModal(cliente);
-  renderPagosTab(cliente);
+  initPagoForm(cliente);
+  renderHistorialTab(cliente);
   loadCuotasTab(cliente);
   if (canManagePagos()) {
     cargarEventosAnteriores(cliente);
@@ -975,32 +976,30 @@ $('restriccion-form').addEventListener('submit', async e => {
   } catch (e) { alert(e.message); }
 });
 
-/* ===================== PAGOS ===================== */
-function renderPagosTab(cliente) {
+/* ===================== PAGOS / HISTORIAL ===================== */
+function initPagoForm(cliente) {
   $('pago-id-cliente').value = cliente.id;
   $('pago-fecha').value = new Date().toISOString().split('T')[0];
   hide('pago-error'); hide('pago-success');
+  if (canManagePagos()) {
+    showEl($('pago-form'));
+  } else {
+    hideEl($('pago-form'));
+  }
+}
 
-  // Resetear toggle de historial al abrir nuevo cliente
+function renderHistorialTab(cliente) {
+  // Resetear toggle
   const _hist = $('pagos-historial');
   const _btnH = $('btn-toggle-historial');
   if (_hist) _hist.style.display = '';
   if (_btnH) _btnH.textContent = 'Ocultar historial';
 
-  // Historial visible para Super Admin y Admin
   if (canManagePagos()) {
     showEl($('pagos-admin-content'));
     loadPagosCliente(cliente);
-    showEl($('pago-form'));
   } else {
     hideEl($('pagos-admin-content'));
-    hideEl($('pago-form'));
-    $('tab-pagos').querySelector('.no-access-msg')?.remove();
-    const msg = document.createElement('p');
-    msg.className = 'no-access-msg';
-    msg.style.cssText = 'color:#999;font-size:13px;margin-top:12px';
-    msg.textContent = 'Solo Super Admin y Admin pueden registrar pagos.';
-    $('tab-pagos').appendChild(msg);
   }
 }
 
@@ -1031,25 +1030,93 @@ async function loadPagosCliente(cliente) {
   }
 }
 
+$('pago-tipo').addEventListener('change', () => {
+  const tipo = $('pago-tipo').value;
+  const seccion = $('cuotas-a-tachar');
+  if (tipo === 'Cuota') {
+    showEl(seccion);
+    renderCuotasATacharLista();
+  } else {
+    hideEl(seccion);
+  }
+});
+
+function renderCuotasATacharLista() {
+  const lista = $('cuotas-a-tachar-lista');
+  if (!lista) return;
+  const pendientes = [...document.querySelectorAll('.cuota-item.cuota-pendiente')];
+  if (!pendientes.length) {
+    lista.innerHTML = '<p style="color:#999;font-size:12px">No hay cuotas pendientes en el plan.</p>';
+    return;
+  }
+  lista.innerHTML = pendientes.map(el => {
+    const row = el.dataset.row;
+    const check = el.querySelector('.cuota-check');
+    const valor = check?.dataset.valor || '0';
+    const num = check?.dataset.num || '';
+    const fecha = el.querySelector('.cuota-vence')?.textContent || '';
+    const montoStr = el.querySelector('.cuota-valor')?.textContent || '';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px">
+      <input type="checkbox" class="tachar-check" data-row="${row}" data-valor="${valor}" data-num="${num}">
+      <span>Cuota ${num}</span>
+      <span style="color:var(--text-muted)">${fecha}</span>
+      <span style="margin-left:auto;font-weight:600">${montoStr}</span>
+    </label>`;
+  }).join('');
+
+  lista.querySelectorAll('.tachar-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const checked = [...lista.querySelectorAll('.tachar-check:checked')];
+      const total = checked.reduce((s, c) => s + (parseFloat(c.dataset.valor) || 0), 0);
+      if (total > 0) $('pago-monto').value = total;
+    });
+  });
+}
+
 $('pago-form').addEventListener('submit', async e => {
   e.preventDefault();
   hide('pago-error'); hide('pago-success');
-  const body = {
-    idCliente: $('pago-id-cliente').value,
-    tipoIngreso: $('pago-tipo').value,
-    moneda: $('pago-moneda').value || 'ARS',
-    monto: $('pago-monto').value,
-    fecha: $('pago-fecha').value,
-    formaPago: $('pago-forma').value,
-    notas: $('pago-notas').value,
-  };
+  const tipo = $('pago-tipo').value;
+  const moneda = $('pago-moneda').value || 'ARS';
+  const monto = $('pago-monto').value;
+  const fecha = $('pago-fecha').value;
+  const formaPago = $('pago-forma').value;
+  const notas = $('pago-notas').value;
+  const idCliente = $('pago-id-cliente').value;
+
+  const cuotasSeleccionadas = tipo === 'Cuota'
+    ? [...($('cuotas-a-tachar-lista')?.querySelectorAll('.tachar-check:checked') || [])].map(c => parseInt(c.dataset.row))
+    : [];
+
   try {
-    await apiFetch('/ingresos', { method: 'POST', body });
-    $('pago-success').textContent = 'Ingreso registrado correctamente.';
+    if (tipo === 'Cuota' && cuotasSeleccionadas.length) {
+      const nums = [...($('cuotas-a-tachar-lista')?.querySelectorAll('.tachar-check:checked') || [])]
+        .map(c => c.dataset.num || '');
+      await apiFetch('/cuotas/pagar', { method: 'PUT', body: {
+        rowIndices: cuotasSeleccionadas,
+        fechaPago: fecha,
+        notas,
+        idCliente,
+        formaPago,
+        montoTotal: parseFloat(monto),
+        montoEfectivo: parseFloat(monto),
+        monedaPago: moneda,
+        descripcion: `Cuota${nums.length > 1 ? 's' : ''} ${nums.join(', ')}`,
+      }});
+    } else {
+      await apiFetch('/ingresos', { method: 'POST', body: {
+        idCliente, tipoIngreso: tipo, moneda, monto, fecha, formaPago, notas,
+      }});
+    }
+    $('pago-success').textContent = 'Cobro registrado correctamente.';
     show('pago-success');
     $('pago-form').reset();
     $('pago-fecha').value = new Date().toISOString().split('T')[0];
-    if (isAdmin()) loadPagosCliente(currentClienteModal);
+    hideEl($('cuotas-a-tachar'));
+    if (canManagePagos()) {
+      loadPagosCliente(currentClienteModal);
+      if (tipo === 'Cuota' && cuotasSeleccionadas.length) loadCuotasTab(currentClienteModal);
+    }
   } catch (err) {
     $('pago-error').textContent = err.message;
     show('pago-error');
