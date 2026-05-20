@@ -426,6 +426,8 @@ function renderClientes(clientes) {
       const isCont = isGroup && idx > 0;
 
       if (isGroup) tr.classList.add(isCont ? 'grupo-cont' : 'grupo-first');
+      if (c.estado === 'Confirmado') tr.classList.add('tr-confirmado');
+      else if (c.estado === 'Por cerrar') tr.classList.add('tr-por-cerrar');
 
       const nameCell = isCont
         ? `<span class="grupo-cont-icon">└</span> <strong>${esc(c.apellidoNombre) || '—'}</strong>`
@@ -560,6 +562,29 @@ $('btn-eliminar-cliente')?.addEventListener('click', async () => {
   } catch (err) { alert('Error al eliminar: ' + err.message); }
 });
 
+async function _saveSegDate(fecha) {
+  const c = currentClienteModal;
+  if (!c) return;
+  try {
+    await apiFetch(`/clientes/${c.rowIndex}`, { method: 'PUT', body: { ...c, proximoSeguimiento: fecha } });
+    c.proximoSeguimiento = fecha;
+    const idx = allClientes.findIndex(x => x.id === c.id);
+    if (idx !== -1) allClientes[idx].proximoSeguimiento = fecha;
+    renderClienteDetail(c);
+    renderSeguimientosPanel();
+  } catch (err) { alert('Error al guardar: ' + err.message); }
+}
+
+window.guardarProximoSeguimiento = async function() {
+  const fecha = $('modal-seg-date')?.value || '';
+  await _saveSegDate(fecha);
+};
+
+window.limpiarProximoSeguimiento = async function() {
+  if (!confirm('¿Borrar la fecha de seguimiento/cobro?')) return;
+  await _saveSegDate('');
+};
+
 // Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => activateTab(btn.dataset.tab));
@@ -650,7 +675,14 @@ function renderClienteDetail(c) {
     <div class="detail-item"><span class="detail-label">Monto presupuesto</span><span class="detail-value">${c.montoPresupuesto ? formatMoney(c.montoPresupuesto) : '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Menú infantil</span><span class="detail-value">${c.menuInfantil || '—'}</span></div>
     <div class="detail-item"><span class="detail-label">Red social</span><span class="detail-value">${c.redSocial || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Próx. seguimiento</span><span class="detail-value ${seguimientoClass(c.proximoSeguimiento)}">${formatDate(c.proximoSeguimiento)}</span></div>
+    <div class="detail-item detail-full">
+      <span class="detail-label">${ESTADOS_COBRO.includes(c.estado) ? 'Próxima visita de cobro' : 'Próx. seguimiento'}</span>
+      <span class="detail-value modal-seg-editor">
+        <input type="date" id="modal-seg-date" value="${c.proximoSeguimiento || ''}" class="${seguimientoClass(c.proximoSeguimiento)}">
+        <button class="btn btn-secondary btn-sm" onclick="guardarProximoSeguimiento()">Guardar</button>
+        ${c.proximoSeguimiento ? `<button class="btn btn-secondary btn-sm" onclick="limpiarProximoSeguimiento()">Borrar</button>` : ''}
+      </span>
+    </div>
     <div class="detail-item"><span class="detail-label">Fecha de carga</span><span class="detail-value">${formatDate(c.fechaCarga)}</span></div>
     ${c.exclienteReferencia ? `<div class="detail-item"><span class="detail-label">Ex-cliente ref.</span><span class="detail-value">${c.exclienteReferencia}</span></div>` : ''}
     ${c.exclienteNota ? `<div class="detail-item"><span class="detail-label">Ex-cliente nota</span><span class="detail-value">${c.exclienteNota}</span></div>` : ''}
@@ -1133,6 +1165,8 @@ function renderCalendario() {
   renderSeguimientosPanel();
 }
 
+const ESTADOS_COBRO = ['Confirmado', 'Por cerrar'];
+
 function renderSeguimientosPanel() {
   const aside = $('calendario-aside');
   if (!aside) return;
@@ -1140,8 +1174,11 @@ function renderSeguimientosPanel() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const en3 = new Date(hoy); en3.setDate(en3.getDate() + 3);
   const en7 = new Date(hoy); en7.setDate(en7.getDate() + 7);
+  const en14 = new Date(hoy); en14.setDate(en14.getDate() + 14);
 
   const activos = allClientes.filter(c => c.estado !== 'Cancelado' && c.estado !== 'Realizado');
+
+  const esCobro = c => ESTADOS_COBRO.includes(c.estado);
 
   const vencidos = activos.filter(c => {
     if (!c.proximoSeguimiento) return false;
@@ -1161,6 +1198,14 @@ function renderSeguimientosPanel() {
     return d > hoy && d <= en3;
   }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
 
+  // Cobros: Confirmado/Por cerrar con fecha en los próximos 4-14 días (los de hoy/3d ya aparecen arriba)
+  const cobros = activos.filter(c => {
+    if (!esCobro(c)) return false;
+    if (!c.proximoSeguimiento) return false;
+    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    return d > en3 && d <= en14;
+  }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
+
   const visitas = activos.filter(c => {
     if (c.estado !== 'Visita agendada') return false;
     if (!c.proximoSeguimiento) return true;
@@ -1168,17 +1213,24 @@ function renderSeguimientosPanel() {
     return d <= en7;
   }).sort((a, b) => (a.proximoSeguimiento || '').localeCompare(b.proximoSeguimiento || ''));
 
+  const badge = c => {
+    if (esCobro(c)) return '<span class="seg-badge seg-badge-cobro">cobro</span>';
+    if (c.estado === 'Visita agendada') return '<span class="seg-badge seg-badge-visita">visita</span>';
+    return '<span class="seg-badge seg-badge-seg">seguimiento</span>';
+  };
+
   const item = (c, tipo) => {
     const fecha = c.proximoSeguimiento ? formatDate(c.proximoSeguimiento) : '';
     return `<div class="seg-item seg-item-${tipo}" onclick="openClienteModal(window._cmap['${c.id}'])">
-      <div class="seg-item-nombre">${esc(c.apellidoNombre)}</div>
+      <div class="seg-item-nombre">${esc(c.apellidoNombre)} ${badge(c)}</div>
       <div class="seg-item-meta">${c.tipoEvento || ''}${fecha ? ` · ${fecha}` : ''}</div>
     </div>`;
   };
 
   let html = `<div class="seg-panel-title">Pendientes</div>`;
 
-  if (vencidos.length === 0 && paraHoy.length === 0 && proximos.length === 0 && visitas.length === 0) {
+  const hayAlgo = vencidos.length || paraHoy.length || proximos.length || cobros.length || visitas.length;
+  if (!hayAlgo) {
     html += `<p class="seg-empty">Sin tareas para los próximos días ✓</p>`;
   }
 
@@ -1193,6 +1245,10 @@ function renderSeguimientosPanel() {
   if (proximos.length > 0) {
     html += `<div class="seg-section-label seg-label-prox">Próximos 3 días</div>`;
     html += proximos.map(c => item(c, 'prox')).join('');
+  }
+  if (cobros.length > 0) {
+    html += `<div class="seg-section-label seg-label-cobro">Cobros programados</div>`;
+    html += cobros.map(c => item(c, 'cobro')).join('');
   }
   if (visitas.length > 0) {
     html += `<div class="seg-section-label seg-label-visita">Visitas agendadas</div>`;

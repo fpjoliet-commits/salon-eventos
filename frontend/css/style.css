@@ -672,6 +672,9 @@ textarea { resize: vertical; min-height: 70px; }
 }
 .detail-full { grid-column: 1 / -1; }
 
+.modal-seg-editor { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.modal-seg-editor input[type="date"] { font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
+
 /* ===================== RESTRICCIONES / PAGOS ===================== */
 .item-list { margin-bottom: 16px; }
 .list-item {
@@ -927,9 +930,36 @@ textarea { resize: vertical; min-height: 70px; }
 .seg-item-hoy     { border-left-color: var(--warning); background: var(--warning-bg); }
 .seg-item-prox    { border-left-color: var(--border); }
 .seg-item-visita  { border-left-color: var(--gold);   background: var(--gold-light); }
+.seg-item-cobro   { border-left-color: var(--success); background: var(--success-bg); }
 .seg-item-nombre  { font-weight: 600; font-size: 12.5px; color: var(--text-primary); }
 .seg-item-meta    { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
+
+.seg-badge        { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase;
+                    letter-spacing: 0.5px; padding: 1px 5px; border-radius: 3px; vertical-align: middle; margin-left: 4px; }
+.seg-badge-cobro  { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+.seg-badge-visita { background: var(--gold-light);  color: #854d0e;        border: 1px solid var(--gold-border); }
+.seg-badge-seg    { background: #f1f5f9;             color: #475569;        border: 1px solid #cbd5e1; }
+.seg-label-cobro  { color: var(--success) !important; }
 .seg-empty        { font-size: 12.5px; color: var(--text-muted); text-align: center; padding: 20px 0; }
+
+/* Filas por estado — confirmados y por cerrar destacados */
+tr.tr-confirmado td {
+  background: #f0fdf4;
+  border-top-color: var(--success-border);
+}
+tr.tr-confirmado td:first-child {
+  border-left: 3px solid var(--success);
+}
+tr.tr-confirmado:hover td { background: #dcfce7; }
+
+tr.tr-por-cerrar td {
+  background: #fff7ed;
+  border-top-color: #fed7aa;
+}
+tr.tr-por-cerrar td:first-child {
+  border-left: 3px solid #f97316;
+}
+tr.tr-por-cerrar:hover td { background: #ffedd5; }
 
 /* Filas agrupadas (mismo cliente, múltiples eventos) */
 tr.grupo-first td {
