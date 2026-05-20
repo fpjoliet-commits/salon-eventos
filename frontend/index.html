@@ -302,12 +302,13 @@
                 </select>
               </div>
               <div class="form-group" id="excliente-ref-group" style="display:none">
-                <label>Excliente referencia</label>
-                <input type="text" name="exclienteReferencia">
+                <label>Referido por</label>
+                <input type="text" name="exclienteReferencia" id="referido-por-input" list="clientes-datalist-ref" autocomplete="off" placeholder="Nombre o buscar cliente existente...">
+                <datalist id="clientes-datalist-ref"></datalist>
               </div>
               <div class="form-group" id="excliente-nota-group" style="display:none">
-                <label>Excliente nota</label>
-                <input type="text" name="exclienteNota">
+                <label>Nota</label>
+                <input type="text" name="exclienteNota" placeholder="Aclaración opcional...">
               </div>
             </div>
           </div>
@@ -332,49 +333,19 @@
           </div>
 
           <div class="form-section">
-            <h3>Otros detalles</h3>
+            <h3>Observaciones y pedidos</h3>
             <div class="form-grid">
-              <div class="form-group">
-                <label>Menú infantil</label>
-                <input type="number" name="menuInfantil" min="0">
-              </div>
               <div class="form-group">
                 <label>Próximo seguimiento</label>
                 <input type="date" name="proximoSeguimiento">
               </div>
               <div class="form-group full-width">
                 <label>Otros pedidos</label>
-                <textarea name="otrosPedidos" rows="2"></textarea>
+                <textarea name="otrosPedidos" rows="3" placeholder="Pedidos especiales, requerimientos, etc."></textarea>
               </div>
               <div class="form-group full-width">
                 <label>Observaciones</label>
-                <textarea name="observaciones" rows="3"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section" id="menu-section">
-            <h3>Menú del evento <span style="font-size:12px;font-weight:400;color:var(--text-muted)">(completar cuando esté confirmado)</span></h3>
-            <div class="form-grid">
-              <div class="form-group">
-                <label>Recepción</label>
-                <input type="text" name="menuRecepcion" placeholder="Ej: Empanadas y bruschettas">
-              </div>
-              <div class="form-group">
-                <label>Islas</label>
-                <input type="text" name="menuIslas" placeholder="Ej: Tabla de fiambres y quesos">
-              </div>
-              <div class="form-group">
-                <label>Primer plato</label>
-                <input type="text" name="menuPrimerPlato" placeholder="Ej: Ravioles con crema">
-              </div>
-              <div class="form-group">
-                <label>Principal</label>
-                <input type="text" name="menuPrincipal" placeholder="Ej: Pollo al horno con ensaladas">
-              </div>
-              <div class="form-group full-width">
-                <label>Postre / Mesa dulce</label>
-                <input type="text" name="menuPostre" placeholder="Ej: Torta 3 pisos + mesa dulce">
+                <textarea name="observaciones" rows="5" placeholder="Anotá todo lo que sea relevante del cliente o el evento..."></textarea>
               </div>
             </div>
           </div>

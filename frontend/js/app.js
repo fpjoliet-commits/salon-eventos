@@ -1311,8 +1311,20 @@ document.querySelector('[name="estado"]')?.addEventListener('change', function()
 $('tipo-cliente-select').addEventListener('change', () => {
   const v = $('tipo-cliente-select').value;
   $('excliente-ref-group').style.display = (v === 'Excliente' || v === 'Referido') ? '' : 'none';
-  $('excliente-nota-group').style.display = v === 'Excliente' ? '' : 'none';
+  $('excliente-nota-group').style.display = (v === 'Excliente' || v === 'Referido') ? '' : 'none';
 });
+
+function poblarDatalistReferidos() {
+  const dl = $('clientes-datalist-ref');
+  if (!dl) return;
+  dl.innerHTML = '';
+  const nombres = new Set(allClientes.map(c => c.apellidoNombre).filter(Boolean));
+  nombres.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n;
+    dl.appendChild(opt);
+  });
+}
 
 const AGASAJADO_LABELS = {
   'Boda': 'Nombre de los novios',
@@ -1364,6 +1376,7 @@ function resetNuevoClienteForm() {
   const searchInput = $('persona-search-input');
   if (searchInput) searchInput.value = '';
   $('persona-search-clear')?.classList.add('hidden');
+  poblarDatalistReferidos();
 }
 
 // Búsqueda de persona existente
@@ -1547,17 +1560,11 @@ $('cliente-form').addEventListener('submit', async e => {
     origen: form.origen.value,
     presupuesto: form.presupuesto.value,
     montoPresupuesto: form.montoPresupuesto.value,
-    menuInfantil: form.menuInfantil.value,
     otrosPedidos: form.otrosPedidos.value,
     observaciones: form.observaciones.value,
     proximoSeguimiento: (form.estado.value === 'Visita agendada' && form.fechaVisita?.value)
       ? form.fechaVisita.value
       : form.proximoSeguimiento.value,
-    menuRecepcion: form.menuRecepcion.value,
-    menuIslas: form.menuIslas.value,
-    menuPrimerPlato: form.menuPrimerPlato.value,
-    menuPrincipal: form.menuPrincipal.value,
-    menuPostre: form.menuPostre.value,
     nombreAgasajado: form.nombreAgasajado.value,
     cargadoPor: currentUser.usuario,
   };
@@ -1611,17 +1618,12 @@ function openEditForm(cliente) {
   setVal('origen', cliente.origen);
   setVal('presupuesto', cliente.presupuesto);
   setVal('montoPresupuesto', cliente.montoPresupuesto);
-  setVal('menuInfantil', cliente.menuInfantil);
   setVal('otrosPedidos', cliente.otrosPedidos);
   setVal('observaciones', cliente.observaciones);
   setVal('proximoSeguimiento', cliente.proximoSeguimiento);
-  setVal('menuRecepcion', cliente.menuRecepcion);
-  setVal('menuIslas', cliente.menuIslas);
-  setVal('menuPrimerPlato', cliente.menuPrimerPlato);
-  setVal('menuPrincipal', cliente.menuPrincipal);
-  setVal('menuPostre', cliente.menuPostre);
   setVal('nombreAgasajado', cliente.nombreAgasajado);
 
+  poblarDatalistReferidos();
   $('tipo-cliente-select').dispatchEvent(new Event('change'));
   $('presupuesto-select').dispatchEvent(new Event('change'));
   document.querySelector('[name="tipoEvento"]')?.dispatchEvent(new Event('change'));
