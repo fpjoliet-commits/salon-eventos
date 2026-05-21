@@ -382,11 +382,15 @@ function rowToIngreso(row, index) {
     formaPago: row[5] || '',
     notas: row[6] || '',
     moneda: row[7] || 'ARS',
+    confirmado: row[8] !== '0',
   };
 }
 
 function ingresoToRow(i) {
-  return [i.id, i.idCliente, i.tipoIngreso, i.monto, i.fecha, i.formaPago, i.notas, i.moneda || 'ARS'].map(v => v || '');
+  return [
+    i.id, i.idCliente, i.tipoIngreso, i.monto, i.fecha, i.formaPago, i.notas,
+    i.moneda || 'ARS', i.confirmado === false ? '0' : '1',
+  ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
 async function getIngresos() {
@@ -394,27 +398,49 @@ async function getIngresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:H',
+    range: 'Ingresos!A2:I',
   });
   return (res.data.values || []).map((row, i) => rowToIngreso(row, i));
 }
 
 async function addIngreso(data) {
   const id = generateId('ING');
-  const ingreso = { ...data, id };
+  const confirmado = data.cargadoPor === 'empleado' ? false : true;
+  const ingreso = { ...data, id, confirmado };
   if (!tieneCredenciales) {
     ingreso.rowIndex = memIngresos.length + 2;
     memIngresos.push(ingreso);
     return ingreso;
   }
   const sheets = getSheets();
-  await sheets.spreadsheets.values.append({
+  const colA = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A:H',
+    range: 'Ingresos!A:A',
+  });
+  const nextRow = (colA.data.values || []).length + 1;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Ingresos!A${nextRow}:I${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [ingresoToRow(ingreso)] },
   });
+  ingreso.rowIndex = nextRow;
   return ingreso;
+}
+
+async function confirmarIngreso(rowIndex) {
+  if (!tieneCredenciales) {
+    const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
+    if (idx !== -1) memIngresos[idx].confirmado = true;
+    return;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Ingresos!I${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [['1']] },
+  });
 }
 
 /* ===================== RESTRICCIONES ===================== */
@@ -577,6 +603,7 @@ function rowToCuota(row, index) {
     notas: row[9] || '',
     moneda: row[10] || 'ARS',
     indexacion: row[11] || 'fija',
+    confirmado: row[12] !== '0',
   };
 }
 
@@ -584,7 +611,7 @@ function cuotaToRow(c) {
   return [
     c.id, c.idCliente, c.numeroCuota, c.valorOriginal, c.valorActual,
     c.fechaVencimiento, c.estado, c.fechaPago || '', c.montoPagado || 0, c.notas || '',
-    c.moneda || 'ARS', c.indexacion || 'fija',
+    c.moneda || 'ARS', c.indexacion || 'fija', c.confirmado === false ? '0' : '1',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -595,15 +622,16 @@ async function getCuotasByCliente(idCliente) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A2:L',
+    range: 'Cuotas!A2:M',
   });
   return (res.data.values || [])
     .map((row, i) => rowToCuota(row, i))
     .filter(c => c.idCliente === idCliente && c.estado !== 'cancelada');
 }
 
-async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS', indexacion = 'fija') {
+async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS', indexacion = 'fija', cargadoPor = '') {
   const valor = valorCuota || Math.round(montoTotal / cantidadCuotas);
+  const confirmado = cargadoPor === 'empleado' ? false : true;
   const [y, m, d] = fechaInicio.split('-').map(Number);
   const cuotas = [];
   for (let i = 0; i < cantidadCuotas; i++) {
@@ -622,6 +650,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
       notas: '',
       moneda: moneda || 'ARS',
       indexacion: indexacion || 'fija',
+      confirmado,
     });
   }
   if (!tieneCredenciales) {
@@ -629,13 +658,38 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
     return cuotas;
   }
   const sheets = getSheets();
-  await sheets.spreadsheets.values.append({
+  const colA = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A:L',
+    range: 'Cuotas!A:A',
+  });
+  const nextRow = (colA.data.values || []).length + 1;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Cuotas!A${nextRow}:M${nextRow + cuotas.length - 1}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: cuotas.map(cuotaToRow) },
   });
+  cuotas.forEach((c, i) => { c.rowIndex = nextRow + i; });
   return cuotas;
+}
+
+async function confirmarCuotas(rowIndices) {
+  if (!tieneCredenciales) {
+    rowIndices.forEach(ri => {
+      const idx = memCuotas.findIndex(c => c.rowIndex === ri);
+      if (idx !== -1) memCuotas[idx].confirmado = true;
+    });
+    return;
+  }
+  const sheets = getSheets();
+  await Promise.all(rowIndices.map(ri =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Cuotas!M${ri}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [['1']] },
+    })
+  ));
 }
 
 async function pagarCuotas(rowIndices, fechaPago, notas) {
@@ -954,10 +1008,10 @@ async function initSheets() {
 module.exports = {
   getPersonas, addPersona, updatePersona,
   getClientes, addCliente, updateCliente, deleteEvento,
-  getIngresos, addIngreso,
+  getIngresos, addIngreso, confirmarIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
-  getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan,
+  getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,

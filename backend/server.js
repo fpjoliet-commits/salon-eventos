@@ -107,11 +107,18 @@ app.delete('/api/clientes/:rowIndex', auth, adminOnly, async (req, res) => {
 
 app.post('/api/ingresos', auth, async (req, res) => {
   try {
-    const ingreso = await sheets.addIngreso(req.body);
+    const ingreso = await sheets.addIngreso({ ...req.body, cargadoPor: req.user.usuario });
     res.json(ingreso);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.put('/api/ingresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) => {
+  try {
+    await sheets.confirmarIngreso(parseInt(req.params.rowIndex));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Restricciones
@@ -173,7 +180,14 @@ app.get('/api/cuotas/cliente/:idCliente', auth, async (req, res) => {
 app.post('/api/cuotas/plan', auth, async (req, res) => {
   try {
     const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion } = req.body;
-    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion));
+    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion, req.user.usuario));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/cuotas/confirmar', auth, adminOnly, async (req, res) => {
+  try {
+    await sheets.confirmarCuotas(req.body.rowIndices);
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
