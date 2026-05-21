@@ -794,6 +794,25 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
     resource: { values: [Array(23).fill('')] },
   });
 
+  // Si la Persona no tiene otros eventos, limpiar su fila también
+  if (clienteData.personaId && clienteData.personaRowIndex) {
+    const evRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Eventos!A2:B',
+    });
+    const otrosEventos = (evRes.data.values || []).filter(
+      row => row[0] && row[1] === clienteData.personaId
+    );
+    if (!otrosEventos.length) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `Personas!A${clienteData.personaRowIndex}:K${clienteData.personaRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [Array(11).fill('')] },
+      });
+    }
+  }
+
   // Borrar ingresos asociados al cliente eliminado
   const ingRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
