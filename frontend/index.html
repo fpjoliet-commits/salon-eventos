@@ -157,6 +157,28 @@
         <div class="view-header">
           <h2 id="form-titulo">Nuevo cliente</h2>
         </div>
+
+        <details class="guia-carga">
+          <summary class="guia-carga-header">
+            <span>💡 ¿Cargando clientes de papel con fecha y pagos?</span>
+            <span class="guia-chevron">▾</span>
+          </summary>
+          <div class="guia-carga-body">
+            <p class="guia-intro">Para un cliente que <strong>ya tiene fecha reservada y ya pagó algo</strong>, seguí este orden:</p>
+            <ol class="guia-steps">
+              <li>Completá todos los datos del cliente (nombre, teléfono, tipo de evento, fecha, invitados, etc.)</li>
+              <li>
+                Poné <strong>Estado → Confirmado</strong> y <strong>Estado de la fecha → Tentativa</strong>
+                <span class="guia-note">Aunque ya esté reservada, primero hay que registrar la seña antes de poder marcarlo como Reservada.</span>
+              </li>
+              <li>Guardá el cliente con el botón <strong>Guardar</strong>.</li>
+              <li>Abrí la ficha del cliente que acabás de crear → tab <strong>Plan de pago</strong> → completá el presupuesto y el plan de cuotas.</li>
+              <li>En "Registrar cobro", cargá el primer pago como tipo <strong>Seña</strong>. Los pagos siguientes como <strong>Cuota</strong>.</li>
+              <li>Una vez registrada la seña, hacé clic en <strong>Editar</strong> → cambiá Estado de la fecha a <strong>Reservada</strong> → Guardar.</li>
+            </ol>
+          </div>
+        </details>
+
         <form id="cliente-form" class="crm-form">
           <input type="hidden" id="edit-row-index">
           <input type="hidden" id="edit-cliente-id">

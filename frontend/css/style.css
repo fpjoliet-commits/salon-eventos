@@ -506,6 +506,48 @@ textarea { resize: vertical; min-height: 70px; }
 .badge-realizado  { background: #f8fafc; color: #64748b; }
 .badge-cancelado  { background: #fff1f2; color: #be123c; }
 
+/* ===================== GUÍA DE CARGA ===================== */
+.guia-carga {
+  max-width: 860px;
+  border: 1px solid var(--gold-border);
+  border-radius: var(--radius);
+  background: var(--gold-light);
+  margin-bottom: 18px;
+}
+.guia-carga-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold);
+  list-style: none;
+  user-select: none;
+}
+.guia-carga-header::-webkit-details-marker { display: none; }
+.guia-carga[open] .guia-chevron { transform: rotate(180deg); }
+.guia-chevron { transition: transform .2s; display: inline-block; font-size: 12px; }
+.guia-carga-body { padding: 0 18px 16px; }
+.guia-intro { font-size: 13px; color: var(--text); margin: 0 0 10px; }
+.guia-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.guia-steps li { font-size: 13px; color: var(--text); line-height: 1.45; }
+.guia-steps li strong { color: var(--primary); }
+.guia-note {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
 /* ===================== FORM ===================== */
 .crm-form { max-width: 860px; }
 .form-section {
