@@ -579,6 +579,28 @@
 
         <!-- Tab: Plan de pago -->
         <div id="tab-cuotas" class="tab-content hidden">
+
+          <details class="guia-carga" style="margin-bottom:16px">
+            <summary class="guia-carga-header">
+              <span>💡 ¿Cómo cargar el plan de pagos y registrar cobros?</span>
+              <span class="guia-chevron">▾</span>
+            </summary>
+            <div class="guia-carga-body">
+              <p class="guia-intro"><strong>Parte de arriba — Plan de cuotas:</strong></p>
+              <ol class="guia-steps">
+                <li>Completá presupuesto total, moneda, cantidad de cuotas y fecha del primer pago → <strong>Guardar plan</strong>. El sistema genera las cuotas automáticamente.</li>
+                <li>Si el cliente ya pagó cuotas, registralas con el formulario de abajo y tildá qué cuotas cubre ese pago.</li>
+              </ol>
+              <p class="guia-intro" style="margin-top:12px"><strong>Parte de abajo — Registrar cobro:</strong></p>
+              <ol class="guia-steps">
+                <li><strong>Seña:</strong> primer pago del cliente. Al registrarlo podés cambiar el Estado de la fecha a <em>Reservada</em>.</li>
+                <li><strong>Cuota:</strong> tildar las cuotas del plan que cubre ese pago → se marcan como pagadas.</li>
+                <li><strong>Saldo final / Otro:</strong> solo registra el cobro, no toca el plan.</li>
+                <li>La <strong>fecha del cobro es libre</strong> — podés poner cualquier fecha del pasado para cargar pagos históricos. Por defecto sale hoy.</li>
+              </ol>
+            </div>
+          </details>
+
           <div id="cuotas-content"></div>
           <form id="pago-form" class="inline-form" style="margin-top:0;padding-top:16px;border-top:1px solid var(--border-light)">
             <input type="hidden" id="pago-id-cliente">
