@@ -64,10 +64,7 @@
         <a href="#" class="nav-item" data-view="clientes">
           <span class="nav-icon">👥</span> Clientes
         </a>
-        <a href="#" class="nav-item admin-only" data-view="ingresos">
-          <span class="nav-icon">💰</span> Ingresos
-        </a>
-        <a href="#" class="nav-item admin-only" data-view="historico">
+<a href="#" class="nav-item admin-only" data-view="historico">
           <span class="nav-icon">📦</span> Carga histórica
         </a>
         <a href="#" class="nav-item admin-only" data-view="timing-global">
@@ -383,50 +380,6 @@
         </form>
       </section>
 
-      <!-- VISTA: INGRESOS (solo admin) -->
-      <section id="view-ingresos" class="view hidden">
-        <div class="view-header">
-          <h2>Ingresos</h2>
-          <div class="header-actions">
-            <input type="text" id="ingresos-search" class="search-input" placeholder="Buscar por cliente...">
-            <select id="ingresos-filter-tipo" class="filter-select">
-              <option value="">Todos los tipos</option>
-              <option>Seña</option>
-              <option>Cuota</option>
-              <option>Saldo final</option>
-              <option>Ajuste por inflación</option>
-            </select>
-            <select id="ingresos-filter-forma" class="filter-select">
-              <option value="">Todas las formas</option>
-              <option>Efectivo</option>
-              <option>Transferencia</option>
-              <option>Cheque</option>
-              <option>Mercado Pago</option>
-            </select>
-          </div>
-        </div>
-        <div id="ingresos-loading" class="loading-msg">Cargando ingresos...</div>
-        <div id="ingresos-error" class="error-msg hidden"></div>
-
-        <div id="ingresos-content" class="hidden">
-          <div id="ingresos-stats" class="stats-row"></div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Tipo</th>
-                  <th>Monto</th>
-                  <th>Fecha</th>
-                  <th>Forma de pago</th>
-                  <th>Notas</th>
-                </tr>
-              </thead>
-              <tbody id="ingresos-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
 
       <!-- VISTA: CALENDARIO -->
       <section id="view-calendario" class="view hidden">

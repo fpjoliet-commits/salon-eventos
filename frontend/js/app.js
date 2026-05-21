@@ -5,7 +5,6 @@ const API = '/api';
 let currentUser = null;
 let token = null;
 let allClientes = [];
-let allIngresos = [];
 let allPersonas = [];
 let currentClienteModal = null;
 let currentRestricciones = [];
@@ -202,8 +201,7 @@ function navigateTo(view) {
   if (navItem) navItem.classList.add('active');
   if (section) { section.classList.remove('hidden'); section.classList.add('active'); }
 
-  if (view === 'ingresos' && isAdmin()) loadIngresos();
-  if (view === 'calendario') loadCalendario();
+if (view === 'calendario') loadCalendario();
   if (view === 'nuevo-cliente' && !$('edit-row-index').value) resetNuevoClienteForm();
   if (view === 'timing-global') initTimingGlobal();
   if (view === 'propuesta') initPropuesta();
@@ -968,80 +966,6 @@ $('btn-toggle-historial').addEventListener('click', () => {
   hist.style.display = isHidden ? '' : 'none';
   $('btn-toggle-historial').textContent = isHidden ? 'Ocultar historial' : 'Mostrar historial';
 });
-
-/* ===================== INGRESOS (admin) ===================== */
-async function loadIngresos() {
-  $('ingresos-loading').style.display = 'block';
-  hide('ingresos-content');
-  hide('ingresos-error');
-  try {
-    allIngresos = await apiFetch('/ingresos');
-    applyIngresosFilters();
-  } catch (e) {
-    $('ingresos-error').textContent = e.message;
-    show('ingresos-error');
-  } finally {
-    $('ingresos-loading').style.display = 'none';
-  }
-}
-
-function applyIngresosFilters() {
-  const search = $('ingresos-search')?.value.toLowerCase() || '';
-  const tipo = $('ingresos-filter-tipo')?.value || '';
-  const forma = $('ingresos-filter-forma')?.value || '';
-  const clienteMap = {};
-  allClientes.forEach(c => { clienteMap[c.id] = c.apellidoNombre; });
-
-  const filtrados = allIngresos.filter(i => {
-    const nombre = (clienteMap[i.idCliente] || '').toLowerCase();
-    const matchSearch = !search || nombre.includes(search);
-    const matchTipo = !tipo || (i.tipoIngreso || '').startsWith(tipo === 'Cuota' ? 'Cuota' : tipo);
-    const matchForma = !forma || i.formaPago === forma;
-    return matchSearch && matchTipo && matchForma;
-  });
-
-  renderIngresos(filtrados, clienteMap);
-}
-
-function renderIngresos(ingresos, clienteMap) {
-  if (!clienteMap) {
-    clienteMap = {};
-    allClientes.forEach(c => { clienteMap[c.id] = c.apellidoNombre; });
-  }
-  const total = ingresos.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
-  const totalEfectivo = ingresos.filter(i => i.formaPago === 'Efectivo').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
-  const totalTransferencia = ingresos.filter(i => i.formaPago === 'Transferencia').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
-  $('ingresos-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total filtrado</div><div class="stat-value verde">${formatMoney(total)}</div></div>
-    <div class="stat-card"><div class="stat-label">Efectivo</div><div class="stat-value">${formatMoney(totalEfectivo)}</div></div>
-    <div class="stat-card"><div class="stat-label">Transferencia</div><div class="stat-value">${formatMoney(totalTransferencia)}</div></div>
-    <div class="stat-card"><div class="stat-label">Registros</div><div class="stat-value">${ingresos.length}</div></div>
-    <div class="stat-card"><div class="stat-label">Total general</div><div class="stat-value">${formatMoney(allIngresos.reduce((s,i)=>s+(parseFloat(i.monto)||0),0))}</div></div>
-  `;
-
-  const tbody = $('ingresos-tbody');
-  tbody.innerHTML = ingresos.slice().reverse().map(i => `
-    <tr style="cursor:pointer" onclick="openClienteModalById('${i.idCliente}')">
-      <td><strong>${clienteMap[i.idCliente] || i.idCliente}</strong></td>
-      <td>${i.tipoIngreso}</td>
-      <td><strong>${formatMoney(i.monto)}</strong></td>
-      <td>${formatDate(i.fecha)}</td>
-      <td>${i.formaPago || '—'}</td>
-      <td>${i.notas || '—'}</td>
-    </tr>
-  `).join('');
-
-  show('ingresos-content');
-}
-
-window.openClienteModalById = (id) => {
-  const c = allClientes.find(cl => cl.id === id);
-  if (c) openClienteModal(c, 'pagos');
-};
-
-$('ingresos-search')?.addEventListener('input', applyIngresosFilters);
-$('ingresos-filter-tipo')?.addEventListener('change', applyIngresosFilters);
-$('ingresos-filter-forma')?.addEventListener('change', applyIngresosFilters);
 
 /* ===================== CALENDARIO ===================== */
 function loadCalendario() {

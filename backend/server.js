@@ -105,26 +105,6 @@ app.delete('/api/clientes/:rowIndex', auth, adminOnly, async (req, res) => {
   }
 });
 
-// Ingresos — solo admin (Fabio)
-app.get('/api/ingresos', auth, adminOnly, async (req, res) => {
-  try {
-    const ingresos = await sheets.getIngresos();
-    res.json(ingresos);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.get('/api/ingresos/cliente/:idCliente', auth, adminOnly, async (req, res) => {
-  try {
-    const todos = await sheets.getIngresos();
-    const filtrados = todos.filter(i => i.idCliente === req.params.idCliente);
-    res.json(filtrados);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 app.post('/api/ingresos', auth, async (req, res) => {
   try {
     const ingreso = await sheets.addIngreso(req.body);
