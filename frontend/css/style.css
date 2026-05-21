@@ -1355,7 +1355,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   align-items: center;
   flex-wrap: wrap;
 }
-.tim-add-row input[type="time"] { width: 120px; }
+.tim-add-row .tim-picker-wrap { flex-shrink: 0; }
 .tim-add-row input[type="text"] { flex: 1; min-width: 180px; }
 
 .tim-actividad-wrap { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; }
@@ -1370,6 +1370,12 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 
 .tim-edit-hora { width: 110px; }
+.tim-picker-wrap { display: inline-flex; align-items: center; gap: 3px; }
+.tim-pick-h,
+.tim-pick-m { width: 54px; padding: 5px 4px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-weight: 600; background: var(--surface); color: var(--primary); cursor: pointer; text-align: center; appearance: none; -webkit-appearance: none; }
+.tim-pick-h:focus,
+.tim-pick-m:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+.tim-pick-sep { font-size: 16px; font-weight: 700; color: var(--text-muted); line-height: 1; }
 .tim-edit-act { flex: 1; }
 
 /* Sub-tabs Timing */
@@ -1399,7 +1405,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .tim-desc { font-size: 12px; color: var(--text-muted); font-style: italic; }
 .tim-add-form { display: flex; flex-direction: column; gap: 8px; }
 .tim-add-row1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.tim-add-row1 input[type="time"] { width: 120px; }
+.tim-add-row1 .tim-picker-wrap { flex-shrink: 0; }
 .tim-add-row2 { display: flex; gap: 8px; align-items: center; }
 .tim-desc-input { flex: 1; font-size: 13px; }
 .tim-edit-desc { width: 100%; margin-top: 4px; }
@@ -1420,7 +1426,8 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .coc-section { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
 .coc-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .coc-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold); }
-.coc-hora { font-size: 15px; font-weight: 700; color: var(--primary); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; background: var(--surface); width: 112px; }
+.coc-section-header .tim-pick-h,
+.coc-section-header .tim-pick-m { font-size: 15px; font-weight: 700; color: var(--primary); }
 .coc-group { margin-bottom: 10px; }
 .coc-group-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
 .coc-checks { display: flex; flex-wrap: wrap; gap: 6px; }

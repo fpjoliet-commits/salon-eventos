@@ -643,16 +643,14 @@ function cargarEventosAnteriores(cliente) {
 }
 
 function abrirNuevoEventoParaPersona(clienteBase) {
-  const form = $('cliente-form');
-  form.reset();
+  // navigateTo primero para que resetNuevoClienteForm() corra antes del pre-fill
+  navigateTo('nuevo-cliente');
 
-  // Setear hidden inputs DESPUÉS del reset para que no los borre
-  $('edit-row-index').value = '';
-  $('edit-cliente-id').value = '';
+  const form = $('cliente-form');
+
   $('edit-persona-id').value = clienteBase.personaId || '';
   $('edit-persona-row-index').value = clienteBase.personaRowIndex || '';
 
-  // Pre-fill datos de persona (solo lectura semántica, el usuario puede cambiarlos)
   const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
   setVal('apellidoNombre', clienteBase.apellidoNombre);
   setVal('telefono', clienteBase.telefono);
@@ -661,7 +659,6 @@ function abrirNuevoEventoParaPersona(clienteBase) {
   setVal('origen', clienteBase.origen);
   setVal('tipoCliente', 'Excliente');
 
-  // Mostrar card de persona seleccionada
   const card = $('persona-seleccionada-card');
   if (card) {
     card.innerHTML = `<div class="persona-card-inner">
@@ -671,13 +668,11 @@ function abrirNuevoEventoParaPersona(clienteBase) {
     card.classList.remove('hidden');
   }
   hide('persona-search-section');
-  // No mostramos sección de búsqueda porque ya tenemos la persona
 
   $('form-titulo').textContent = 'Nuevo evento — ' + (clienteBase.apellidoNombre || 'mismo cliente');
   $('tipo-cliente-select').dispatchEvent(new Event('change'));
   $('presupuesto-select').dispatchEvent(new Event('change'));
   actualizarCampoAgasajado();
-  navigateTo('nuevo-cliente');
 }
 
 function renderClienteDetail(c) {
