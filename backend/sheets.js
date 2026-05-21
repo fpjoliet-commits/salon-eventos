@@ -166,9 +166,9 @@ async function addPersona(data) {
     range: 'Personas!A:A',
   });
   const nextRow = (colA.data.values || []).length + 1;
-  await sheets.spreadsheets.values.append({
+  await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Personas!A:K',
+    range: `Personas!A${nextRow}:K${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [personaToRow(persona)] },
   });
@@ -280,9 +280,9 @@ async function addCliente(data) {
     range: 'Eventos!A:A',
   });
   const nextRow = (colA.data.values || []).length + 1;
-  await sheets.spreadsheets.values.append({
+  await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Eventos!A:W',
+    range: `Eventos!A${nextRow}:W${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [eventoToRow(evento)] },
   });
