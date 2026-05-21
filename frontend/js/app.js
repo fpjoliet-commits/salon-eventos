@@ -588,14 +588,20 @@ $('btn-eliminar-cliente')?.addEventListener('click', async () => {
   } catch (err) { alert('Error al eliminar: ' + err.message); }
 });
 
-async function _saveSegDate(fecha) {
+async function _saveSegDate(fecha, nuevoEstado) {
   const c = currentClienteModal;
   if (!c) return;
   try {
-    await apiFetch(`/clientes/${c.rowIndex}`, { method: 'PUT', body: { ...c, proximoSeguimiento: fecha } });
+    const body = { ...c, proximoSeguimiento: fecha };
+    if (nuevoEstado) body.estado = nuevoEstado;
+    await apiFetch(`/clientes/${c.rowIndex}`, { method: 'PUT', body });
     c.proximoSeguimiento = fecha;
+    if (nuevoEstado) c.estado = nuevoEstado;
     const idx = allClientes.findIndex(x => x.id === c.id);
-    if (idx !== -1) allClientes[idx].proximoSeguimiento = fecha;
+    if (idx !== -1) {
+      allClientes[idx].proximoSeguimiento = fecha;
+      if (nuevoEstado) allClientes[idx].estado = nuevoEstado;
+    }
     renderClienteDetail(c);
     renderSeguimientosPanel();
   } catch (err) { alert('Error al guardar: ' + err.message); }
@@ -603,7 +609,11 @@ async function _saveSegDate(fecha) {
 
 window.guardarProximoSeguimiento = async function() {
   const fecha = $('modal-seg-date')?.value || '';
-  await _saveSegDate(fecha);
+  const tipo = $('modal-seg-tipo')?.value;
+  const c = currentClienteModal;
+  let nuevoEstado;
+  if (tipo === 'visita' && c && c.estado === 'Consulta') nuevoEstado = 'Visita agendada';
+  await _saveSegDate(fecha, nuevoEstado);
 };
 
 window.limpiarProximoSeguimiento = async function() {
@@ -717,9 +727,16 @@ function renderClienteDetail(c) {
   // Panel de seguimiento (siempre interno, fuera del grid principal)
   const segPanel = $('modal-seg-panel');
   if (segPanel) {
+    const esCobro = ESTADOS_COBRO.includes(c.estado);
+    const tipoSelect = esCobro ? '' : `
+      <select id="modal-seg-tipo" class="seg-tipo-select">
+        <option value="seguimiento"${c.estado !== 'Visita agendada' ? ' selected' : ''}>📞 Llamada / contacto</option>
+        <option value="visita"${c.estado === 'Visita agendada' ? ' selected' : ''}>🤝 Visita al salón</option>
+      </select>`;
     segPanel.innerHTML = `
-      <span class="detail-label">${ESTADOS_COBRO.includes(c.estado) ? 'Próxima visita de cobro' : 'Próx. seguimiento'}</span>
+      <span class="detail-label">${esCobro ? 'Próxima visita de cobro' : 'Próx. seguimiento'}</span>
       <span class="detail-value modal-seg-editor">
+        ${tipoSelect}
         <input type="date" id="modal-seg-date" value="${c.proximoSeguimiento || ''}" class="${seguimientoClass(c.proximoSeguimiento)}">
         <button class="btn btn-secondary btn-sm" onclick="guardarProximoSeguimiento()">Guardar</button>
         ${c.proximoSeguimiento ? `<button class="btn btn-secondary btn-sm" onclick="limpiarProximoSeguimiento()">Borrar</button>` : ''}
@@ -1085,9 +1102,11 @@ function renderCalendario() {
       }).join('')}
       ${segs.map(c => {
         const esCobro = ESTADOS_COBRO.includes(c.estado);
-        const icono = esCobro ? '💰' : '📅';
-        const cls = esCobro ? 'cal-pill-seg-cobro' : 'cal-pill-seg-visita';
-        return `<div class="cal-pill cal-pill-seg ${cls}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${esCobro ? 'Cobro' : 'Visita'}: ${c.apellidoNombre}">
+        const esVisita = c.estado === 'Visita agendada';
+        const icono = esCobro ? '💰' : (esVisita ? '🤝' : '📞');
+        const cls = esCobro ? 'cal-pill-seg-cobro' : (esVisita ? 'cal-pill-seg-visita' : 'cal-pill-seg-llamada');
+        const titulo = esCobro ? 'Cobro' : (esVisita ? 'Visita' : 'Seguimiento');
+        return `<div class="cal-pill cal-pill-seg ${cls}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${titulo}: ${c.apellidoNombre}">
           <div class="cal-pill-nombre">${icono} ${c.apellidoNombre}</div>
         </div>`;
       }).join('')}
@@ -1392,9 +1411,9 @@ $('cliente-form').addEventListener('submit', async e => {
     }
     const duplicadoGmail = allPersonas.find(p => p.gmail && p.gmail.toLowerCase() === gmail);
     if (duplicadoGmail) {
-      $('form-error').textContent = `Ya existe un cliente con ese Gmail: "${duplicadoGmail.apellidoNombre}". Buscalo en el campo de búsqueda de arriba ("¿Es un cliente que ya consultó antes?") para cargarle un nuevo evento.`;
-      show('form-error');
-      return;
+      const ok = confirm(`"${duplicadoGmail.apellidoNombre}" ya está registrado con ese Gmail.\n¿Crear un nuevo evento para esa persona?`);
+      if (!ok) return;
+      seleccionarPersonaExistente(duplicadoGmail.id);
     }
 
     // Validar: teléfono duplicado (advertencia, no bloqueo)
