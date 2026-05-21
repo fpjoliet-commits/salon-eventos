@@ -73,6 +73,9 @@
         <a href="#" class="nav-item admin-only" data-view="timing-global">
           <span class="nav-icon">⏱</span> Timing Planner
         </a>
+        <a href="#" class="nav-item" data-view="propuesta">
+          <span class="nav-icon">📋</span> Propuesta
+        </a>
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
@@ -570,6 +573,7 @@
           <div id="modal-seg-panel" class="modal-seg-panel internal-field" data-internal></div>
           <div class="modal-actions">
             <button id="btn-editar-cliente" class="btn btn-primary">Editar</button>
+            <button id="btn-propuesta-modal" class="btn btn-secondary" title="Crear propuesta comercial para este cliente">📋 Propuesta</button>
             <button id="btn-ver-timing" class="btn btn-secondary admin-only-btn hidden" title="Abrir el Timing Planner para este evento">⏱ Timing</button>
             <button id="btn-nuevo-evento" class="btn btn-secondary admin-only-btn hidden" title="Crear un nuevo evento para esta misma persona">➕ Nuevo evento</button>
             <button id="btn-eliminar-cliente" class="btn btn-danger admin-only-btn hidden" title="Eliminar este evento">🗑 Eliminar</button>
@@ -706,6 +710,328 @@
       </div>
     </div>
   </div>
+
+  <!-- VISTA: PROPUESTA COMERCIAL -->
+  <section id="view-propuesta" class="view hidden">
+    <div class="propuesta-kiosco">
+
+      <!-- Barra superior: progreso + cerrar -->
+      <div class="propuesta-top">
+        <div class="propuesta-progress-wrap">
+          <div class="propuesta-progress-bar" id="propuesta-progress-bar"></div>
+        </div>
+        <button class="propuesta-close-btn" id="propuesta-close-btn">✕ Salir</button>
+      </div>
+
+      <!-- Pre-slide: datos de contacto antes de arrancar -->
+      <div id="propuesta-preform" class="propuesta-preform hidden">
+        <div class="preform-content">
+          <h2 class="preform-title">¿Con quién armamos esto?</h2>
+          <p class="preform-sub">Un par de datos para personalizar la propuesta</p>
+          <div class="preform-fields">
+            <input type="text" id="prop-contacto-nombre" placeholder="Nombre" class="propuesta-input preform-input">
+            <input type="tel" id="prop-contacto-telefono" placeholder="Teléfono" class="propuesta-input preform-input">
+          </div>
+          <div class="preform-or">— o elegí un cliente existente —</div>
+          <select id="prop-cliente-existente" class="propuesta-input preform-select">
+            <option value="">Buscar cliente existente...</option>
+          </select>
+          <button class="btn-propuesta-primary" id="btn-preform-comenzar">Comenzar propuesta →</button>
+        </div>
+      </div>
+
+      <!-- Slides -->
+      <div class="propuesta-slides-container">
+
+        <!-- Slide 1: Portada -->
+        <div class="propuesta-slide propuesta-slide-portada" data-slide="1">
+          <div class="portada-photo" style="background-image:url('img/propuesta/portada.jpeg')"></div>
+          <div class="portada-overlay"></div>
+          <div class="portada-content">
+            <img src="img/logo.png" alt="Joliet Eventos" class="propuesta-logo-img" onerror="this.style.display='none'">
+            <h1 class="propuesta-main-title">La noche que<br>van a recordar siempre</h1>
+            <p class="propuesta-subtitle">Contanos cómo la imaginás</p>
+            <button class="btn-propuesta-primary" id="btn-prop-comenzar">Comenzar →</button>
+          </div>
+        </div>
+
+        <!-- Slide 2: Estilo — FORK Formal / Americano -->
+        <div class="propuesta-slide" data-slide="2">
+          <h2 class="propuesta-slide-title">¿Cómo lo imaginás?</h2>
+          <div class="estilo-fork-grid" id="estilo-cards">
+            <div class="estilo-fork-card estilo-formal" data-estilo="Formal">
+              <div class="fork-photo" style="background-image:url('img/propuesta/estilo-formal.jpg')"></div>
+              <div class="fork-overlay"></div>
+              <div class="fork-content">
+                <div class="fork-tag">La experiencia completa</div>
+                <div class="fork-title">Formal</div>
+                <div class="fork-desc">Servicio a la mesa, cada momento en su lugar, una noche que se siente diferente</div>
+                <div class="fork-steps">8 momentos</div>
+              </div>
+              <div class="fork-check">✓</div>
+            </div>
+            <div class="estilo-fork-card estilo-americano" data-estilo="Americano">
+              <div class="fork-photo" style="background-image:url('img/propuesta/estilo-americano.jpg')"></div>
+              <div class="fork-overlay"></div>
+              <div class="fork-content">
+                <div class="fork-tag">Libre y festivo</div>
+                <div class="fork-title">Americano</div>
+                <div class="fork-desc">Islas en vivo, movimiento, todos disfrutando a su ritmo desde el primer momento</div>
+                <div class="fork-steps">6 momentos</div>
+              </div>
+              <div class="fork-check">✓</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 3: Qué festejamos -->
+        <div class="propuesta-slide" data-slide="3">
+          <h2 class="propuesta-slide-title">¿Qué festejamos?</h2>
+          <div class="propuesta-cards-grid" id="evento-cards">
+            <div class="propuesta-card" data-value="Boda">💍 Boda</div>
+            <div class="propuesta-card" data-value="XV años">✨ XV años</div>
+            <div class="propuesta-card" data-value="Cumpleaños">🎂 Cumpleaños</div>
+            <div class="propuesta-card" data-value="Bautismo">🕊 Bautismo</div>
+            <div class="propuesta-card" data-value="Comunión">🌿 Comunión</div>
+            <div class="propuesta-card" data-value="Egresados">🎓 Egresados</div>
+            <div class="propuesta-card" data-value="Corporativo">🏢 Corporativo</div>
+            <div class="propuesta-card" data-value="Otro">✦ Otro</div>
+          </div>
+          <div class="propuesta-field-row" id="agasajado-row" style="display:none">
+            <label>¿A quién festejamos?</label>
+            <input type="text" id="prop-agasajado" placeholder="Nombre..." class="propuesta-input">
+          </div>
+        </div>
+
+        <!-- Slide 4: La fecha -->
+        <div class="propuesta-slide" data-slide="4">
+          <h2 class="propuesta-slide-title">¿Cuándo es?</h2>
+          <div class="propuesta-field-group">
+            <div class="propuesta-field-big">
+              <label>La fecha</label>
+              <input type="date" id="prop-fecha" class="propuesta-input propuesta-input-big">
+            </div>
+            <div class="propuesta-field-big">
+              <label>El turno</label>
+              <div class="propuesta-cards-row" id="turno-cards">
+                <div class="propuesta-card" data-value="Almuerzo">🌞 Almuerzo</div>
+                <div class="propuesta-card" data-value="Tarde">🌅 Tarde</div>
+                <div class="propuesta-card" data-value="Noche">🌙 Noche</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 5: Invitados -->
+        <div class="propuesta-slide" data-slide="5">
+          <h2 class="propuesta-slide-title">¿Cuántos van a ser?</h2>
+          <div class="propuesta-counter">
+            <button class="counter-btn" id="counter-minus">−</button>
+            <div class="counter-display" id="prop-invitados-display">100</div>
+            <button class="counter-btn" id="counter-plus">+</button>
+          </div>
+          <input type="hidden" id="prop-invitados" value="100">
+          <div class="propuesta-counter-hint">invitados</div>
+          <div class="propuesta-checkbox-row">
+            <label class="propuesta-checkbox-label">
+              <input type="checkbox" id="prop-menu-infantil">
+              <span>¿Habrá menú infantil?</span>
+            </label>
+            <div class="propuesta-field-row" id="infantil-count-row" style="display:none">
+              <label>¿Cuántos niños aproximadamente?</label>
+              <input type="number" id="prop-infantil-cant" min="1" placeholder="ej: 15" class="propuesta-input">
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 6: El espacio -->
+        <div class="propuesta-slide" data-slide="6">
+          <h2 class="propuesta-slide-title">¿Dónde los recibimos?</h2>
+          <div class="espacio-fork-grid" id="espacio-cards">
+            <div class="propuesta-card espacio-card" data-value="Interior">
+              <div class="espacio-photo" style="background-image:url('img/propuesta/fiesta.jpeg')"></div>
+              <span class="espacio-label">Salón interior</span>
+              <span class="espacio-sub">Luces, bolas de espejo, ambiente único</span>
+            </div>
+            <div class="propuesta-card espacio-card" data-value="Jardín">
+              <div class="espacio-photo" style="background-image:url('img/propuesta/jardin.jpeg')"></div>
+              <span class="espacio-label">Jardín</span>
+              <span class="espacio-sub">Al aire libre, noche estrellada</span>
+            </div>
+            <div class="propuesta-card espacio-card" data-value="Combinado">
+              <div class="espacio-photo" style="background-image:url('img/propuesta/portada.jpeg');background-position:center 60%"></div>
+              <span class="espacio-label">Combinado</span>
+              <span class="espacio-sub">Interior y jardín, lo mejor de los dos</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 7: El recorrido de tu noche -->
+        <div class="propuesta-slide" data-slide="7">
+          <h2 class="propuesta-slide-title">Así va a vivirse esa noche</h2>
+          <div id="recorrido-container" class="recorrido-grid"></div>
+          <div class="incluido-section">
+            <div class="incluido-section-title">La experiencia Joliet</div>
+            <div class="incluido-grid">
+              <div class="incluido-item">
+                <span class="inc-ico">🥂</span>
+                <span class="inc-name">La mesa que sorprende</span>
+                <span class="inc-detail">Porcelana filete dorado · Plato de sitio · Cubertería PATRY</span>
+              </div>
+              <div class="incluido-item">
+                <span class="inc-ico">🌸</span>
+                <span class="inc-name">El escenario que imaginaste</span>
+                <span class="inc-detail">Mantelería a elección · Centro de mesa incluido o personalizado</span>
+              </div>
+              <div class="incluido-item">
+                <span class="inc-ico">🤵</span>
+                <span class="inc-name">Un equipo para vos</span>
+                <span class="inc-detail">Maître · Mozos · Chef · Barman · Coordinadora general</span>
+              </div>
+              <div class="incluido-item">
+                <span class="inc-ico">🍷</span>
+                <span class="inc-name">Bebidas de cena</span>
+                <span class="inc-detail">Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne</span>
+              </div>
+              <div class="incluido-item">
+                <span class="inc-ico">🍸</span>
+                <span class="inc-name">Bar de tragos</span>
+                <span class="inc-detail">Para la recepción o toda la noche — ¡Consultá opciones!</span>
+              </div>
+              <div class="incluido-item">
+                <span class="inc-ico">✦</span>
+                <span class="inc-name">Cada detalle pensado</span>
+                <span class="inc-detail">Iluminación de diseño · Cristalería · Provisiones · Nada falta</span>
+              </div>
+            </div>
+            <div class="incluido-disclaimer">* Los licores durante la cena no están incluidos en el precio base</div>
+          </div>
+        </div>
+
+        <!-- Slide 8: Adicionales -->
+        <div class="propuesta-slide" data-slide="8">
+          <h2 class="propuesta-slide-title">Hacelo único</h2>
+          <p class="propuesta-slide-sub">Sumá lo que lo hace tuyo</p>
+          <div class="adicionales-grid">
+            <label class="adicional-card">
+              <input type="checkbox" value="Candy Bar">
+              <div class="adicional-inner">
+                <span class="adicional-ico">🍭</span>
+                <span class="adicional-name">Candy Bar</span>
+                <span class="adicional-desc">Para los que no pueden parar</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card has-photo">
+              <input type="checkbox" value="Shows">
+              <div class="adicional-photo" style="background-image:url('img/propuesta/shows.jpg')"></div>
+              <div class="adicional-inner adicional-overlay">
+                <span class="adicional-name">Shows</span>
+                <span class="adicional-desc">El momento que nadie se espera</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card">
+              <input type="checkbox" value="Cabina de Instagram">
+              <div class="adicional-inner">
+                <span class="adicional-ico">🪩</span>
+                <span class="adicional-name">Cabina de Instagram</span>
+                <span class="adicional-desc">El rincón que todos van a querer</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card">
+              <input type="checkbox" value="Cabina de Glitter">
+              <div class="adicional-inner">
+                <span class="adicional-ico">✨</span>
+                <span class="adicional-name">Cabina de Glitter</span>
+                <span class="adicional-desc">Brillá toda la noche</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card">
+              <input type="checkbox" value="Cabina de Fotos">
+              <div class="adicional-inner">
+                <span class="adicional-ico">📸</span>
+                <span class="adicional-name">Cabina de Fotos</span>
+                <span class="adicional-desc">El recuerdo que se llevan a casa</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card">
+              <input type="checkbox" value="Robot de Luces">
+              <div class="adicional-inner">
+                <span class="adicional-ico">🤖</span>
+                <span class="adicional-name">Robot de Luces</span>
+                <span class="adicional-desc">Un espectáculo que se mueve entre la gente</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card">
+              <input type="checkbox" value="Mesa Dulce Mini Cakes">
+              <div class="adicional-inner">
+                <span class="adicional-ico">🧁</span>
+                <span class="adicional-name">Mesa Dulce</span>
+                <span class="adicional-desc">Mini cakes únicos, a medida</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card">
+              <input type="checkbox" value="Cotillón Premium">
+              <div class="adicional-inner">
+                <span class="adicional-ico">🎊</span>
+                <span class="adicional-name">Cotillón Premium</span>
+                <span class="adicional-desc">Para que todos sean parte</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+            <label class="adicional-card has-photo">
+              <input type="checkbox" value="Cotillón Personalizado">
+              <div class="adicional-photo" style="background-image:url('img/propuesta/cotilon-personalizado.jpg')"></div>
+              <div class="adicional-inner adicional-overlay">
+                <span class="adicional-name">Cotillón Personalizado</span>
+                <span class="adicional-desc">Con tu nombre, tu color, tu noche</span>
+              </div>
+              <div class="adicional-check">✓</div>
+            </label>
+          </div>
+          <div class="foto-promo">📷 Fotógrafos y camarógrafos de nuestra cartera — consultanos</div>
+        </div>
+
+        <!-- Slide 9: Algo más -->
+        <div class="propuesta-slide" data-slide="9">
+          <h2 class="propuesta-slide-title">¿Algo más?</h2>
+          <p class="propuesta-slide-sub">Ideas, detalles, pedidos especiales</p>
+          <textarea id="prop-pedidos" class="propuesta-textarea" placeholder="Escribí acá..."></textarea>
+        </div>
+
+        <!-- Slide 10: Tu propuesta -->
+        <div class="propuesta-slide" data-slide="10">
+          <h2 class="propuesta-slide-title">¡Tu propuesta está lista!</h2>
+          <div class="propuesta-resumen" id="propuesta-resumen"></div>
+          <div class="propuesta-cta">
+            <button class="btn-propuesta-primary" id="btn-descargar-pdf">⬇ Descargar propuesta</button>
+          </div>
+          <div id="prop-guardar-wrap" style="margin-top:10px;text-align:center;">
+            <button class="btn-propuesta-secondary" id="btn-guardar-cliente-propuesta">💾 Guardar como cliente</button>
+            <div id="prop-guardar-status" style="display:none;font-size:13px;color:var(--gold);margin-top:8px;"></div>
+          </div>
+        </div>
+
+      </div><!-- /.propuesta-slides-container -->
+
+      <!-- Navegación inferior -->
+      <div class="propuesta-nav">
+        <button class="btn-propuesta-nav" id="btn-prop-prev" disabled>◀ Anterior</button>
+        <div class="propuesta-step-dots" id="propuesta-step-dots"></div>
+        <button class="btn-propuesta-nav" id="btn-prop-next">Siguiente ▶</button>
+      </div>
+
+    </div><!-- /.propuesta-kiosco -->
+  </section>
+
+  <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
+  <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
   <script src="js/app.js"></script>
 </body>

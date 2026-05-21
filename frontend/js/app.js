@@ -206,6 +206,7 @@ function navigateTo(view) {
   if (view === 'calendario') loadCalendario();
   if (view === 'nuevo-cliente' && !$('edit-row-index').value) resetNuevoClienteForm();
   if (view === 'timing-global') initTimingGlobal();
+  if (view === 'propuesta') initPropuesta();
 }
 
 /* ===================== TIMING PLANNER GLOBAL ===================== */
@@ -3063,6 +3064,513 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
   win.document.write(html);
   win.document.close();
 }
+
+/* ===================== PROPUESTA COMERCIAL ===================== */
+
+const RECORRIDO = {
+  Formal: [
+    { nombre: 'Recepción',           desc: 'Cocktails y bocados de bienvenida en el jardín' },
+    { nombre: 'Islas gastronómicas', desc: 'Estaciones en vivo mientras todos ingresan al salón' },
+    { nombre: 'Primer plato',        desc: 'Pastas artesanales servidas a la mesa' },
+    { nombre: 'Plato central',       desc: 'Cortes de carne y ave con guarnición' },
+    { nombre: 'Torta homenaje',      desc: 'El momento del brindis y el agasajo' },
+    { nombre: 'Mesa de dulces',      desc: 'Pastelería fina sobre mesa principal iluminada' },
+    { nombre: 'Cafetería',           desc: 'Café, té e infusiones para cerrar con calma' },
+    { nombre: 'Fin de fiesta',       desc: 'Café, pizza, mate — el cierre a su gusto' },
+  ],
+  Americano: [
+    { nombre: 'Recepción',           desc: 'Cocktails, canapés y bocados calientes en el jardín' },
+    { nombre: 'Islas gastronómicas', desc: 'Dos estaciones temáticas en vivo, a elección del anfitrión' },
+    { nombre: 'Torta homenaje',      desc: 'El momento del brindis y el agasajo' },
+    { nombre: 'Postres',             desc: 'Dulces de elaboración propia para seguir disfrutando' },
+    { nombre: 'Cafetería',           desc: 'Café, té e infusiones para cerrar con calma' },
+    { nombre: 'Fin de fiesta',       desc: 'Café, pizza, mate — el cierre a su gusto' },
+  ]
+};
+
+const propuestaState = {
+  current: 1,
+  total: 10,
+  data: {
+    nombre: '', telefono: '', clienteId: null,
+    estilo: '', tipoEvento: '', agasajado: '', fecha: '', turno: '',
+    invitados: 100, menuInfantil: false, infantilCant: '',
+    espacio: '', adicionales: [], pedidos: ''
+  }
+};
+
+function initPropuesta() {
+  const d = propuestaState.data;
+  propuestaState.current = 1;
+  d.nombre = ''; d.telefono = ''; d.clienteId = null;
+  d.estilo = ''; d.tipoEvento = ''; d.agasajado = ''; d.fecha = ''; d.turno = '';
+  d.invitados = 100; d.menuInfantil = false; d.infantilCant = '';
+  d.espacio = ''; d.adicionales = []; d.pedidos = '';
+
+  document.querySelectorAll('#view-propuesta .propuesta-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.adicionales-grid input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+
+  const set = (id, val) => { const el = $(id); if (el) el.value = val; };
+  set('prop-agasajado', ''); set('prop-fecha', ''); set('prop-infantil-cant', ''); set('prop-pedidos', '');
+  set('prop-contacto-nombre', ''); set('prop-contacto-telefono', '');
+  const clSel = $('prop-cliente-existente'); if (clSel) clSel.value = '';
+  const invDisplay = $('prop-invitados-display'); if (invDisplay) invDisplay.textContent = '100';
+  set('prop-invitados', '100');
+  const miCb = $('prop-menu-infantil'); if (miCb) miCb.checked = false;
+  const infantilRow = $('infantil-count-row'); if (infantilRow) infantilRow.style.display = 'none';
+  const agRow = $('agasajado-row'); if (agRow) agRow.style.display = 'none';
+  const guardarStatus = $('prop-guardar-status'); if (guardarStatus) guardarStatus.style.display = 'none';
+  const guardarBtn = $('btn-guardar-cliente-propuesta');
+  if (guardarBtn) { guardarBtn.disabled = false; guardarBtn.textContent = '💾 Guardar como cliente'; }
+
+  openPropuestaPreForm();
+}
+
+function openPropuestaPreForm() {
+  const sel = $('prop-cliente-existente');
+  if (sel) {
+    sel.innerHTML = '<option value="">Buscar cliente existente...</option>';
+    (allClientes || []).slice()
+      .sort((a, b) => (a.apellidoNombre || '').localeCompare(b.apellidoNombre || ''))
+      .forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.rowIndex;
+        opt.textContent = c.apellidoNombre + (c.tipoEvento ? ` · ${c.tipoEvento}` : '');
+        sel.appendChild(opt);
+      });
+  }
+  showEl($('propuesta-preform'));
+  const slidesEl = document.querySelector('.propuesta-slides-container');
+  const navEl = document.querySelector('.propuesta-nav');
+  if (slidesEl) slidesEl.style.display = 'none';
+  if (navEl) navEl.style.display = 'none';
+}
+
+function startPropuestaSlides() {
+  const clSel = $('prop-cliente-existente');
+  if (clSel && clSel.value) {
+    const rowIdx = parseInt(clSel.value);
+    const cliente = (allClientes || []).find(c => c.rowIndex === rowIdx);
+    if (cliente) { preFillPropuestaFromCliente(cliente); return; }
+  }
+  propuestaState.data.nombre = $('prop-contacto-nombre')?.value?.trim() || '';
+  propuestaState.data.telefono = $('prop-contacto-telefono')?.value?.trim() || '';
+  hideEl($('propuesta-preform'));
+  const slidesEl = document.querySelector('.propuesta-slides-container');
+  const navEl = document.querySelector('.propuesta-nav');
+  if (slidesEl) slidesEl.style.display = '';
+  if (navEl) navEl.style.display = '';
+  buildPropuestaDots();
+  goToPropuestaSlide(1);
+  actualizarBtnGuardar();
+}
+
+function preFillPropuestaFromCliente(cliente) {
+  const d = propuestaState.data;
+  d.clienteId = cliente.id;
+  d.nombre = cliente.apellidoNombre || '';
+  d.telefono = cliente.telefono || '';
+
+  const sinAgasajado = ['Corporativo', 'Otro'];
+  if (cliente.tipoEvento) {
+    d.tipoEvento = cliente.tipoEvento;
+    document.querySelectorAll('#evento-cards .propuesta-card').forEach(c =>
+      c.classList.toggle('selected', c.dataset.value === cliente.tipoEvento));
+    const agRow = $('agasajado-row');
+    if (agRow) agRow.style.display = sinAgasajado.includes(cliente.tipoEvento) ? 'none' : '';
+  }
+  if (cliente.fechaEvento) {
+    d.fecha = cliente.fechaEvento;
+    const fi = $('prop-fecha'); if (fi) fi.value = cliente.fechaEvento;
+  }
+  if (cliente.turno) {
+    d.turno = cliente.turno;
+    document.querySelectorAll('#turno-cards .propuesta-card').forEach(c =>
+      c.classList.toggle('selected', c.dataset.value === cliente.turno));
+  }
+  if (cliente.cantidadInvitados) {
+    const inv = parseInt(cliente.cantidadInvitados) || 100;
+    d.invitados = inv;
+    const ii = $('prop-invitados'); if (ii) ii.value = inv;
+    const id2 = $('prop-invitados-display'); if (id2) id2.textContent = inv;
+  }
+
+  hideEl($('propuesta-preform'));
+  const slidesEl = document.querySelector('.propuesta-slides-container');
+  const navEl = document.querySelector('.propuesta-nav');
+  if (slidesEl) slidesEl.style.display = '';
+  if (navEl) navEl.style.display = '';
+  buildPropuestaDots();
+  goToPropuestaSlide(1);
+  actualizarBtnGuardar();
+}
+
+function startPropuestaFromCliente(cliente) {
+  hideEl($('modal-overlay'));
+  navigateTo('propuesta');
+  setTimeout(() => preFillPropuestaFromCliente(cliente), 60);
+}
+
+function actualizarBtnGuardar() {
+  const btn = $('btn-guardar-cliente-propuesta');
+  if (!btn) return;
+  if (propuestaState.data.clienteId) {
+    btn.textContent = '✓ Ya está en el sistema';
+    btn.disabled = true;
+  } else {
+    btn.textContent = '💾 Guardar como cliente';
+    btn.disabled = false;
+  }
+}
+
+async function guardarClientePropuesta() {
+  readPropuestaData();
+  const d = propuestaState.data;
+  if (d.clienteId) return;
+  const btn = $('btn-guardar-cliente-propuesta');
+  const statusEl = $('prop-guardar-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  try {
+    const nuevo = await apiFetch('/api/clientes', {
+      method: 'POST',
+      body: {
+        apellidoNombre: d.nombre || 'Prospecto sin nombre',
+        telefono: d.telefono || '',
+        tipoEvento: d.tipoEvento || '',
+        fechaEvento: d.fecha || '',
+        turno: d.turno || '',
+        cantidadInvitados: String(d.invitados || ''),
+        estado: 'Consulta',
+        otrosPedidos: d.pedidos || '',
+        formato: d.estilo || '',
+      }
+    });
+    d.clienteId = nuevo.id;
+    if (btn) { btn.textContent = '✓ Guardado en el sistema'; btn.disabled = true; }
+    if (statusEl) { statusEl.textContent = '¡Listo! Ya aparece en el CRM.'; statusEl.style.display = ''; }
+    loadClientes();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar como cliente'; }
+    if (statusEl) { statusEl.textContent = 'Error al guardar. Intentá de nuevo.'; statusEl.style.display = ''; }
+  }
+}
+
+function buildRecorrido() {
+  const estilo = propuestaState.data.estilo || 'Formal';
+  const pasos = RECORRIDO[estilo] || RECORRIDO.Formal;
+  const isFormal = estilo === 'Formal';
+  const container = document.getElementById('recorrido-container');
+  if (!container) return;
+  container.innerHTML = pasos.map((p, i) => `
+    <div class="recorrido-step ${isFormal ? 'recorrido-step-formal' : ''}">
+      <div class="recorrido-num">${i + 1}</div>
+      <div class="recorrido-info">
+        <div class="recorrido-name">${p.nombre}</div>
+        <div class="recorrido-desc">${p.desc}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function buildPropuestaDots() {
+  const container = $('propuesta-step-dots');
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 1; i <= propuestaState.total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'propuesta-dot' + (i === propuestaState.current ? ' active' : '');
+    container.appendChild(dot);
+  }
+}
+
+function updatePropuestaNav() {
+  const pct = ((propuestaState.current - 1) / (propuestaState.total - 1)) * 100;
+  const bar = $('propuesta-progress-bar'); if (bar) bar.style.width = pct + '%';
+
+  document.querySelectorAll('.propuesta-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i + 1 === propuestaState.current);
+  });
+
+  const prev = $('btn-prop-prev'); if (prev) prev.disabled = propuestaState.current === 1;
+  const next = $('btn-prop-next');
+  if (next) next.style.visibility = propuestaState.current === propuestaState.total ? 'hidden' : '';
+}
+
+function goToPropuestaSlide(n) {
+  propuestaState.current = n;
+  document.querySelectorAll('.propuesta-slide').forEach(s => s.classList.remove('active'));
+  const slide = document.querySelector(`.propuesta-slide[data-slide="${n}"]`);
+  if (slide) slide.classList.add('active');
+  const container = document.querySelector('.propuesta-slides-container');
+  if (container) container.scrollTop = 0;
+  updatePropuestaNav();
+  if (n === 7) buildRecorrido();
+  if (n === 10) buildPropuestaResumen();
+}
+
+function readPropuestaData() {
+  const d = propuestaState.data;
+  const g = id => $(id)?.value?.trim() || '';
+  const estiloCard = document.querySelector('#estilo-cards .estilo-fork-card.selected');
+  d.estilo = estiloCard ? estiloCard.dataset.estilo : d.estilo;
+  const eventoCard = document.querySelector('#evento-cards .propuesta-card.selected');
+  d.tipoEvento = eventoCard ? eventoCard.dataset.value : d.tipoEvento;
+  d.agasajado = g('prop-agasajado');
+  d.fecha = g('prop-fecha');
+  const turnoCard = document.querySelector('#turno-cards .propuesta-card.selected');
+  d.turno = turnoCard ? turnoCard.dataset.value : d.turno;
+  d.invitados = parseInt($('prop-invitados')?.value) || 100;
+  d.menuInfantil = !!$('prop-menu-infantil')?.checked;
+  d.infantilCant = g('prop-infantil-cant');
+  const espacioCard = document.querySelector('#espacio-cards .propuesta-card.selected');
+  d.espacio = espacioCard ? espacioCard.dataset.value : d.espacio;
+  d.adicionales = [];
+  document.querySelectorAll('.adicionales-grid input[type="checkbox"]:checked').forEach(cb => d.adicionales.push(cb.value));
+  d.pedidos = $('prop-pedidos')?.value?.trim() || '';
+}
+
+function buildPropuestaResumen() {
+  readPropuestaData();
+  const d = propuestaState.data;
+  const container = $('propuesta-resumen'); if (!container) return;
+  const fechaFmt = d.fecha ? formatDate(d.fecha) : '—';
+  const infantilStr = d.menuInfantil ? `Sí${d.infantilCant ? ` · ${d.infantilCant} niños` : ''}` : 'No';
+  const adicionalesStr = d.adicionales.length ? d.adicionales.join(' · ') : '—';
+
+  container.innerHTML = `
+    ${d.nombre ? `<div class="resumen-nombre">${esc(d.nombre)}</div>` : ''}
+    <div class="resumen-item">
+      <div class="resumen-label">Estilo</div>
+      <div class="resumen-value gold">${esc(d.estilo) || '—'}</div>
+    </div>
+    <div class="resumen-item">
+      <div class="resumen-label">Evento</div>
+      <div class="resumen-value">${esc(d.tipoEvento) || '—'}${d.agasajado ? ' · ' + esc(d.agasajado) : ''}</div>
+    </div>
+    <div class="resumen-item">
+      <div class="resumen-label">Fecha</div>
+      <div class="resumen-value">${fechaFmt}${d.turno ? ' · ' + esc(d.turno) : ''}</div>
+    </div>
+    <div class="resumen-item">
+      <div class="resumen-label">Invitados</div>
+      <div class="resumen-value gold">${d.invitados} personas${d.menuInfantil ? ' · Infantil: ' + infantilStr : ''}</div>
+    </div>
+    <div class="resumen-item full">
+      <div class="resumen-label">Espacio</div>
+      <div class="resumen-value">${esc(d.espacio) || '—'}</div>
+    </div>
+    <div class="resumen-item full">
+      <div class="resumen-label">Adicionales</div>
+      <div class="resumen-value">${adicionalesStr}</div>
+    </div>
+    ${d.pedidos ? `<div class="resumen-item full">
+      <div class="resumen-label">Pedidos especiales</div>
+      <div class="resumen-value">${esc(d.pedidos)}</div>
+    </div>` : ''}
+  `;
+}
+
+function generatePropuestaPDF() {
+  readPropuestaData();
+  const d = propuestaState.data;
+  const hoy = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const fechaFmt = d.fecha ? formatDate(d.fecha) : '—';
+  const infantilStr = d.menuInfantil ? `Sí${d.infantilCant ? ` · ${d.infantilCant} niños` : ''}` : 'No';
+  const estilo = d.estilo || 'Formal';
+  const pasos = RECORRIDO[estilo] || RECORRIDO.Formal;
+  const recorridoHTML = pasos.map((p, i) => `
+    <div class="print-recorrido-step">
+      <div class="print-recorrido-num">${i + 1}</div>
+      <div class="print-recorrido-name">${p.nombre}</div>
+    </div>`).join('');
+  const adicionalesHTML = d.adicionales.length
+    ? d.adicionales.map(a => `<span class="print-adicional-tag">${esc(a)}</span>`).join('')
+    : '<span style="color:#9e9080;font-size:11px;">Ninguno seleccionado</span>';
+
+  const container = $('propuesta-print-content'); if (!container) return;
+  container.innerHTML = `
+    <div class="print-header">
+      <img src="img/logo.png" alt="Joliet Eventos" class="print-logo" onerror="this.style.display='none'">
+      <div class="print-header-meta">
+        <div class="print-salon-name">Joliet Eventos</div>
+        <div class="print-salon-sub">Salón de Eventos · Ciudad Tesei</div>
+        <div class="print-date">Propuesta generada el ${hoy}</div>
+      </div>
+    </div>
+    <div class="print-title">Propuesta para ${esc(d.nombre || d.agasajado || d.tipoEvento || 'su evento')}</div>
+    <div class="print-grid">
+      <div class="print-item">
+        <div class="print-item-label">Estilo</div>
+        <div class="print-item-value">${esc(estilo)}</div>
+      </div>
+      <div class="print-item">
+        <div class="print-item-label">Evento</div>
+        <div class="print-item-value">${esc(d.tipoEvento) || '—'}${d.agasajado ? ' · ' + esc(d.agasajado) : ''}</div>
+      </div>
+      <div class="print-item">
+        <div class="print-item-label">Fecha</div>
+        <div class="print-item-value">${fechaFmt}</div>
+      </div>
+      <div class="print-item">
+        <div class="print-item-label">Turno</div>
+        <div class="print-item-value">${esc(d.turno) || '—'}</div>
+      </div>
+      <div class="print-item">
+        <div class="print-item-label">Invitados</div>
+        <div class="print-item-value">${d.invitados} personas · Infantil: ${infantilStr}</div>
+      </div>
+      <div class="print-item">
+        <div class="print-item-label">Espacio</div>
+        <div class="print-item-value">${esc(d.espacio) || '—'}</div>
+      </div>
+    </div>
+
+    <div class="print-section-title">El recorrido de su noche</div>
+    <div class="print-recorrido">${recorridoHTML}</div>
+
+    <div class="print-section-title">Adicionales elegidos</div>
+    <div class="print-adicionales-list">${adicionalesHTML}</div>
+
+    <div class="print-section-title">La experiencia Joliet — siempre incluido</div>
+    <div class="print-incluido-grid">
+      <div class="print-incluido-item">
+        <strong>La mesa que sorprende</strong>
+        <span>Porcelana filete dorado · Plato de sitio · Cubertería PATRY</span>
+      </div>
+      <div class="print-incluido-item">
+        <strong>El escenario</strong>
+        <span>Mantelería a elección · Centro de mesa incluido</span>
+      </div>
+      <div class="print-incluido-item">
+        <strong>Un equipo para vos</strong>
+        <span>Maître · Mozos · Chef · Barman · Coordinadora</span>
+      </div>
+      <div class="print-incluido-item">
+        <strong>Bebidas de cena</strong>
+        <span>Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne</span>
+      </div>
+      <div class="print-incluido-item">
+        <strong>Bar de tragos</strong>
+        <span>Para la recepción o toda la noche — consultá opciones</span>
+      </div>
+      <div class="print-incluido-item">
+        <strong>Cada detalle pensado</strong>
+        <span>Cristalería completa · Provisiones · Nada falta</span>
+      </div>
+    </div>
+    <div class="print-disclaimer">* Los licores durante la cena no están incluidos en el precio base</div>
+
+    ${d.pedidos ? `<div class="print-section-title">Pedidos especiales</div>
+    <div class="print-item full" style="margin-bottom:8px">
+      <div class="print-item-value">${esc(d.pedidos)}</div>
+    </div>` : ''}
+
+    <div class="print-footer">
+      <p>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</p>
+      <p style="margin-top:4px"><strong>Joliet Eventos</strong> — Gracias por considerarnos para este momento tan especial</p>
+    </div>
+  `;
+  setTimeout(() => window.print(), 80);
+}
+
+// Listeners de propuesta (se registran una vez al cargar el DOM)
+(function initPropuestaListeners() {
+  $('btn-prop-comenzar')?.addEventListener('click', () => goToPropuestaSlide(2));
+
+  $('btn-prop-next')?.addEventListener('click', () => {
+    if (propuestaState.current < propuestaState.total) goToPropuestaSlide(propuestaState.current + 1);
+  });
+  $('btn-prop-prev')?.addEventListener('click', () => {
+    if (propuestaState.current > 1) goToPropuestaSlide(propuestaState.current - 1);
+  });
+
+  $('propuesta-close-btn')?.addEventListener('click', () => navigateTo('clientes'));
+
+  // Fork: Formal / Americano
+  document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      propuestaState.data.estilo = card.dataset.estilo;
+    });
+  });
+
+  // Cards: tipo de evento
+  document.querySelectorAll('#evento-cards .propuesta-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#evento-cards .propuesta-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      propuestaState.data.tipoEvento = card.dataset.value;
+      const sinAgasajado = ['Corporativo', 'Otro'];
+      const agRow = $('agasajado-row');
+      if (agRow) agRow.style.display = sinAgasajado.includes(card.dataset.value) ? 'none' : '';
+    });
+  });
+
+  // Cards: turno
+  document.querySelectorAll('#turno-cards .propuesta-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#turno-cards .propuesta-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      propuestaState.data.turno = card.dataset.value;
+    });
+  });
+
+  // Cards: espacio
+  document.querySelectorAll('#espacio-cards .propuesta-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#espacio-cards .propuesta-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      propuestaState.data.espacio = card.dataset.value;
+    });
+  });
+
+  // Counter invitados (step: 10)
+  $('counter-minus')?.addEventListener('click', () => {
+    const cur = parseInt($('prop-invitados')?.value || '100');
+    const next = Math.max(10, cur - 10);
+    $('prop-invitados').value = next;
+    $('prop-invitados-display').textContent = next;
+  });
+  $('counter-plus')?.addEventListener('click', () => {
+    const cur = parseInt($('prop-invitados')?.value || '100');
+    const next = cur + 10;
+    $('prop-invitados').value = next;
+    $('prop-invitados-display').textContent = next;
+  });
+
+  // Menú infantil
+  $('prop-menu-infantil')?.addEventListener('change', e => {
+    propuestaState.data.menuInfantil = e.target.checked;
+    const row = $('infantil-count-row'); if (row) row.style.display = e.target.checked ? '' : 'none';
+  });
+
+  $('btn-descargar-pdf')?.addEventListener('click', generatePropuestaPDF);
+
+  // Pre-form: comenzar propuesta
+  $('btn-preform-comenzar')?.addEventListener('click', startPropuestaSlides);
+
+  // Pre-form: al elegir cliente existente, pre-llenar nombre y teléfono
+  $('prop-cliente-existente')?.addEventListener('change', e => {
+    if (!e.target.value) return;
+    const cliente = (allClientes || []).find(c => c.rowIndex === parseInt(e.target.value));
+    if (!cliente) return;
+    const ni = $('prop-contacto-nombre'); if (ni) ni.value = cliente.apellidoNombre || '';
+    const ti = $('prop-contacto-telefono'); if (ti) ti.value = cliente.telefono || '';
+  });
+
+  // Botón propuesta desde modal de cliente
+  $('btn-propuesta-modal')?.addEventListener('click', () => {
+    if (!currentClienteModal) return;
+    startPropuestaFromCliente(currentClienteModal);
+  });
+
+  // Guardar cliente desde propuesta
+  $('btn-guardar-cliente-propuesta')?.addEventListener('click', guardarClientePropuesta);
+
+  buildPropuestaDots();
+})();
 
 /* ===================== SESSION RESTORE ===================== */
 (function restoreSession() {
