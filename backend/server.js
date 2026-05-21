@@ -302,14 +302,6 @@ app.post('/api/migrar-clientes', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// LIMPIEZA TEMPORAL — borrar después de usar
-app.post('/api/admin/cleanup-ingresos-huerfanos', auth, adminOnly, async (req, res) => {
-  try {
-    const result = await sheets.limpiarIngresosHuerfanos();
-    res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));

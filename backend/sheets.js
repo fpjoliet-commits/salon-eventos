@@ -932,31 +932,6 @@ async function initSheets() {
   }
 }
 
-// LIMPIEZA TEMPORAL — borrar después de usar
-async function limpiarIngresosHuerfanos() {
-  if (!tieneCredenciales) throw new Error('Solo funciona con credenciales de Google.');
-  const sheetsApi = getSheets();
-  const [evRes, ingRes] = await Promise.all([
-    sheetsApi.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:A' }),
-    sheetsApi.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Ingresos!A2:H' }),
-  ]);
-  const eventosIds = new Set((evRes.data.values || []).map(r => r[0]).filter(Boolean));
-  const ingRows = ingRes.data.values || [];
-  const huerfanos = ingRows
-    .map((row, i) => ({ row, sheetRow: i + 2 }))
-    .filter(({ row }) => row[0] && !eventosIds.has(row[1]));
-
-  for (const { sheetRow } of huerfanos) {
-    await sheetsApi.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `Ingresos!A${sheetRow}:H${sheetRow}`,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values: [Array(8).fill('')] },
-    });
-  }
-  return { borrados: huerfanos.length, detalle: huerfanos.map(h => ({ fila: h.sheetRow, idCliente: h.row[1], monto: h.row[3] })) };
-}
-
 module.exports = {
   getPersonas, addPersona, updatePersona,
   getClientes, addCliente, updateCliente, deleteEvento,
@@ -966,6 +941,5 @@ module.exports = {
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan,
   initSheets,
   migrarClientesAPersonasEventos,
-  limpiarIngresosHuerfanos,
   tieneCredenciales,
 };
