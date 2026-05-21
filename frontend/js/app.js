@@ -191,6 +191,8 @@ document.querySelectorAll('.nav-item').forEach(item => {
   });
 });
 
+$('btn-nuevo-cliente')?.addEventListener('click', () => navigateTo('nuevo-cliente'));
+
 function navigateTo(view) {
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
