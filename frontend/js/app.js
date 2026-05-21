@@ -3016,7 +3016,7 @@ const propuestaState = {
   current: 1,
   total: 10,
   data: {
-    nombre: '', telefono: '', clienteId: null,
+    nombre: '', telefono: '', gmail: '', clienteId: null,
     estilo: '', tipoEvento: '', agasajado: '', fecha: '', turno: '',
     invitados: 100, menuInfantil: false, infantilCant: '',
     espacio: '', adicionales: [], pedidos: ''
@@ -3026,7 +3026,7 @@ const propuestaState = {
 function initPropuesta() {
   const d = propuestaState.data;
   propuestaState.current = 1;
-  d.nombre = ''; d.telefono = ''; d.clienteId = null;
+  d.nombre = ''; d.telefono = ''; d.gmail = ''; d.clienteId = null;
   d.estilo = ''; d.tipoEvento = ''; d.agasajado = ''; d.fecha = ''; d.turno = '';
   d.invitados = 100; d.menuInfantil = false; d.infantilCant = '';
   d.espacio = ''; d.adicionales = []; d.pedidos = '';
@@ -3037,7 +3037,7 @@ function initPropuesta() {
 
   const set = (id, val) => { const el = $(id); if (el) el.value = val; };
   set('prop-agasajado', ''); set('prop-fecha', ''); set('prop-infantil-cant', ''); set('prop-pedidos', '');
-  set('prop-contacto-nombre', ''); set('prop-contacto-telefono', '');
+  set('prop-contacto-nombre', ''); set('prop-contacto-telefono', ''); set('prop-contacto-gmail', '');
   const clSel = $('prop-cliente-existente'); if (clSel) clSel.value = '';
   const invDisplay = $('prop-invitados-display'); if (invDisplay) invDisplay.textContent = '100';
   set('prop-invitados', '100');
@@ -3080,6 +3080,7 @@ function startPropuestaSlides() {
   }
   propuestaState.data.nombre = $('prop-contacto-nombre')?.value?.trim() || '';
   propuestaState.data.telefono = $('prop-contacto-telefono')?.value?.trim() || '';
+  propuestaState.data.gmail = $('prop-contacto-gmail')?.value?.trim() || '';
   hideEl($('propuesta-preform'));
   const slidesEl = document.querySelector('.propuesta-slides-container');
   const navEl = document.querySelector('.propuesta-nav');
@@ -3095,6 +3096,8 @@ function preFillPropuestaFromCliente(cliente) {
   d.clienteId = cliente.id;
   d.nombre = cliente.apellidoNombre || '';
   d.telefono = cliente.telefono || '';
+  d.gmail = cliente.gmail || '';
+  const gi = $('prop-contacto-gmail'); if (gi) gi.value = d.gmail;
 
   const sinAgasajado = ['Corporativo', 'Otro'];
   if (cliente.tipoEvento) {
@@ -3161,6 +3164,7 @@ async function guardarClientePropuesta() {
       body: {
         apellidoNombre: d.nombre || 'Prospecto sin nombre',
         telefono: d.telefono || '',
+        gmail: d.gmail || '',
         tipoEvento: d.tipoEvento || '',
         fechaEvento: d.fecha || '',
         turno: d.turno || '',
@@ -3482,6 +3486,7 @@ function generatePropuestaPDF() {
     if (!cliente) return;
     const ni = $('prop-contacto-nombre'); if (ni) ni.value = cliente.apellidoNombre || '';
     const ti = $('prop-contacto-telefono'); if (ti) ti.value = cliente.telefono || '';
+    const gi = $('prop-contacto-gmail'); if (gi) gi.value = cliente.gmail || '';
   });
 
   // Botón propuesta desde modal de cliente
