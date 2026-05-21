@@ -736,185 +736,6 @@ $('btn-editar-cliente').addEventListener('click', () => {
   openEditForm(currentClienteModal);
 });
 
-$('btn-imprimir-cocina').addEventListener('click', async () => {
-  if (!currentClienteModal) return;
-  let timmingItems = [];
-  if (canManagePagos()) {
-    try { timmingItems = await apiFetch(`/timming/cliente/${currentClienteModal.id}`); } catch {}
-  }
-  imprimirFichaCocina(currentClienteModal, currentRestricciones, timmingItems);
-});
-
-function imprimirFichaCocina(c, restricciones, timmingItems = []) {
-  const restFilas = restricciones.map(r => `
-    <div class="rest-fila${r.coronita ? ' rest-fila-vip' : ''}">
-      <span class="rest-tipo">${r.coronita ? '👑 ' : ''}${r.tipoRestriccion}</span>
-      <span class="rest-cant">${r.cantidad}</span>
-    </div>`).join('');
-
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Ficha Cocina — ${c.apellidoNombre}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #111; background: #fff; }
-    .pagina { max-width: 720px; margin: 0 auto; padding: 32px 36px; }
-
-    /* CABECERA EVENTO */
-    .cabecera { border-bottom: 3px solid #8f2e4d; padding-bottom: 16px; margin-bottom: 24px; }
-    .cab-marca { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #8f2e4d; font-weight: 700; margin-bottom: 6px; }
-    .cab-cliente { font-size: 26px; font-weight: 700; margin-bottom: 10px; }
-    .cab-datos { display: flex; gap: 32px; flex-wrap: wrap; }
-    .cab-dato label { font-size: 11px; color: #888; display: block; text-transform: uppercase; letter-spacing: .5px; }
-    .cab-dato span { font-size: 15px; font-weight: 600; }
-    .cab-num { font-size: 28px !important; color: #8f2e4d; font-weight: 800 !important; }
-
-    /* SECCIÓN COCINA */
-    .cocina-header { display: flex; align-items: center; gap: 8px; background: #f5f5f5; border-radius: 8px 8px 0 0; padding: 12px 16px; border: 1px solid #ddd; border-bottom: none; margin-top: 24px; }
-    .cocina-icon { font-size: 18px; }
-    .cocina-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .cocina-subtitulo { font-size: 11px; color: #888; margin-top: 2px; }
-    .cocina-body { border: 1px solid #ddd; border-radius: 0 0 8px 8px; padding: 20px; }
-
-    /* MENÚ INFANTIL */
-    .menu-infantil-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #eee; }
-    .menu-infantil-label { font-size: 13px; font-weight: 600; }
-    .menu-infantil-num { font-size: 36px; font-weight: 800; color: #8f2e4d; background: #f7d6e2; border-radius: 8px; width: 70px; height: 56px; display: flex; align-items: center; justify-content: center; }
-
-    /* RESTRICCIONES */
-    .rest-label { font-size: 12px; color: #666; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
-    .rest-tabla { border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
-    .rest-cabecera { display: flex; background: #f0f0f0; padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #666; border-bottom: 1px solid #ddd; }
-    .rest-fila { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
-    .rest-fila:last-child { border-bottom: none; }
-    .rest-fila-vip { background: #fffbea; border-left: 3px solid #f39c12; font-weight: 600; }
-    .rest-tipo { flex: 1; }
-    .rest-cant { font-weight: 700; font-size: 15px; min-width: 60px; text-align: center; }
-    .rest-vacio { padding: 14px 12px; color: #aaa; font-style: italic; font-size: 13px; }
-
-    /* OTROS PEDIDOS */
-    .otros-label { font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
-    .otros-box { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 14px; min-height: 70px; font-size: 13px; line-height: 1.5; background: #fafafa; }
-    .otros-box.vacio { color: #bbb; font-style: italic; }
-
-    .footer { margin-top: 28px; font-size: 11px; color: #bbb; border-top: 1px solid #eee; padding-top: 10px; text-align: right; }
-
-    /* MENÚ / TIMING */
-    .menu-sec-header { display: flex; align-items: center; gap: 8px; background: #f5f5f5; border-radius: 8px 8px 0 0; padding: 12px 16px; border: 1px solid #ddd; border-bottom: none; margin-top: 24px; }
-    .menu-sec-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .menu-sec-body { border: 1px solid #ddd; border-radius: 0 0 8px 8px; padding: 20px; }
-    .tim-fila { display: flex; align-items: baseline; gap: 18px; padding: 9px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
-    .tim-fila:last-child { border-bottom: none; }
-    .tim-fila-h { font-weight: 700; color: #8f2e4d; min-width: 50px; font-variant-numeric: tabular-nums; }
-    .tim-fila-a { flex: 1; line-height: 1.4; }
-    .tim-vacio { color: #bbb; font-style: italic; font-size: 13px; padding: 8px 0; }
-
-    @media print { .pagina { padding: 16px 20px; } }
-  </style>
-</head>
-<body>
-<div class="pagina">
-
-  <div class="cabecera">
-    <div class="cab-marca">Joliet Eventos — Ficha de Cocina</div>
-    <div class="cab-cliente">${c.apellidoNombre || '—'}</div>
-    <div class="cab-datos">
-      <div class="cab-dato">
-        <label>Fecha del evento</label>
-        <span>${formatDateWithDay(c.fechaEvento)}</span>
-      </div>
-      <div class="cab-dato">
-        <label>Turno</label>
-        <span>${c.turno || '—'}</span>
-      </div>
-      <div class="cab-dato">
-        <label>Tipo de evento</label>
-        <span>${c.tipoEvento || '—'}</span>
-      </div>
-      <div class="cab-dato">
-        <label>Invitados</label>
-        <span class="cab-num">${c.cantidadInvitados || '—'}</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="cocina-header">
-    <span class="cocina-icon">🍴</span>
-    <div>
-      <div class="cocina-titulo">Pedidos especiales de cocina</div>
-      <div class="cocina-subtitulo">Completar cuando el evento esté confirmado y se afinen los detalles.</div>
-    </div>
-  </div>
-  <div class="cocina-body">
-
-    <div class="menu-infantil-row">
-      <span class="menu-infantil-label">Menú infantil</span>
-      <div class="menu-infantil-num">${c.menuInfantil || '0'}</div>
-    </div>
-
-    <div class="rest-label">Restricciones alimentarias${restricciones.some(r => r.coronita) ? ' &nbsp;👑 = Mesa principal' : ''}</div>
-    <div class="rest-tabla">
-      <div class="rest-cabecera">
-        <span style="flex:1">Tipo de restricción</span>
-        <span style="min-width:60px;text-align:center">Cantidad</span>
-      </div>
-      ${restricciones.length ? restFilas : '<div class="rest-vacio">Sin restricciones registradas</div>'}
-    </div>
-
-    <div class="otros-label">Otros pedidos</div>
-    <div class="otros-box ${c.otrosPedidos ? '' : 'vacio'}">${c.otrosPedidos || 'Sin pedidos especiales'}</div>
-
-    ${c.observaciones ? `
-    <div style="margin-top:16px">
-      <div class="otros-label">Observaciones</div>
-      <div class="otros-box">${c.observaciones}</div>
-    </div>` : ''}
-
-  </div>
-
-  ${(c.menuRecepcion || c.menuIslas || c.menuPrimerPlato || c.menuPrincipal || c.menuPostre) ? `
-  <div class="menu-sec-header">
-    <span class="cocina-icon">🍽️</span>
-    <div><div class="menu-sec-titulo">Menú del evento</div></div>
-  </div>
-  <div class="menu-sec-body">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      ${c.menuRecepcion ? `<tr><td style="padding:7px 0;font-weight:700;color:#8f2e4d;width:120px">Recepción</td><td style="padding:7px 0">${esc(c.menuRecepcion)}</td></tr>` : ''}
-      ${c.menuIslas ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">Islas</td><td style="padding:7px 0">${esc(c.menuIslas)}</td></tr>` : ''}
-      ${c.menuPrimerPlato ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">1° plato</td><td style="padding:7px 0">${esc(c.menuPrimerPlato)}</td></tr>` : ''}
-      ${c.menuPrincipal ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">Principal</td><td style="padding:7px 0">${esc(c.menuPrincipal)}</td></tr>` : ''}
-      ${c.menuPostre ? `<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 0;font-weight:700;color:#8f2e4d">Postre</td><td style="padding:7px 0">${esc(c.menuPostre)}</td></tr>` : ''}
-    </table>
-  </div>` : ''}
-
-  ${timmingItems.filter(i => (i.tipo || 'maitre') !== 'cocina').length ? `
-  <div class="menu-sec-header">
-    <span class="cocina-icon">🕐</span>
-    <div><div class="menu-sec-titulo">Cronograma del evento</div></div>
-  </div>
-  <div class="menu-sec-body">
-    ${timmingItems.filter(i => (i.tipo || 'maitre') !== 'cocina').map(it => `
-      <div class="tim-fila">
-        <span class="tim-fila-h">${it.hora}</span>
-        <div style="flex:1">
-          <span class="tim-fila-a">${esc(it.actividad)}</span>
-          ${it.descripcion ? `<div style="font-size:12px;color:#666;margin-top:2px;font-style:italic">${esc(it.descripcion)}</div>` : ''}
-        </div>
-      </div>`).join('')}
-  </div>` : ''}
-
-  <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
-</div>
-<script>window.onload = () => { window.print(); }<\/script>
-</body>
-</html>`;
-
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
-}
 
 /* ===================== RESTRICCIONES ===================== */
 async function loadRestriccionesModal(cliente) {
@@ -1173,8 +994,12 @@ function renderIngresos(ingresos, clienteMap) {
     allClientes.forEach(c => { clienteMap[c.id] = c.apellidoNombre; });
   }
   const total = ingresos.reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+  const totalEfectivo = ingresos.filter(i => i.formaPago === 'Efectivo').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+  const totalTransferencia = ingresos.filter(i => i.formaPago === 'Transferencia').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
   $('ingresos-stats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Total filtrado</div><div class="stat-value verde">${formatMoney(total)}</div></div>
+    <div class="stat-card"><div class="stat-label">Efectivo</div><div class="stat-value">${formatMoney(totalEfectivo)}</div></div>
+    <div class="stat-card"><div class="stat-label">Transferencia</div><div class="stat-value">${formatMoney(totalTransferencia)}</div></div>
     <div class="stat-card"><div class="stat-label">Registros</div><div class="stat-value">${ingresos.length}</div></div>
     <div class="stat-card"><div class="stat-label">Total general</div><div class="stat-value">${formatMoney(allIngresos.reduce((s,i)=>s+(parseFloat(i.monto)||0),0))}</div></div>
   `;
@@ -1661,7 +1486,12 @@ $('cliente-form').addEventListener('submit', async e => {
     if (isEdit) {
       await apiFetch(`/clientes/${rowIndex}`, { method: 'PUT', body });
     } else {
-      await apiFetch('/clientes', { method: 'POST', body });
+      const nuevoCliente = await apiFetch('/clientes', { method: 'POST', body });
+      // Agregar inmediatamente para evitar lag de consistencia de Sheets
+      if (nuevoCliente && nuevoCliente.id) {
+        allClientes = [nuevoCliente, ...allClientes];
+        renderClientes(allClientes);
+      }
     }
     $('form-success').textContent = isEdit ? 'Evento actualizado.' : 'Cliente guardado.';
     show('form-success');
@@ -2334,6 +2164,46 @@ function renderSugerenciaBanner(container, nombreSugerido, cliente) {
 
 /* ===================== TIMING PLANNER ===================== */
 
+function timePicker(id, value = '', extraClass = '') {
+  const [h = '00', m = '00'] = value ? value.split(':') : ['00', '00'];
+  const hrs = Array.from({length: 24}, (_, i) => {
+    const v = String(i).padStart(2, '0');
+    return `<option value="${v}"${h === v ? ' selected' : ''}>${v}</option>`;
+  }).join('');
+  const mins = ['00','05','10','15','20','25','30','35','40','45','50','55'].map(v =>
+    `<option value="${v}"${m === v ? ' selected' : ''}>${v}</option>`
+  ).join('');
+  const cls = extraClass ? ` class="${extraClass}"` : '';
+  return `<span class="tim-picker-wrap"><select class="tim-pick-h" data-picker="${id}">${hrs}</select><span class="tim-pick-sep">:</span><select class="tim-pick-m" data-picker="${id}">${mins}</select><input type="hidden" id="${id}"${cls} value="${value || h + ':' + m}"></span>`;
+}
+
+function bindAllTimePickers(container) {
+  (container || document).querySelectorAll('.tim-pick-h, .tim-pick-m').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const id = sel.dataset.picker;
+      const wrap = sel.closest('.tim-picker-wrap');
+      if (!wrap) return;
+      const hv = wrap.querySelector('.tim-pick-h').value;
+      const mv = wrap.querySelector('.tim-pick-m').value;
+      const hidden = document.getElementById(id);
+      if (hidden) hidden.value = `${hv}:${mv}`;
+    });
+  });
+}
+
+function setTimePicker(id, value) {
+  const hidden = document.getElementById(id);
+  if (!hidden) return;
+  hidden.value = value || '';
+  const wrap = hidden.closest('.tim-picker-wrap');
+  if (!wrap) return;
+  const [h = '00', m = '00'] = (value || '').split(':');
+  const hSel = wrap.querySelector('.tim-pick-h');
+  const mSel = wrap.querySelector('.tim-pick-m');
+  if (hSel) hSel.value = h;
+  if (mSel) mSel.value = m.padEnd(2, '0').substring(0, 2);
+}
+
 const ACTIVIDADES_TIMMING = [
   'RECEPCIÓN',
   'ISLAS',
@@ -2589,7 +2459,7 @@ function renderTimmingMaitre(cliente, items) {
       <div class="tim-list">${filas}</div>
       <form id="timming-add-form" class="tim-add-form">
         <div class="tim-add-row1">
-          <input type="time" id="tim-hora" required>
+          ${timePicker('tim-hora')}
           <div class="tim-actividad-wrap">
             ${actividadSelectHTML('tim-actividad-select', 'tim-actividad-custom')}
           </div>
@@ -2606,6 +2476,7 @@ function renderTimmingMaitre(cliente, items) {
 
 function bindMaitreAcciones(cliente, items) {
   bindActividadToggle('tim-actividad-select', 'tim-actividad-custom');
+  bindAllTimePickers($('timming-add-form'));
 
   document.querySelectorAll('.btn-tim-edit').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2614,7 +2485,7 @@ function bindMaitreAcciones(cliente, items) {
       const item = items.find(i => i.rowIndex === rowIndex);
       if (!item) return;
       row.innerHTML = `
-        <input type="time" class="tim-edit-hora" value="${item.hora}">
+        ${timePicker('tim-edit-hora', item.hora, 'tim-edit-hora')}
         <div class="tim-info" style="flex:1">
           <div class="tim-actividad-wrap">
             ${actividadSelectHTML('tim-edit-act-select', 'tim-edit-act-custom', item.actividad)}
@@ -2626,7 +2497,7 @@ function bindMaitreAcciones(cliente, items) {
           <button class="btn-tim-cancel btn btn-sm btn-secondary">✕</button>
         </div>`;
       bindActividadToggle('tim-edit-act-select', 'tim-edit-act-custom');
-      row.querySelector('.tim-edit-hora').focus();
+      bindAllTimePickers(row);
 
       row.querySelector('.btn-tim-save').addEventListener('click', async () => {
         const hora = row.querySelector('.tim-edit-hora').value;
@@ -2722,31 +2593,31 @@ function setCocinaFormData(d) {
       el.checked = arr && arr.includes(el.value);
     });
   };
-  if ($('coc-hora-recepcion')) $('coc-hora-recepcion').value = d.horaRecepcion || '';
+  setTimePicker('coc-hora-recepcion', d.horaRecepcion || '');
   setChecked('coc-canape', d.canapes);
   setChecked('coc-bruschetta', d.bruschettas);
   setChecked('coc-rf-otros', d.recepcionOtros);
   setChecked('coc-brochette', d.brochettes);
   setChecked('coc-empanadita', d.empanaditas);
   setChecked('coc-rc-otros', d.calientesOtros);
-  if ($('coc-hora-islas')) $('coc-hora-islas').value = d.horaIslas || '';
+  setTimePicker('coc-hora-islas', d.horaIslas || '');
   setChecked('coc-isla', d.islas);
   if ($('coc-isla-extra')) $('coc-isla-extra').value = '';
-  if ($('coc-hora-primer-plato')) $('coc-hora-primer-plato').value = d.horaPrimerPlato || '';
+  setTimePicker('coc-hora-primer-plato', d.horaPrimerPlato || '');
   setChecked('coc-pasta', d.pastas);
   setChecked('coc-pasta-gourmet', d.pastasGourmet);
   if ($('coc-nsalsas')) $('coc-nsalsas').value = d.cantidadSalsas || '';
   setChecked('coc-salsa', d.salsas);
   setChecked('coc-salsa-gourmet', d.salsasGourmet);
-  if ($('coc-hora-plato-central')) $('coc-hora-plato-central').value = d.horaPlatoCentral || '';
+  setTimePicker('coc-hora-plato-central', d.horaPlatoCentral || '');
   if ($('coc-plato-ave')) $('coc-plato-ave').value = d.platoCentralAve || '';
   if ($('coc-guarnicion-ave')) $('coc-guarnicion-ave').value = d.guarnicionAve || '';
   if ($('coc-plato-carne')) $('coc-plato-carne').value = d.platoCentralCarne || '';
   if ($('coc-guarnicion-carne')) $('coc-guarnicion-carne').value = d.guarnicionCarne || '';
-  if ($('coc-hora-mesa-dulces')) $('coc-hora-mesa-dulces').value = d.horaMesaDulces || '';
+  setTimePicker('coc-hora-mesa-dulces', d.horaMesaDulces || '');
   setChecked('coc-dulce', d.mesaDulces);
   if ($('coc-postre')) $('coc-postre').value = d.postre || '';
-  if ($('coc-hora-cafeteria')) $('coc-hora-cafeteria').value = d.horaCafeteria || '';
+  setTimePicker('coc-hora-cafeteria', d.horaCafeteria || '');
   setChecked('coc-fin-fiesta', d.finFiesta);
 }
 
@@ -2765,7 +2636,7 @@ function renderTimmingCocina(cliente, cocinaItem) {
   const secHeader = (titulo, horaId, horaVal) => `
     <div class="coc-section-header">
       <div class="coc-section-title">${titulo}</div>
-      <input type="time" id="${horaId}" class="coc-hora" value="${horaVal || ''}">
+      ${timePicker(horaId, horaVal || '')}
     </div>`;
 
   panel.innerHTML = `
@@ -2889,6 +2760,8 @@ function renderTimmingCocina(cliente, cocinaItem) {
 
       <div id="coc-msg" style="font-size:13px;margin-top:8px;min-height:20px"></div>
     </div>`;
+
+  bindAllTimePickers(panel);
 
   $('coc-preset-formal')?.addEventListener('click', () => {
     setCocinaFormData({

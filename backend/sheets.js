@@ -782,7 +782,8 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   await archivarEnPapelera('Evento', clienteData.id, clienteData, usuario);
   if (!tieneCredenciales) {
     const idx = memEventos.findIndex(e => e.rowIndex === rowIndex);
-    if (idx !== -1) memEventos[idx] = { ...memEventos[idx], id: '' }; // blank out
+    if (idx !== -1) memEventos[idx] = { ...memEventos[idx], id: '' };
+    memIngresos = memIngresos.filter(i => i.idCliente !== clienteData.id);
     return;
   }
   const sheets = getSheets();
@@ -792,6 +793,26 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
     valueInputOption: 'USER_ENTERED',
     resource: { values: [Array(23).fill('')] },
   });
+
+  // Borrar ingresos asociados al cliente eliminado
+  const ingRes = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Ingresos!A2:H',
+  });
+  const ingRows = ingRes.data.values || [];
+  const filasABorrar = ingRows
+    .map((row, i) => ({ row, sheetRow: i + 2 }))
+    .filter(({ row }) => (row[1] || '') === clienteData.id)
+    .map(({ sheetRow }) => sheetRow);
+
+  for (const ingRowIndex of filasABorrar) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Ingresos!A${ingRowIndex}:H${ingRowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [Array(8).fill('')] },
+    });
+  }
 }
 
 /* ===================== MIGRACIÓN Clientes → Personas+Eventos ===================== */
