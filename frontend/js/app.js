@@ -3226,8 +3226,13 @@ function updatePropuestaNav() {
 }
 
 function goToPropuestaSlide(n) {
+  const old = document.querySelector('.propuesta-slide.active');
+  if (old) {
+    old.classList.remove('active');
+    old.classList.add('exiting');
+    setTimeout(() => old.classList.remove('exiting'), 300);
+  }
   propuestaState.current = n;
-  document.querySelectorAll('.propuesta-slide').forEach(s => s.classList.remove('active'));
   const slide = document.querySelector(`.propuesta-slide[data-slide="${n}"]`);
   if (slide) slide.classList.add('active');
   const container = document.querySelector('.propuesta-slides-container');
@@ -3407,9 +3412,11 @@ function generatePropuestaPDF() {
   $('btn-prop-comenzar')?.addEventListener('click', () => goToPropuestaSlide(2));
 
   $('btn-prop-next')?.addEventListener('click', () => {
+    document.querySelector('.propuesta-slides-container')?.classList.remove('slides-going-back');
     if (propuestaState.current < propuestaState.total) goToPropuestaSlide(propuestaState.current + 1);
   });
   $('btn-prop-prev')?.addEventListener('click', () => {
+    document.querySelector('.propuesta-slides-container')?.classList.add('slides-going-back');
     if (propuestaState.current > 1) goToPropuestaSlide(propuestaState.current - 1);
   });
 

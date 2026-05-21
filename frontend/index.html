@@ -678,19 +678,24 @@
 
       <!-- Pre-slide: datos de contacto antes de arrancar -->
       <div id="propuesta-preform" class="propuesta-preform hidden">
+        <div class="preform-photo" style="background-image:url('img/propuesta/portada.jpeg')"></div>
+        <div class="preform-overlay"></div>
         <div class="preform-content">
-          <h2 class="preform-title">¿Con quién armamos esto?</h2>
-          <p class="preform-sub">Un par de datos para personalizar la propuesta</p>
-          <div class="preform-fields">
-            <input type="text" id="prop-contacto-nombre" placeholder="Nombre" class="propuesta-input preform-input">
-            <input type="tel" id="prop-contacto-telefono" placeholder="Teléfono" class="propuesta-input preform-input">
+          <div class="preform-brand">Joliet Eventos</div>
+          <h2 class="preform-title">¿Para quién armamos<br>la noche perfecta?</h2>
+          <div class="preform-rule"></div>
+          <div class="preform-card">
+            <div class="preform-fields">
+              <input type="text" id="prop-contacto-nombre" placeholder="Nombre" class="propuesta-input preform-input">
+              <input type="tel" id="prop-contacto-telefono" placeholder="Teléfono" class="propuesta-input preform-input">
+            </div>
+            <input type="email" id="prop-contacto-gmail" placeholder="Correo electrónico" class="propuesta-input preform-input" style="width:100%;box-sizing:border-box">
+            <div class="preform-or">— o elegí un cliente existente —</div>
+            <select id="prop-cliente-existente" class="propuesta-input preform-select">
+              <option value="">Buscar cliente existente...</option>
+            </select>
+            <button class="btn-propuesta-primary" id="btn-preform-comenzar">Comenzar propuesta →</button>
           </div>
-          <input type="email" id="prop-contacto-gmail" placeholder="Correo electrónico" class="propuesta-input preform-input" style="width:100%;box-sizing:border-box">
-          <div class="preform-or">— o elegí un cliente existente —</div>
-          <select id="prop-cliente-existente" class="propuesta-input preform-select">
-            <option value="">Buscar cliente existente...</option>
-          </select>
-          <button class="btn-propuesta-primary" id="btn-preform-comenzar">Comenzar propuesta →</button>
         </div>
       </div>
 
