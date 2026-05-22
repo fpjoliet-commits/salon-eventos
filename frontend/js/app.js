@@ -3319,7 +3319,7 @@ function readPropuestaData() {
     d.adicionales.push(cb.value);
   });
   d.gastroAdicionales = [];
-  document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked').forEach(cb => {
+  document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
     d.gastroAdicionales.push(cb.value);
   });
   const pp = (sel) => { const a = []; document.querySelectorAll(sel + ' input:checked:not([disabled])').forEach(cb => a.push(cb.value)); return a; };
@@ -3404,7 +3404,7 @@ const GASTRO_DATA = {
     ],
     islasTitle: 'Las islas · el plato central',
     islasSub: 'Tras la recepción · sus invitados circulan, eligen y disfrutan a su ritmo',
-    islasLabel: 'BASE INCLUIDA · elegí 1 más',
+    islasLabel: 'BASE INCLUIDA · elegí hasta 2 más',
     islas: [
       { value: 'Bovalino — Pasta Italiana', name: 'Bovalino 🇮🇹', cat: 'Pasta', desc: 'Agnolottis/sorrentinos de jamón y queso con pomodoro, albahaca y oliva · Tagliatelle cortados a cuchillo con ragú alla bolognese', locked: true },
       { value: 'Azteca — Tacos', name: 'Azteca', cat: '', desc: 'Tacos artesanales al momento con pollo, cerdo o carne · Cebolla, pico de gallo fresco y salsa picante · Nachos crocantes con queso fundido' },
@@ -3418,15 +3418,17 @@ const GASTRO_DATA = {
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
     ],
     mesaDulce: {
+      locked: { name: 'Torta Homenaje', desc: 'A pedido del agasajado · colores y decoración a convenir · se sirve después de los postres' },
       postres: [
         { name: 'Pavlova de estación', desc: 'Merengue suizo relleno · La presentación y el relleno se definen según las frutas de temporada o el pedido específico del cliente' },
         { name: 'American Sweet', desc: 'Copa helada con base de Oreo y praliné de frutos secos · Capas de textura y sabor en un solo bocado' },
         { name: 'África de autor', desc: 'La torta de chocolate insignia de Joliet · Una receta única con presentación exclusiva diseñada para el evento · No la encontrás en ninguna carta' },
         { name: 'Key Lime Pie', desc: 'Tarta americana de lima · Cremosa, cítrica y perfectamente equilibrada · Base de galleta con cobertura de crema suave' },
       ],
+      maxPostres: 1,
     },
     mode: 'multi',
-    maxBase: 1,
+    maxBase: 2,
   },
 };
 
@@ -3481,7 +3483,7 @@ function buildGastroSlide() {
     </label>`).join('');
 
   const counterHtml = isAmericano
-    ? `<div class="gastro-counter" id="gastro-base-counter"><span id="gastro-base-count">0</span> / 1 adicional elegido</div>`
+    ? `<div class="gastro-counter" id="gastro-base-counter"><span id="gastro-base-count">0</span> / 2 adicionales elegidas</div>`
     : '';
 
   const primerPlatoHtml = !isAmericano ? (() => {
@@ -3525,8 +3527,8 @@ function buildGastroSlide() {
   const mesaDulceHtml = (() => {
     const md = data.mesaDulce;
     if (!md) return '';
-    const lockedRow = (item, extra = '') => `
-        <label class="gastro-island-row gastro-island-locked selected${extra}">
+    const lockedRow = (item) => `
+        <label class="gastro-island-row gastro-island-locked selected">
           <input type="checkbox" checked disabled>
           <div class="island-row-indicator">✓</div>
           <div class="island-row-body">
@@ -3537,9 +3539,24 @@ function buildGastroSlide() {
             <div class="island-row-desc">${item.desc}</div>
           </div>
         </label>`;
-    const includedRows = md.included
+    const topLocked = md.included
       ? lockedRow(md.included)
-      : (md.postres || []).map(p => lockedRow(p)).join('');
+      : (md.locked ? lockedRow(md.locked) : '');
+    const selectablePostres = md.postres && md.maxPostres ? `
+      <div class="gastro-section-label">ELEGÍ UNA</div>
+      <div class="gastro-islands-list" id="gastro-postres-list">
+        ${md.postres.map(p => `
+        <label class="gastro-island-row">
+          <input type="checkbox" value="${p.name}">
+          <div class="island-row-indicator">✓</div>
+          <div class="island-row-body">
+            <div class="island-row-header">
+              <span class="island-row-name">${p.name}</span>
+            </div>
+            <div class="island-row-desc">${p.desc}</div>
+          </div>
+        </label>`).join('')}
+      </div>` : '';
     const upgradeSection = md.upgrade ? `
       <div class="gastro-section-label gastro-section-label-premium">UPGRADE · a consultar</div>
       <div class="gastro-islands-list" id="gastro-mesa-dulce-list">
@@ -3554,19 +3571,25 @@ function buildGastroSlide() {
           </div>
         </label>
       </div>` : '';
-    const sub = md.upgrade ? 'Pastelería artesanal de elaboración propia · upgrade premium disponible' : 'Pastelería artesanal de elaboración propia';
+    const sub = md.upgrade
+      ? 'Pastelería artesanal de elaboración propia · upgrade premium disponible'
+      : md.locked
+        ? 'Pastelería artesanal · elegí el postre de la noche'
+        : 'Pastelería artesanal de elaboración propia';
+    const torta = !md.locked ? '<p class="gastro-torta-homenaje-note">Torta Homenaje · se realiza a pedido del agasajado · colores y decoración a convenir · se sirve después de los postres</p>' : '';
     return `
     <div class="gastro-subsection">
       <div class="gastro-subsection-header">
         <div class="gastro-section-title">Mesa de dulces</div>
         <div class="gastro-section-sub">${sub}</div>
       </div>
-      <div class="gastro-section-label">INCLUIDA</div>
+      ${topLocked ? '<div class="gastro-section-label">INCLUIDA</div>' : ''}
       <div class="gastro-islands-list">
-        ${includedRows}
+        ${topLocked}
       </div>
+      ${selectablePostres}
       ${upgradeSection}
-      <p class="gastro-torta-homenaje-note">Torta Homenaje · se realiza a pedido del agasajado · colores y decoración a convenir · se sirve después de los postres</p>
+      ${torta}
     </div>`;
   })();
 
@@ -3594,14 +3617,7 @@ function buildGastroSlide() {
       }
     });
     if (isAmericano) {
-      const count = $('gastro-base-count');
-      const grid = $('gastro-extras-grid');
-      if (count && grid) {
-        const n = grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked) input[type="checkbox"]:checked').length;
-        count.textContent = n;
-        const counter = $('gastro-base-counter');
-        if (counter) counter.classList.toggle('gastro-counter-full', n >= data.maxBase);
-      }
+      updateAmericanoIslandVisuals(data.maxBase);
     } else {
       const grid = $('gastro-extras-grid');
       if (grid) updateFormalIslandVisuals(grid);
@@ -3630,6 +3646,30 @@ function buildGastroSlide() {
   if (!isAmericano) setupFormalExtrasEvents();
 }
 
+function updateAmericanoIslandVisuals(maxBase) {
+  const grid = $('gastro-extras-grid');
+  const content = $('gastro-slide-content');
+  if (!grid || !content) return;
+  const islaRows = Array.from(grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)'));
+  const premiumRows = Array.from(content.querySelectorAll('.gastro-premium-row'));
+  const allRows = [...islaRows, ...premiumRows];
+  const selectedRows = allRows.filter(r => r.querySelector('input[type="checkbox"]').checked);
+  allRows.forEach(row => {
+    const isSelected = row.querySelector('input[type="checkbox"]').checked;
+    const idx = selectedRows.indexOf(row);
+    const isAdicional = isSelected && idx >= maxBase;
+    row.classList.toggle('selected', isSelected && !isAdicional);
+    row.classList.toggle('selected-adicional', isAdicional);
+    const indicator = row.querySelector('.island-row-indicator, .premium-row-indicator');
+    if (indicator) indicator.textContent = isAdicional ? '+' : '✓';
+  });
+  const n = selectedRows.length;
+  const count = $('gastro-base-count');
+  if (count) count.textContent = Math.min(n, maxBase);
+  const counter = $('gastro-base-counter');
+  if (counter) counter.classList.toggle('gastro-counter-full', n >= maxBase);
+}
+
 function updateFormalIslandVisuals(grid) {
   const rows = Array.from(grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)'));
   const selected = rows.filter(r => r.querySelector('input[type="checkbox"]').checked);
@@ -3651,15 +3691,15 @@ function setupGastroEvents(isAmericano, maxBase) {
     row.addEventListener('click', () => {
       const cb = row.querySelector('input[type="checkbox"]');
       if (isAmericano) {
-        const checked = grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked) input[type="checkbox"]:checked').length;
-        if (!cb.checked && checked >= maxBase) return;
+        const content = $('gastro-slide-content');
+        const allRows = [
+          ...Array.from(grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)')),
+          ...Array.from(content?.querySelectorAll('.gastro-premium-row') || []),
+        ];
+        const currentSelected = allRows.filter(r => r.querySelector('input[type="checkbox"]').checked).length;
+        if (!cb.checked && currentSelected >= maxBase + 1) return;
         cb.checked = !cb.checked;
-        row.classList.toggle('selected', cb.checked);
-        const n = grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked) input[type="checkbox"]:checked').length;
-        const count = $('gastro-base-count');
-        if (count) count.textContent = n;
-        const counter = $('gastro-base-counter');
-        if (counter) counter.classList.toggle('gastro-counter-full', n >= maxBase);
+        updateAmericanoIslandVisuals(maxBase);
       } else {
         cb.checked = !cb.checked;
         row.classList.toggle('selected', cb.checked);
@@ -3672,8 +3712,20 @@ function setupGastroEvents(isAmericano, maxBase) {
   $('gastro-slide-content')?.querySelectorAll('.gastro-premium-row').forEach(row => {
     row.addEventListener('click', () => {
       const cb = row.querySelector('input[type="checkbox"]');
-      cb.checked = !cb.checked;
-      row.classList.toggle('selected', cb.checked);
+      if (isAmericano) {
+        const content = $('gastro-slide-content');
+        const allRows = [
+          ...Array.from(grid?.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)') || []),
+          ...Array.from(content?.querySelectorAll('.gastro-premium-row') || []),
+        ];
+        const currentSelected = allRows.filter(r => r.querySelector('input[type="checkbox"]').checked).length;
+        if (!cb.checked && currentSelected >= maxBase + 1) return;
+        cb.checked = !cb.checked;
+        updateAmericanoIslandVisuals(maxBase);
+      } else {
+        cb.checked = !cb.checked;
+        row.classList.toggle('selected', cb.checked);
+      }
     });
   });
 
@@ -3684,6 +3736,26 @@ function setupGastroEvents(isAmericano, maxBase) {
         const cb = row.querySelector('input[type="checkbox"]');
         cb.checked = !cb.checked;
         row.classList.toggle('selected', cb.checked);
+      });
+    });
+  }
+
+  const postresList = $('gastro-postres-list');
+  if (postresList) {
+    postresList.querySelectorAll('.gastro-island-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const cb = row.querySelector('input[type="checkbox"]');
+        if (cb.checked) {
+          cb.checked = false;
+          row.classList.remove('selected');
+        } else {
+          postresList.querySelectorAll('.gastro-island-row').forEach(r => {
+            r.querySelector('input[type="checkbox"]').checked = false;
+            r.classList.remove('selected');
+          });
+          cb.checked = true;
+          row.classList.add('selected');
+        }
       });
     });
   }
@@ -3812,10 +3884,13 @@ function buildPropuestaResumen() {
     return f ? f.name : v;
   });
 
-  const islasHtml = islaNames.length
-    ? `<div class="res-islas">${islaNames.map(n => `<span class="res-isla-tag">${esc(n)}</span>`).join('')}</div>`
-    : '';
-  const premiumHtml = premiumNames.length
+  const islasHtml = (() => {
+    const names = isFormal ? islaNames : [...islaNames, ...premiumNames];
+    return names.length
+      ? `<div class="res-islas">${names.map(n => `<span class="res-isla-tag">${esc(n)}</span>`).join('')}</div>`
+      : '';
+  })();
+  const premiumHtml = isFormal && premiumNames.length
     ? `<div class="res-premium-tags">${premiumNames.map(n => `<span class="res-isla-tag res-isla-premium">${esc(n)}</span>`).join('')}</div>`
     : '';
 
@@ -3897,22 +3972,28 @@ function generatePropuestaPDF() {
   const selectedIslas = (d.gastroAdicionales || []).filter(v => islaValues.has(v));
   const selectedPremium = (d.gastroAdicionales || []).filter(v => premiumValues.has(v));
   const lockedIslas = (gastroData?.islas || []).filter(i => i.locked);
-  const allShownIslas = [...lockedIslas.map(i=>i.value), ...selectedIslas];
+  const allShownIslas = isFormal
+    ? [...lockedIslas.map(i=>i.value), ...selectedIslas]
+    : [...lockedIslas.map(i=>i.value), ...selectedIslas, ...selectedPremium];
 
   function itemRow(name, desc) {
     return `<li><div class="mi-info"><span class="mi-name">${esc(name)}</span>${desc ? `<span class="mi-desc">${esc(desc)}</span>` : ''}</div></li>`;
   }
   const islasSection = allShownIslas.length ? (() => {
+    const allIslaItems = [...(gastroData?.islas || []), ...allPremiumItems];
     const rows = allShownIslas.map(v => {
-      const f = (gastroData?.islas || []).find(i => i.value === v);
+      const f = allIslaItems.find(i => i.value === v);
       return f ? itemRow(f.name, f.desc) : itemRow(v, '');
     }).join('');
     const title = isFormal ? 'Estaciones de bienvenida' : 'Islas en vivo — el plato central';
-    const sub = isFormal ? 'Una incluida · adicionales a consultar' : 'Base incluida · 1 adicional elegida';
-    return `<div class="mb"><div class="mb-head"><span class="mb-roman">${isFormal ? 'ii' : 'ii'}</span><span class="mb-name">${title}</span><span class="mb-line"></span></div><div class="mb-sub">${sub}</div><ul class="mi">${rows}</ul></div>`;
+    const extraCount = isFormal ? selectedIslas.length : selectedIslas.length + selectedPremium.length;
+    const sub = isFormal
+      ? 'Una incluida · adicionales a consultar'
+      : `Base incluida · ${extraCount} adicional${extraCount !== 1 ? 'es' : ''} elegida${extraCount !== 1 ? 's' : ''}`;
+    return `<div class="mb"><div class="mb-head"><span class="mb-roman">ii</span><span class="mb-name">${title}</span><span class="mb-line"></span></div><div class="mb-sub">${sub}</div><ul class="mi">${rows}</ul></div>`;
   })() : '';
 
-  const premiumSection = selectedPremium.length ? (() => {
+  const premiumSection = isFormal && selectedPremium.length ? (() => {
     const rows = selectedPremium.map(v => {
       const f = allPremiumItems.find(i => i.value === v);
       return f ? itemRow(f.name, f.desc) : itemRow(v, '');

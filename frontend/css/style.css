@@ -2415,6 +2415,17 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   font-size: 15px;
 }
 .gastro-island-row.selected-extra .island-row-name { color: rgba(255,255,255,.6); }
+.gastro-island-row.selected-adicional,
+.gastro-premium-row.selected-adicional { border-color: rgba(196,153,62,.35); border-style: dashed; background: rgba(196,153,62,.04); }
+.gastro-island-row.selected-adicional .island-row-indicator,
+.gastro-premium-row.selected-adicional .premium-row-indicator {
+  border-color: rgba(196,153,62,.4);
+  background: rgba(196,153,62,.12);
+  color: var(--gold);
+  font-size: 15px;
+}
+.gastro-island-row.selected-adicional .island-row-name,
+.gastro-premium-row.selected-adicional .premium-row-name { color: rgba(255,255,255,.65); }
 .gastro-formal-extra-note {
   margin: 8px 2px 0;
   font-size: 11px;
