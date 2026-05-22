@@ -3316,7 +3316,7 @@ const GASTRO_DATA = {
       { ico: '🎂', label: 'Mesa de<br>dulces' },
     ],
     islasTitle: 'Islas gastronómicas',
-    islasSub: 'Durante la bienvenida · aprox. 90–100 min · incluye una estación',
+    islasSub: 'A mediados de la recepción · incluye una estación',
     islasLabel: 'A ELECCIÓN · UNA INCLUIDA',
     islas: [
       { value: 'Mollejas & Verdeo', name: 'Mollejas & Verdeo', desc: 'Mollejitas doradas y tiernas, salteadas con verdeo fresco · Servidas en pancitos de campo' },
@@ -3339,7 +3339,7 @@ const GASTRO_DATA = {
       { ico: '🎂', label: 'Postres &<br>torta homenaje' },
     ],
     islasTitle: 'Las islas · el plato central',
-    islasSub: 'Mínimo 120 min · sus invitados circulan, eligen y disfrutan a su ritmo',
+    islasSub: 'Sus invitados circulan, eligen y disfrutan a su ritmo',
     islasLabel: 'BASE INCLUIDA · elegí 1 más',
     islas: [
       { value: 'Bovalino — Pasta Italiana', name: 'Bovalino 🇮🇹', cat: 'Pasta', desc: 'Agnolottis/sorrentinos de jamón y queso con pomodoro, albahaca y oliva · Tagliatelle cortados a cuchillo con ragú alla bolognese', locked: true },
