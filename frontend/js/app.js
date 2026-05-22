@@ -3393,7 +3393,7 @@ const GASTRO_DATA = {
     mesaDulce: {
       included: { name: 'Pastelería Joliet', desc: 'Lemon pie · Cheese cake · Chocotorta · Torta África · Tarta de frutillas · Flan · Isla flotante · Mil Hojas · Brownies rellenos · Copas heladas · Panqueques' },
       tortaHomenaje: { name: 'Torta Homenaje', desc: 'El momento del brindis y el agasajo · modelo a convenir con el equipo' },
-      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones · Técnicamente más exigente que la pastelería tradicional' },
+      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones' },
     },
     mode: 'multi',
   },
@@ -3421,7 +3421,7 @@ const GASTRO_DATA = {
     mesaDulce: {
       included: { name: 'Pastelería Joliet', desc: 'Lemon pie · Cheese cake · Chocotorta · Torta África · Tarta de frutillas · Flan · Isla flotante · Mil Hojas · Brownies rellenos · Copas heladas · Panqueques' },
       tortaHomenaje: { name: 'Torta Homenaje', desc: 'El momento del brindis y el agasajo · modelo a convenir con el equipo' },
-      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones · Técnicamente más exigente que la pastelería tradicional' },
+      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones' },
     },
     mode: 'multi',
     maxBase: 1,
