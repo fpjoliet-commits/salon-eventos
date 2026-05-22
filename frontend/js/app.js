@@ -3492,7 +3492,7 @@ function buildGastroSlide() {
         <div class="gastro-section-title">Primer plato</div>
         <div class="gastro-section-sub">Pastas artesanales · Tagliatelle y Filetto siempre incluidos</div>
       </div>
-      <div class="gastro-section-label">PASTAS · Tagliatelle siempre incluido · elegí hasta 4 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/4</span></div>
+      <div class="gastro-section-label">PASTAS · Tagliatelle siempre incluido · elegí hasta 5 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/5</span></div>
       <div class="gastro-menu-list" id="gastro-pasta-list">${pastaRows}</div>
       <div class="gastro-section-label gastro-section-label-premium">PASTAS GOURMET · a consultar · cuentan en el límite de 4</div>
       <div class="gastro-menu-list" id="gastro-pasta-gourmet-list">${pastaGRows}</div>
@@ -3621,7 +3621,7 @@ function setupGastroEvents(isAmericano, maxBase) {
 }
 
 function setupFormalExtrasEvents() {
-  const MAX_PASTA = 4, MAX_SALSAS = 4;
+  const MAX_PASTA = 5, MAX_SALSAS = 4;
 
   function getPastaCount() {
     let n = 0;
