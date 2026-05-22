@@ -3392,7 +3392,6 @@ const GASTRO_DATA = {
     ],
     mesaDulce: {
       included: { name: 'Pastelería Joliet', desc: 'Lemon pie · Cheese cake · Chocotorta · Torta África · Tarta de frutillas · Flan · Isla flotante · Mil Hojas · Brownies rellenos · Copas heladas · Panqueques' },
-      tortaHomenaje: { name: 'Torta Homenaje', desc: 'El momento del brindis y el agasajo · modelo a convenir con el equipo' },
       upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones' },
     },
     mode: 'multi',
@@ -3425,7 +3424,6 @@ const GASTRO_DATA = {
         { name: 'África de autor', desc: 'La torta de chocolate insignia de Joliet · Una receta única con presentación exclusiva diseñada para el evento · No la encontrás en ninguna carta' },
         { name: 'Key Lime Pie', desc: 'Tarta americana de lima · Cremosa, cítrica y perfectamente equilibrada · Base de galleta con cobertura de crema suave' },
       ],
-      tortaHomenaje: { name: 'Torta Homenaje', desc: 'El momento del brindis y el agasajo · modelo a convenir con el equipo' },
     },
     mode: 'multi',
     maxBase: 1,
@@ -3566,9 +3564,9 @@ function buildGastroSlide() {
       <div class="gastro-section-label">INCLUIDA</div>
       <div class="gastro-islands-list">
         ${includedRows}
-        ${lockedRow(md.tortaHomenaje, ' gastro-torta-homenaje-row')}
       </div>
       ${upgradeSection}
+      <p class="gastro-torta-homenaje-note">Torta Homenaje · se realiza a pedido del agasajado · colores y decoración a convenir · se sirve después de los postres</p>
     </div>`;
   })();
 
