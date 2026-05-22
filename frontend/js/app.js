@@ -3023,22 +3023,22 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
 
 const RECORRIDO = {
   Formal: [
-    { nombre: 'Recepción',           desc: 'Cocktails y bocados de bienvenida en el jardín' },
-    { nombre: 'Islas gastronómicas', desc: 'Estaciones en vivo mientras todos ingresan al salón' },
-    { nombre: 'Primer plato',        desc: 'Pastas artesanales servidas a la mesa' },
-    { nombre: 'Plato central',       desc: 'Cortes de carne y ave con guarnición' },
-    { nombre: 'Torta homenaje',      desc: 'El momento del brindis y el agasajo' },
-    { nombre: 'Mesa de dulces',      desc: 'Pastelería fina sobre mesa principal iluminada' },
-    { nombre: 'Cafetería',           desc: 'Café, té e infusiones para cerrar con calma' },
-    { nombre: 'Fin de fiesta',       desc: 'Café, pizza, mate — el cierre a su gusto' },
+    { nombre: 'Recepción',               desc: 'Bienvenida con canapés fríos, bocados calientes y bruschettas en el jardín' },
+    { nombre: 'Estaciones de bienvenida',desc: 'Estaciones temáticas en vivo a mediados de la recepción, mientras todos ingresan al salón' },
+    { nombre: 'Primer plato',            desc: 'Pastas artesanales con salsas de elaboración propia, servidas a la mesa' },
+    { nombre: 'Plato central',           desc: 'Selección de ave con guarnición · upgrade carne premium a consultar' },
+    { nombre: 'Torta homenaje',          desc: 'El momento del brindis y el agasajo' },
+    { nombre: 'Mesa de dulces',          desc: 'Pastelería fina y postres individuales sobre mesa principal iluminada' },
+    { nombre: 'Cafetería',               desc: 'Café, té e infusiones para acompañar el cierre dulce' },
+    { nombre: 'Fin de fiesta',           desc: 'Café, pizza, mate — el cierre a su gusto' },
   ],
   Americano: [
-    { nombre: 'Recepción',           desc: 'Cocktails, canapés y bocados calientes en el jardín' },
-    { nombre: 'Islas gastronómicas', desc: 'Dos estaciones temáticas en vivo, a elección del anfitrión' },
-    { nombre: 'Torta homenaje',      desc: 'El momento del brindis y el agasajo' },
-    { nombre: 'Postres',             desc: 'Dulces de elaboración propia para seguir disfrutando' },
-    { nombre: 'Cafetería',           desc: 'Café, té e infusiones para cerrar con calma' },
-    { nombre: 'Fin de fiesta',       desc: 'Café, pizza, mate — el cierre a su gusto' },
+    { nombre: 'Recepción',               desc: 'Bienvenida con canapés fríos, bocados calientes y bruschettas en el jardín' },
+    { nombre: 'Islas en vivo',           desc: 'El plato central: dos estaciones temáticas en vivo, abundantes y contundentes, a elección del anfitrión' },
+    { nombre: 'Torta homenaje',          desc: 'El momento del brindis y el agasajo' },
+    { nombre: 'Postres',                 desc: 'Dulces de elaboración propia para seguir disfrutando' },
+    { nombre: 'Cafetería',               desc: 'Café, té e infusiones para cerrar con calma' },
+    { nombre: 'Fin de fiesta',           desc: 'Café, pizza, mate — el cierre a su gusto' },
   ]
 };
 
@@ -3049,7 +3049,11 @@ const propuestaState = {
     nombre: '', telefono: '', gmail: '', clienteId: null,
     estilo: '', tipoEvento: '', agasajado: '', fecha: '', turno: '',
     invitados: 100, menuInfantil: false, infantilCant: '',
-    espacio: '', adicionales: [], gastroAdicionales: [], pedidos: ''
+    espacio: '', adicionales: [], gastroAdicionales: [],
+    pastasSeleccionadas: [], pastasGourmetSeleccionadas: [],
+    salsasSeleccionadas: [], salsasGourmetSeleccionadas: [],
+    platoCentral: '', platoCentralCarne: [],
+    pedidos: ''
   }
 };
 
@@ -3059,7 +3063,11 @@ function initPropuesta() {
   d.nombre = ''; d.telefono = ''; d.gmail = ''; d.clienteId = null;
   d.estilo = ''; d.tipoEvento = ''; d.agasajado = ''; d.fecha = ''; d.turno = '';
   d.invitados = 100; d.menuInfantil = false; d.infantilCant = '';
-  d.espacio = ''; d.adicionales = []; d.gastroAdicionales = []; d.pedidos = '';
+  d.espacio = ''; d.adicionales = []; d.gastroAdicionales = [];
+  d.pastasSeleccionadas = []; d.pastasGourmetSeleccionadas = [];
+  d.salsasSeleccionadas = []; d.salsasGourmetSeleccionadas = [];
+  d.platoCentral = ''; d.platoCentralCarne = [];
+  d.pedidos = '';
 
   document.querySelectorAll('#view-propuesta .propuesta-card').forEach(c => c.classList.remove('selected'));
   document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(c => c.classList.remove('selected'));
@@ -3261,6 +3269,18 @@ function goToPropuestaSlide(n) {
     document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked').forEach(cb => {
       propuestaState.data.gastroAdicionales.push(cb.value);
     });
+    const d = propuestaState.data;
+    d.pastasSeleccionadas = [];
+    document.querySelectorAll('#gastro-pasta-list input:checked').forEach(cb => d.pastasSeleccionadas.push(cb.value));
+    d.pastasGourmetSeleccionadas = [];
+    document.querySelectorAll('#gastro-pasta-gourmet-list input:checked').forEach(cb => d.pastasGourmetSeleccionadas.push(cb.value));
+    d.salsasSeleccionadas = [];
+    document.querySelectorAll('#gastro-salsa-list input:checked').forEach(cb => d.salsasSeleccionadas.push(cb.value));
+    d.salsasGourmetSeleccionadas = [];
+    document.querySelectorAll('#gastro-salsa-gourmet-list input:checked').forEach(cb => d.salsasGourmetSeleccionadas.push(cb.value));
+    d.platoCentral = document.querySelector('#gastro-plato-ave input:checked')?.value || d.platoCentral || '';
+    d.platoCentralCarne = [];
+    document.querySelectorAll('#gastro-plato-carne input:checked').forEach(cb => d.platoCentralCarne.push(cb.value));
   }
   const old = document.querySelector('.propuesta-slide.active');
   if (old) {
@@ -3303,37 +3323,82 @@ function readPropuestaData() {
   document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked').forEach(cb => {
     d.gastroAdicionales.push(cb.value);
   });
+  const pp = (sel) => { const a = []; document.querySelectorAll(sel + ' input:checked').forEach(cb => a.push(cb.value)); return a; };
+  if ($('gastro-pasta-list')) { d.pastasSeleccionadas = pp('#gastro-pasta-list'); d.pastasGourmetSeleccionadas = pp('#gastro-pasta-gourmet-list'); d.salsasSeleccionadas = pp('#gastro-salsa-list'); d.salsasGourmetSeleccionadas = pp('#gastro-salsa-gourmet-list'); d.platoCentral = document.querySelector('#gastro-plato-ave input:checked')?.value || d.platoCentral || ''; d.platoCentralCarne = pp('#gastro-plato-carne'); }
   d.pedidos = $('prop-pedidos')?.value?.trim() || '';
 }
 
 /* ===== GASTRO SLIDE — dinámico por estilo ===== */
+
+const PRIMER_PLATO_DATA = {
+  pastas: [
+    'Tagliatelle cortados a cuchillo',
+    'Sorrentinos de jamón y queso',
+    'Canelones de verdura y ricota',
+    'Ravioloni de espinaca y parmesano',
+    'Agnolotis de pollo',
+    'Ñoquis de papa',
+  ],
+  pastasGourmet: [
+    'Fetuccine Nero di sepia',
+    'Sorrentinos de trucha y almendras',
+    'Fagotinnis de cordero y romero',
+    'Sorrentinos de salmón y philadelphia',
+  ],
+  salsas: [
+    { name: 'Filetto', locked: true },
+    { name: 'Bolognesa' },
+    { name: 'Rosé' },
+    { name: 'Cuatro quesos' },
+    { name: 'Crema de espinaca' },
+    { name: 'Italiana' },
+    { name: 'Salsa blanca' },
+  ],
+  salsasGourmet: ['Portobellos y ciboulette', 'Queso azul y nuez'],
+};
+
+const PLATO_CENTRAL_DATA = {
+  ave: [
+    { value: 'Pechuga tradición', desc: 'Rellena de jamón cocido y mozzarella · crema de cuatro quesos · rostí de papa' },
+    { value: 'Pechuga caprese', desc: 'Rellena de mozzarella, tomate y albahaca · papas a la suiza gratinadas' },
+    { value: 'Pechuga doble puerro', desc: 'Rellena de puerros salteados · salsa cremosa con almendras · milhojas de papa' },
+  ],
+  carne: [
+    { value: 'Lomo Reserva', desc: 'Medallones de lomo en reducción de Malbec · milhojas de papa' },
+    { value: 'Bife del bosque', desc: 'Ojo de bife en salsa de hongos de pino · rostí de papa dorado' },
+    { value: 'Lomo Dijon', desc: 'Lomo en crema de mostaza suave · papas a la suiza gratinadas' },
+  ],
+};
+
 const GASTRO_DATA = {
   Formal: {
     pillars: [
-      { ico: '🥂', label: 'Recepción<br>& cóctel' },
-      { ico: '🍝', label: 'Pastas<br>artesanales' },
-      { ico: '🥩', label: 'Plato<br>central' },
+      { ico: '🥂', label: 'Recepción' },
+      { ico: '🍝', label: 'Primer<br>plato' },
+      { ico: '🍽️', label: 'Plato<br>central' },
       { ico: '🎂', label: 'Mesa de<br>dulces' },
     ],
     islasTitle: 'Estaciones de bienvenida',
     islasSub: 'A mediados de la recepción · incluye una estación',
     islasLabel: 'UNA INCLUIDA · podés agregar más',
     islas: [
-      { value: 'Mollejas & Verdeo', name: 'Mollejas & Verdeo', desc: 'Mollejitas doradas y tiernas, salteadas con verdeo fresco · Servidas en pancitos de campo' },
+      { value: 'Sándwiches gourmets', name: 'Sándwiches gourmets', desc: 'Selección de sándwiches artesanales · rellenos gourmet y panes de masa madre' },
       { value: 'Alma Mexicana', name: 'Alma Mexicana', desc: 'Tacos de carne, pollo o cerdo con toppings clásicos · Nachos crocantes para acompañar' },
       { value: 'Clásicos en Laja', name: 'Clásicos en Laja', desc: 'Selección de fiambres y quesos en lajas de piedra · Variedad de panes y aderezos' },
       { value: 'Estación de Crêpes', name: 'Estación de Crêpes', desc: 'Crêpes finos preparados al momento con rellenos salados y salsas suaves para combinar' },
     ],
     premium: [
+      { value: 'Mollejas & Verdeo', name: 'Mollejas & Verdeo', desc: 'Mollejitas doradas y tiernas, salteadas con verdeo fresco · Servidas en pancitos de campo' },
       { value: 'Delicias de Mar', name: 'Delicias de Mar', desc: 'Cazuela caliente con mix de mariscos y vegetales en caldo de mar' },
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
       { value: 'Sushi en vivo', name: 'Sushi en vivo', desc: 'Preparación artesanal frente a los invitados' },
+      { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida' },
     ],
     mode: 'multi',
   },
   Americano: {
     pillars: [
-      { ico: '🥂', label: 'Recepción<br>& cóctel' },
+      { ico: '🥂', label: 'Recepción' },
       { ico: '🏝️', label: 'Islas en vivo<br>(plato central)' },
       { ico: '🎂', label: 'Postres &<br>torta homenaje' },
     ],
@@ -3351,6 +3416,7 @@ const GASTRO_DATA = {
     premium: [
       { value: 'Delicias de Mar', name: 'Delicias de Mar', desc: 'Cazuela caliente con mix de mariscos y vegetales en caldo de mar' },
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
+      { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida' },
     ],
     mode: 'multi',
     maxBase: 1,
@@ -3411,6 +3477,47 @@ function buildGastroSlide() {
     ? `<div class="gastro-counter" id="gastro-base-counter"><span id="gastro-base-count">0</span> / 1 adicional elegido</div>`
     : '';
 
+  const primerPlatoHtml = !isAmericano ? (() => {
+    const ppd = PRIMER_PLATO_DATA;
+    const pastaRows = ppd.pastas.map(p => `
+      <label class="gastro-menu-row"><input type="checkbox" value="${p}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p}</span></label>`).join('');
+    const pastaGRows = ppd.pastasGourmet.map(p => `
+      <label class="gastro-menu-row"><input type="checkbox" value="${p}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p}</span></label>`).join('');
+    const salsaRows = ppd.salsas.map(s => `
+      <label class="gastro-menu-row${s.locked ? ' locked' : ''}"><input type="checkbox" value="${s.name}"${s.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s.name}${s.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
+    const salsaGRows = ppd.salsasGourmet.map(s => `
+      <label class="gastro-menu-row"><input type="checkbox" value="${s}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s}</span></label>`).join('');
+    const aveRows = PLATO_CENTRAL_DATA.ave.map(p => `
+      <label class="gastro-plato-row"><input type="radio" name="plato-central" value="${p.value}"><div class="gastro-plato-indicator">✓</div><div class="gastro-plato-body"><div class="gastro-plato-name">${p.value}</div><div class="gastro-plato-desc">${p.desc}</div></div></label>`).join('');
+    const carneRows = PLATO_CENTRAL_DATA.carne.map(p => `
+      <label class="gastro-menu-row"><input type="checkbox" value="${p.value}"><div class="gastro-menu-indicator">✓</div><div style="flex:1"><span class="gastro-menu-name">${p.value}</span><span class="gastro-menu-desc">${p.desc}</span></div></label>`).join('');
+    return `
+    <div class="gastro-subsection">
+      <div class="gastro-subsection-header">
+        <div class="gastro-section-title">Primer plato</div>
+        <div class="gastro-section-sub">Pastas artesanales · Filetto siempre incluida</div>
+      </div>
+      <div class="gastro-section-label">PASTAS · elegí cuáles</div>
+      <div class="gastro-menu-list" id="gastro-pasta-list">${pastaRows}</div>
+      <div class="gastro-section-label gastro-section-label-premium">PASTAS GOURMET · a consultar</div>
+      <div class="gastro-menu-list" id="gastro-pasta-gourmet-list">${pastaGRows}</div>
+      <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida + 4 a elección</div>
+      <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
+      <div class="gastro-section-label gastro-section-label-premium">SALSAS GOURMET · a consultar</div>
+      <div class="gastro-menu-list" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
+    </div>
+    <div class="gastro-subsection">
+      <div class="gastro-subsection-header">
+        <div class="gastro-section-title">Plato central</div>
+        <div class="gastro-section-sub">Base ave incluida · upgrade carne a consultar</div>
+      </div>
+      <div class="gastro-section-label">BASE AVE · a elección</div>
+      <div class="gastro-plato-list" id="gastro-plato-ave">${aveRows}</div>
+      <div class="gastro-section-label gastro-section-label-premium">CARNE PREMIUM · a consultar</div>
+      <div class="gastro-menu-list" id="gastro-plato-carne">${carneRows}</div>
+    </div>`;
+  })() : '';
+
   container.innerHTML = `
     <div class="gastro-incluido">${pillarsHtml}</div>
     <div class="gastro-islands-section">
@@ -3424,7 +3531,7 @@ function buildGastroSlide() {
       ${!isAmericano ? `<p class="gastro-formal-extra-note" id="gastro-formal-extra-note" style="display:none">Una estación está incluida · las adicionales se presupuestan aparte</p>` : ''}
       <div class="gastro-section-label gastro-section-label-premium">PREMIUM · a consultar</div>
       <div class="gastro-premium-list">${premiumHtml}</div>
-    </div>`;
+    </div>${primerPlatoHtml}`;
 
   const prev = propuestaState.data.gastroAdicionales || [];
   if (prev.length) {
@@ -3449,7 +3556,27 @@ function buildGastroSlide() {
     }
   }
 
+  if (!isAmericano) {
+    const d = propuestaState.data;
+    const restoreMenu = (listId, saved) => {
+      const list = $(listId); if (!list || !saved?.length) return;
+      list.querySelectorAll('input:not([disabled])').forEach(cb => {
+        if (saved.includes(cb.value)) { cb.checked = true; cb.closest('.gastro-menu-row')?.classList.add('selected'); }
+      });
+    };
+    restoreMenu('gastro-pasta-list', d.pastasSeleccionadas);
+    restoreMenu('gastro-pasta-gourmet-list', d.pastasGourmetSeleccionadas);
+    restoreMenu('gastro-salsa-list', d.salsasSeleccionadas);
+    restoreMenu('gastro-salsa-gourmet-list', d.salsasGourmetSeleccionadas);
+    if (d.platoCentral) {
+      const radio = document.querySelector(`#gastro-plato-ave input[value="${CSS.escape(d.platoCentral)}"]`);
+      if (radio) { radio.checked = true; radio.closest('.gastro-plato-row')?.classList.add('selected'); }
+    }
+    restoreMenu('gastro-plato-carne', d.platoCentralCarne);
+  }
+
   setupGastroEvents(isAmericano, data.maxBase);
+  if (!isAmericano) setupFormalExtrasEvents();
 }
 
 function updateFormalIslandVisuals(grid) {
@@ -3500,6 +3627,30 @@ function setupGastroEvents(isAmericano, maxBase) {
   });
 }
 
+function setupFormalExtrasEvents() {
+  const addMenuListeners = (listId) => {
+    const list = $(listId); if (!list) return;
+    list.querySelectorAll('.gastro-menu-row:not(.locked)').forEach(row => {
+      row.addEventListener('click', () => {
+        const inp = row.querySelector('input'); if (!inp || inp.disabled) return;
+        inp.checked = !inp.checked;
+        row.classList.toggle('selected', inp.checked);
+      });
+    });
+  };
+  ['gastro-pasta-list','gastro-pasta-gourmet-list','gastro-salsa-list','gastro-salsa-gourmet-list','gastro-plato-carne'].forEach(addMenuListeners);
+  const aveList = $('gastro-plato-ave');
+  if (aveList) {
+    aveList.querySelectorAll('.gastro-plato-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const radio = row.querySelector('input[type="radio"]'); if (!radio) return;
+        aveList.querySelectorAll('.gastro-plato-row').forEach(r => r.classList.remove('selected'));
+        radio.checked = true; row.classList.add('selected');
+      });
+    });
+  }
+}
+
 function buildPropuestaResumen() {
   readPropuestaData();
   const d = propuestaState.data;
@@ -3508,6 +3659,7 @@ function buildPropuestaResumen() {
 
   const estilo = d.estilo || 'Formal';
   const gastroData = GASTRO_DATA[estilo];
+  const isFormal = estilo === 'Formal';
   const fechaFmt = d.fecha ? formatDate(d.fecha) : null;
 
   const islaValues = new Set((gastroData?.islas || []).map(i => i.value));
@@ -3545,11 +3697,23 @@ function buildPropuestaResumen() {
   const premiumHtml = premiumNames.length
     ? `<div class="res-premium-tags">${premiumNames.map(n => `<span class="res-isla-tag res-isla-premium">${esc(n)}</span>`).join('')}</div>`
     : '';
-  const gastroSection = (pillarsHtml || islasHtml || premiumHtml) ? `
+
+  const formalPlatos = isFormal ? (() => {
+    const tags = (arr) => arr.map(v => `<span class="res-isla-tag">${esc(v)}</span>`).join('');
+    const pastas = [...(d.pastasSeleccionadas||[]), ...(d.pastasGourmetSeleccionadas||[])];
+    const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto'), ...(d.salsasGourmetSeleccionadas||[])];
+    const parts = [];
+    if (pastas.length) parts.push(`<div style="margin-top:8px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Pastas</span><div class="res-islas" style="margin-top:4px">${tags(pastas)}</div></div>`);
+    if (salsas.length) parts.push(`<div style="margin-top:6px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Salsas</span><div class="res-islas" style="margin-top:4px">${tags(salsas)}</div></div>`);
+    if (d.platoCentral) parts.push(`<div style="margin-top:6px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Plato central</span><div class="res-islas" style="margin-top:4px"><span class="res-isla-tag">${esc(d.platoCentral)}</span>${(d.platoCentralCarne||[]).map(c=>`<span class="res-isla-tag res-isla-premium">${esc(c)}</span>`).join('')}</div></div>`);
+    return parts.join('');
+  })() : '';
+
+  const gastroSection = (pillarsHtml || islasHtml || premiumHtml || formalPlatos) ? `
     <div class="res-section">
       <div class="res-section-label">Gastronomía de tu noche</div>
       ${pillarsHtml ? `<div class="res-pillars">${pillarsHtml}</div>` : ''}
-      ${islasHtml}${premiumHtml}
+      ${islasHtml}${premiumHtml}${formalPlatos}
     </div>` : '';
 
   const adicionales = d.adicionales || [];
@@ -3602,15 +3766,73 @@ function generatePropuestaPDF() {
       </div>
     </div>`).join('');
 
-  const gastroTagsHTML = d.gastroAdicionales.length
-    ? d.gastroAdicionales.map(a => `<span class="tag">${esc(a)}</span>`).join('') : '';
-  const entTagsHTML = d.adicionales.length
-    ? d.adicionales.map(a => `<span class="tag">${esc(a)}</span>`).join('') : '';
-  const hasAdicionales = gastroTagsHTML || entTagsHTML;
+  const gastroData = GASTRO_DATA[estilo];
+  const isFormal = estilo === 'Formal';
 
-  let secIdx = 2;
-  const RN = ['I','II','III','IV','V'];
-  const adicSecNum  = hasAdicionales ? RN[secIdx++] : null;
+  // Gastro detail with descriptions
+  const islaValues = new Set((gastroData?.islas || []).map(i => i.value));
+  const premiumValues = new Set((gastroData?.premium || []).map(i => i.value));
+  const selectedIslas = (d.gastroAdicionales || []).filter(v => islaValues.has(v));
+  const selectedPremium = (d.gastroAdicionales || []).filter(v => premiumValues.has(v));
+  const lockedIslas = (gastroData?.islas || []).filter(i => i.locked);
+  const allShownIslas = [...lockedIslas.map(i=>i.value), ...selectedIslas];
+
+  function itemRow(name, desc) {
+    return `<li><div class="mi-info"><span class="mi-name">${esc(name)}</span>${desc ? `<span class="mi-desc">${esc(desc)}</span>` : ''}</div></li>`;
+  }
+  const islasSection = allShownIslas.length ? (() => {
+    const rows = allShownIslas.map(v => {
+      const f = (gastroData?.islas || []).find(i => i.value === v);
+      return f ? itemRow(f.name, f.desc) : itemRow(v, '');
+    }).join('');
+    const title = isFormal ? 'Estaciones de bienvenida' : 'Islas en vivo — el plato central';
+    const sub = isFormal ? 'Una incluida · adicionales a consultar' : 'Base incluida · 1 adicional elegida';
+    return `<div class="mb"><div class="mb-head"><span class="mb-roman">${isFormal ? 'ii' : 'ii'}</span><span class="mb-name">${title}</span><span class="mb-line"></span></div><div class="mb-sub">${sub}</div><ul class="mi">${rows}</ul></div>`;
+  })() : '';
+
+  const premiumSection = selectedPremium.length ? (() => {
+    const rows = selectedPremium.map(v => {
+      const f = (gastroData?.premium || []).find(i => i.value === v);
+      return f ? itemRow(f.name, f.desc) : itemRow(v, '');
+    }).join('');
+    return `<div class="mb"><div class="mb-head"><span class="mb-roman">★</span><span class="mb-name">Premium gastronómico</span><span class="mb-line"></span></div><ul class="mi">${rows}</ul></div>`;
+  })() : '';
+
+  const formalGastroSection = isFormal ? (() => {
+    const pastas = [...(d.pastasSeleccionadas||[]), ...(d.pastasGourmetSeleccionadas||[])];
+    const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto'), ...(d.salsasGourmetSeleccionadas||[])];
+    const platoCentral = d.platoCentral ? (PLATO_CENTRAL_DATA.ave.find(p=>p.value===d.platoCentral) || {value:d.platoCentral,desc:''}) : null;
+    const carneSelec = (d.platoCentralCarne||[]).map(v => PLATO_CENTRAL_DATA.carne.find(p=>p.value===v) || {value:v,desc:''});
+    const ppRows = pastas.length ? pastas.map(p=>itemRow(p,'')).join('') : itemRow('A definir con el equipo', '');
+    const salRows = salsas.length ? salsas.map(s=>itemRow(s,'')).join('') : itemRow('Filetto siempre incluida · 4 a elección', '');
+    const pcRow = platoCentral ? itemRow(platoCentral.value, platoCentral.desc) + (carneSelec.map(c=>itemRow(c.value+' (carne premium)',c.desc)).join('')) : itemRow('Base ave · a confirmar', '');
+    return `
+    <div class="mb"><div class="mb-head"><span class="mb-roman">iii</span><span class="mb-name">Primer plato — Pastas</span><span class="mb-line"></span></div>
+      <div class="mb-cols"><div><div class="mb-sub">Pastas elegidas</div><ul class="mi">${ppRows}</ul></div><div><div class="mb-sub">Salsas — Filetto siempre incluida</div><ul class="mi">${salRows}</ul></div></div></div>
+    <div class="mb"><div class="mb-head"><span class="mb-roman">iv</span><span class="mb-name">Plato central</span><span class="mb-line"></span></div><ul class="mi">${pcRow}</ul></div>`;
+  })() : '';
+
+  // Adicionales grouped by event section
+  const ADIC_GRUPOS = [
+    { label: 'Para la recepción', items: ['Candy Bar'] },
+    { label: 'Entre platos & Shows', items: ['Diversos Shows', 'Robot de Luces', 'Música & Entretenimiento'] },
+    { label: 'Cabinas & Momentos', items: ['Cabina de Instagram', 'Cabina de Glitter', 'Cabina de Fotos'] },
+    { label: 'Decoración & Cotillón', items: ['Cotillón Premium', 'Cotillón Premium Personalizado'] },
+  ];
+  const adicGrupos = ADIC_GRUPOS.map(g => {
+    const found = (d.adicionales||[]).filter(a => g.items.includes(a));
+    return found.length ? `<div class="add-group-label">${g.label}</div><div class="tags-wrap">${found.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div>` : '';
+  }).join('');
+  const hasGastroAdic = (d.gastroAdicionales||[]).length > 0 || selectedPremium.length > 0;
+  const gastroAdicStr = [...allShownIslas, ...selectedPremium].map(v=>{
+    const f = [...(gastroData?.islas||[]),...(gastroData?.premium||[])].find(i=>i.value===v);
+    return f ? f.name : v;
+  });
+  const hasAdicionales = adicGrupos || hasGastroAdic;
+
+  let secIdx = 2; const RN = ['I','II','III','IV','V','VI'];
+  const gastroSecNum = RN[secIdx++];
+  const adicSecNum = (adicGrupos || (d.adicionales||[]).length) ? RN[secIdx++] : null;
   const jolietSecNum = RN[secIdx];
 
   const metaHTML = [
@@ -3635,91 +3857,108 @@ function generatePropuestaPDF() {
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+html{-webkit-font-smoothing:antialiased}
 :root{--paper:#FAF7F2;--ink:#1A1A1A;--gold:#9D7E3C;--gold-soft:#C9B27C;--muted:#8B8074;--hairline:#D8CFC0;--warm:#F2EDE3}
 body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:24px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.page{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto 24px;padding:22mm 20mm;position:relative;overflow:hidden;page-break-after:always}
+.page{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto 24px;padding:20mm 20mm 28mm;position:relative;overflow:hidden;page-break-after:always}
 @page{size:A4;margin:0}
 @media print{body{background:white;padding:0}.page{margin:0;box-shadow:none}}
-/* COVER */
-.cover{padding:0;display:flex;flex-direction:column;justify-content:space-between}
+/* PORTADA */
+.cover{padding:0;display:flex;flex-direction:column}
 .cover::before{content:'';position:absolute;top:9mm;right:9mm;bottom:9mm;left:9mm;border:.5px solid rgba(157,126,60,.38);pointer-events:none;z-index:1}
 .cover::after{content:'';position:absolute;top:11mm;right:11mm;bottom:11mm;left:11mm;border:.5px solid rgba(157,126,60,.18);pointer-events:none;z-index:1}
-.cov-top{padding:16mm 20mm 0;text-align:center}
-.cov-tag{font-size:9px;letter-spacing:.4em;color:var(--gold);text-transform:uppercase;margin-bottom:14px}
-.cov-wm{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--ink);margin-top:12px;display:block}
-.cov-num{font-size:9px;letter-spacing:.26em;color:var(--muted);text-transform:uppercase;margin-top:5px}
-.cov-photo{margin:9mm 20mm 0;height:66mm;background-size:cover;background-position:center;position:relative;overflow:hidden}
-.cov-photo::after{content:'';position:absolute;inset:6px;border:1px solid rgba(250,247,242,.32)}
-.cov-client{margin:7mm 20mm 0;text-align:center}
-.cov-label{font-size:9px;letter-spacing:.3em;color:var(--muted);text-transform:uppercase;margin-bottom:7px}
-.cov-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:400;color:var(--ink)}
-.cov-meta{display:flex;justify-content:center;gap:20px;margin-top:12px;flex-wrap:wrap}
+.cov-logo{padding:18mm 20mm 0;text-align:center}
+.cov-tag{font-size:9px;letter-spacing:.4em;color:var(--gold);text-transform:uppercase;margin-bottom:16px}
+.cov-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:26px;color:var(--ink);margin-top:14px;display:block}
+.cov-num{font-size:9px;letter-spacing:.26em;color:var(--muted);text-transform:uppercase;margin-top:6px}
+.cov-photo{margin:12mm 20mm 0;height:72mm;background-size:cover;background-position:center;background-color:#2a3042;position:relative;overflow:hidden}
+.cov-photo::after{content:'';position:absolute;inset:6px;border:1px solid rgba(250,247,242,.3)}
+.cov-client{margin:10mm 20mm 0;text-align:center;padding-bottom:4mm}
+.cov-label{font-size:9px;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+.cov-name{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:400;color:var(--ink)}
+.cov-meta{display:flex;justify-content:center;gap:22px;margin-top:14px;flex-wrap:wrap}
 .meta-item{text-align:center}
-.meta-k{display:block;font-size:8px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
-.meta-v{display:block;font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--ink)}
-.cov-foot{padding:0 20mm 16mm;margin-top:auto;text-align:center;font-size:8.5px;color:var(--muted);letter-spacing:.22em;text-transform:uppercase}
-.cov-foot .rule{width:30px;height:1px;background:var(--gold);margin:0 auto 9px}
+.meta-k{display:block;font-size:8px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+.meta-v{display:block;font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--ink)}
+.cov-foot{position:absolute;bottom:18mm;left:20mm;right:20mm;text-align:center;font-size:8.5px;color:var(--muted);letter-spacing:.22em;text-transform:uppercase}
+.cov-foot .rule{width:32px;height:1px;background:var(--gold);margin:0 auto 9px}
 /* INTERIOR */
 .ph{display:flex;justify-content:space-between;align-items:center;padding-bottom:11px;border-bottom:1px solid var(--hairline);margin-bottom:22px}
-.ph-wm{font-family:'Cormorant Garamond',serif;font-size:19px;letter-spacing:.14em;font-weight:500}
+.ph-logo{width:34px;height:34px;background:#0f0f0f;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
+.ph-logo::before{content:'JOLIET';font-family:'Inter',sans-serif;font-weight:900;font-size:6px;color:white;letter-spacing:.06em}
+.ph-logo::after{content:'EVENTOS';font-family:'Inter',sans-serif;font-size:3px;color:rgba(255,255,255,.7);letter-spacing:.35em;margin-top:2px}
 .ph-folio{font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
 .salut{font-family:'Cormorant Garamond',serif;font-size:19px;font-style:italic;margin-bottom:10px}
 .bcopy{font-size:11.5px;line-height:1.7;color:#2A2620;max-width:155mm}
 .bcopy p+p{margin-top:7px}
-.stitle{margin-top:14mm;margin-bottom:12px;display:flex;align-items:baseline;gap:12px}
+.stitle{margin-top:11mm;margin-bottom:12px;display:flex;align-items:baseline;gap:12px}
 .snum{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13px;color:var(--paper);background:var(--gold);padding:3px 9px 2px;letter-spacing:.08em}
 .sname{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:500;letter-spacing:.02em}
 .srule{flex:1;height:1px;background:var(--hairline)}
 /* TIMELINE */
 .tl{margin-top:4px}
-.tl-row{display:grid;grid-template-columns:30px 1fr;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--hairline)}
+.tl-row{display:grid;grid-template-columns:30px 1fr;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--hairline)}
 .tl-row:last-child{border-bottom:none}
 .tl-mark{display:flex;flex-direction:column;align-items:center;padding-top:1px}
 .tl-dot{width:22px;height:22px;border:1px solid var(--gold);border-radius:50%;background:var(--paper);display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:10.5px;color:var(--gold);flex-shrink:0}
-.tl-line{width:1px;background:var(--gold-soft);flex:1;min-height:14px;margin-top:2px}
-.tl-name{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
-.tl-desc{font-size:10.5px;color:var(--muted);margin-top:1px;line-height:1.45}
+.tl-line{width:1px;background:var(--gold-soft);flex:1;min-height:12px;margin-top:2px}
+.tl-name{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.tl-desc{font-size:10px;color:var(--muted);margin-top:1px;line-height:1.45}
+/* MENU BLOCKS */
+.mb{margin-bottom:14px;break-inside:avoid}
+.mb-head{display:flex;align-items:baseline;gap:11px;margin-bottom:6px}
+.mb-roman{font-family:'Cormorant Garamond',serif;font-style:italic;color:var(--gold);font-size:14px;letter-spacing:.12em}
+.mb-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.mb-line{flex:1;height:1px;background:var(--hairline)}
+.mb-sub{font-size:8.5px;letter-spacing:.2em;color:var(--gold);text-transform:uppercase;margin-bottom:5px;padding-left:8px}
+.mb-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+.mi{list-style:none;font-family:'Cormorant Garamond',serif;font-size:13px;background:var(--warm);border:1px solid var(--hairline)}
+.mi li{display:flex;flex-direction:column;padding:5px 12px;border-bottom:1px solid rgba(216,207,192,.5)}
+.mi li:last-child{border-bottom:none}
+.mi-info{display:flex;flex-direction:column;gap:1px}
+.mi-name{font-size:13px;line-height:1.35}
+.mi-desc{font-family:'Inter',sans-serif;font-size:9px;color:var(--muted);font-style:italic;line-height:1.35}
 /* TAGS */
 .tags-wrap{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .tag{font-family:'Cormorant Garamond',serif;font-size:12px;letter-spacing:.03em;background:var(--warm);border:1px solid var(--hairline);color:var(--ink);padding:4px 13px}
-.add-group-label{font-size:8.5px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;margin-top:8px}
+.add-group-label{font-size:8.5px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:3px;margin-top:10px}
 /* SERVICES */
-.svc-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 26px;margin-top:5px}
-.svc-item{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px dotted var(--hairline)}
+.svc-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-top:5px}
+.svc-item{display:flex;align-items:flex-start;gap:9px;padding:5px 0;border-bottom:1px dotted var(--hairline)}
 .svc-chk{flex:0 0 15px;height:15px;border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;margin-top:2px}
 .svc-chk::after{content:'';width:3px;height:6.5px;border-right:1.5px solid var(--gold);border-bottom:1.5px solid var(--gold);transform:rotate(45deg) translate(-1px,-1px)}
 .svc-lbl{font-size:10.5px;color:var(--ink);line-height:1.4}
 /* CLOSING */
-.closing{margin-top:12mm;text-align:center}
+.closing{margin-top:10mm;text-align:center}
 .closing .cl-line{width:44px;height:1px;background:var(--gold);margin:0 auto 12px}
-.closing .cl-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15.5px;color:var(--ink);max-width:130mm;margin:0 auto;line-height:1.55}
+.closing .cl-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--ink);max-width:130mm;margin:0 auto;line-height:1.55}
 .closing .cl-sig{font-family:'Cormorant Garamond',serif;font-size:19px;margin-top:16px}
 .closing .cl-sig small{display:block;font-family:'Inter',sans-serif;font-size:8.5px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase;margin-top:3px}
-.pfoot{position:absolute;bottom:13mm;left:20mm;right:20mm;display:flex;justify-content:space-between;align-items:center;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.15em;padding-top:9px;border-top:1px solid var(--hairline)}
-.ped-box{background:var(--warm);border:1px solid var(--hairline);padding:12px 15px;font-size:11.5px;line-height:1.7;color:#2A2620;margin-top:5px;font-style:italic}
+.pfoot{position:absolute;bottom:11mm;left:20mm;right:20mm;display:flex;justify-content:space-between;align-items:center;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.15em;padding-top:9px;border-top:1px solid var(--hairline)}
+.ped-box{background:var(--warm);border:1px solid var(--hairline);padding:11px 14px;font-size:11.5px;line-height:1.7;color:#2A2620;margin-top:5px;font-style:italic}
 </style>
 </head>
 <body>
 
+<!-- PORTADA -->
 <div class="page cover">
-  <div class="cov-top">
+  <div class="cov-logo">
     <div class="cov-tag">Salón de Eventos · Ciudad Tesei</div>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="90" height="90" style="display:block;margin:0 auto">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="120" height="120" style="display:block;margin:0 auto 12px">
       <circle cx="100" cy="100" r="98" fill="#0f0f0f"/>
       <text x="100" y="113" font-family="'Inter',sans-serif" font-weight="900" font-size="43" fill="white" text-anchor="middle" letter-spacing="2">JOLIET</text>
       <circle cx="112" cy="74" r="3.5" fill="white"/>
       <text x="100" y="136" font-family="'Inter',sans-serif" font-weight="500" font-size="14" fill="white" text-anchor="middle" letter-spacing="6">EVENTOS</text>
     </svg>
-    <span class="cov-wm">Propuesta comercial para su evento</span>
+    <span class="cov-title">Propuesta comercial para su evento</span>
     <div class="cov-num">Emitida: ${esc(hoy)}</div>
   </div>
 
-  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.38),rgba(26,26,26,.04)),url('${base}/img/propuesta/portada.jpeg')"></div>
+  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.4),rgba(26,26,26,.06)),url('${base}/img/propuesta/portada.jpeg'),url('${base}/img/propuesta/fiesta.jpeg'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
 
   <div class="cov-client">
     <div class="cov-label">Preparada para</div>
-    <div class="cov-name">${esc(d.nombre || d.tipoEvento || 'su evento')}</div>
+    <div class="cov-name">${esc(d.nombre || (d.tipoEvento && d.agasajado ? d.agasajado : '') || d.tipoEvento || 'su evento')}</div>
     <div class="cov-meta">${metaHTML}</div>
   </div>
 
@@ -3729,34 +3968,44 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   </div>
 </div>
 
+<!-- CARTA + RECORRIDO -->
 <div class="page">
   <div class="ph">
-    <div class="ph-wm">Joliet Eventos</div>
+    <div class="ph-logo"></div>
     <div class="ph-folio">Propuesta · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div>
   </div>
 
   <div class="salut">Estimado/a${d.nombre ? ' ' + esc(d.nombre) + ',' : ','}</div>
   <div class="bcopy">
-    <p>Ponemos a su consideración la presente propuesta${d.tipoEvento ? ' para el evento de <strong>' + esc(d.tipoEvento) + '</strong>' : ' para su celebración'}${d.fecha ? ', a realizarse el <strong>' + esc(fechaFmt) + '</strong>' : ''}${d.espacio ? ' en nuestro espacio de <strong>' + esc(d.espacio) + '</strong>' : ' en nuestro salón'}${d.invitados ? ', con una asistencia de <strong>' + d.invitados + ' invitados</strong>' : ''}.</p>
-    <p>A continuación encontrará el recorrido de su noche, los adicionales seleccionados y los servicios que hacen de cada evento Joliet una experiencia diferente.</p>
+    <p>Ponemos a su consideración la presente propuesta${d.tipoEvento ? ' para el evento de <strong>' + esc(d.tipoEvento) + '</strong>' : ' para su celebración'}${d.fecha ? ', a realizarse el <strong>' + esc(fechaFmt) + '</strong>' : ''}${d.espacio ? ' en nuestro espacio <strong>' + esc(d.espacio) + '</strong>' : ' en nuestro salón'}${d.invitados ? ', con una asistencia de <strong>' + d.invitados + ' invitados</strong>' : ''}.</p>
+    <p>A continuación encontrará el recorrido de su noche, el detalle de la propuesta gastronómica y los adicionales seleccionados.</p>
   </div>
 
-  <div class="stitle">
+  <div class="stitle" style="margin-top:9mm">
     <span class="snum">I.</span>
     <span class="sname">El recorrido de su noche</span>
     <span class="srule"></span>
   </div>
   <div class="tl">${timelineHTML}</div>
 
-  ${hasAdicionales ? `
+  <div class="stitle">
+    <span class="snum">${gastroSecNum}.</span>
+    <span class="sname">La propuesta gastronómica</span>
+    <span class="srule"></span>
+  </div>
+  <div class="mb"><div class="mb-head"><span class="mb-roman">i</span><span class="mb-name">Recepción</span><span class="mb-line"></span></div>
+    <div class="mb-sub">Canapés fríos, bruschettas, bocados calientes y mini empanaditas</div></div>
+  ${islasSection}
+  ${formalGastroSection}
+  ${premiumSection}
+
+  ${adicGrupos ? `
   <div class="stitle">
     <span class="snum">${adicSecNum}.</span>
     <span class="sname">Adicionales elegidos</span>
     <span class="srule"></span>
   </div>
-  ${gastroTagsHTML ? `<div class="add-group-label">Gastronómicos</div><div class="tags-wrap">${gastroTagsHTML}</div>` : ''}
-  ${entTagsHTML ? `<div class="add-group-label">Experiencias &amp; décor</div><div class="tags-wrap">${entTagsHTML}</div>` : ''}
-  ` : ''}
+  ${adicGrupos}` : ''}
 
   <div class="stitle">
     <span class="snum">${jolietSecNum}.</span>
@@ -3765,10 +4014,10 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   </div>
   <div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.04em">Cada evento Joliet incluye, sin excepción</div>
   <div class="svc-grid">
-    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Vajilla de porcelana filete dorado y plato de sitio</span></div>
+    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Vajilla de porcelana y plato de sitio</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Maître, mozos, chef, barman y coordinadora general</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Mantelería a elección y centros de mesa incluidos</span></div>
-    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Cristalería completa y cubertería PATRY</span></div>
+    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Cristalería y cubertería completa</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Agua, gaseosas, cerveza, vino, sidra y champagne</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Bar de tragos para la recepción o toda la noche</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Iluminación de diseño y provisiones completas</span></div>
@@ -3776,7 +4025,7 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   </div>
 
   ${d.pedidos ? `
-  <div class="stitle" style="margin-top:10mm">
+  <div class="stitle" style="margin-top:8mm">
     <span class="sname" style="font-size:19px">Pedidos especiales</span>
     <span class="srule"></span>
   </div>
