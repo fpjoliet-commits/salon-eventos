@@ -3976,45 +3976,129 @@ function generatePropuestaPDF() {
     ? [...lockedIslas.map(i=>i.value), ...selectedIslas]
     : [...lockedIslas.map(i=>i.value), ...selectedIslas, ...selectedPremium];
 
-  function itemRow(name, desc) {
-    return `<li><div class="mi-info"><span class="mi-name">${esc(name)}</span>${desc ? `<span class="mi-desc">${esc(desc)}</span>` : ''}</div></li>`;
-  }
-  const islasSection = allShownIslas.length ? (() => {
-    const allIslaItems = [...(gastroData?.islas || []), ...allPremiumItems];
-    const rows = allShownIslas.map(v => {
-      const f = allIslaItems.find(i => i.value === v);
-      return f ? itemRow(f.name, f.desc) : itemRow(v, '');
-    }).join('');
-    const title = isFormal ? 'Estaciones de bienvenida' : 'Islas en vivo — el plato central';
-    const extraCount = isFormal ? selectedIslas.length : selectedIslas.length + selectedPremium.length;
-    const sub = isFormal
-      ? 'Una incluida · adicionales a consultar'
-      : `Base incluida · ${extraCount} adicional${extraCount !== 1 ? 'es' : ''} elegida${extraCount !== 1 ? 's' : ''}`;
-    return `<div class="mb"><div class="mb-head"><span class="mb-roman">ii</span><span class="mb-name">${title}</span><span class="mb-line"></span></div><div class="mb-sub">${sub}</div><ul class="mi">${rows}</ul></div>`;
+  // ---- Row & card helpers ----
+  const mkRow = (name, desc = '', tags = []) => {
+    const tg = tags.map(t => `<span class="dt-${t.toLowerCase()}">${t}</span>`).join('');
+    return `<li><div class="mi-info"><span class="mi-name">${esc(name)}${tg ? `&nbsp;${tg}` : ''}</span>${desc ? `<span class="mi-desc">${esc(desc)}</span>` : ''}</div></li>`;
+  };
+  const mkCard = (name, cat = '', desc = '') =>
+    `<div class="i-card"><div class="i-hd"><span class="i-name">${esc(name)}</span>${cat ? `<span class="i-cat">${esc(cat)}</span>` : ''}</div>${desc ? `<div class="i-desc">${esc(desc)}</div>` : ''}</div>`;
+
+  // ---- Recepción (contenido fijo, siempre igual) ----
+  const recepcionHTML = `
+    <div class="mb-sublbl">Canapés fríos</div>
+    <ul class="mi">
+      ${mkRow('Bocado mediterráneo','Mozzarella, tomate cherry, albahaca y sal en escamas',['V','SC'])}
+      ${mkRow('Jamón Imperial','Jamón natural, mayonesa de huevo de codorniz y pimentón dulce español')}
+      ${mkRow('Palma Serrana','Crema de palmitos con virutas de jamón ibérico y toque de oliva')}
+      ${mkRow('Azul y Nuez','Queso azul, nueces trituradas y miel',['V'])}
+      ${mkRow('Bosque y Queso','Champiñón fresco salteado con queso suave fundido',['V'])}
+    </ul>
+    <div class="mb-sublbl">Triples de miga</div>
+    <ul class="mi">${mkRow('Variedad de triples de miga')}</ul>
+    <div class="mb-sublbl">Bruschettas</div>
+    <ul class="mi two-col">
+      ${mkRow('Braseada suave','Osobuco braseado en reducción de vino tinto y toque de romero')}
+      ${mkRow('Campo verde','Pollo al verdeo en mayonesa y queso fundido')}
+      ${mkRow('Delicia Ibérica','Jamón crudo, rúcula fresca, parmesano y reducción de aceto')}
+      ${mkRow('BBQ','Bondiola en lenta cocción desmenuzada con barbacoa de la casa')}
+    </ul>
+    <div class="mb-sublbl">Brochettes &amp; bocados calientes</div>
+    <ul class="mi two-col">
+      ${mkRow('Criolla de carne','Trozos de carne jugosa con morrón asado y cebolla a la parrilla',['SC'])}
+      ${mkRow('Criolla de pollo','Bocados de pollo grillados con cherry y vegetales asados',['SC'])}
+      ${mkRow('Italiana fría','Mozzarella y tomate con reducción de balsámico y hojas de albahaca',['V','SC'])}
+      ${mkRow('Bombitas de queso','Quesillo fundido en panizado crocante, servidas calientes',['V'])}
+      ${mkRow('Daditos de mozzarella','',['V','SC'])}
+      ${mkRow('Croquetitas de papa','',['V'])}
+      ${mkRow('Mini hamburguesas caseras')}
+      ${mkRow('Pollo frito Buffalo wings')}
+    </ul>
+    <div class="mb-sublbl">Mini empanaditas</div>
+    <ul class="mi two-col">
+      ${mkRow('Fatay de carne')}
+      ${mkRow('Soles de calabaza y semillas grilladas','',['V'])}
+      ${mkRow('Canastitas de batata y almendra','',['V'])}
+      ${mkRow('Jamón y queso')}
+      ${mkRow('Cebolla y queso','',['V'])}
+      ${mkRow('Paquetitos de boniato y amapola','',['V'])}
+      ${mkRow('Pollo')}
+      ${mkRow('Fingers de zanahoria','',['V'])}
+    </ul>`;
+
+  // ---- Islas (solo las seleccionadas) ----
+  const allIslaItems = [...(gastroData?.islas || []), ...allPremiumItems];
+  const regularFormalPremium = isFormal ? selectedPremium.filter(v => v !== 'Mini Cakes Premium') : [];
+  const hasMiniCakes = isFormal && selectedPremium.includes('Mini Cakes Premium');
+
+  const islasSectionHTML = allShownIslas.length ? (() => {
+    if (isFormal) {
+      const baseRows = allShownIslas.map(v => {
+        const f = allIslaItems.find(i => i.value === v);
+        return f ? mkRow(f.name, f.desc || '') : mkRow(v);
+      }).join('');
+      const premiumRows = regularFormalPremium.map(v => {
+        const f = allIslaItems.find(i => i.value === v);
+        return f ? mkRow(f.name, f.desc || '') : mkRow(v);
+      }).join('');
+      const premiumBlock = premiumRows ? `<div class="mb-sublbl" style="margin-top:8px;color:var(--gold)">PREMIUM · A CONSULTAR</div><ul class="mi">${premiumRows}</ul>` : '';
+      return `<div class="mb"><div class="mb-head"><span class="mb-roman">ii</span><span class="mb-name">Estaciones de bienvenida</span><span class="mb-line"></span></div>
+        <div class="mb-sub">Una incluida · adicionales a consultar</div>
+        <ul class="mi">${baseRows}</ul>${premiumBlock}</div>`;
+    } else {
+      const cards = allShownIslas.map(v => {
+        const f = allIslaItems.find(i => i.value === v);
+        return f ? mkCard(f.name, f.cat || '', f.desc || '') : mkCard(v);
+      }).join('');
+      const extraCount = selectedIslas.length + selectedPremium.length;
+      const sub = `Base incluida · ${extraCount} adicional${extraCount !== 1 ? 'es' : ''} elegida${extraCount !== 1 ? 's' : ''}`;
+      return `<div class="mb"><div class="mb-head"><span class="mb-roman">ii</span><span class="mb-name">Islas en vivo — el plato central</span><span class="mb-line"></span></div>
+        <div class="mb-sub">${esc(sub)}</div>
+        <div class="i-cards">${cards}</div></div>`;
+    }
   })() : '';
 
-  const premiumSection = isFormal && selectedPremium.length ? (() => {
-    const rows = selectedPremium.map(v => {
-      const f = allPremiumItems.find(i => i.value === v);
-      return f ? itemRow(f.name, f.desc) : itemRow(v, '');
-    }).join('');
-    return `<div class="mb"><div class="mb-head"><span class="mb-roman">★</span><span class="mb-name">Premium gastronómico</span><span class="mb-line"></span></div><ul class="mi">${rows}</ul></div>`;
-  })() : '';
-
-  const formalGastroSection = isFormal ? (() => {
+  // ---- Primer plato + Plato central (solo Formal) ----
+  const formalPlatoHTML = isFormal ? (() => {
     const pastas = ['Tagliatelle cortados a cuchillo', ...(d.pastasSeleccionadas||[]).filter(p=>p!=='Tagliatelle cortados a cuchillo'), ...(d.pastasGourmetSeleccionadas||[])];
     const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto'), ...(d.salsasGourmetSeleccionadas||[])];
     const platoCentral = d.platoCentral ? (PLATO_CENTRAL_DATA.opciones.find(p=>p.value===d.platoCentral) || {value:d.platoCentral,desc:''}) : null;
-    const ppRows = pastas.length ? pastas.map(p=>itemRow(p,'')).join('') : itemRow('A definir con el equipo', '');
-    const salRows = salsas.length ? salsas.map(s=>itemRow(s,'')).join('') : itemRow('Filetto siempre incluida · 4 a elección', '');
-    const pcRow = platoCentral ? itemRow(platoCentral.value, platoCentral.desc) : itemRow('Plato central · a confirmar', '');
-    return `
-    <div class="mb"><div class="mb-head"><span class="mb-roman">iii</span><span class="mb-name">Primer plato — Pastas</span><span class="mb-line"></span></div>
-      <div class="mb-cols"><div><div class="mb-sub">Pastas elegidas</div><ul class="mi">${ppRows}</ul></div><div><div class="mb-sub">Salsas — Filetto siempre incluida</div><ul class="mi">${salRows}</ul></div></div></div>
+    const ppRows = pastas.map(p=>mkRow(p)).join('') || mkRow('A definir con el equipo');
+    const salRows = salsas.map(s=>mkRow(s)).join('') || mkRow('Filetto siempre incluida · 4 a elección');
+    const pcRow = platoCentral ? mkRow(platoCentral.value, platoCentral.desc||'') : mkRow('Plato central · a confirmar');
+    return `<div class="mb"><div class="mb-head"><span class="mb-roman">iii</span><span class="mb-name">Primer plato — Pastas</span><span class="mb-line"></span></div>
+      <div class="mb-cols"><div><div class="mb-sub">Pastas elegidas</div><ul class="mi">${ppRows}</ul></div><div><div class="mb-sub">Salsas · Filetto incluida</div><ul class="mi">${salRows}</ul></div></div></div>
     <div class="mb"><div class="mb-head"><span class="mb-roman">iv</span><span class="mb-name">Plato central</span><span class="mb-line"></span></div><ul class="mi">${pcRow}</ul></div>`;
   })() : '';
 
-  // Adicionales grouped by event section
+  // ---- Mesa de dulces / Postres ----
+  const mesaDulceHTML = (() => {
+    const md = gastroData?.mesaDulce;
+    if (!md) return '';
+    if (isFormal) {
+      const jolietRows = [
+        mkRow('Lemon pie'),mkRow('Cheese cake'),mkRow('Chocotorta'),mkRow('Torta África'),
+        mkRow('Tarta de frutillas'),mkRow('Flan','',['SC']),mkRow('Isla flotante','',['SC']),
+        mkRow('Mil Hojas'),mkRow('Brownies rellenos'),mkRow('Copas heladas','',['SC']),mkRow('Panqueques'),
+      ].join('');
+      const miniCakesBlock = hasMiniCakes ? `<div class="mb-sublbl" style="margin-top:8px;color:var(--gold)">UPGRADE · MINI CAKES PREMIUM</div><ul class="mi">${mkRow('Mini Cakes Premium','Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones')}</ul>` : '';
+      return `<div class="mb"><div class="mb-head"><span class="mb-roman">v</span><span class="mb-name">Mesa de dulces</span><span class="mb-line"></span></div>
+        <div class="mb-sub">Pastelería artesanal Joliet · elaboración propia</div>
+        <ul class="mi two-col">${jolietRows}</ul>${miniCakesBlock}
+        <p class="torta-note">Torta Homenaje · se realiza a pedido del agasajado · colores y decoración a convenir</p></div>`;
+    } else {
+      const selectedPostreItems = (md.postres||[]).filter(p=>(d.gastroAdicionales||[]).includes(p.name));
+      const lockedRow = `<li class="mi-locked"><div class="mi-info"><span class="mi-name">Torta Homenaje <span class="mi-badge">siempre incluida</span></span><span class="mi-desc">A pedido del agasajado · colores y decoración a convenir · se sirve después de los postres</span></div></li>`;
+      const postreRows = selectedPostreItems.length
+        ? selectedPostreItems.map(p=>mkRow(p.name, p.desc)).join('')
+        : `<li><div class="mi-info"><span class="mi-name" style="opacity:.6;font-style:italic">Postre a definir con el equipo</span></div></li>`;
+      return `<div class="mb"><div class="mb-head"><span class="mb-roman">iii</span><span class="mb-name">Postres &amp; Torta Homenaje</span><span class="mb-line"></span></div>
+        <div class="mb-sub">Pastelería artesanal · elaboración propia</div>
+        <ul class="mi">${lockedRow}${postreRows}</ul></div>`;
+    }
+  })();
+
+  // ---- Adicionales ----
   const ADIC_GRUPOS = [
     { label: 'Para la recepción', items: ['Candy Bar'] },
     { label: 'Entre platos & Shows', items: ['Diversos Shows', 'Robot de Luces', 'Música & Entretenimiento'] },
@@ -4023,19 +4107,13 @@ function generatePropuestaPDF() {
   ];
   const adicGrupos = ADIC_GRUPOS.map(g => {
     const found = (d.adicionales||[]).filter(a => g.items.includes(a));
-    return found.length ? `<div class="add-group-label">${g.label}</div><div class="tags-wrap">${found.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div>` : '';
+    return found.length ? `<div class="add-group-label">${esc(g.label)}</div><div class="tags-wrap">${found.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div>` : '';
   }).join('');
-  const hasGastroAdic = (d.gastroAdicionales||[]).length > 0 || selectedPremium.length > 0;
-  const gastroAdicStr = [...allShownIslas, ...selectedPremium].map(v=>{
-    const f = [...(gastroData?.islas||[]),...allPremiumItems].find(i=>i.value===v);
-    return f ? f.name : v;
-  });
-  const hasAdicionales = adicGrupos || hasGastroAdic;
+  const hasAdicionales = !!(d.adicionales||[]).length;
 
-  let secIdx = 2; const RN = ['I','II','III','IV','V','VI'];
-  const gastroSecNum = RN[secIdx++];
-  const adicSecNum = (adicGrupos || (d.adicionales||[]).length) ? RN[secIdx++] : null;
-  const jolietSecNum = RN[secIdx];
+  const adicSecNum = hasAdicionales ? 'III' : null;
+  const svcSecNum  = hasAdicionales ? 'IV'  : 'III';
+  const tcSecNum   = hasAdicionales ? 'V'   : 'IV';
 
   const metaHTML = [
     d.tipoEvento ? { k: 'Evento',    v: esc(d.tipoEvento) + (d.agasajado ? ' · ' + esc(d.agasajado) : '') } : null,
@@ -4138,6 +4216,30 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 .closing .cl-sig small{display:block;font-family:'Inter',sans-serif;font-size:8.5px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase;margin-top:3px}
 .pfoot{position:absolute;bottom:11mm;left:20mm;right:20mm;display:flex;justify-content:space-between;align-items:center;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.15em;padding-top:9px;border-top:1px solid var(--hairline)}
 .ped-box{background:var(--warm);border:1px solid var(--hairline);padding:11px 14px;font-size:11.5px;line-height:1.7;color:#2A2620;margin-top:5px;font-style:italic}
+/* DIETARY TAGS */
+.dt-v,.dt-vg,.dt-sc{font-family:'Inter',sans-serif;font-size:7.5px;font-weight:600;letter-spacing:.06em;padding:1.5px 5px;border-radius:2px;vertical-align:middle;margin-left:4px;display:inline-block;line-height:1}
+.dt-v{background:rgba(88,160,88,.13);color:#2a6b2a;border:1px solid rgba(88,160,88,.28)}
+.dt-vg{background:rgba(60,130,180,.10);color:#1e5f80;border:1px solid rgba(60,130,180,.22)}
+.dt-sc{background:rgba(190,120,40,.10);color:#7a4510;border:1px solid rgba(190,120,40,.22)}
+.dt-legend{font-size:7.5px;color:var(--muted);letter-spacing:.09em;margin-bottom:8px;padding-left:2px;display:flex;gap:14px}
+/* ISLAND CARDS */
+.i-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.i-card{background:var(--warm);border:1px solid var(--hairline);padding:7px 9px;break-inside:avoid}
+.i-hd{display:flex;flex-direction:column;gap:2px;margin-bottom:3px}
+.i-name{font-family:'Cormorant Garamond',serif;font-size:13px;font-weight:500;line-height:1.2}
+.i-cat{font-family:'Inter',sans-serif;font-size:7px;letter-spacing:.15em;color:var(--gold);text-transform:uppercase}
+.i-desc{font-family:'Inter',sans-serif;font-size:8.5px;color:var(--muted);line-height:1.35;font-style:italic}
+/* LISTS */
+.two-col{columns:2;column-gap:14px}
+.mb-sublbl{font-family:'Inter',sans-serif;font-size:7.5px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin:8px 0 2px;padding-left:2px}
+/* LOCKED ROW */
+.mi-locked{background:rgba(157,126,60,.06)!important;border-left:2px solid var(--gold)!important}
+.mi-badge{font-family:'Inter',sans-serif;font-size:7px;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;border:1px solid rgba(157,126,60,.5);padding:1px 5px;margin-left:6px;vertical-align:middle;display:inline-block}
+.torta-note{font-family:'Inter',sans-serif;font-size:8px;font-style:italic;color:var(--muted);padding:5px 8px;margin-top:5px;border-top:1px solid var(--hairline)}
+/* T&C */
+.tc-body{font-family:'Inter',sans-serif;font-size:7.8px;line-height:1.6;color:#5a5040;text-align:justify;columns:2;column-gap:22px;column-rule:1px solid var(--hairline);margin-top:6px}
+.tc-body p+p{margin-top:5px}
+.tc-clause{font-weight:700;font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block;margin-top:8px;margin-bottom:1px}
 </style>
 </head>
 <body>
@@ -4191,15 +4293,18 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   <div class="tl">${timelineHTML}</div>
 
   <div class="stitle">
-    <span class="snum">${gastroSecNum}.</span>
+    <span class="snum">II.</span>
     <span class="sname">La propuesta gastronómica</span>
     <span class="srule"></span>
   </div>
+  <div class="dt-legend"><span><span class="dt-v">V</span>&nbsp;Vegetariano</span><span><span class="dt-vg">Vg</span>&nbsp;Vegano</span><span><span class="dt-sc">SC</span>&nbsp;Sin TACC</span></div>
   <div class="mb"><div class="mb-head"><span class="mb-roman">i</span><span class="mb-name">Recepción</span><span class="mb-line"></span></div>
-    <div class="mb-sub">Canapés fríos, bruschettas, bocados calientes y mini empanaditas</div></div>
-  ${islasSection}
-  ${formalGastroSection}
-  ${premiumSection}
+    <div class="mb-sub">Canapés fríos, bruschettas, bocados calientes y mini empanaditas</div>
+    ${recepcionHTML}
+  </div>
+  ${islasSectionHTML}
+  ${formalPlatoHTML}
+  ${mesaDulceHTML}
 
   ${adicGrupos ? `
   <div class="stitle">
@@ -4210,7 +4315,7 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   ${adicGrupos}` : ''}
 
   <div class="stitle">
-    <span class="snum">${jolietSecNum}.</span>
+    <span class="snum">${svcSecNum}.</span>
     <span class="sname">La experiencia Joliet</span>
     <span class="srule"></span>
   </div>
@@ -4233,9 +4338,39 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   </div>
   <div class="ped-box">${esc(d.pedidos)}</div>` : ''}
 
+  <div class="pfoot">
+    <span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span>
+    <span>Joliet Eventos · ${anio}</span>
+  </div>
+</div>
+
+<!-- TÉRMINOS Y CONDICIONES -->
+<div class="page">
+  <div class="ph">
+    <div class="ph-logo"></div>
+    <div class="ph-folio">Propuesta · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div>
+  </div>
+  <div class="stitle" style="margin-top:0">
+    <span class="snum">${tcSecNum}.</span>
+    <span class="sname">Términos y condiciones</span>
+    <span class="srule"></span>
+  </div>
+  <div class="tc-body">
+    <p><span class="tc-clause">1. Validez de la propuesta</span>La presente propuesta comercial tiene validez de quince (15) días corridos a partir de la fecha de emisión indicada en la portada. Transcurrido dicho plazo, los valores y las condiciones aquí descritos quedan sujetos a revisión y actualización sin previo aviso. Joliet Eventos no asume compromiso de mantener los precios más allá del período de validez mencionado.</p>
+    <p><span class="tc-clause">2. Reserva y confirmación de fecha</span>La seña inicial del 10% sobre el total acordado da inicio al proceso de planificación pero no constituye ni garantiza la reserva ni el bloqueo exclusivo de la fecha. La reserva efectiva y la exclusividad de la fecha quedan garantizadas únicamente a partir del pago de la seña de reserva del 30% sobre el total de la propuesta. Hasta que dicho pago no sea acreditado la fecha podrá ser cedida o asignada a otro cliente sin aviso previo ni obligación de notificación por parte de Joliet Eventos.</p>
+    <p><span class="tc-clause">3. Plan de pagos</span>El saldo restante luego de efectuada la reserva podrá ser abonado en cuotas mensuales acordadas entre las partes, conforme al cronograma que se establezca al momento de la firma. Las cuotas deberán estar canceladas en su totalidad con un mínimo de treinta (30) días corridos de anticipación a la fecha del evento. El incumplimiento de este plazo podrá dar lugar a la suspensión del servicio sin derecho a reintegro de los montos ya abonados.</p>
+    <p><span class="tc-clause">4. Cantidad de invitados</span>La cantidad definitiva de invitados deberá ser informada y confirmada con no menos de diez (10) días de anticipación a la celebración. A partir de dicha confirmación no se aceptarán bajas en el número de cubiertos bajo ninguna circunstancia. En caso de incorporarse invitados adicionales con posterioridad a la confirmación final, cada cubierto extra se abonará al precio unitario vigente a la fecha de incorporación. Se admiten altas hasta cuarenta y ocho (48) horas antes del evento, sujeto a disponibilidad operativa del equipo.</p>
+    <p><span class="tc-clause">5. Política de cancelación</span>No se realizan devoluciones de dinero bajo ningún concepto ni circunstancia, incluyendo casos de fuerza mayor, emergencias médicas o personales, causas climáticas, restricciones gubernamentales u otras contingencias ajenas a la voluntad de las partes. Todos los montos abonados —seña, reserva, cuotas parciales o cualquier pago a cuenta— quedan retenidos en su totalidad por Joliet Eventos en concepto de compensación por la gestión administrativa, la exclusividad de la fecha reservada, los costos de planificación ya incurridos y las reservas de personal y proveedores efectuadas desde la fecha de confirmación.</p>
+    <p><span class="tc-clause">6. Necesidades dietarias especiales</span>Joliet Eventos contempla y atiende sin cargo adicional las necesidades dietarias especiales de los invitados, incluyendo dietas celíacas (sin TACC), vegetarianas, veganas y alergias o intolerancias alimentarias. Para poder garantizar la disponibilidad, preparación adecuada y la trazabilidad de los ingredientes, dichas necesidades deberán ser informadas formalmente con un mínimo de quince (15) días de anticipación al evento. Necesidades informadas fuera de ese plazo se atenderán en la medida de lo posible, sin garantía de cobertura completa.</p>
+    <p><span class="tc-clause">7. Medios de pago</span>Se aceptan los siguientes medios de pago: efectivo, transferencia bancaria o depósito a CBU informado oportunamente, tarjeta de crédito (todas las marcas) y tarjeta de débito. Los pagos con tarjeta de crédito pueden estar sujetos a los recargos del sistema financiero vigentes al momento del pago, los cuales corren por cuenta del cliente. Los comprobantes de transferencia deben ser enviados por WhatsApp o correo electrónico dentro de las veinticuatro (24) horas de efectuada la operación para ser considerados válidos y registrados.</p>
+    <p><span class="tc-clause">8. Modificaciones al servicio contratado</span>Los servicios detallados en esta propuesta corresponden exclusivamente a los acordados al momento de la firma del contrato. Cualquier modificación, incorporación de servicios adicionales o cambio de menú posterior a la confirmación debe ser solicitado por escrito y aceptado expresamente por Joliet Eventos, pudiendo implicar ajustes en el valor total. Joliet Eventos se reserva el derecho de realizar ajustes menores en la presentación de platos o decoración cuando causas operativas o de abastecimiento lo justifiquen, sin que ello constituya incumplimiento de las obligaciones contractuales asumidas.</p>
+    <p><span class="tc-clause">9. Responsabilidad sobre bienes y personas</span>Joliet Eventos no se responsabiliza por daños, hurtos, extravíos o deterioro de objetos personales, decoraciones propias del cliente o equipamiento ajeno introducido al salón. El cliente asume plena responsabilidad por cualquier daño causado al mobiliario, instalaciones o equipamiento del salón por parte de sus invitados, familiares o personal externo contratado. Se recomienda enfáticamente la contratación de un seguro de evento para cubrir contingencias no contempladas en el presente contrato.</p>
+    <p><span class="tc-clause">10. Confidencialidad y protección de datos personales</span>La información personal suministrada por el cliente —nombre y apellido, datos de contacto, información del evento y medios de pago— será utilizada exclusivamente para la planificación, coordinación y ejecución del evento contratado. Joliet Eventos no cederá, comercializará ni compartirá dicha información con terceros, salvo requerimiento judicial o legal expreso. El cliente consiente el uso de imágenes del evento con fines de comunicación institucional de Joliet Eventos, pudiendo revocar dicho consentimiento en cualquier momento mediante notificación escrita.</p>
+  </div>
+
   <div class="closing">
     <div class="cl-line"></div>
-    <div class="cl-text">Quedamos a su entera disposición para coordinar cada detalle y hacer de esta noche un momento que todos van a recordar.</div>
+    <div class="cl-text">Sin otro particular, y expresando nuestro sincero agradecimiento por habernos elegido, quedamos a su entera disposición para coordinar cada detalle y hacer de esta noche un momento que todos van a recordar.</div>
     <div class="cl-sig">Mariana Labarta<small>Coordinadora de Eventos · Joliet</small></div>
   </div>
 
