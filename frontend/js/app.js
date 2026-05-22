@@ -3340,9 +3340,9 @@ const GASTRO_DATA = {
     ],
     islasTitle: 'Las islas · el plato central',
     islasSub: 'Sus invitados circulan, eligen y disfrutan a su ritmo',
-    islasLabel: 'BASE INCLUIDA · elegís 2',
+    islasLabel: 'BASE INCLUIDA · elegí 1 más',
     islas: [
-      { value: 'Bovalino — Pasta Italiana', name: 'Bovalino 🇮🇹', cat: 'Pasta', desc: 'Agnolottis/sorrentinos de jamón y queso con pomodoro, albahaca y oliva · Tagliatelle cortados a cuchillo con ragú alla bolognese' },
+      { value: 'Bovalino — Pasta Italiana', name: 'Bovalino 🇮🇹', cat: 'Pasta', desc: 'Agnolottis/sorrentinos de jamón y queso con pomodoro, albahaca y oliva · Tagliatelle cortados a cuchillo con ragú alla bolognese', locked: true },
       { value: 'Azteca — Tacos', name: 'Azteca', cat: '', desc: 'Tacos artesanales al momento con pollo, cerdo o carne · Cebolla, pico de gallo fresco y salsa picante · Nachos crocantes con queso fundido' },
       { value: 'Dijon — Pollo a la Mostaza', name: 'Dijon', cat: 'Ave', desc: 'Pollo a la mostaza suave con papas al horno y romero' },
       { value: 'Bianca — Pollo en Vino Blanco', name: 'Bianca', cat: 'Ave', desc: 'Cubos de pollo braseados en reducción de vino blanco y hierbas frescas · Arroz cremoso parmesano' },
@@ -3354,7 +3354,7 @@ const GASTRO_DATA = {
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
     ],
     mode: 'multi',
-    maxBase: 2,
+    maxBase: 1,
   },
 };
 
@@ -3369,7 +3369,25 @@ function buildGastroSlide() {
     `<div class="gastro-pilar"><div class="gp-ico">${p.ico}</div><div class="gp-label">${p.label}</div></div>`
   ).join('');
 
-  const baseIslandsHtml = data.islas.map(isla => `
+  const lockedIslas = data.islas.filter(i => i.locked);
+  const freeIslas = data.islas.filter(i => !i.locked);
+  const hasCarne = freeIslas.some(i => i.cat === 'Carne');
+
+  const lockedHtml = lockedIslas.map(isla => `
+    <label class="gastro-island-row gastro-island-locked selected">
+      <input type="checkbox" value="${isla.value}" checked disabled>
+      <div class="island-row-indicator">✓</div>
+      <div class="island-row-body">
+        <div class="island-row-header">
+          <span class="island-row-name">${isla.name}</span>
+          ${isla.cat ? `<span class="island-row-cat">${isla.cat}</span>` : ''}
+          <span class="island-row-included">siempre incluida</span>
+        </div>
+        <div class="island-row-desc">${isla.desc}</div>
+      </div>
+    </label>`).join('');
+
+  const baseIslandsHtml = freeIslas.map(isla => `
     <label class="gastro-island-row">
       <input type="checkbox" value="${isla.value}">
       <div class="island-row-indicator">✓</div>
@@ -3382,6 +3400,8 @@ function buildGastroSlide() {
       </div>
     </label>`).join('');
 
+  const carneNoteHtml = hasCarne ? `<p class="gastro-carne-note">* Las islas de base carne tienen un pequeño costo adicional · consultanos</p>` : '';
+
   const premiumHtml = data.premium.map(p => `
     <label class="gastro-premium-row">
       <input type="checkbox" value="${p.value}">
@@ -3393,7 +3413,7 @@ function buildGastroSlide() {
     </label>`).join('');
 
   const counterHtml = isAmericano
-    ? `<div class="gastro-counter" id="gastro-base-counter"><span id="gastro-base-count">0</span> / ${data.maxBase} elegidas</div>`
+    ? `<div class="gastro-counter" id="gastro-base-counter"><span id="gastro-base-count">0</span> / 1 adicional elegido</div>`
     : '';
 
   container.innerHTML = `
@@ -3405,14 +3425,14 @@ function buildGastroSlide() {
         ${counterHtml}
       </div>
       <div class="gastro-section-label">${data.islasLabel}</div>
-      <div class="gastro-islands-list" id="gastro-extras-grid">${baseIslandsHtml}</div>
+      <div class="gastro-islands-list" id="gastro-extras-grid">${lockedHtml}${baseIslandsHtml}${carneNoteHtml}</div>
       <div class="gastro-section-label gastro-section-label-premium">PREMIUM · a consultar</div>
       <div class="gastro-premium-list">${premiumHtml}</div>
     </div>`;
 
   const prev = propuestaState.data.gastroAdicionales || [];
   if (prev.length) {
-    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    container.querySelectorAll('input[type="checkbox"]:not([disabled])').forEach(cb => {
       if (prev.includes(cb.value)) {
         cb.checked = true;
         cb.closest('.gastro-island-row, .gastro-premium-row')?.classList.add('selected');
@@ -3422,7 +3442,7 @@ function buildGastroSlide() {
       const count = $('gastro-base-count');
       const grid = $('gastro-extras-grid');
       if (count && grid) {
-        const n = grid.querySelectorAll('input[type="checkbox"]:checked').length;
+        const n = grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked) input[type="checkbox"]:checked').length;
         count.textContent = n;
         const counter = $('gastro-base-counter');
         if (counter) counter.classList.toggle('gastro-counter-full', n >= data.maxBase);
@@ -3437,15 +3457,15 @@ function setupGastroEvents(isAmericano, maxBase) {
   const grid = $('gastro-extras-grid');
   if (!grid) return;
 
-  grid.querySelectorAll('.gastro-island-row').forEach(row => {
+  grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)').forEach(row => {
     row.addEventListener('click', () => {
       const cb = row.querySelector('input[type="checkbox"]');
       if (isAmericano) {
-        const checked = grid.querySelectorAll('input[type="checkbox"]:checked').length;
+        const checked = grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked) input[type="checkbox"]:checked').length;
         if (!cb.checked && checked >= maxBase) return;
         cb.checked = !cb.checked;
         row.classList.toggle('selected', cb.checked);
-        const n = grid.querySelectorAll('input[type="checkbox"]:checked').length;
+        const n = grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked) input[type="checkbox"]:checked').length;
         const count = $('gastro-base-count');
         if (count) count.textContent = n;
         const counter = $('gastro-base-counter');

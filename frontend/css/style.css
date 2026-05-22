@@ -2393,6 +2393,24 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .gastro-island-row:hover { border-color: rgba(196,153,62,.32); }
 .gastro-island-row.selected { border-color: var(--gold); background: rgba(196,153,62,.08); }
+.gastro-island-locked { cursor: default; border-color: rgba(196,153,62,.4) !important; background: rgba(196,153,62,.05); }
+.gastro-island-locked:hover { border-color: rgba(196,153,62,.4) !important; }
+.island-row-included {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: .7;
+  border: 1px solid rgba(196,153,62,.3);
+  border-radius: 12px;
+  padding: 2px 7px;
+}
+.gastro-carne-note {
+  margin: 10px 2px 0;
+  font-size: 11px;
+  color: rgba(255,255,255,.28);
+  letter-spacing: .01em;
+}
 .gastro-island-row input[type="checkbox"] { display: none; }
 .island-row-indicator {
   width: 22px;
