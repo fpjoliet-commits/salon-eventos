@@ -2257,17 +2257,17 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .adicional-ico { font-size: 22px; line-height: 1; }
 .adicional-name {
-  font-size: 11.5px;
+  font-size: 13.5px;
   font-weight: 700;
-  color: rgba(255,255,255,.72);
+  color: rgba(255,255,255,.88);
   letter-spacing: .01em;
   line-height: 1.2;
   font-family: 'DM Sans', inherit;
 }
 .adicional-card:has(input:checked) .adicional-name { color: var(--gold-bright); }
 .adicional-desc {
-  font-size: 9.5px;
-  color: rgba(255,255,255,.26);
+  font-size: 11.5px;
+  color: rgba(255,255,255,.58);
   letter-spacing: .02em;
   line-height: 1.3;
 }
@@ -2568,6 +2568,10 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .gastro-plato-row.selected .gastro-plato-name { color: var(--gold-bright); }
 .gastro-plato-desc { font-size: 12px; color: rgba(255,255,255,.44); line-height: 1.5; margin-top: 3px; }
 .gastro-plato-list { display: flex; flex-direction: column; gap: 5px; }
+.gastro-plato-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gastro-plato-tipo { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); opacity: .75; border: 1px solid rgba(196,153,62,.35); border-radius: 10px; padding: 2px 7px; flex-shrink: 0; }
+.gastro-count-badge { color: rgba(196,153,62,.65); font-size: 10px; font-weight: 600; margin-left: 4px; }
+.gastro-necesidades-note { font-size: 11px; color: rgba(255,255,255,.4); text-align: center; margin-top: 16px; letter-spacing: .02em; line-height: 1.55; padding: 10px 14px; border: 1px dashed rgba(196,153,62,.2); border-radius: 8px; }
 
 /* ---- Field group ---- */
 .propuesta-field-group {

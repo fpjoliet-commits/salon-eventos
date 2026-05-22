@@ -3026,7 +3026,7 @@ const RECORRIDO = {
     { nombre: 'Recepción',               desc: 'Bienvenida con canapés fríos, bocados calientes y bruschettas en el jardín' },
     { nombre: 'Estaciones de bienvenida',desc: 'Estaciones temáticas en vivo a mediados de la recepción, mientras todos ingresan al salón' },
     { nombre: 'Primer plato',            desc: 'Pastas artesanales con salsas de elaboración propia, servidas a la mesa' },
-    { nombre: 'Plato central',           desc: 'Selección de ave con guarnición · upgrade carne premium a consultar' },
+    { nombre: 'Plato central',           desc: 'Ave o carne a elección del anfitrión · acompañada de guarnición' },
     { nombre: 'Torta homenaje',          desc: 'El momento del brindis y el agasajo' },
     { nombre: 'Mesa de dulces',          desc: 'Pastelería fina y postres individuales sobre mesa principal iluminada' },
     { nombre: 'Cafetería',               desc: 'Café, té e infusiones para acompañar el cierre dulce' },
@@ -3266,21 +3266,20 @@ function updatePropuestaNav() {
 function goToPropuestaSlide(n) {
   if (propuestaState.current === 9) {
     propuestaState.data.gastroAdicionales = [];
-    document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked').forEach(cb => {
+    document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
       propuestaState.data.gastroAdicionales.push(cb.value);
     });
     const d = propuestaState.data;
     d.pastasSeleccionadas = [];
-    document.querySelectorAll('#gastro-pasta-list input:checked').forEach(cb => d.pastasSeleccionadas.push(cb.value));
+    document.querySelectorAll('#gastro-pasta-list input:checked:not([disabled])').forEach(cb => d.pastasSeleccionadas.push(cb.value));
     d.pastasGourmetSeleccionadas = [];
     document.querySelectorAll('#gastro-pasta-gourmet-list input:checked').forEach(cb => d.pastasGourmetSeleccionadas.push(cb.value));
     d.salsasSeleccionadas = [];
-    document.querySelectorAll('#gastro-salsa-list input:checked').forEach(cb => d.salsasSeleccionadas.push(cb.value));
+    document.querySelectorAll('#gastro-salsa-list input:checked:not([disabled])').forEach(cb => d.salsasSeleccionadas.push(cb.value));
     d.salsasGourmetSeleccionadas = [];
     document.querySelectorAll('#gastro-salsa-gourmet-list input:checked').forEach(cb => d.salsasGourmetSeleccionadas.push(cb.value));
-    d.platoCentral = document.querySelector('#gastro-plato-ave input:checked')?.value || d.platoCentral || '';
+    d.platoCentral = document.querySelector('#gastro-plato-central input:checked')?.value || '';
     d.platoCentralCarne = [];
-    document.querySelectorAll('#gastro-plato-carne input:checked').forEach(cb => d.platoCentralCarne.push(cb.value));
   }
   const old = document.querySelector('.propuesta-slide.active');
   if (old) {
@@ -3323,8 +3322,8 @@ function readPropuestaData() {
   document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked').forEach(cb => {
     d.gastroAdicionales.push(cb.value);
   });
-  const pp = (sel) => { const a = []; document.querySelectorAll(sel + ' input:checked').forEach(cb => a.push(cb.value)); return a; };
-  if ($('gastro-pasta-list')) { d.pastasSeleccionadas = pp('#gastro-pasta-list'); d.pastasGourmetSeleccionadas = pp('#gastro-pasta-gourmet-list'); d.salsasSeleccionadas = pp('#gastro-salsa-list'); d.salsasGourmetSeleccionadas = pp('#gastro-salsa-gourmet-list'); d.platoCentral = document.querySelector('#gastro-plato-ave input:checked')?.value || d.platoCentral || ''; d.platoCentralCarne = pp('#gastro-plato-carne'); }
+  const pp = (sel) => { const a = []; document.querySelectorAll(sel + ' input:checked:not([disabled])').forEach(cb => a.push(cb.value)); return a; };
+  if ($('gastro-plato-central')) { d.pastasSeleccionadas = pp('#gastro-pasta-list'); d.pastasGourmetSeleccionadas = pp('#gastro-pasta-gourmet-list'); d.salsasSeleccionadas = pp('#gastro-salsa-list'); d.salsasGourmetSeleccionadas = pp('#gastro-salsa-gourmet-list'); d.platoCentral = document.querySelector('#gastro-plato-central input:checked')?.value || ''; d.platoCentralCarne = []; }
   d.pedidos = $('prop-pedidos')?.value?.trim() || '';
 }
 
@@ -3332,12 +3331,12 @@ function readPropuestaData() {
 
 const PRIMER_PLATO_DATA = {
   pastas: [
-    'Tagliatelle cortados a cuchillo',
-    'Sorrentinos de jamón y queso',
-    'Canelones de verdura y ricota',
-    'Ravioloni de espinaca y parmesano',
-    'Agnolotis de pollo',
-    'Ñoquis de papa',
+    { name: 'Tagliatelle cortados a cuchillo', locked: true },
+    { name: 'Sorrentinos de jamón y queso' },
+    { name: 'Canelones de verdura y ricota' },
+    { name: 'Ravioloni de espinaca y parmesano' },
+    { name: 'Agnolotis de pollo' },
+    { name: 'Ñoquis de papa' },
   ],
   pastasGourmet: [
     'Fetuccine Nero di sepia',
@@ -3358,15 +3357,13 @@ const PRIMER_PLATO_DATA = {
 };
 
 const PLATO_CENTRAL_DATA = {
-  ave: [
-    { value: 'Pechuga tradición', desc: 'Rellena de jamón cocido y mozzarella · crema de cuatro quesos · rostí de papa' },
-    { value: 'Pechuga caprese', desc: 'Rellena de mozzarella, tomate y albahaca · papas a la suiza gratinadas' },
-    { value: 'Pechuga doble puerro', desc: 'Rellena de puerros salteados · salsa cremosa con almendras · milhojas de papa' },
-  ],
-  carne: [
-    { value: 'Lomo Reserva', desc: 'Medallones de lomo en reducción de Malbec · milhojas de papa' },
-    { value: 'Bife del bosque', desc: 'Ojo de bife en salsa de hongos de pino · rostí de papa dorado' },
-    { value: 'Lomo Dijon', desc: 'Lomo en crema de mostaza suave · papas a la suiza gratinadas' },
+  opciones: [
+    { value: 'Pechuga tradición',   tipo: 'Ave',   desc: 'Rellena de jamón cocido y mozzarella · crema de cuatro quesos · rostí de papa' },
+    { value: 'Pechuga caprese',      tipo: 'Ave',   desc: 'Rellena de mozzarella, tomate y albahaca · papas a la suiza gratinadas' },
+    { value: 'Pechuga doble puerro', tipo: 'Ave',   desc: 'Rellena de puerros salteados · salsa cremosa con almendras · milhojas de papa' },
+    { value: 'Lomo Reserva',         tipo: 'Carne', desc: 'Medallones de lomo en reducción de Malbec · milhojas de papa' },
+    { value: 'Bife del bosque',      tipo: 'Carne', desc: 'Ojo de bife en salsa de hongos de pino · rostí de papa dorado' },
+    { value: 'Lomo Dijon',           tipo: 'Carne', desc: 'Lomo en crema de mostaza suave · papas a la suiza gratinadas' },
   ],
 };
 
@@ -3480,41 +3477,38 @@ function buildGastroSlide() {
   const primerPlatoHtml = !isAmericano ? (() => {
     const ppd = PRIMER_PLATO_DATA;
     const pastaRows = ppd.pastas.map(p => `
-      <label class="gastro-menu-row"><input type="checkbox" value="${p}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p}</span></label>`).join('');
+      <label class="gastro-menu-row${p.locked ? ' locked' : ''}"><input type="checkbox" value="${p.name}"${p.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p.name}${p.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
     const pastaGRows = ppd.pastasGourmet.map(p => `
       <label class="gastro-menu-row"><input type="checkbox" value="${p}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p}</span></label>`).join('');
     const salsaRows = ppd.salsas.map(s => `
       <label class="gastro-menu-row${s.locked ? ' locked' : ''}"><input type="checkbox" value="${s.name}"${s.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s.name}${s.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
     const salsaGRows = ppd.salsasGourmet.map(s => `
       <label class="gastro-menu-row"><input type="checkbox" value="${s}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s}</span></label>`).join('');
-    const aveRows = PLATO_CENTRAL_DATA.ave.map(p => `
-      <label class="gastro-plato-row"><input type="radio" name="plato-central" value="${p.value}"><div class="gastro-plato-indicator">✓</div><div class="gastro-plato-body"><div class="gastro-plato-name">${p.value}</div><div class="gastro-plato-desc">${p.desc}</div></div></label>`).join('');
-    const carneRows = PLATO_CENTRAL_DATA.carne.map(p => `
-      <label class="gastro-menu-row"><input type="checkbox" value="${p.value}"><div class="gastro-menu-indicator">✓</div><div style="flex:1"><span class="gastro-menu-name">${p.value}</span><span class="gastro-menu-desc">${p.desc}</span></div></label>`).join('');
+    const centralRows = PLATO_CENTRAL_DATA.opciones.map(p => `
+      <label class="gastro-plato-row"><input type="radio" name="plato-central" value="${p.value}"><div class="gastro-plato-indicator">✓</div><div class="gastro-plato-body"><div class="gastro-plato-header"><div class="gastro-plato-name">${p.value}</div><span class="gastro-plato-tipo">${p.tipo}</span></div><div class="gastro-plato-desc">${p.desc}</div></div></label>`).join('');
     return `
     <div class="gastro-subsection">
       <div class="gastro-subsection-header">
         <div class="gastro-section-title">Primer plato</div>
-        <div class="gastro-section-sub">Pastas artesanales · Filetto siempre incluida</div>
+        <div class="gastro-section-sub">Pastas artesanales · Tagliatelle y Filetto siempre incluidos</div>
       </div>
-      <div class="gastro-section-label">PASTAS · elegí cuáles</div>
+      <div class="gastro-section-label">PASTAS · Tagliatelle siempre incluido · elegí hasta 3 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/3</span></div>
       <div class="gastro-menu-list" id="gastro-pasta-list">${pastaRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">PASTAS GOURMET · a consultar</div>
+      <div class="gastro-section-label gastro-section-label-premium">PASTAS GOURMET · a consultar · cuentan en el límite de 3</div>
       <div class="gastro-menu-list" id="gastro-pasta-gourmet-list">${pastaGRows}</div>
-      <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida + 4 a elección</div>
+      <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></div>
       <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">SALSAS GOURMET · a consultar</div>
+      <div class="gastro-section-label gastro-section-label-premium">SALSAS GOURMET · a consultar · cuentan en el límite de 4</div>
       <div class="gastro-menu-list" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
     </div>
     <div class="gastro-subsection">
       <div class="gastro-subsection-header">
         <div class="gastro-section-title">Plato central</div>
-        <div class="gastro-section-sub">Base ave incluida · upgrade carne a consultar</div>
+        <div class="gastro-section-sub">Un solo plato central · ave o carne · clickeá de nuevo para deseleccionar</div>
       </div>
-      <div class="gastro-section-label">BASE AVE · a elección</div>
-      <div class="gastro-plato-list" id="gastro-plato-ave">${aveRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">CARNE PREMIUM · a consultar</div>
-      <div class="gastro-menu-list" id="gastro-plato-carne">${carneRows}</div>
+      <div class="gastro-section-label">ELEGÍ UNO</div>
+      <div class="gastro-plato-list" id="gastro-plato-central">${centralRows}</div>
+      <div class="gastro-necesidades-note">Contamos con menús y opciones para cubrir cualquier tipo de necesidad · vegetariano, sin TACC, alergias y más · consultanos sin compromiso</div>
     </div>`;
   })() : '';
 
@@ -3569,10 +3563,9 @@ function buildGastroSlide() {
     restoreMenu('gastro-salsa-list', d.salsasSeleccionadas);
     restoreMenu('gastro-salsa-gourmet-list', d.salsasGourmetSeleccionadas);
     if (d.platoCentral) {
-      const radio = document.querySelector(`#gastro-plato-ave input[value="${CSS.escape(d.platoCentral)}"]`);
+      const radio = document.querySelector(`#gastro-plato-central input[value="${CSS.escape(d.platoCentral)}"]`);
       if (radio) { radio.checked = true; radio.closest('.gastro-plato-row')?.classList.add('selected'); }
     }
-    restoreMenu('gastro-plato-carne', d.platoCentralCarne);
   }
 
   setupGastroEvents(isAmericano, data.maxBase);
@@ -3628,27 +3621,85 @@ function setupGastroEvents(isAmericano, maxBase) {
 }
 
 function setupFormalExtrasEvents() {
-  const addMenuListeners = (listId) => {
+  const MAX_PASTA = 3, MAX_SALSAS = 4;
+
+  function getPastaCount() {
+    let n = 0;
+    $('gastro-pasta-list')?.querySelectorAll('.gastro-menu-row:not(.locked) input:checked').forEach(() => n++);
+    $('gastro-pasta-gourmet-list')?.querySelectorAll('input:checked').forEach(() => n++);
+    return n;
+  }
+  function getSalsaCount() {
+    let n = 0;
+    $('gastro-salsa-list')?.querySelectorAll('.gastro-menu-row:not(.locked) input:checked').forEach(() => n++);
+    $('gastro-salsa-gourmet-list')?.querySelectorAll('input:checked').forEach(() => n++);
+    return n;
+  }
+  function updatePastaCounter() {
+    const el = $('gastro-pasta-counter'); if (!el) return;
+    const c = getPastaCount();
+    el.textContent = c + '/' + MAX_PASTA;
+    el.style.color = c >= MAX_PASTA ? 'var(--gold-bright)' : '';
+  }
+  function updateSalsaCounter() {
+    const el = $('gastro-salsa-counter'); if (!el) return;
+    const c = getSalsaCount();
+    el.textContent = c + '/' + MAX_SALSAS;
+    el.style.color = c >= MAX_SALSAS ? 'var(--gold-bright)' : '';
+  }
+
+  const addPastaListeners = (listId) => {
     const list = $(listId); if (!list) return;
     list.querySelectorAll('.gastro-menu-row:not(.locked)').forEach(row => {
       row.addEventListener('click', () => {
         const inp = row.querySelector('input'); if (!inp || inp.disabled) return;
+        if (!inp.checked && getPastaCount() >= MAX_PASTA) return;
         inp.checked = !inp.checked;
         row.classList.toggle('selected', inp.checked);
+        updatePastaCounter();
       });
     });
   };
-  ['gastro-pasta-list','gastro-pasta-gourmet-list','gastro-salsa-list','gastro-salsa-gourmet-list','gastro-plato-carne'].forEach(addMenuListeners);
-  const aveList = $('gastro-plato-ave');
-  if (aveList) {
-    aveList.querySelectorAll('.gastro-plato-row').forEach(row => {
+  addPastaListeners('gastro-pasta-list');
+  addPastaListeners('gastro-pasta-gourmet-list');
+
+  const addSalsaListeners = (listId) => {
+    const list = $(listId); if (!list) return;
+    list.querySelectorAll('.gastro-menu-row:not(.locked)').forEach(row => {
+      row.addEventListener('click', () => {
+        const inp = row.querySelector('input'); if (!inp || inp.disabled) return;
+        if (!inp.checked && getSalsaCount() >= MAX_SALSAS) return;
+        inp.checked = !inp.checked;
+        row.classList.toggle('selected', inp.checked);
+        updateSalsaCounter();
+      });
+    });
+  };
+  addSalsaListeners('gastro-salsa-list');
+  addSalsaListeners('gastro-salsa-gourmet-list');
+
+  const centralList = $('gastro-plato-central');
+  if (centralList) {
+    centralList.querySelectorAll('.gastro-plato-row').forEach(row => {
       row.addEventListener('click', () => {
         const radio = row.querySelector('input[type="radio"]'); if (!radio) return;
-        aveList.querySelectorAll('.gastro-plato-row').forEach(r => r.classList.remove('selected'));
-        radio.checked = true; row.classList.add('selected');
+        if (radio.checked) {
+          radio.checked = false;
+          row.classList.remove('selected');
+        } else {
+          centralList.querySelectorAll('.gastro-plato-row').forEach(r => {
+            r.classList.remove('selected');
+            const ri = r.querySelector('input'); if (ri) ri.checked = false;
+          });
+          radio.checked = true;
+          row.classList.add('selected');
+        }
       });
     });
   }
+
+  updatePastaCounter();
+  updateSalsaCounter();
 }
 
 function buildPropuestaResumen() {
@@ -3700,12 +3751,12 @@ function buildPropuestaResumen() {
 
   const formalPlatos = isFormal ? (() => {
     const tags = (arr) => arr.map(v => `<span class="res-isla-tag">${esc(v)}</span>`).join('');
-    const pastas = [...(d.pastasSeleccionadas||[]), ...(d.pastasGourmetSeleccionadas||[])];
+    const pastas = ['Tagliatelle cortados a cuchillo', ...(d.pastasSeleccionadas||[]).filter(p=>p!=='Tagliatelle cortados a cuchillo'), ...(d.pastasGourmetSeleccionadas||[])];
     const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto'), ...(d.salsasGourmetSeleccionadas||[])];
     const parts = [];
     if (pastas.length) parts.push(`<div style="margin-top:8px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Pastas</span><div class="res-islas" style="margin-top:4px">${tags(pastas)}</div></div>`);
     if (salsas.length) parts.push(`<div style="margin-top:6px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Salsas</span><div class="res-islas" style="margin-top:4px">${tags(salsas)}</div></div>`);
-    if (d.platoCentral) parts.push(`<div style="margin-top:6px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Plato central</span><div class="res-islas" style="margin-top:4px"><span class="res-isla-tag">${esc(d.platoCentral)}</span>${(d.platoCentralCarne||[]).map(c=>`<span class="res-isla-tag res-isla-premium">${esc(c)}</span>`).join('')}</div></div>`);
+    if (d.platoCentral) parts.push(`<div style="margin-top:6px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Plato central</span><div class="res-islas" style="margin-top:4px"><span class="res-isla-tag">${esc(d.platoCentral)}</span></div></div>`);
     return parts.join('');
   })() : '';
 
@@ -3799,13 +3850,12 @@ function generatePropuestaPDF() {
   })() : '';
 
   const formalGastroSection = isFormal ? (() => {
-    const pastas = [...(d.pastasSeleccionadas||[]), ...(d.pastasGourmetSeleccionadas||[])];
+    const pastas = ['Tagliatelle cortados a cuchillo', ...(d.pastasSeleccionadas||[]).filter(p=>p!=='Tagliatelle cortados a cuchillo'), ...(d.pastasGourmetSeleccionadas||[])];
     const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto'), ...(d.salsasGourmetSeleccionadas||[])];
-    const platoCentral = d.platoCentral ? (PLATO_CENTRAL_DATA.ave.find(p=>p.value===d.platoCentral) || {value:d.platoCentral,desc:''}) : null;
-    const carneSelec = (d.platoCentralCarne||[]).map(v => PLATO_CENTRAL_DATA.carne.find(p=>p.value===v) || {value:v,desc:''});
+    const platoCentral = d.platoCentral ? (PLATO_CENTRAL_DATA.opciones.find(p=>p.value===d.platoCentral) || {value:d.platoCentral,desc:''}) : null;
     const ppRows = pastas.length ? pastas.map(p=>itemRow(p,'')).join('') : itemRow('A definir con el equipo', '');
     const salRows = salsas.length ? salsas.map(s=>itemRow(s,'')).join('') : itemRow('Filetto siempre incluida · 4 a elección', '');
-    const pcRow = platoCentral ? itemRow(platoCentral.value, platoCentral.desc) + (carneSelec.map(c=>itemRow(c.value+' (carne premium)',c.desc)).join('')) : itemRow('Base ave · a confirmar', '');
+    const pcRow = platoCentral ? itemRow(platoCentral.value, platoCentral.desc) : itemRow('Plato central · a confirmar', '');
     return `
     <div class="mb"><div class="mb-head"><span class="mb-roman">iii</span><span class="mb-name">Primer plato — Pastas</span><span class="mb-line"></span></div>
       <div class="mb-cols"><div><div class="mb-sub">Pastas elegidas</div><ul class="mi">${ppRows}</ul></div><div><div class="mb-sub">Salsas — Filetto siempre incluida</div><ul class="mi">${salRows}</ul></div></div></div>
@@ -3954,7 +4004,7 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
     <div class="cov-num">Emitida: ${esc(hoy)}</div>
   </div>
 
-  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.4),rgba(26,26,26,.06)),url('${base}/img/propuesta/portada.jpeg'),url('${base}/img/propuesta/fiesta.jpeg'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
+  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.38),rgba(26,26,26,.06)),url('${base}/img/propuesta/jardin.jpeg'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
 
   <div class="cov-client">
     <div class="cov-label">Preparada para</div>
