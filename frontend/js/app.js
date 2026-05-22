@@ -3316,7 +3316,7 @@ const GASTRO_DATA = {
       { ico: '🎂', label: 'Mesa de<br>dulces' },
     ],
     islasTitle: 'Islas gastronómicas',
-    islasSub: 'Durante la recepción · Incluye una estación',
+    islasSub: 'Durante la bienvenida · aprox. 90–100 min · incluye una estación',
     islasLabel: 'A ELECCIÓN · UNA INCLUIDA',
     islas: [
       { value: 'Mollejas & Verdeo', name: 'Mollejas & Verdeo', desc: 'Mollejitas doradas y tiernas, salteadas con verdeo fresco · Servidas en pancitos de campo' },
@@ -3339,7 +3339,7 @@ const GASTRO_DATA = {
       { ico: '🎂', label: 'Postres &<br>torta homenaje' },
     ],
     islasTitle: 'Las islas · el plato central',
-    islasSub: 'Sus invitados circulan, eligen y disfrutan a su ritmo',
+    islasSub: 'Mínimo 120 min · sus invitados circulan, eligen y disfrutan a su ritmo',
     islasLabel: 'BASE INCLUIDA · elegí 1 más',
     islas: [
       { value: 'Bovalino — Pasta Italiana', name: 'Bovalino 🇮🇹', cat: 'Pasta', desc: 'Agnolottis/sorrentinos de jamón y queso con pomodoro, albahaca y oliva · Tagliatelle cortados a cuchillo con ragú alla bolognese', locked: true },
@@ -3371,8 +3371,6 @@ function buildGastroSlide() {
 
   const lockedIslas = data.islas.filter(i => i.locked);
   const freeIslas = data.islas.filter(i => !i.locked);
-  const hasCarne = freeIslas.some(i => i.cat === 'Carne');
-
   const lockedHtml = lockedIslas.map(isla => `
     <label class="gastro-island-row gastro-island-locked selected">
       <input type="checkbox" value="${isla.value}" checked disabled>
@@ -3400,8 +3398,6 @@ function buildGastroSlide() {
       </div>
     </label>`).join('');
 
-  const carneNoteHtml = hasCarne ? `<p class="gastro-carne-note">* Las islas de base carne tienen un pequeño costo adicional · consultanos</p>` : '';
-
   const premiumHtml = data.premium.map(p => `
     <label class="gastro-premium-row">
       <input type="checkbox" value="${p.value}">
@@ -3425,7 +3421,7 @@ function buildGastroSlide() {
         ${counterHtml}
       </div>
       <div class="gastro-section-label">${data.islasLabel}</div>
-      <div class="gastro-islands-list" id="gastro-extras-grid">${lockedHtml}${baseIslandsHtml}${carneNoteHtml}</div>
+      <div class="gastro-islands-list" id="gastro-extras-grid">${lockedHtml}${baseIslandsHtml}</div>
       <div class="gastro-section-label gastro-section-label-premium">PREMIUM · a consultar</div>
       <div class="gastro-premium-list">${premiumHtml}</div>
     </div>`;
@@ -3493,46 +3489,78 @@ function setupGastroEvents(isAmericano, maxBase) {
 function buildPropuestaResumen() {
   readPropuestaData();
   const d = propuestaState.data;
-  const container = $('propuesta-resumen'); if (!container) return;
-  const fechaFmt = d.fecha ? formatDate(d.fecha) : '—';
-  const infantilStr = d.menuInfantil ? `Sí${d.infantilCant ? ` · ${d.infantilCant} niños` : ''}` : 'No';
-  const adicionalesStr = d.adicionales.length ? d.adicionales.join(' · ') : null;
-  const gastroStr = d.gastroAdicionales.length ? d.gastroAdicionales.join(' · ') : null;
+  const container = $('propuesta-resumen');
+  if (!container) return;
+
+  const estilo = d.estilo || 'Formal';
+  const gastroData = GASTRO_DATA[estilo];
+  const fechaFmt = d.fecha ? formatDate(d.fecha) : null;
+
+  const islaValues = new Set((gastroData?.islas || []).map(i => i.value));
+  const premiumValues = new Set((gastroData?.premium || []).map(i => i.value));
+  const selectedIslas = (d.gastroAdicionales || []).filter(v => islaValues.has(v));
+  const selectedPremium = (d.gastroAdicionales || []).filter(v => premiumValues.has(v));
+
+  const heroName = d.agasajado || d.tipoEvento || 'Tu evento';
+
+  const metaParts = [
+    d.tipoEvento && d.agasajado ? d.tipoEvento : null,
+    fechaFmt,
+    d.turno,
+    d.invitados ? `${d.invitados} personas` : null,
+    d.menuInfantil ? `Infantil: ${d.infantilCant || 'sí'}` : null,
+    d.espacio || null,
+  ].filter(Boolean);
+
+  const pillarsHtml = (gastroData?.pillars || []).map(p =>
+    `<div class="res-pilar"><span class="res-pilar-ico">${p.ico}</span><span class="res-pilar-label">${p.label.replace('<br>', ' ')}</span></div>`
+  ).join('');
+
+  const islaNames = selectedIslas.map(v => {
+    const f = (gastroData?.islas || []).find(i => i.value === v);
+    return f ? f.name : v;
+  });
+  const premiumNames = selectedPremium.map(v => {
+    const f = (gastroData?.premium || []).find(i => i.value === v);
+    return f ? f.name : v;
+  });
+
+  const islasHtml = islaNames.length
+    ? `<div class="res-islas">${islaNames.map(n => `<span class="res-isla-tag">${esc(n)}</span>`).join('')}</div>`
+    : '';
+  const premiumHtml = premiumNames.length
+    ? `<div class="res-premium-tags">${premiumNames.map(n => `<span class="res-isla-tag res-isla-premium">${esc(n)}</span>`).join('')}</div>`
+    : '';
+  const gastroSection = (pillarsHtml || islasHtml || premiumHtml) ? `
+    <div class="res-section">
+      <div class="res-section-label">Gastronomía de tu noche</div>
+      ${pillarsHtml ? `<div class="res-pillars">${pillarsHtml}</div>` : ''}
+      ${islasHtml}${premiumHtml}
+    </div>` : '';
+
+  const adicionales = d.adicionales || [];
+  const adicionalesHtml = adicionales.length ? `
+    <div class="res-section">
+      <div class="res-section-label">Lo que la hace única</div>
+      <div class="res-adicionales-tags">${adicionales.map(a => `<span class="res-adicional-tag">${esc(a)}</span>`).join('')}</div>
+    </div>` : '';
+
+  const pedidosHtml = d.pedidos ? `
+    <div class="res-section">
+      <div class="res-section-label">Pedidos especiales</div>
+      <div class="res-pedidos-text">${esc(d.pedidos)}</div>
+    </div>` : '';
 
   container.innerHTML = `
-    ${d.nombre ? `<div class="resumen-nombre">${esc(d.nombre)}</div>` : ''}
-    <div class="resumen-item">
-      <div class="resumen-label">Estilo</div>
-      <div class="resumen-value gold">${esc(d.estilo) || '—'}</div>
+    <div class="res-top">
+      ${d.nombre ? `<div class="res-subtitle-label">Preparada para</div>` : ''}
+      <div class="res-hero-name">${esc(heroName)}</div>
+      ${metaParts.length ? `<div class="res-meta-line">${metaParts.map(p => esc(p)).join(' · ')}</div>` : ''}
     </div>
-    <div class="resumen-item">
-      <div class="resumen-label">Evento</div>
-      <div class="resumen-value">${esc(d.tipoEvento) || '—'}${d.agasajado ? ' · ' + esc(d.agasajado) : ''}</div>
-    </div>
-    <div class="resumen-item">
-      <div class="resumen-label">Fecha</div>
-      <div class="resumen-value">${fechaFmt}${d.turno ? ' · ' + esc(d.turno) : ''}</div>
-    </div>
-    <div class="resumen-item">
-      <div class="resumen-label">Invitados</div>
-      <div class="resumen-value gold">${d.invitados} personas${d.menuInfantil ? ' · Infantil: ' + infantilStr : ''}</div>
-    </div>
-    <div class="resumen-item full">
-      <div class="resumen-label">Espacio</div>
-      <div class="resumen-value">${esc(d.espacio) || '—'}</div>
-    </div>
-    ${gastroStr ? `<div class="resumen-item full">
-      <div class="resumen-label">Extras gastronómicos</div>
-      <div class="resumen-value">${gastroStr}</div>
-    </div>` : ''}
-    ${adicionalesStr ? `<div class="resumen-item full">
-      <div class="resumen-label">Experiencias & décor</div>
-      <div class="resumen-value">${adicionalesStr}</div>
-    </div>` : ''}
-    ${d.pedidos ? `<div class="resumen-item full">
-      <div class="resumen-label">Pedidos especiales</div>
-      <div class="resumen-value">${esc(d.pedidos)}</div>
-    </div>` : ''}
+    <div class="res-estilo-row"><span class="res-estilo-badge">${esc(estilo)}</span></div>
+    ${gastroSection}
+    ${adicionalesHtml}
+    ${pedidosHtml}
   `;
 }
 
