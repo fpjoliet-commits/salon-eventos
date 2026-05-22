@@ -3389,8 +3389,11 @@ const GASTRO_DATA = {
       { value: 'Delicias de Mar', name: 'Delicias de Mar', desc: 'Cazuela caliente con mix de mariscos y vegetales en caldo de mar' },
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
       { value: 'Sushi en vivo', name: 'Sushi en vivo', desc: 'Preparación artesanal frente a los invitados' },
-      { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida' },
     ],
+    mesaDulce: {
+      included: { name: 'Tortas artesanales de elaboración propia', desc: 'Variedad de tortas y preparaciones dulces · diseñadas con el equipo según la temática del evento' },
+      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida · reemplaza las tortas artesanales' },
+    },
     mode: 'multi',
   },
   Americano: {
@@ -3413,8 +3416,11 @@ const GASTRO_DATA = {
     premium: [
       { value: 'Delicias de Mar', name: 'Delicias de Mar', desc: 'Cazuela caliente con mix de mariscos y vegetales en caldo de mar' },
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
-      { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida' },
     ],
+    mesaDulce: {
+      included: { name: 'Tortas artesanales de elaboración propia', desc: 'Variedad de tortas y preparaciones dulces · diseñadas con el equipo según la temática del evento' },
+      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida · reemplaza las tortas artesanales' },
+    },
     mode: 'multi',
     maxBase: 1,
   },
@@ -3512,6 +3518,45 @@ function buildGastroSlide() {
     </div>`;
   })() : '';
 
+  const mesaDulceHtml = (() => {
+    const md = data.mesaDulce;
+    if (!md) return '';
+    return `
+    <div class="gastro-subsection">
+      <div class="gastro-subsection-header">
+        <div class="gastro-section-title">Mesa de dulces</div>
+        <div class="gastro-section-sub">Pastelería artesanal de elaboración propia · upgrade premium disponible</div>
+      </div>
+      <div class="gastro-section-label">INCLUIDA</div>
+      <div class="gastro-islands-list">
+        <label class="gastro-island-row gastro-island-locked selected">
+          <input type="checkbox" checked disabled>
+          <div class="island-row-indicator">✓</div>
+          <div class="island-row-body">
+            <div class="island-row-header">
+              <span class="island-row-name">${md.included.name}</span>
+              <span class="island-row-included">siempre incluida</span>
+            </div>
+            <div class="island-row-desc">${md.included.desc}</div>
+          </div>
+        </label>
+      </div>
+      <div class="gastro-section-label gastro-section-label-premium">UPGRADE · a consultar</div>
+      <div class="gastro-islands-list" id="gastro-mesa-dulce-list">
+        <label class="gastro-island-row">
+          <input type="checkbox" value="${md.upgrade.value}">
+          <div class="island-row-indicator">✓</div>
+          <div class="island-row-body">
+            <div class="island-row-header">
+              <span class="island-row-name">${md.upgrade.name}</span>
+            </div>
+            <div class="island-row-desc">${md.upgrade.desc}</div>
+          </div>
+        </label>
+      </div>
+    </div>`;
+  })();
+
   container.innerHTML = `
     <div class="gastro-incluido">${pillarsHtml}</div>
     <div class="gastro-islands-section">
@@ -3525,7 +3570,7 @@ function buildGastroSlide() {
       ${!isAmericano ? `<p class="gastro-formal-extra-note" id="gastro-formal-extra-note" style="display:none">Una estación está incluida · las adicionales se presupuestan aparte</p>` : ''}
       <div class="gastro-section-label gastro-section-label-premium">PREMIUM · a consultar</div>
       <div class="gastro-premium-list">${premiumHtml}</div>
-    </div>${primerPlatoHtml}`;
+    </div>${primerPlatoHtml}${mesaDulceHtml}`;
 
   const prev = propuestaState.data.gastroAdicionales || [];
   if (prev.length) {
@@ -3618,6 +3663,17 @@ function setupGastroEvents(isAmericano, maxBase) {
       row.classList.toggle('selected', cb.checked);
     });
   });
+
+  const mesaDulceList = $('gastro-mesa-dulce-list');
+  if (mesaDulceList) {
+    mesaDulceList.querySelectorAll('.gastro-island-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const cb = row.querySelector('input[type="checkbox"]');
+        cb.checked = !cb.checked;
+        row.classList.toggle('selected', cb.checked);
+      });
+    });
+  }
 }
 
 function setupFormalExtrasEvents() {
@@ -3714,7 +3770,8 @@ function buildPropuestaResumen() {
   const fechaFmt = d.fecha ? formatDate(d.fecha) : null;
 
   const islaValues = new Set((gastroData?.islas || []).map(i => i.value));
-  const premiumValues = new Set((gastroData?.premium || []).map(i => i.value));
+  const allPremiumItems = [...(gastroData?.premium || []), ...(gastroData?.mesaDulce?.upgrade ? [gastroData.mesaDulce.upgrade] : [])];
+  const premiumValues = new Set(allPremiumItems.map(i => i.value));
   const selectedIslas = (d.gastroAdicionales || []).filter(v => islaValues.has(v));
   const selectedPremium = (d.gastroAdicionales || []).filter(v => premiumValues.has(v));
 
@@ -3738,7 +3795,7 @@ function buildPropuestaResumen() {
     return f ? f.name : v;
   });
   const premiumNames = selectedPremium.map(v => {
-    const f = (gastroData?.premium || []).find(i => i.value === v);
+    const f = allPremiumItems.find(i => i.value === v);
     return f ? f.name : v;
   });
 
@@ -3822,7 +3879,8 @@ function generatePropuestaPDF() {
 
   // Gastro detail with descriptions
   const islaValues = new Set((gastroData?.islas || []).map(i => i.value));
-  const premiumValues = new Set((gastroData?.premium || []).map(i => i.value));
+  const allPremiumItems = [...(gastroData?.premium || []), ...(gastroData?.mesaDulce?.upgrade ? [gastroData.mesaDulce.upgrade] : [])];
+  const premiumValues = new Set(allPremiumItems.map(i => i.value));
   const selectedIslas = (d.gastroAdicionales || []).filter(v => islaValues.has(v));
   const selectedPremium = (d.gastroAdicionales || []).filter(v => premiumValues.has(v));
   const lockedIslas = (gastroData?.islas || []).filter(i => i.locked);
@@ -3843,7 +3901,7 @@ function generatePropuestaPDF() {
 
   const premiumSection = selectedPremium.length ? (() => {
     const rows = selectedPremium.map(v => {
-      const f = (gastroData?.premium || []).find(i => i.value === v);
+      const f = allPremiumItems.find(i => i.value === v);
       return f ? itemRow(f.name, f.desc) : itemRow(v, '');
     }).join('');
     return `<div class="mb"><div class="mb-head"><span class="mb-roman">★</span><span class="mb-name">Premium gastronómico</span><span class="mb-line"></span></div><ul class="mi">${rows}</ul></div>`;
@@ -3875,7 +3933,7 @@ function generatePropuestaPDF() {
   }).join('');
   const hasGastroAdic = (d.gastroAdicionales||[]).length > 0 || selectedPremium.length > 0;
   const gastroAdicStr = [...allShownIslas, ...selectedPremium].map(v=>{
-    const f = [...(gastroData?.islas||[]),...(gastroData?.premium||[])].find(i=>i.value===v);
+    const f = [...(gastroData?.islas||[]),...allPremiumItems].find(i=>i.value===v);
     return f ? f.name : v;
   });
   const hasAdicionales = adicGrupos || hasGastroAdic;

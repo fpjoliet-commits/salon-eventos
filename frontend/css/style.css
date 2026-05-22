@@ -2478,14 +2478,14 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   padding: 2px 8px;
 }
 .island-row-desc { font-size: 12.5px; color: rgba(255,255,255,.48); line-height: 1.55; }
-.gastro-premium-list { display: flex; flex-direction: column; gap: 5px; }
+.gastro-premium-list { display: flex; flex-direction: column; gap: 6px; }
 .gastro-premium-row {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 11px 14px;
-  border: 1px solid rgba(255,255,255,.07);
-  border-radius: 8px;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 10px;
   cursor: pointer;
   transition: border-color .2s, background .2s;
   user-select: none;
@@ -2494,31 +2494,32 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .gastro-premium-row.selected { border-color: rgba(196,153,62,.55); background: rgba(196,153,62,.07); }
 .gastro-premium-row input[type="checkbox"] { display: none; }
 .premium-row-indicator {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 1.5px solid rgba(255,255,255,.16);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 11px;
   color: transparent;
   flex-shrink: 0;
-  margin-top: 3px;
+  margin-top: 2px;
   transition: all .2s;
 }
 .gastro-premium-row.selected .premium-row-indicator { border-color: var(--gold); background: var(--gold); color: #1a1008; }
 .premium-row-body { flex: 1; min-width: 0; }
 .premium-row-name {
-  font-size: 13.5px;
+  font-family: var(--font-serif);
+  font-size: 17px;
   font-weight: 600;
-  color: rgba(255,255,255,.72);
+  color: rgba(255,255,255,.9);
   display: block;
   margin-bottom: 2px;
   transition: color .2s;
 }
 .gastro-premium-row.selected .premium-row-name { color: var(--gold-bright); }
-.premium-row-desc { font-size: 11.5px; color: rgba(255,255,255,.36); display: block; }
+.premium-row-desc { font-size: 12.5px; color: rgba(255,255,255,.48); line-height: 1.55; display: block; }
 
 /* ---- Gastro subsections (Primer plato, Plato central) ---- */
 .gastro-subsection { width: 100%; margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.07); }
