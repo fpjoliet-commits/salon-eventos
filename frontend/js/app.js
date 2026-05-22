@@ -3391,7 +3391,8 @@ const GASTRO_DATA = {
       { value: 'Sushi en vivo', name: 'Sushi en vivo', desc: 'Preparación artesanal frente a los invitados' },
     ],
     mesaDulce: {
-      included: { name: 'Tortas artesanales de elaboración propia', desc: 'Variedad de tortas y preparaciones dulces · diseñadas con el equipo según la temática del evento' },
+      included: { name: 'Pastelería de la casa', desc: 'Lemon pie · Cheese cake · Chocotorta · Torta África · Tarta de frutillas · Flan · Isla flotante · Mil Hojas · Brownies rellenos · Copas heladas · Panqueques' },
+      tortaHomenaje: { name: 'Torta Homenaje', desc: 'El momento del brindis y el agasajo · modelo a convenir con el equipo' },
       upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida · reemplaza las tortas artesanales' },
     },
     mode: 'multi',
@@ -3418,7 +3419,8 @@ const GASTRO_DATA = {
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
     ],
     mesaDulce: {
-      included: { name: 'Tortas artesanales de elaboración propia', desc: 'Variedad de tortas y preparaciones dulces · diseñadas con el equipo según la temática del evento' },
+      included: { name: 'Pastelería de la casa', desc: 'Lemon pie · Cheese cake · Chocotorta · Torta África · Tarta de frutillas · Flan · Isla flotante · Mil Hojas · Brownies rellenos · Copas heladas · Panqueques' },
+      tortaHomenaje: { name: 'Torta Homenaje', desc: 'El momento del brindis y el agasajo · modelo a convenir con el equipo' },
       upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Presentaciones individuales de pastelería · diseño y temática a medida · reemplaza las tortas artesanales' },
     },
     mode: 'multi',
@@ -3538,6 +3540,17 @@ function buildGastroSlide() {
               <span class="island-row-included">siempre incluida</span>
             </div>
             <div class="island-row-desc">${md.included.desc}</div>
+          </div>
+        </label>
+        <label class="gastro-island-row gastro-island-locked selected gastro-torta-homenaje-row">
+          <input type="checkbox" checked disabled>
+          <div class="island-row-indicator">✓</div>
+          <div class="island-row-body">
+            <div class="island-row-header">
+              <span class="island-row-name">${md.tortaHomenaje.name}</span>
+              <span class="island-row-included">siempre incluida</span>
+            </div>
+            <div class="island-row-desc">${md.tortaHomenaje.desc}</div>
           </div>
         </label>
       </div>

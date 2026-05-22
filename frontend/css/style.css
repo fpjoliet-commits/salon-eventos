@@ -2521,6 +2521,9 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .gastro-premium-row.selected .premium-row-name { color: var(--gold-bright); }
 .premium-row-desc { font-size: 12.5px; color: rgba(255,255,255,.48); line-height: 1.55; display: block; }
 
+.gastro-torta-homenaje-row { border-color: rgba(196,153,62,.45) !important; background: rgba(196,153,62,.06); }
+.gastro-torta-homenaje-row .island-row-name { color: var(--gold-bright) !important; font-size: 19px; }
+
 /* ---- Gastro subsections (Primer plato, Plato central) ---- */
 .gastro-subsection { width: 100%; margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.07); }
 .gastro-subsection-header { margin-bottom: 14px; }
