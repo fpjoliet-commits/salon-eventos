@@ -3419,9 +3419,13 @@ const GASTRO_DATA = {
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
     ],
     mesaDulce: {
-      included: { name: 'Pastelería Joliet', desc: 'Lemon pie · Cheese cake · Chocotorta · Torta África · Tarta de frutillas · Flan · Isla flotante · Mil Hojas · Brownies rellenos · Copas heladas · Panqueques' },
+      postres: [
+        { name: 'Pavlova de estación', desc: 'Merengue suizo relleno · La presentación y el relleno se definen según las frutas de temporada o el pedido específico del cliente' },
+        { name: 'American Sweet', desc: 'Copa helada con base de Oreo y praliné de frutos secos · Capas de textura y sabor en un solo bocado' },
+        { name: 'África de autor', desc: 'La torta de chocolate insignia de Joliet · Una receta única con presentación exclusiva diseñada para el evento · No la encontrás en ninguna carta' },
+        { name: 'Key Lime Pie', desc: 'Tarta americana de lima · Cremosa, cítrica y perfectamente equilibrada · Base de galleta con cobertura de crema suave' },
+      ],
       tortaHomenaje: { name: 'Torta Homenaje', desc: 'El momento del brindis y el agasajo · modelo a convenir con el equipo' },
-      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones' },
     },
     mode: 'multi',
     maxBase: 1,
@@ -3523,37 +3527,22 @@ function buildGastroSlide() {
   const mesaDulceHtml = (() => {
     const md = data.mesaDulce;
     if (!md) return '';
-    return `
-    <div class="gastro-subsection">
-      <div class="gastro-subsection-header">
-        <div class="gastro-section-title">Mesa de dulces</div>
-        <div class="gastro-section-sub">Pastelería artesanal de elaboración propia · upgrade premium disponible</div>
-      </div>
-      <div class="gastro-section-label">INCLUIDA</div>
-      <div class="gastro-islands-list">
-        <label class="gastro-island-row gastro-island-locked selected">
+    const lockedRow = (item, extra = '') => `
+        <label class="gastro-island-row gastro-island-locked selected${extra}">
           <input type="checkbox" checked disabled>
           <div class="island-row-indicator">✓</div>
           <div class="island-row-body">
             <div class="island-row-header">
-              <span class="island-row-name">${md.included.name}</span>
+              <span class="island-row-name">${item.name}</span>
               <span class="island-row-included">siempre incluida</span>
             </div>
-            <div class="island-row-desc">${md.included.desc}</div>
+            <div class="island-row-desc">${item.desc}</div>
           </div>
-        </label>
-        <label class="gastro-island-row gastro-island-locked selected gastro-torta-homenaje-row">
-          <input type="checkbox" checked disabled>
-          <div class="island-row-indicator">✓</div>
-          <div class="island-row-body">
-            <div class="island-row-header">
-              <span class="island-row-name">${md.tortaHomenaje.name}</span>
-              <span class="island-row-included">siempre incluida</span>
-            </div>
-            <div class="island-row-desc">${md.tortaHomenaje.desc}</div>
-          </div>
-        </label>
-      </div>
+        </label>`;
+    const includedRows = md.included
+      ? lockedRow(md.included)
+      : (md.postres || []).map(p => lockedRow(p)).join('');
+    const upgradeSection = md.upgrade ? `
       <div class="gastro-section-label gastro-section-label-premium">UPGRADE · a consultar</div>
       <div class="gastro-islands-list" id="gastro-mesa-dulce-list">
         <label class="gastro-island-row">
@@ -3566,7 +3555,20 @@ function buildGastroSlide() {
             <div class="island-row-desc">${md.upgrade.desc}</div>
           </div>
         </label>
+      </div>` : '';
+    const sub = md.upgrade ? 'Pastelería artesanal de elaboración propia · upgrade premium disponible' : 'Pastelería artesanal de elaboración propia';
+    return `
+    <div class="gastro-subsection">
+      <div class="gastro-subsection-header">
+        <div class="gastro-section-title">Mesa de dulces</div>
+        <div class="gastro-section-sub">${sub}</div>
       </div>
+      <div class="gastro-section-label">INCLUIDA</div>
+      <div class="gastro-islands-list">
+        ${includedRows}
+        ${lockedRow(md.tortaHomenaje, ' gastro-torta-homenaje-row')}
+      </div>
+      ${upgradeSection}
     </div>`;
   })();
 
