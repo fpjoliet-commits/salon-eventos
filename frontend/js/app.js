@@ -3331,7 +3331,7 @@ function readPropuestaData() {
 
 const PRIMER_PLATO_DATA = {
   pastas: [
-    { name: 'Tagliatelle cortados a cuchillo', locked: true },
+    { name: 'Tagliatelle cortados a cuchillo (blancos y de verdura)', locked: true },
     { name: 'Sorrentinos de jamón y queso' },
     { name: 'Canelones de verdura y ricota' },
     { name: 'Ravioloni de espinaca y parmesano' },
@@ -3492,9 +3492,9 @@ function buildGastroSlide() {
         <div class="gastro-section-title">Primer plato</div>
         <div class="gastro-section-sub">Pastas artesanales · Tagliatelle y Filetto siempre incluidos</div>
       </div>
-      <div class="gastro-section-label">PASTAS · Tagliatelle siempre incluido · elegí hasta 3 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/3</span></div>
+      <div class="gastro-section-label">PASTAS · Tagliatelle siempre incluido · elegí hasta 4 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/4</span></div>
       <div class="gastro-menu-list" id="gastro-pasta-list">${pastaRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">PASTAS GOURMET · a consultar · cuentan en el límite de 3</div>
+      <div class="gastro-section-label gastro-section-label-premium">PASTAS GOURMET · a consultar · cuentan en el límite de 4</div>
       <div class="gastro-menu-list" id="gastro-pasta-gourmet-list">${pastaGRows}</div>
       <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></div>
       <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
@@ -3621,7 +3621,7 @@ function setupGastroEvents(isAmericano, maxBase) {
 }
 
 function setupFormalExtrasEvents() {
-  const MAX_PASTA = 3, MAX_SALSAS = 4;
+  const MAX_PASTA = 4, MAX_SALSAS = 4;
 
   function getPastaCount() {
     let n = 0;
