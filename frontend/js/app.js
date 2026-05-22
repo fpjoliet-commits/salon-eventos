@@ -3256,6 +3256,12 @@ function updatePropuestaNav() {
 }
 
 function goToPropuestaSlide(n) {
+  if (propuestaState.current === 9) {
+    propuestaState.data.gastroAdicionales = [];
+    document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked').forEach(cb => {
+      propuestaState.data.gastroAdicionales.push(cb.value);
+    });
+  }
   const old = document.querySelector('.propuesta-slide.active');
   if (old) {
     old.classList.remove('active');
@@ -3269,6 +3275,7 @@ function goToPropuestaSlide(n) {
   if (container) container.scrollTop = 0;
   updatePropuestaNav();
   if (n === 7) buildRecorrido();
+  if (n === 9) buildGastroSlide();
   if (n === 11) buildPropuestaResumen();
 }
 
@@ -3288,12 +3295,179 @@ function readPropuestaData() {
   d.infantilCant = g('prop-infantil-cant');
   const espacioCard = document.querySelector('#espacio-cards .propuesta-card.selected');
   d.espacio = espacioCard ? espacioCard.dataset.value : d.espacio;
-  d.adicionales = []; d.gastroAdicionales = [];
+  d.adicionales = [];
   document.querySelectorAll('#view-propuesta .adicionales-grid input[type="checkbox"]:checked').forEach(cb => {
-    if (cb.closest('#gastro-extras-grid')) d.gastroAdicionales.push(cb.value);
-    else d.adicionales.push(cb.value);
+    d.adicionales.push(cb.value);
+  });
+  d.gastroAdicionales = [];
+  document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked').forEach(cb => {
+    d.gastroAdicionales.push(cb.value);
   });
   d.pedidos = $('prop-pedidos')?.value?.trim() || '';
+}
+
+/* ===== GASTRO SLIDE — dinámico por estilo ===== */
+const GASTRO_DATA = {
+  Formal: {
+    pillars: [
+      { ico: '🥂', label: 'Recepción<br>& cóctel' },
+      { ico: '🍝', label: 'Pastas<br>artesanales' },
+      { ico: '🥩', label: 'Plato<br>central' },
+      { ico: '🎂', label: 'Mesa de<br>dulces' },
+    ],
+    islasTitle: 'Islas gastronómicas',
+    islasSub: 'Durante la recepción · Incluye una estación',
+    islasLabel: 'A ELECCIÓN · UNA INCLUIDA',
+    islas: [
+      { value: 'Mollejas & Verdeo', name: 'Mollejas & Verdeo', desc: 'Mollejitas doradas y tiernas, salteadas con verdeo fresco · Servidas en pancitos de campo' },
+      { value: 'Alma Mexicana', name: 'Alma Mexicana', desc: 'Tacos de carne, pollo o cerdo con toppings clásicos · Nachos crocantes para acompañar' },
+      { value: 'Clásicos en Laja', name: 'Clásicos en Laja', desc: 'Selección de fiambres y quesos en lajas de piedra · Variedad de panes y aderezos' },
+      { value: 'Estación de Crêpes', name: 'Estación de Crêpes', desc: 'Crêpes finos preparados al momento con rellenos salados y salsas suaves para combinar' },
+    ],
+    premium: [
+      { value: 'Delicias de Mar', name: 'Delicias de Mar', desc: 'Cazuela caliente con mix de mariscos y vegetales en caldo de mar' },
+      { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
+      { value: 'Sushi en vivo', name: 'Sushi en vivo', desc: 'Preparación artesanal frente a los invitados' },
+    ],
+    mode: 'single',
+    maxBase: 1,
+  },
+  Americano: {
+    pillars: [
+      { ico: '🥂', label: 'Recepción<br>& cóctel' },
+      { ico: '🏝️', label: 'Islas en vivo<br>(plato central)' },
+      { ico: '🎂', label: 'Postres &<br>torta homenaje' },
+    ],
+    islasTitle: 'Las islas · el plato central',
+    islasSub: 'Sus invitados circulan, eligen y disfrutan a su ritmo',
+    islasLabel: 'BASE INCLUIDA · elegís 2',
+    islas: [
+      { value: 'Bovalino — Pasta Italiana', name: 'Bovalino 🇮🇹', cat: 'Pasta', desc: 'Agnolottis/sorrentinos de jamón y queso con pomodoro, albahaca y oliva · Tagliatelle cortados a cuchillo con ragú alla bolognese' },
+      { value: 'Azteca — Tacos', name: 'Azteca', cat: '', desc: 'Tacos artesanales al momento con pollo, cerdo o carne · Cebolla, pico de gallo fresco y salsa picante · Nachos crocantes con queso fundido' },
+      { value: 'Dijon — Pollo a la Mostaza', name: 'Dijon', cat: 'Ave', desc: 'Pollo a la mostaza suave con papas al horno y romero' },
+      { value: 'Bianca — Pollo en Vino Blanco', name: 'Bianca', cat: 'Ave', desc: 'Cubos de pollo braseados en reducción de vino blanco y hierbas frescas · Arroz cremoso parmesano' },
+      { value: 'Francesa — Lomo Demiglace', name: 'Francesa', cat: 'Carne', desc: 'Lomo en salsa demiglace con papas rústicas en manteca de tomillo' },
+      { value: 'Del Bosque — Carne y Hongos', name: 'Del Bosque', cat: 'Carne', desc: 'Cubos de carne braseados en reducción de vino tinto y hongos secos · Arroz perfumado al azafrán' },
+    ],
+    premium: [
+      { value: 'Delicias de Mar', name: 'Delicias de Mar', desc: 'Cazuela caliente con mix de mariscos y vegetales en caldo de mar' },
+      { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
+    ],
+    mode: 'multi',
+    maxBase: 2,
+  },
+};
+
+function buildGastroSlide() {
+  const container = $('gastro-slide-content');
+  if (!container) return;
+  const estilo = propuestaState.data.estilo || 'Formal';
+  const data = GASTRO_DATA[estilo] || GASTRO_DATA.Formal;
+  const isAmericano = estilo === 'Americano';
+
+  const pillarsHtml = data.pillars.map(p =>
+    `<div class="gastro-pilar"><div class="gp-ico">${p.ico}</div><div class="gp-label">${p.label}</div></div>`
+  ).join('');
+
+  const baseIslandsHtml = data.islas.map(isla => `
+    <label class="gastro-island-row">
+      <input type="checkbox" value="${isla.value}">
+      <div class="island-row-indicator">✓</div>
+      <div class="island-row-body">
+        <div class="island-row-header">
+          <span class="island-row-name">${isla.name}</span>
+          ${isla.cat ? `<span class="island-row-cat">${isla.cat}</span>` : ''}
+        </div>
+        <div class="island-row-desc">${isla.desc}</div>
+      </div>
+    </label>`).join('');
+
+  const premiumHtml = data.premium.map(p => `
+    <label class="gastro-premium-row">
+      <input type="checkbox" value="${p.value}">
+      <div class="premium-row-indicator">✓</div>
+      <div class="premium-row-body">
+        <span class="premium-row-name">${p.name}</span>
+        <span class="premium-row-desc">${p.desc}</span>
+      </div>
+    </label>`).join('');
+
+  const counterHtml = isAmericano
+    ? `<div class="gastro-counter" id="gastro-base-counter"><span id="gastro-base-count">0</span> / ${data.maxBase} elegidas</div>`
+    : '';
+
+  container.innerHTML = `
+    <div class="gastro-incluido">${pillarsHtml}</div>
+    <div class="gastro-islands-section">
+      <div class="gastro-section-header">
+        <div class="gastro-section-title">${data.islasTitle}</div>
+        <div class="gastro-section-sub">${data.islasSub}</div>
+        ${counterHtml}
+      </div>
+      <div class="gastro-section-label">${data.islasLabel}</div>
+      <div class="gastro-islands-list" id="gastro-extras-grid">${baseIslandsHtml}</div>
+      <div class="gastro-section-label gastro-section-label-premium">PREMIUM · a consultar</div>
+      <div class="gastro-premium-list">${premiumHtml}</div>
+    </div>`;
+
+  const prev = propuestaState.data.gastroAdicionales || [];
+  if (prev.length) {
+    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      if (prev.includes(cb.value)) {
+        cb.checked = true;
+        cb.closest('.gastro-island-row, .gastro-premium-row')?.classList.add('selected');
+      }
+    });
+    if (isAmericano) {
+      const count = $('gastro-base-count');
+      const grid = $('gastro-extras-grid');
+      if (count && grid) {
+        const n = grid.querySelectorAll('input[type="checkbox"]:checked').length;
+        count.textContent = n;
+        const counter = $('gastro-base-counter');
+        if (counter) counter.classList.toggle('gastro-counter-full', n >= data.maxBase);
+      }
+    }
+  }
+
+  setupGastroEvents(isAmericano, data.maxBase);
+}
+
+function setupGastroEvents(isAmericano, maxBase) {
+  const grid = $('gastro-extras-grid');
+  if (!grid) return;
+
+  grid.querySelectorAll('.gastro-island-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const cb = row.querySelector('input[type="checkbox"]');
+      if (isAmericano) {
+        const checked = grid.querySelectorAll('input[type="checkbox"]:checked').length;
+        if (!cb.checked && checked >= maxBase) return;
+        cb.checked = !cb.checked;
+        row.classList.toggle('selected', cb.checked);
+        const n = grid.querySelectorAll('input[type="checkbox"]:checked').length;
+        const count = $('gastro-base-count');
+        if (count) count.textContent = n;
+        const counter = $('gastro-base-counter');
+        if (counter) counter.classList.toggle('gastro-counter-full', n >= maxBase);
+      } else {
+        const wasChecked = cb.checked;
+        grid.querySelectorAll('input[type="checkbox"]').forEach(c => {
+          c.checked = false;
+          c.closest('.gastro-island-row')?.classList.remove('selected');
+        });
+        if (!wasChecked) { cb.checked = true; row.classList.add('selected'); }
+      }
+    });
+  });
+
+  $('gastro-slide-content')?.querySelectorAll('.gastro-premium-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const cb = row.querySelector('input[type="checkbox"]');
+      cb.checked = !cb.checked;
+      row.classList.toggle('selected', cb.checked);
+    });
+  });
 }
 
 function buildPropuestaResumen() {
@@ -3586,6 +3760,9 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
     card.addEventListener('click', () => {
       document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
+      if (propuestaState.data.estilo !== card.dataset.estilo) {
+        propuestaState.data.gastroAdicionales = [];
+      }
       propuestaState.data.estilo = card.dataset.estilo;
     });
   });

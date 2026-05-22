@@ -2340,6 +2340,142 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   max-width: 760px;
 }
 
+/* ---- Gastro slide dinámico ---- */
+#gastro-slide-content { width: 100%; max-width: 700px; }
+.gastro-islands-section { width: 100%; }
+.gastro-section-header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.gastro-section-title {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--gold-bright);
+  letter-spacing: .04em;
+}
+.gastro-section-sub { font-size: 12px; color: rgba(255,255,255,.45); letter-spacing: .04em; }
+.gastro-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(196,153,62,.1);
+  border: 1px solid rgba(196,153,62,.28);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 12px;
+  color: var(--gold-bright);
+  margin-top: 8px;
+  letter-spacing: .04em;
+  transition: all .2s;
+  width: fit-content;
+}
+.gastro-counter.gastro-counter-full { background: rgba(196,153,62,.22); border-color: var(--gold); }
+.gastro-section-label {
+  font-size: 9px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.26);
+  padding: 10px 0 8px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  margin-bottom: 6px;
+  width: 100%;
+}
+.gastro-section-label-premium { margin-top: 16px; }
+.gastro-islands-list { display: flex; flex-direction: column; gap: 6px; }
+.gastro-island-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  user-select: none;
+}
+.gastro-island-row:hover { border-color: rgba(196,153,62,.32); }
+.gastro-island-row.selected { border-color: var(--gold); background: rgba(196,153,62,.08); }
+.gastro-island-row input[type="checkbox"] { display: none; }
+.island-row-indicator {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: transparent;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: all .2s;
+}
+.gastro-island-row.selected .island-row-indicator {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #1a1008;
+}
+.island-row-body { flex: 1; min-width: 0; }
+.island-row-header { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; flex-wrap: wrap; }
+.island-row-name {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: rgba(255,255,255,.85);
+  letter-spacing: .02em;
+  transition: color .2s;
+}
+.gastro-island-row.selected .island-row-name { color: var(--gold-bright); }
+.island-row-cat {
+  font-size: 9px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.35);
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 12px;
+  padding: 2px 8px;
+}
+.island-row-desc { font-size: 12.5px; color: rgba(255,255,255,.48); line-height: 1.55; }
+.gastro-premium-list { display: flex; flex-direction: column; gap: 5px; }
+.gastro-premium-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  user-select: none;
+}
+.gastro-premium-row:hover { border-color: rgba(196,153,62,.26); }
+.gastro-premium-row.selected { border-color: rgba(196,153,62,.55); background: rgba(196,153,62,.07); }
+.gastro-premium-row input[type="checkbox"] { display: none; }
+.premium-row-indicator {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: transparent;
+  flex-shrink: 0;
+  margin-top: 3px;
+  transition: all .2s;
+}
+.gastro-premium-row.selected .premium-row-indicator { border-color: var(--gold); background: var(--gold); color: #1a1008; }
+.premium-row-body { flex: 1; min-width: 0; }
+.premium-row-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,.72);
+  display: block;
+  margin-bottom: 2px;
+  transition: color .2s;
+}
+.gastro-premium-row.selected .premium-row-name { color: var(--gold-bright); }
+.premium-row-desc { font-size: 11.5px; color: rgba(255,255,255,.36); display: block; }
+
 /* ---- Field group ---- */
 .propuesta-field-group {
   display: flex;
