@@ -3315,9 +3315,9 @@ const GASTRO_DATA = {
       { ico: '🥩', label: 'Plato<br>central' },
       { ico: '🎂', label: 'Mesa de<br>dulces' },
     ],
-    islasTitle: 'Islas gastronómicas',
+    islasTitle: 'Estaciones de bienvenida',
     islasSub: 'A mediados de la recepción · incluye una estación',
-    islasLabel: 'A ELECCIÓN · UNA INCLUIDA',
+    islasLabel: 'UNA INCLUIDA · podés agregar más',
     islas: [
       { value: 'Mollejas & Verdeo', name: 'Mollejas & Verdeo', desc: 'Mollejitas doradas y tiernas, salteadas con verdeo fresco · Servidas en pancitos de campo' },
       { value: 'Alma Mexicana', name: 'Alma Mexicana', desc: 'Tacos de carne, pollo o cerdo con toppings clásicos · Nachos crocantes para acompañar' },
@@ -3329,8 +3329,7 @@ const GASTRO_DATA = {
       { value: 'Paella Mediterránea', name: 'Paella Mediterránea', desc: 'Tradicional paella con mariscos, pollo y vegetales, servida caliente' },
       { value: 'Sushi en vivo', name: 'Sushi en vivo', desc: 'Preparación artesanal frente a los invitados' },
     ],
-    mode: 'single',
-    maxBase: 1,
+    mode: 'multi',
   },
   Americano: {
     pillars: [
@@ -3339,7 +3338,7 @@ const GASTRO_DATA = {
       { ico: '🎂', label: 'Postres &<br>torta homenaje' },
     ],
     islasTitle: 'Las islas · el plato central',
-    islasSub: 'Sus invitados circulan, eligen y disfrutan a su ritmo',
+    islasSub: 'Tras la recepción · sus invitados circulan, eligen y disfrutan a su ritmo',
     islasLabel: 'BASE INCLUIDA · elegí 1 más',
     islas: [
       { value: 'Bovalino — Pasta Italiana', name: 'Bovalino 🇮🇹', cat: 'Pasta', desc: 'Agnolottis/sorrentinos de jamón y queso con pomodoro, albahaca y oliva · Tagliatelle cortados a cuchillo con ragú alla bolognese', locked: true },
@@ -3422,6 +3421,7 @@ function buildGastroSlide() {
       </div>
       <div class="gastro-section-label">${data.islasLabel}</div>
       <div class="gastro-islands-list" id="gastro-extras-grid">${lockedHtml}${baseIslandsHtml}</div>
+      ${!isAmericano ? `<p class="gastro-formal-extra-note" id="gastro-formal-extra-note" style="display:none">Una estación está incluida · las adicionales se presupuestan aparte</p>` : ''}
       <div class="gastro-section-label gastro-section-label-premium">PREMIUM · a consultar</div>
       <div class="gastro-premium-list">${premiumHtml}</div>
     </div>`;
@@ -3443,10 +3443,26 @@ function buildGastroSlide() {
         const counter = $('gastro-base-counter');
         if (counter) counter.classList.toggle('gastro-counter-full', n >= data.maxBase);
       }
+    } else {
+      const grid = $('gastro-extras-grid');
+      if (grid) updateFormalIslandVisuals(grid);
     }
   }
 
   setupGastroEvents(isAmericano, data.maxBase);
+}
+
+function updateFormalIslandVisuals(grid) {
+  const rows = Array.from(grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)'));
+  const selected = rows.filter(r => r.querySelector('input[type="checkbox"]').checked);
+  rows.forEach(row => {
+    const isSelected = row.querySelector('input[type="checkbox"]').checked;
+    const isExtra = isSelected && selected.indexOf(row) > 0;
+    row.classList.toggle('selected-extra', isExtra);
+    row.querySelector('.island-row-indicator').textContent = isExtra ? '+' : '✓';
+  });
+  const note = $('gastro-formal-extra-note');
+  if (note) note.style.display = selected.length > 1 ? '' : 'none';
 }
 
 function setupGastroEvents(isAmericano, maxBase) {
@@ -3467,12 +3483,10 @@ function setupGastroEvents(isAmericano, maxBase) {
         const counter = $('gastro-base-counter');
         if (counter) counter.classList.toggle('gastro-counter-full', n >= maxBase);
       } else {
-        const wasChecked = cb.checked;
-        grid.querySelectorAll('input[type="checkbox"]').forEach(c => {
-          c.checked = false;
-          c.closest('.gastro-island-row')?.classList.remove('selected');
-        });
-        if (!wasChecked) { cb.checked = true; row.classList.add('selected'); }
+        cb.checked = !cb.checked;
+        row.classList.toggle('selected', cb.checked);
+        if (!cb.checked) row.classList.remove('selected-extra');
+        updateFormalIslandVisuals(grid);
       }
     });
   });
@@ -3561,6 +3575,7 @@ function buildPropuestaResumen() {
     ${gastroSection}
     ${adicionalesHtml}
     ${pedidosHtml}
+    <div class="res-todo-posible">Todo lo que imaginás se puede hacer · esta propuesta es un punto de partida · estamos para construirla con vos</div>
   `;
 }
 
