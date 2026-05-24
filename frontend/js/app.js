@@ -3858,16 +3858,17 @@ function setupFormalExtrasEvents() {
   const centralList = $('gastro-plato-central');
   if (centralList) {
     centralList.querySelectorAll('.gastro-plato-row').forEach(row => {
+      const radio = row.querySelector('input[type="radio"]');
+      if (!radio) return;
+      let wasChecked = false;
+      // Capture state BEFORE the browser processes the label click
+      row.addEventListener('mousedown', () => { wasChecked = radio.checked; });
       row.addEventListener('click', () => {
-        const radio = row.querySelector('input[type="radio"]'); if (!radio) return;
-        if (radio.checked) {
-          radio.checked = false;
-          row.classList.remove('selected');
-        } else {
-          centralList.querySelectorAll('.gastro-plato-row').forEach(r => {
-            r.classList.remove('selected');
-            const ri = r.querySelector('input'); if (ri) ri.checked = false;
-          });
+        centralList.querySelectorAll('.gastro-plato-row').forEach(r => {
+          r.classList.remove('selected');
+          const ri = r.querySelector('input'); if (ri) ri.checked = false;
+        });
+        if (!wasChecked) {
           radio.checked = true;
           row.classList.add('selected');
         }
