@@ -718,6 +718,12 @@ textarea { resize: vertical; min-height: 70px; }
 /* Vista cliente: oculta todo lo que esté marcado como interno */
 .modal.vista-cliente [data-internal] { display: none !important; }
 
+/* Vista cliente: oculta tabs de dinero y su contenido */
+.modal.vista-cliente .tab-btn[data-tab="cuotas"],
+.modal.vista-cliente .tab-btn[data-tab="pagos"],
+.modal.vista-cliente #tab-cuotas,
+.modal.vista-cliente #tab-pagos { display: none !important; }
+
 .modal-tabs {
   display: flex;
   gap: 0;

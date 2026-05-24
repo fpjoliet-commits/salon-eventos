@@ -159,8 +159,8 @@ app.delete('/api/restricciones/:rowIndex', auth, async (req, res) => {
   }
 });
 
-// Totales por cliente (Fabio y Mariana)
-app.get('/api/ingresos/totales/:idCliente', auth, async (req, res) => {
+// Totales por cliente (solo admin)
+app.get('/api/ingresos/totales/:idCliente', auth, adminOnly, async (req, res) => {
   try {
     const todos = await sheets.getIngresos();
     const filtrados = todos.filter(i => i.idCliente === req.params.idCliente);
@@ -172,7 +172,7 @@ app.get('/api/ingresos/totales/:idCliente', auth, async (req, res) => {
 });
 
 // Cuotas
-app.get('/api/cuotas/cliente/:idCliente', auth, async (req, res) => {
+app.get('/api/cuotas/cliente/:idCliente', auth, adminOnly, async (req, res) => {
   try { res.json(await sheets.getCuotasByCliente(req.params.idCliente)); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });

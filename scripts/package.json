@@ -1,0 +1,8 @@
+{
+  "name": "salon-informe-semanal",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "googleapis": "^171.4.0"
+  }
+}
