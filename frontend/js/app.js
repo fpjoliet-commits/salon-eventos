@@ -92,6 +92,13 @@ async function apiFetch(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const data = await res.json();
+  if (res.status === 401) {
+    clearSession();
+    hide('app');
+    show('login-screen');
+    $('login-form').reset();
+    throw new Error('Sesión expirada. Por favor, ingresá nuevamente.');
+  }
   if (!res.ok) throw new Error(data.error || 'Error del servidor');
   return data;
 }
@@ -3197,7 +3204,7 @@ async function guardarClientePropuesta() {
   const statusEl = $('prop-guardar-status');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
   try {
-    const nuevo = await apiFetch('/api/clientes', {
+    const nuevo = await apiFetch('/clientes', {
       method: 'POST',
       body: {
         apellidoNombre: d.nombre || 'Prospecto sin nombre',
