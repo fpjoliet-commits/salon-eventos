@@ -70,6 +70,9 @@
         <a href="#" class="nav-item" data-view="propuesta">
           <span class="nav-icon">📋</span> Propuesta
         </a>
+        <a href="#" class="nav-item admin-only" data-view="egresos">
+          <span class="nav-icon">💸</span> Egresos
+        </a>
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
@@ -403,6 +406,137 @@
           </select>
         </div>
         <div id="timing-global-content"></div>
+      </section>
+
+      <!-- VISTA: EGRESOS -->
+      <section id="view-egresos" class="view hidden">
+        <div class="view-header">
+          <h2>Egresos del Salón</h2>
+        </div>
+
+        <!-- Formulario nuevo egreso -->
+        <div class="egresos-form-card">
+          <h3 class="egresos-form-title">Registrar egreso</h3>
+          <form id="egreso-form" class="egreso-form">
+            <div class="egreso-form-row">
+              <div class="form-group">
+                <label>Fecha</label>
+                <input type="date" id="egr-fecha" required>
+              </div>
+              <div class="form-group">
+                <label>Categoría</label>
+                <select id="egr-categoria" required>
+                  <option value="">Seleccioná...</option>
+                  <option>Servicios</option>
+                  <option>Bebidas</option>
+                  <option>Personal</option>
+                  <option>Evento</option>
+                  <option>Mantenimiento</option>
+                  <option class="superadmin-only" value="Materia Prima">Materia Prima</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Concepto</label>
+                <select id="egr-concepto" required>
+                  <option value="">— elegí categoría primero —</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Personal: selección de empleado -->
+            <div class="egreso-form-row" id="egr-personal-row" style="display:none">
+              <div class="form-group">
+                <label>Empleado</label>
+                <select id="egr-empleado">
+                  <option value="">Seleccioná...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Rol en este pago</label>
+                <select id="egr-rol-pago">
+                  <option value="">Seleccioná...</option>
+                  <option>Mozo</option>
+                  <option>Maître</option>
+                  <option>Barman</option>
+                  <option>Cocinero</option>
+                  <option>Ayudante de Cocina</option>
+                  <option>Bachero</option>
+                  <option>Portero</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>o agregar nombre nuevo</label>
+                <input type="text" id="egr-nuevo-empleado" placeholder="Nombre y apellido">
+              </div>
+            </div>
+
+            <div class="egreso-form-row">
+              <div class="form-group">
+                <label>Monto</label>
+                <input type="number" id="egr-monto" min="0" step="0.01" required placeholder="0">
+              </div>
+              <div class="form-group">
+                <label>Moneda</label>
+                <select id="egr-moneda">
+                  <option value="ARS">ARS $</option>
+                  <option value="USD">USD U$S</option>
+                </select>
+              </div>
+              <div class="form-group" id="egr-notas-group">
+                <label>Notas</label>
+                <input type="text" id="egr-notas" placeholder="Opcional">
+              </div>
+            </div>
+
+            <div class="egreso-form-actions">
+              <button type="submit" class="btn btn-primary">Registrar egreso</button>
+              <span id="egr-success" class="egr-success hidden">✓ Guardado</span>
+              <span id="egr-error" class="error-msg hidden"></span>
+            </div>
+          </form>
+        </div>
+
+        <!-- Listado de egresos recientes -->
+        <div class="egresos-list-card">
+          <div class="egresos-list-header">
+            <h3>Historial de egresos</h3>
+            <div class="egresos-filtros">
+              <select id="egr-filtro-cat" class="filter-select">
+                <option value="">Todas las categorías</option>
+                <option>Servicios</option>
+                <option>Bebidas</option>
+                <option>Personal</option>
+                <option>Evento</option>
+                <option>Mantenimiento</option>
+                <option>Materia Prima</option>
+              </select>
+              <select id="egr-filtro-moneda" class="filter-select">
+                <option value="">ARS + USD</option>
+                <option value="ARS">Solo ARS</option>
+                <option value="USD">Solo USD</option>
+              </select>
+            </div>
+          </div>
+          <div id="egresos-loading" class="loading-msg">Cargando...</div>
+          <div id="egresos-table-wrap" class="table-wrap hidden">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Categoría</th>
+                  <th>Concepto</th>
+                  <th>Empleado / Rol</th>
+                  <th>Monto</th>
+                  <th>Notas</th>
+                  <th>Cargado por</th>
+                </tr>
+              </thead>
+              <tbody id="egresos-tbody"></tbody>
+            </table>
+          </div>
+          <div id="egresos-empty" class="empty-msg hidden">No hay egresos registrados.</div>
+          <div id="egresos-total-bar" class="egresos-total-bar hidden"></div>
+        </div>
       </section>
 
     </main>

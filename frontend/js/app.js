@@ -117,9 +117,10 @@ function clearSession() {
   localStorage.removeItem('crm_user');
 }
 
-function isAdmin() { return currentUser?.role === 'admin'; }
-function canManagePagos() { return isAdmin() || currentUser?.usuario === 'admin'; }
-function canEditNombre() { return canManagePagos(); }
+function isSuperAdmin() { return currentUser?.role === 'superadmin'; }
+function isAdmin() { return currentUser?.role === 'admin' || currentUser?.role === 'superadmin'; }
+function canManagePagos() { return isAdmin(); }
+function canEditNombre() { return isAdmin(); }
 
 // Usuarios sin contraseña
 const USUARIOS_SIN_PASSWORD = [];
@@ -172,16 +173,21 @@ function initApp() {
   checkStatus();
 
   $('sidebar-user').textContent = currentUser.usuario;
-  $('sidebar-role').textContent = isAdmin() ? 'Admin' : 'EMPLEADO';
+  $('sidebar-role').textContent = isSuperAdmin() ? 'Super Admin' : isAdmin() ? 'Admin' : 'EMPLEADO';
 
   // Mostrar/ocultar items de nav según rol
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin() ? '' : 'none';
   });
 
-  // Timing Planner: visible para superadmin y admin (mismo criterio que la pestaña)
+  // Opciones solo para superadmin (ej: Materia Prima en egresos)
+  document.querySelectorAll('.superadmin-only').forEach(el => {
+    el.style.display = isSuperAdmin() ? '' : 'none';
+  });
+
+  // Timing Planner: visible para admin y superadmin
   document.querySelectorAll('.nav-item[data-view="timing-global"]').forEach(el => {
-    el.style.display = canManagePagos() ? '' : 'none';
+    el.style.display = isAdmin() ? '' : 'none';
   });
 
   loadClientes();
@@ -212,6 +218,7 @@ if (view === 'calendario') loadCalendario();
   if (view === 'nuevo-cliente' && !$('edit-row-index').value) resetNuevoClienteForm();
   if (view === 'timing-global') initTimingGlobal();
   if (view === 'propuesta') initPropuesta();
+  if (view === 'egresos') initEgresos();
 }
 
 /* ===================== TIMING PLANNER GLOBAL ===================== */
@@ -4462,6 +4469,217 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 
   buildPropuestaDots();
 })();
+
+/* ===================== EGRESOS ===================== */
+
+const EGRESOS_CATEGORIAS = {
+  'Servicios':     ['Luz', 'Gas', 'Agua', 'Wifi'],
+  'Bebidas':       ['Bebida', 'Hielo', 'Alcohol'],
+  'Personal':      ['Mozo', 'Maître', 'Barman', 'Cocinero', 'Ayudante de Cocina', 'Bachero', 'Portero'],
+  'Evento':        ['DJ', 'Flores', 'Mantelería', 'Fuegos artificiales', 'Vajilla', 'Show', 'Decoración'],
+  'Mantenimiento': ['Plomero', 'Electricista', 'Jardinero', 'Piletero', 'Pintor'],
+  'Materia Prima': ['(detalle en notas)'],
+};
+
+const EGRESOS_NOTAS_OBLIGATORIAS = new Set(['Vajilla', 'Decoración', '(detalle en notas)']);
+
+let allEgresos = [];
+let allEmpleados = [];
+let egresosCargados = false;
+
+async function loadEmpleados() {
+  try {
+    allEmpleados = await apiFetch('/empleados');
+    populateEmpleadoSelect();
+  } catch (e) { console.error('Error cargando empleados:', e); }
+}
+
+function populateEmpleadoSelect() {
+  const sel = $('egr-empleado');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Seleccioná...</option>' +
+    allEmpleados.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('') +
+    '<option value="__nuevo__">+ Agregar nuevo...</option>';
+}
+
+async function initEgresos() {
+  const fechaInput = $('egr-fecha');
+  if (fechaInput && !fechaInput.value) {
+    fechaInput.value = new Date().toISOString().slice(0, 10);
+  }
+  document.querySelectorAll('#egr-categoria .superadmin-only').forEach(opt => {
+    opt.style.display = isSuperAdmin() ? '' : 'none';
+  });
+  if (!egresosCargados) {
+    await Promise.all([loadEgresos(), loadEmpleados()]);
+    egresosCargados = true;
+    setupEgresosForm();
+  } else {
+    renderEgresos();
+    populateEmpleadoSelect();
+  }
+}
+
+function setupEgresosForm() {
+  const catSel = $('egr-categoria');
+  const concSel = $('egr-concepto');
+  const personalRow = $('egr-personal-row');
+  const empSel = $('egr-empleado');
+  const nuevoEmpInput = $('egr-nuevo-empleado');
+
+  catSel?.addEventListener('change', () => {
+    const cat = catSel.value;
+    const opts = EGRESOS_CATEGORIAS[cat] || [];
+    concSel.innerHTML = opts.length
+      ? opts.map(o => `<option value="${o}">${o}</option>`).join('')
+      : '<option value="">— elegí categoría primero —</option>';
+    const esPersonal = cat === 'Personal';
+    personalRow.style.display = esPersonal ? '' : 'none';
+    empSel.required = esPersonal;
+    $('egr-rol-pago').required = esPersonal;
+    updateNotasLabel();
+  });
+
+  concSel?.addEventListener('change', updateNotasLabel);
+
+  empSel?.addEventListener('change', () => {
+    const esNuevo = empSel.value === '__nuevo__';
+    nuevoEmpInput.style.display = esNuevo ? '' : 'none';
+    nuevoEmpInput.required = esNuevo;
+  });
+  if (nuevoEmpInput) nuevoEmpInput.style.display = 'none';
+
+  $('egreso-form')?.addEventListener('submit', submitEgreso);
+}
+
+function updateNotasLabel() {
+  const concepto = $('egr-concepto')?.value;
+  const notasGroup = $('egr-notas-group');
+  const obligatorio = EGRESOS_NOTAS_OBLIGATORIAS.has(concepto);
+  const lbl = notasGroup?.querySelector('label');
+  if (lbl) lbl.textContent = obligatorio ? 'Notas *' : 'Notas';
+  const notasEl = $('egr-notas');
+  if (notasEl) notasEl.required = obligatorio;
+}
+
+async function submitEgreso(e) {
+  e.preventDefault();
+  hide('egr-error'); hide('egr-success');
+  const empSel = $('egr-empleado');
+  const nuevoNombre = $('egr-nuevo-empleado')?.value.trim();
+  let idEmpleado = '', nombreEmpleado = '';
+
+  if ($('egr-categoria').value === 'Personal') {
+    if (empSel?.value === '__nuevo__' && nuevoNombre) {
+      try {
+        const emp = await apiFetch('/empleados', { method: 'POST', body: { nombre: nuevoNombre } });
+        allEmpleados.push(emp);
+        populateEmpleadoSelect();
+        idEmpleado = emp.id;
+        nombreEmpleado = nuevoNombre;
+      } catch (err) {
+        $('egr-error').textContent = 'Error al guardar empleado: ' + err.message;
+        show('egr-error'); return;
+      }
+    } else {
+      idEmpleado = empSel?.value || '';
+      nombreEmpleado = allEmpleados.find(emp => emp.id === idEmpleado)?.nombre || '';
+    }
+  }
+
+  const body = {
+    fecha: $('egr-fecha').value,
+    concepto: $('egr-concepto').value,
+    categoria: $('egr-categoria').value,
+    monto: parseFloat($('egr-monto').value) || 0,
+    moneda: $('egr-moneda').value,
+    idEmpleado, nombreEmpleado,
+    rolPago: $('egr-rol-pago')?.value || '',
+    notas: $('egr-notas').value.trim(),
+  };
+
+  try {
+    const nuevo = await apiFetch('/egresos', { method: 'POST', body });
+    allEgresos.unshift(nuevo);
+    allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    renderEgresos();
+    show('egr-success');
+    setTimeout(() => hide('egr-success'), 3000);
+    $('egr-monto').value = '';
+    $('egr-notas').value = '';
+    if (nuevoNombre && $('egr-nuevo-empleado')) $('egr-nuevo-empleado').value = '';
+    if ($('egr-nuevo-empleado')) $('egr-nuevo-empleado').style.display = 'none';
+    if (empSel) empSel.value = '';
+    if ($('egr-rol-pago')) $('egr-rol-pago').value = '';
+  } catch (err) {
+    $('egr-error').textContent = err.message;
+    show('egr-error');
+  }
+}
+
+async function loadEgresos() {
+  show('egresos-loading');
+  hide('egresos-table-wrap');
+  hide('egresos-empty');
+  hide('egresos-total-bar');
+  try {
+    allEgresos = await apiFetch('/egresos');
+    allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    renderEgresos();
+  } catch (err) {
+    const el = $('egresos-loading');
+    if (el) el.textContent = 'Error: ' + err.message;
+  }
+}
+
+function renderEgresos() {
+  hide('egresos-loading');
+  const filtCat = $('egr-filtro-cat')?.value || '';
+  const filtMoneda = $('egr-filtro-moneda')?.value || '';
+  const lista = allEgresos.filter(e => {
+    if (filtCat && e.categoria !== filtCat) return false;
+    if (filtMoneda && e.moneda !== filtMoneda) return false;
+    return true;
+  });
+
+  if (!lista.length) {
+    hide('egresos-table-wrap');
+    show('egresos-empty');
+    hide('egresos-total-bar');
+    return;
+  }
+
+  show('egresos-table-wrap');
+  hide('egresos-empty');
+
+  $('egresos-tbody').innerHTML = lista.map(e => {
+    const empInfo = e.nombreEmpleado
+      ? `<span class="egr-emp-name">${esc(e.nombreEmpleado)}</span>${e.rolPago ? ` <span class="egr-rol-badge">${esc(e.rolPago)}</span>` : ''}`
+      : '—';
+    return `<tr>
+      <td>${formatDate(e.fecha)}</td>
+      <td><span class="egr-cat-badge egr-cat-${(e.categoria||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z-]/g,'')}">${esc(e.categoria)}</span></td>
+      <td>${esc(e.concepto)}</td>
+      <td>${empInfo}</td>
+      <td class="num-cell">${formatMoneda(parseFloat(e.monto)||0, e.moneda)}</td>
+      <td class="egr-notas-cell">${esc(e.notas)}</td>
+      <td class="muted-cell">${esc(e.cargadoPor)}</td>
+    </tr>`;
+  }).join('');
+
+  const totalARS = lista.filter(e => e.moneda !== 'USD').reduce((s, e) => s + (parseFloat(e.monto)||0), 0);
+  const totalUSD = lista.filter(e => e.moneda === 'USD').reduce((s, e) => s + (parseFloat(e.monto)||0), 0);
+  const totalBar = $('egresos-total-bar');
+  let txt = `${lista.length} registros —`;
+  if (totalARS > 0) txt += ` <strong>${formatMoney(totalARS)}</strong>`;
+  if (totalUSD > 0) txt += `${totalARS > 0 ? ' +' : ''} <strong>U$S ${totalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})}</strong>`;
+  totalBar.innerHTML = txt;
+  show('egresos-total-bar');
+}
+
+document.addEventListener('change', e => {
+  if (e.target.id === 'egr-filtro-cat' || e.target.id === 'egr-filtro-moneda') renderEgresos();
+});
 
 /* ===================== SESSION RESTORE ===================== */
 (function restoreSession() {

@@ -16,8 +16,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const PORT = process.env.PORT || 3001;
 
 const USERS = {
-  superadmin: { password: process.env.PASSWORD_SUPERADMIN, role: 'admin' },
-  admin: { password: process.env.PASSWORD_ADMIN, role: 'operador' },
+  superadmin: { password: process.env.PASSWORD_SUPERADMIN, role: 'superadmin' },
+  admin: { password: process.env.PASSWORD_ADMIN, role: 'admin' },
   empleado: { password: process.env.PASSWORD_EMPLEADO, role: 'operador' },
 };
 
@@ -33,7 +33,13 @@ function auth(req, res, next) {
 }
 
 function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Sin permiso' });
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin')
+    return res.status(403).json({ error: 'Sin permiso' });
+  next();
+}
+
+function superAdminOnly(req, res, next) {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Sin permiso' });
   next();
 }
 
@@ -256,9 +262,9 @@ app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Timming — solo admin y superadmin
+// Timming — admin y superadmin
 function canManageTimming(req) {
-  return req.user.role === 'admin' || req.user.usuario === 'admin';
+  return req.user.role === 'admin' || req.user.role === 'superadmin';
 }
 
 app.get('/api/timming/cliente/:idCliente', auth, async (req, res) => {
@@ -285,15 +291,36 @@ app.delete('/api/timming/:rowIndex', auth, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Migración única: Clientes → Personas + Eventos (superadmin y admin)
-app.post('/api/migrar-clientes', auth, async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.usuario !== 'admin') {
-    return res.status(403).json({ error: 'Sin permiso' });
-  }
+// Migración única: Clientes → Personas + Eventos (admin y superadmin)
+app.post('/api/migrar-clientes', auth, adminOnly, async (req, res) => {
   try {
     const result = await sheets.migrarClientesAPersonasEventos();
     res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Empleados
+app.get('/api/empleados', auth, adminOnly, async (req, res) => {
+  try { res.json(await sheets.getEmpleados()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/empleados', auth, adminOnly, async (req, res) => {
+  try { res.json(await sheets.addEmpleado(req.body)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Egresos
+app.get('/api/egresos', auth, adminOnly, async (req, res) => {
+  try { res.json(await sheets.getEgresos()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/egresos', auth, adminOnly, async (req, res) => {
+  if (req.body.categoria === 'Materia Prima' && req.user.role !== 'superadmin')
+    return res.status(403).json({ error: 'Solo el superadmin puede registrar Materia Prima' });
+  try { res.json(await sheets.addEgreso({ ...req.body, cargadoPor: req.user.usuario })); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API

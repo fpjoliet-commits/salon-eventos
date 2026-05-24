@@ -30,6 +30,8 @@ let memIngresos = [];
 let memRestricciones = [];
 let memCuotas = [];
 let memTimming = [];
+let memEmpleados = [];
+let memEgresos = [];
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -815,6 +817,109 @@ async function cancelarPlan(idCliente) {
   });
 }
 
+/* ===================== EMPLEADOS ===================== */
+// Columnas A-C: id, nombre, activo
+
+function rowToEmpleado(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    nombre: row[1] || '',
+    activo: row[2] !== 'false',
+  };
+}
+
+function empleadoToRow(e) {
+  return [e.id, e.nombre, e.activo !== false ? 'true' : 'false'];
+}
+
+async function getEmpleados() {
+  if (!tieneCredenciales) return memEmpleados.filter(e => e.id && e.activo !== false);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Empleados!A2:C',
+  });
+  return (res.data.values || []).map((row, i) => rowToEmpleado(row, i))
+    .filter(e => e.id && e.activo !== false);
+}
+
+async function addEmpleado(data) {
+  const id = generateId('EMP');
+  const e = { ...data, id, activo: true };
+  if (!tieneCredenciales) {
+    e.rowIndex = memEmpleados.length + 2;
+    memEmpleados.push(e);
+    return e;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Empleados!A:C',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [empleadoToRow(e)] },
+  });
+  return e;
+}
+
+/* ===================== EGRESOS ===================== */
+// Columnas A-K: id, fecha, concepto, categoria, monto, moneda,
+//               idEmpleado, nombreEmpleado, rolPago, notas, cargadoPor
+
+function rowToEgreso(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    fecha: row[1] || '',
+    concepto: row[2] || '',
+    categoria: row[3] || '',
+    monto: row[4] || '',
+    moneda: row[5] || 'ARS',
+    idEmpleado: row[6] || '',
+    nombreEmpleado: row[7] || '',
+    rolPago: row[8] || '',
+    notas: row[9] || '',
+    cargadoPor: row[10] || '',
+  };
+}
+
+function egresoToRow(e) {
+  return [
+    e.id, e.fecha, e.concepto, e.categoria,
+    e.monto, e.moneda || 'ARS',
+    e.idEmpleado || '', e.nombreEmpleado || '', e.rolPago || '',
+    e.notas || '', e.cargadoPor || '',
+  ].map(v => (v !== undefined && v !== null) ? String(v) : '');
+}
+
+async function getEgresos() {
+  if (!tieneCredenciales) return memEgresos.filter(e => e.id);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Egresos!A2:K',
+  });
+  return (res.data.values || []).map((row, i) => rowToEgreso(row, i)).filter(e => e.id);
+}
+
+async function addEgreso(data) {
+  const id = generateId('EGR');
+  const e = { ...data, id };
+  if (!tieneCredenciales) {
+    e.rowIndex = memEgresos.length + 2;
+    memEgresos.push(e);
+    return e;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Egresos!A:K',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [egresoToRow(e)] },
+  });
+  return e;
+}
+
 /* ===================== PAPELERA ===================== */
 // Columnas A-E: fechaEliminacion, eliminadoPor, tipo, id, datosJSON
 // Solo se puede leer desde el Google Sheets directamente (no hay ruta API)
@@ -968,6 +1073,8 @@ async function initSheets() {
     if (!existing.includes('Timming')) toCreate.push('Timming');
     if (!existing.includes('Cuotas')) toCreate.push('Cuotas');
     if (!existing.includes('Papelera')) toCreate.push('Papelera');
+    if (!existing.includes('Empleados')) toCreate.push('Empleados');
+    if (!existing.includes('Egresos')) toCreate.push('Egresos');
 
     if (toCreate.length) {
       await sheets.spreadsheets.batchUpdate({
@@ -992,6 +1099,12 @@ async function initSheets() {
     if (!existing.includes('Papelera')) {
       headers.push({ range: 'Papelera!A1:E1', values: [['fechaEliminacion','eliminadoPor','tipo','id','datosJSON']] });
     }
+    if (!existing.includes('Empleados')) {
+      headers.push({ range: 'Empleados!A1:C1', values: [['id','nombre','activo']] });
+    }
+    if (!existing.includes('Egresos')) {
+      headers.push({ range: 'Egresos!A1:K1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor']] });
+    }
 
     if (headers.length) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -1012,6 +1125,8 @@ module.exports = {
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
+  getEmpleados, addEmpleado,
+  getEgresos, addEgreso,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,
