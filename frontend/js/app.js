@@ -290,6 +290,7 @@ async function loadPersonas() {
 function calcReminders() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const en7 = new Date(today); en7.setDate(en7.getDate() + 7);
 
   const visitasHoy = allClientes.filter(c =>
     c.estado === 'Visita agendada' && c.proximoSeguimiento === todayStr
@@ -302,19 +303,47 @@ function calcReminders() {
     return diff >= 0 && diff <= 4;
   });
 
-  return { visitasHoy, eventosProximos };
+  const tareasVencidas = allClientes.filter(c => {
+    if (c.estado === 'Cancelado' || c.estado === 'Realizado') return false;
+    if (!c.proximoSeguimiento) return false;
+    const d = new Date(c.proximoSeguimiento); d.setHours(0, 0, 0, 0);
+    return d < today;
+  });
+
+  const tareasSemana = allClientes.filter(c => {
+    if (c.estado === 'Cancelado' || c.estado === 'Realizado') return false;
+    if (!c.proximoSeguimiento) return false;
+    const d = new Date(c.proximoSeguimiento); d.setHours(0, 0, 0, 0);
+    return d >= today && d <= en7;
+  });
+
+  return { visitasHoy, eventosProximos, tareasVencidas, tareasSemana };
 }
 
 function renderRemindersBar() {
   const bar = $('reminders-bar');
   if (!bar) return;
-  const { visitasHoy, eventosProximos } = calcReminders();
-  if (!visitasHoy.length && !eventosProximos.length) {
+  const { visitasHoy, eventosProximos, tareasVencidas, tareasSemana } = calcReminders();
+  if (!visitasHoy.length && !eventosProximos.length && !tareasVencidas.length && !tareasSemana.length) {
     bar.innerHTML = ''; bar.classList.add('hidden'); return;
   }
 
   const today = new Date(); today.setHours(0,0,0,0);
   let html = '<div class="reminders-inner">';
+
+  if (tareasVencidas.length) {
+    html += `<div class="reminder-item reminder-urgente" onclick="navigateTo('calendario')">
+      <span class="reminder-icon">🔴</span>
+      <strong>${tareasVencidas.length} seguimiento${tareasVencidas.length > 1 ? 's' : ''} vencido${tareasVencidas.length > 1 ? 's' : ''}</strong>
+    </div>`;
+  }
+
+  if (tareasSemana.length) {
+    html += `<div class="reminder-item reminder-semana" onclick="navigateTo('calendario')">
+      <span class="reminder-icon">📋</span>
+      <strong>${tareasSemana.length} tarea${tareasSemana.length > 1 ? 's' : ''} esta semana</strong>
+    </div>`;
+  }
 
   if (visitasHoy.length) {
     const ids = visitasHoy.map(c => `'${c.id}'`).join(',');
@@ -361,6 +390,7 @@ async function loadClientes() {
     allClientes = await apiFetch('/clientes');
     renderClientes(allClientes);
     renderRemindersBar();
+    renderSeguimientosPanel();
     if (allClientes.length === 0 && canManagePagos()) mostrarBannerMigracion();
   } catch (err) {
     $('clientes-error').textContent = err.message;
@@ -1112,23 +1142,22 @@ function renderSeguimientosPanel() {
   const proximos = activos.filter(c => {
     if (!c.proximoSeguimiento) return false;
     const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
-    return d > hoy && d <= en3;
+    return d > hoy && d <= en7;
   }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
 
-  // Cobros: Confirmado/Por cerrar con fecha en los próximos 4-14 días (los de hoy/3d ya aparecen arriba)
+  // Cobros: Confirmado/Por cerrar con fecha en los próximos 8-14 días (los de hoy/7d ya aparecen arriba)
   const cobros = activos.filter(c => {
     if (!esCobro(c)) return false;
     if (!c.proximoSeguimiento) return false;
     const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
-    return d > en3 && d <= en14;
+    return d > en7 && d <= en14;
   }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
 
+  // Visitas agendadas sin fecha asignada (las que tienen fecha ya aparecen en proximos)
   const visitas = activos.filter(c => {
     if (c.estado !== 'Visita agendada') return false;
-    if (!c.proximoSeguimiento) return true;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
-    return d <= en7;
-  }).sort((a, b) => (a.proximoSeguimiento || '').localeCompare(b.proximoSeguimiento || ''));
+    return !c.proximoSeguimiento;
+  }).sort((a, b) => (a.apellidoNombre || '').localeCompare(b.apellidoNombre || ''));
 
   const badge = c => {
     if (esCobro(c)) return '<span class="seg-badge seg-badge-cobro">cobro</span>';
@@ -1160,7 +1189,7 @@ function renderSeguimientosPanel() {
     html += paraHoy.map(c => item(c, 'hoy')).join('');
   }
   if (proximos.length > 0) {
-    html += `<div class="seg-section-label seg-label-prox">Próximos 3 días</div>`;
+    html += `<div class="seg-section-label seg-label-prox">Próximos 7 días</div>`;
     html += proximos.map(c => item(c, 'prox')).join('');
   }
   if (cobros.length > 0) {

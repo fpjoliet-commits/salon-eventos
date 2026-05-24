@@ -1551,8 +1551,10 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .reminder-item:last-child { border-right: none; }
 .reminder-item:hover { background: #fff3b0; }
 .reminder-icon { font-size: 15px; }
-.reminder-visita { color: #5a4200; }
-.reminder-evento { color: #7a2000; }
+.reminder-visita  { color: #5a4200; }
+.reminder-evento  { color: #7a2000; }
+.reminder-urgente { color: #b91c1c; font-weight: 700; }
+.reminder-semana  { color: #92400e; }
 
 /* ===================== BADGE RECURRENTE ===================== */
 .badge-recurrente {
