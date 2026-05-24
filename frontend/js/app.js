@@ -549,25 +549,29 @@ function openClienteModal(cliente, tabInicial = 'info') {
   const btnEliminar = $('btn-eliminar-cliente');
   const btnVerTiming = $('btn-ver-timing');
   const tabHistorial = document.querySelector('.tab-btn[data-tab="pagos"]');
+  const tabCuotas = document.querySelector('.tab-btn[data-tab="cuotas"]');
   if (canManagePagos()) {
     btnNuevoEvento?.classList.remove('hidden');
     btnEliminar?.classList.remove('hidden');
     btnVerTiming?.classList.remove('hidden');
+    tabHistorial?.classList.remove('hidden');
+    tabCuotas?.classList.remove('hidden');
   } else {
     btnNuevoEvento?.classList.add('hidden');
     btnEliminar?.classList.add('hidden');
     btnVerTiming?.classList.add('hidden');
+    tabHistorial?.classList.add('hidden');
+    tabCuotas?.classList.add('hidden');
   }
-  tabHistorial?.classList.remove('hidden');
 
   activateTab(tabInicial);
   renderClienteDetail(cliente);
   injectNombreAcciones(cliente);
   loadRestriccionesModal(cliente);
-  initPagoForm(cliente);
-  renderHistorialTab(cliente);
-  loadCuotasTab(cliente);
   if (canManagePagos()) {
+    initPagoForm(cliente);
+    renderHistorialTab(cliente);
+    loadCuotasTab(cliente);
     cargarEventosAnteriores(cliente);
   }
 
@@ -855,10 +859,6 @@ function initPagoForm(cliente) {
   $('pago-fecha').value = new Date().toISOString().split('T')[0];
   hide('pago-error'); hide('pago-success');
   showEl($('pago-form'));
-  const titulo = $('pago-form')?.querySelector('h4');
-  if (titulo) titulo.textContent = canManagePagos() ? 'Registrar cobro' : 'Sugerir cobro';
-  // empleados no pueden vincular cuotas directamente
-  if (!canManagePagos()) hideEl($('cuotas-a-tachar'));
 }
 
 function renderHistorialTab(cliente) {
@@ -876,44 +876,24 @@ async function loadPagosCliente(cliente) {
   $('pagos-list').innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';
   try {
     const { ingresos } = await apiFetch(`/ingresos/totales/${cliente.id}`);
-    const confirmados = ingresos.filter(i => i.confirmado !== false);
-    const totalARS = confirmados.filter(i => !i.moneda || i.moneda === 'ARS').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
-    const totalUSD = confirmados.filter(i => i.moneda === 'USD').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+    const totalARS = ingresos.filter(i => !i.moneda || i.moneda === 'ARS').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+    const totalUSD = ingresos.filter(i => i.moneda === 'USD').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
     const partes = [];
     if (totalARS > 0) partes.push(formatMoney(totalARS));
     if (totalUSD > 0) partes.push(formatMoneda(totalUSD, 'USD'));
-    if (canManagePagos()) {
-      $('pagos-total').innerHTML = `Total cobrado: ${partes.length ? partes.join(' · ') : formatMoney(0)}`;
-    } else {
-      $('pagos-total').innerHTML = '';
-    }
+    $('pagos-total').innerHTML = `Total cobrado: ${partes.length ? partes.join(' · ') : formatMoney(0)}`;
     if (!ingresos.length) {
       $('pagos-list').innerHTML = '<p style="color:#999;font-size:13px;margin-bottom:12px">Sin ingresos registrados.</p>';
       return;
     }
-    const mostrarMontos = canManagePagos();
     $('pagos-list').innerHTML = `<div class="item-list">${ingresos.map(i => `
-      <div class="list-item${!i.confirmado ? ' list-item-sugerido' : ''}">
+      <div class="list-item">
         <div class="list-item-info">
-          <div class="list-item-label">
-            ${i.tipoIngreso}${mostrarMontos ? ` — ${formatMoneda(i.monto, i.moneda || 'ARS')}` : ''}
-            ${!i.confirmado ? `<span class="badge-sugerido">SUGERIDO</span>` : ''}
-          </div>
+          <div class="list-item-label">${i.tipoIngreso} — ${formatMoneda(i.monto, i.moneda || 'ARS')}</div>
           <div class="list-item-sub">${formatDate(i.fecha)}${i.formaPago ? ' · ' + i.formaPago : ''}${i.notas ? ' · ' + i.notas : ''}</div>
         </div>
-        ${!i.confirmado && canManagePagos() ? `<button class="btn btn-sm btn-confirm-plan btn-confirmar-ingreso" data-row="${i.rowIndex}">✓ Confirmar</button>` : ''}
       </div>
     `).join('')}</div>`;
-    document.querySelectorAll('.btn-confirmar-ingreso').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const rowIndex = parseInt(btn.dataset.row);
-        try {
-          btn.disabled = true;
-          await apiFetch(`/ingresos/${rowIndex}/confirmar`, { method: 'PUT' });
-          loadPagosCliente(currentClienteModal);
-        } catch (err) { alert('Error al confirmar: ' + err.message); btn.disabled = false; }
-      });
-    });
   } catch (e) {
     $('pagos-list').innerHTML = `<p class="error-msg">${e.message}</p>`;
   }
@@ -1574,14 +1554,6 @@ function renderCuotas(cliente, cuotas) {
     return;
   }
 
-  const noConfirmadas = cuotas.filter(c => !c.confirmado);
-  if (noConfirmadas.length && !canManagePagos()) {
-    con.innerHTML = `<div class="sugerencia-banner">
-      <span>⏳ Tu sugerencia de plan fue enviada y está pendiente de confirmación por el administrador.</span>
-    </div>`;
-    return;
-  }
-
   // Detectar moneda e indexación del plan (todas las cuotas comparten los mismos)
   const moneda = cuotas[0]?.moneda || 'ARS';
   const indexacion = cuotas[0]?.indexacion || 'fija';
@@ -1623,7 +1595,6 @@ function renderCuotas(cliente, cuotas) {
           <span class="tip" data-tip="Fijá un importe exacto para todas las cuotas pendientes, reemplazando el valor actual.">?</span>
         </div>
       ` : ''}
-      ${noConfirmadas.length && isAdmin() ? `<button class="btn btn-sm btn-confirm-plan" id="btn-confirmar-plan">✓ Confirmar plan sugerido (${noConfirmadas.length})</button>` : ''}
       ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
     </div>
 
@@ -1670,7 +1641,6 @@ function renderCuotas(cliente, cuotas) {
           <span class="cuota-vence">${formatDateWithDay(c.fechaVencimiento)}</span>
           <span class="cuota-valor">${formatMoneda(c.valorActual, moneda)}</span>
           <span class="cuota-badge cuota-badge-${c.estado}">${c.estado === 'pagada' ? `✓ Pagada ${formatDate(c.fechaPago)}` : 'Pendiente'}</span>
-          ${!c.confirmado ? `<span class="badge-sugerido">SUGERIDO</span>` : ''}
           ${c.estado === 'pagada' && c.montoPagado ? `<span style="font-size:11px;color:#888">cobrado: ${formatMoneda(c.montoPagado, moneda)}</span>` : ''}
         </div>
       `).join('')}
@@ -1722,7 +1692,7 @@ function formCrearPlan(idCliente) {
         </div>
       </div>
       <p id="plan-preview" style="font-size:13px;color:#555;margin:6px 0"></p>
-      <button type="submit" class="btn btn-primary btn-sm">${canManagePagos() ? 'Crear plan' : 'Sugerir plan'}</button>
+      <button type="submit" class="btn btn-primary btn-sm">Crear plan</button>
     </form>`;
 }
 
