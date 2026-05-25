@@ -219,6 +219,7 @@ if (view === 'calendario') loadCalendario();
   if (view === 'timing-global') initTimingGlobal();
   if (view === 'propuesta') initPropuesta();
   if (view === 'egresos') initEgresos();
+  if (view === 'egresos-cocina') initEgresosCocina();
 }
 
 /* ===================== TIMING PLANNER GLOBAL ===================== */
@@ -4679,6 +4680,144 @@ function renderEgresos() {
 
 document.addEventListener('change', e => {
   if (e.target.id === 'egr-filtro-cat' || e.target.id === 'egr-filtro-moneda') renderEgresos();
+});
+
+/* ===================== EGRESOS COCINA ===================== */
+
+let egresosCocCargados = false;
+
+function initEgresosCocina() {
+  if (!isSuperAdmin()) return;
+  const fechaEl = $('egc-fecha');
+  if (fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
+  if (!egresosCocCargados) {
+    loadEgresosCocina();
+    egresosCocCargados = true;
+    setupEgresosCocinaForm();
+  } else {
+    renderEgresosCocina();
+  }
+}
+
+function setupEgresosCocinaForm() {
+  $('egc-proveedor')?.addEventListener('change', () => {
+    const isOtro = $('egc-proveedor')?.value === '__otro__';
+    const row = $('egc-otro-prov-row');
+    if (row) row.style.display = isOtro ? '' : 'none';
+    if (!isOtro && $('egc-proveedor-otro')) $('egc-proveedor-otro').value = '';
+  });
+  $('egreso-cocina-form')?.addEventListener('submit', submitEgresosCocina);
+}
+
+async function submitEgresosCocina(e) {
+  e.preventDefault();
+  hide('egc-error'); hide('egc-success');
+
+  const fecha = $('egc-fecha')?.value;
+  const tipo = $('egc-tipo')?.value;
+  const monto = parseFloat($('egc-monto')?.value || '0');
+
+  if (!fecha || !tipo || !monto) {
+    show('egc-error');
+    $('egc-error').textContent = 'Fecha, tipo y monto son obligatorios';
+    return;
+  }
+
+  let proveedor = $('egc-proveedor')?.value || '';
+  if (proveedor === '__otro__') {
+    proveedor = ($('egc-proveedor-otro')?.value || '').trim();
+  }
+
+  const body = {
+    fecha,
+    concepto: tipo,
+    categoria: 'Materia Prima',
+    monto,
+    moneda: $('egc-moneda')?.value || 'ARS',
+    notas: $('egc-notas')?.value || '',
+    proveedor,
+  };
+
+  try {
+    const nuevo = await apiFetch('/egresos', { method: 'POST', body });
+    allEgresos.unshift(nuevo);
+    allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    renderEgresosCocina();
+    show('egc-success');
+    setTimeout(() => hide('egc-success'), 3000);
+    e.target.reset();
+    $('egc-fecha').value = new Date().toISOString().split('T')[0];
+    if ($('egc-otro-prov-row')) $('egc-otro-prov-row').style.display = 'none';
+  } catch (err) {
+    show('egc-error');
+    $('egc-error').textContent = err.message || 'Error al guardar';
+  }
+}
+
+async function loadEgresosCocina() {
+  show('egc-loading'); hide('egc-table-wrap'); hide('egc-empty'); hide('egc-total-bar');
+  try {
+    if (!allEgresos.length) {
+      allEgresos = await apiFetch('/egresos');
+      allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    }
+    renderEgresosCocina();
+  } catch (err) {
+    const el = $('egc-loading');
+    if (el) el.textContent = 'Error al cargar';
+  }
+}
+
+function renderEgresosCocina() {
+  hide('egc-loading');
+  const filtTipo = $('egc-filtro-tipo')?.value || '';
+  const filtProv = $('egc-filtro-prov')?.value || '';
+  const filtMoneda = $('egc-filtro-moneda')?.value || '';
+  const lista = allEgresos.filter(e => {
+    if (e.categoria !== 'Materia Prima') return false;
+    if (filtTipo && e.concepto !== filtTipo) return false;
+    if (filtProv && e.proveedor !== filtProv) return false;
+    if (filtMoneda && e.moneda !== filtMoneda) return false;
+    return true;
+  });
+
+  if (!lista.length) {
+    hide('egc-table-wrap');
+    show('egc-empty');
+    hide('egc-total-bar');
+    return;
+  }
+
+  show('egc-table-wrap');
+  hide('egc-empty');
+
+  $('egc-tbody').innerHTML = lista.map(e => {
+    const slug = (e.concepto || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z-]/g, '');
+    const provBadge = e.proveedor
+      ? `<span class="egr-proveedor-badge">${esc(e.proveedor)}</span>`
+      : '<span class="muted-cell">—</span>';
+    return `<tr>
+      <td>${formatDate(e.fecha)}</td>
+      <td><span class="egr-cat-badge egr-cocina-${slug}">${esc(e.concepto)}</span></td>
+      <td>${provBadge}</td>
+      <td class="num-cell">${formatMoneda(parseFloat(e.monto) || 0, e.moneda)}</td>
+      <td class="egr-notas-cell">${esc(e.notas)}</td>
+      <td class="muted-cell">${esc(e.cargadoPor)}</td>
+    </tr>`;
+  }).join('');
+
+  const totalARS = lista.filter(e => e.moneda !== 'USD').reduce((s, e) => s + (parseFloat(e.monto) || 0), 0);
+  const totalUSD = lista.filter(e => e.moneda === 'USD').reduce((s, e) => s + (parseFloat(e.monto) || 0), 0);
+  const totalBar = $('egc-total-bar');
+  let txt = `${lista.length} registros —`;
+  if (totalARS > 0) txt += ` <strong>${formatMoney(totalARS)}</strong>`;
+  if (totalUSD > 0) txt += `${totalARS > 0 ? ' +' : ''} <strong>U$S ${totalUSD.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong>`;
+  totalBar.innerHTML = txt;
+  show('egc-total-bar');
+}
+
+document.addEventListener('change', e => {
+  if (['egc-filtro-tipo', 'egc-filtro-prov', 'egc-filtro-moneda'].includes(e.target.id)) renderEgresosCocina();
 });
 
 /* ===================== SESSION RESTORE ===================== */

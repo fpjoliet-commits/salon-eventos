@@ -863,8 +863,8 @@ async function addEmpleado(data) {
 }
 
 /* ===================== EGRESOS ===================== */
-// Columnas A-K: id, fecha, concepto, categoria, monto, moneda,
-//               idEmpleado, nombreEmpleado, rolPago, notas, cargadoPor
+// Columnas A-L: id, fecha, concepto, categoria, monto, moneda,
+//               idEmpleado, nombreEmpleado, rolPago, notas, cargadoPor, proveedor
 
 function rowToEgreso(row, index) {
   return {
@@ -880,6 +880,7 @@ function rowToEgreso(row, index) {
     rolPago: row[8] || '',
     notas: row[9] || '',
     cargadoPor: row[10] || '',
+    proveedor: row[11] || '',
   };
 }
 
@@ -889,6 +890,7 @@ function egresoToRow(e) {
     e.monto, e.moneda || 'ARS',
     e.idEmpleado || '', e.nombreEmpleado || '', e.rolPago || '',
     e.notas || '', e.cargadoPor || '',
+    e.proveedor || '',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -897,7 +899,7 @@ async function getEgresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A2:K',
+    range: 'Egresos!A2:L',
   });
   return (res.data.values || []).map((row, i) => rowToEgreso(row, i)).filter(e => e.id);
 }
@@ -913,7 +915,7 @@ async function addEgreso(data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A:K',
+    range: 'Egresos!A:L',
     valueInputOption: 'USER_ENTERED',
     resource: { values: [egresoToRow(e)] },
   });
@@ -1103,7 +1105,7 @@ async function initSheets() {
       headers.push({ range: 'Empleados!A1:C1', values: [['id','nombre','activo']] });
     }
     if (!existing.includes('Egresos')) {
-      headers.push({ range: 'Egresos!A1:K1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor']] });
+      headers.push({ range: 'Egresos!A1:L1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor']] });
     }
 
     if (headers.length) {

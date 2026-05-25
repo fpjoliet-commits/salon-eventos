@@ -73,6 +73,9 @@
         <a href="#" class="nav-item admin-only" data-view="egresos">
           <span class="nav-icon">💸</span> Egresos
         </a>
+        <a href="#" class="nav-item superadmin-only" data-view="egresos-cocina">
+          <span class="nav-icon">🍳</span> Egresos Cocina
+        </a>
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
@@ -536,6 +539,128 @@
           </div>
           <div id="egresos-empty" class="empty-msg hidden">No hay egresos registrados.</div>
           <div id="egresos-total-bar" class="egresos-total-bar hidden"></div>
+        </div>
+      </section>
+
+      <!-- VISTA: EGRESOS COCINA (solo superadmin) -->
+      <section id="view-egresos-cocina" class="view hidden">
+        <div class="view-header">
+          <h2>Egresos Cocina — Materia Prima</h2>
+        </div>
+
+        <div class="egresos-form-card">
+          <h3 class="egresos-form-title">Registrar compra de materia prima</h3>
+          <form id="egreso-cocina-form" class="egreso-form">
+            <div class="egreso-form-row">
+              <div class="form-group">
+                <label>Fecha</label>
+                <input type="date" id="egc-fecha" required>
+              </div>
+              <div class="form-group">
+                <label>Tipo</label>
+                <select id="egc-tipo" required>
+                  <option value="">Seleccioná...</option>
+                  <option>Carnes</option>
+                  <option>Verduras y Frutas</option>
+                  <option>Lácteos y Fiambres</option>
+                  <option>Panificados</option>
+                  <option>Condimentos</option>
+                  <option>Bebidas de Cocina</option>
+                  <option>Varios</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Proveedor</label>
+                <select id="egc-proveedor">
+                  <option value="">Sin especificar</option>
+                  <option>Maricre</option>
+                  <option>Los Cuñados</option>
+                  <option>Chino</option>
+                  <option>Verduleria</option>
+                  <option value="__otro__">Otro...</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="egreso-form-row" id="egc-otro-prov-row" style="display:none">
+              <div class="form-group">
+                <label>Nombre del proveedor</label>
+                <input type="text" id="egc-proveedor-otro" placeholder="Nombre del proveedor">
+              </div>
+            </div>
+
+            <div class="egreso-form-row">
+              <div class="form-group">
+                <label>Monto</label>
+                <input type="number" id="egc-monto" min="0" step="0.01" required placeholder="0">
+              </div>
+              <div class="form-group">
+                <label>Moneda</label>
+                <select id="egc-moneda">
+                  <option value="ARS">ARS $</option>
+                  <option value="USD">USD U$S</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Detalle / Notas</label>
+                <input type="text" id="egc-notas" placeholder="Opcional — qué se compró">
+              </div>
+            </div>
+
+            <div class="egreso-form-actions">
+              <button type="submit" class="btn btn-primary">Registrar compra</button>
+              <span id="egc-success" class="egr-success hidden">✓ Guardado</span>
+              <span id="egc-error" class="error-msg hidden"></span>
+            </div>
+          </form>
+        </div>
+
+        <div class="egresos-list-card">
+          <div class="egresos-list-header">
+            <h3>Historial de compras</h3>
+            <div class="egresos-filtros">
+              <select id="egc-filtro-tipo" class="filter-select">
+                <option value="">Todos los tipos</option>
+                <option>Carnes</option>
+                <option>Verduras y Frutas</option>
+                <option>Lácteos y Fiambres</option>
+                <option>Panificados</option>
+                <option>Condimentos</option>
+                <option>Bebidas de Cocina</option>
+                <option>Varios</option>
+              </select>
+              <select id="egc-filtro-prov" class="filter-select">
+                <option value="">Todos los proveedores</option>
+                <option>Maricre</option>
+                <option>Los Cuñados</option>
+                <option>Chino</option>
+                <option>Verduleria</option>
+              </select>
+              <select id="egc-filtro-moneda" class="filter-select">
+                <option value="">ARS + USD</option>
+                <option value="ARS">Solo ARS</option>
+                <option value="USD">Solo USD</option>
+              </select>
+            </div>
+          </div>
+          <div id="egc-loading" class="loading-msg">Cargando...</div>
+          <div id="egc-table-wrap" class="table-wrap hidden">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Proveedor</th>
+                  <th>Monto</th>
+                  <th>Detalle / Notas</th>
+                  <th>Cargado por</th>
+                </tr>
+              </thead>
+              <tbody id="egc-tbody"></tbody>
+            </table>
+          </div>
+          <div id="egc-empty" class="empty-msg hidden">No hay compras registradas.</div>
+          <div id="egc-total-bar" class="egresos-total-bar hidden"></div>
         </div>
       </section>
 
