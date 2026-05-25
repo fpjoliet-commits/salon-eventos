@@ -922,6 +922,29 @@ async function addEgreso(data) {
   return e;
 }
 
+async function updateEgreso(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
+    if (idx !== -1) memEgresos[idx] = { ...memEgresos[idx], ...data, rowIndex };
+    return memEgresos[idx] || { ...data, rowIndex };
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Egresos!B${rowIndex}:L${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: {
+      values: [[
+        data.fecha || '', data.concepto || '', data.categoria || '',
+        data.monto || '', data.moneda || 'ARS',
+        data.idEmpleado || '', data.nombreEmpleado || '', data.rolPago || '',
+        data.notas || '', data.cargadoPor || '', data.proveedor || '',
+      ]],
+    },
+  });
+  return { ...data, rowIndex };
+}
+
 /* ===================== PAPELERA ===================== */
 // Columnas A-E: fechaEliminacion, eliminadoPor, tipo, id, datosJSON
 // Solo se puede leer desde el Google Sheets directamente (no hay ruta API)
@@ -1128,7 +1151,7 @@ module.exports = {
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado,
-  getEgresos, addEgreso,
+  getEgresos, addEgreso, updateEgreso,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,

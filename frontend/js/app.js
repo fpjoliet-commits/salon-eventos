@@ -4478,7 +4478,7 @@ const EGRESOS_CATEGORIAS = {
   'Bebidas':       ['Bebida', 'Hielo', 'Alcohol'],
   'Personal':      ['Mozo', 'Maître', 'Barman', 'Cocinero', 'Ayudante de Cocina', 'Bachero', 'Portero'],
   'Evento':        ['DJ', 'Flores', 'Mantelería', 'Fuegos artificiales', 'Vajilla', 'Show', 'Decoración'],
-  'Mantenimiento': ['Plomero', 'Electricista', 'Jardinero', 'Piletero', 'Pintor'],
+  'Mantenimiento': ['Plomero', 'Electricista', 'Jardinero', 'Piletero', 'Pintor', 'Limpieza'],
   'Materia Prima': ['(detalle en notas)'],
 };
 
@@ -4657,6 +4657,9 @@ function renderEgresos() {
     const empInfo = e.nombreEmpleado
       ? `<span class="egr-emp-name">${esc(e.nombreEmpleado)}</span>${e.rolPago ? ` <span class="egr-rol-badge">${esc(e.rolPago)}</span>` : ''}`
       : '—';
+    const editBtn = isSuperAdmin()
+      ? `<button class="btn-egr-edit" data-row="${e.rowIndex}" title="Editar">✏️</button>`
+      : '';
     return `<tr>
       <td>${formatDate(e.fecha)}</td>
       <td><span class="egr-cat-badge egr-cat-${(e.categoria||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z-]/g,'')}">${esc(e.categoria)}</span></td>
@@ -4665,6 +4668,7 @@ function renderEgresos() {
       <td class="num-cell">${formatMoneda(parseFloat(e.monto)||0, e.moneda)}</td>
       <td class="egr-notas-cell">${esc(e.notas)}</td>
       <td class="muted-cell">${esc(e.cargadoPor)}</td>
+      <td>${editBtn}</td>
     </tr>`;
   }).join('');
 
@@ -4706,6 +4710,15 @@ function setupEgresosCocinaForm() {
     if (row) row.style.display = isOtro ? '' : 'none';
     if (!isOtro && $('egc-proveedor-otro')) $('egc-proveedor-otro').value = '';
   });
+
+  $('egc-tipo')?.addEventListener('change', () => {
+    const isOtros = $('egc-tipo')?.value === '__otros__';
+    const otrosRow = $('egc-otros-tipo-row');
+    const notasLabel = document.querySelector('label[for="egc-notas"]') || document.querySelector('#egc-notas')?.previousElementSibling;
+    if (otrosRow) otrosRow.style.display = isOtros ? '' : 'none';
+    if (!isOtros && $('egc-tipo-otros')) $('egc-tipo-otros').value = '';
+  });
+
   $('egreso-cocina-form')?.addEventListener('submit', submitEgresosCocina);
 }
 
@@ -4714,14 +4727,25 @@ async function submitEgresosCocina(e) {
   hide('egc-error'); hide('egc-success');
 
   const fecha = $('egc-fecha')?.value;
-  const tipo = $('egc-tipo')?.value;
+  const tipoVal = $('egc-tipo')?.value;
   const monto = parseFloat($('egc-monto')?.value || '0');
 
-  if (!fecha || !tipo || !monto) {
+  const esOtros = tipoVal === '__otros__';
+  const tipoOtrosDetalle = ($('egc-tipo-otros')?.value || '').trim();
+
+  if (!fecha || !tipoVal || !monto) {
     show('egc-error');
     $('egc-error').textContent = 'Fecha, tipo y monto son obligatorios';
     return;
   }
+  if (esOtros && !tipoOtrosDetalle) {
+    show('egc-error');
+    $('egc-error').textContent = 'Especificá qué tipo de gasto fue';
+    return;
+  }
+
+  const concepto = esOtros ? 'Otros' : tipoVal;
+  const notasExtra = esOtros ? tipoOtrosDetalle : ($('egc-notas')?.value || '');
 
   let proveedor = $('egc-proveedor')?.value || '';
   if (proveedor === '__otro__') {
@@ -4730,11 +4754,11 @@ async function submitEgresosCocina(e) {
 
   const body = {
     fecha,
-    concepto: tipo,
+    concepto,
     categoria: 'Materia Prima',
     monto,
     moneda: $('egc-moneda')?.value || 'ARS',
-    notas: $('egc-notas')?.value || '',
+    notas: notasExtra,
     proveedor,
   };
 
@@ -4748,6 +4772,7 @@ async function submitEgresosCocina(e) {
     e.target.reset();
     $('egc-fecha').value = new Date().toISOString().split('T')[0];
     if ($('egc-otro-prov-row')) $('egc-otro-prov-row').style.display = 'none';
+    if ($('egc-otros-tipo-row')) $('egc-otros-tipo-row').style.display = 'none';
   } catch (err) {
     show('egc-error');
     $('egc-error').textContent = err.message || 'Error al guardar';
@@ -4803,6 +4828,7 @@ function renderEgresosCocina() {
       <td class="num-cell">${formatMoneda(parseFloat(e.monto) || 0, e.moneda)}</td>
       <td class="egr-notas-cell">${esc(e.notas)}</td>
       <td class="muted-cell">${esc(e.cargadoPor)}</td>
+      <td><button class="btn-egr-edit" data-row="${e.rowIndex}" title="Editar">✏️</button></td>
     </tr>`;
   }).join('');
 
@@ -4818,6 +4844,79 @@ function renderEgresosCocina() {
 
 document.addEventListener('change', e => {
   if (['egc-filtro-tipo', 'egc-filtro-prov', 'egc-filtro-moneda'].includes(e.target.id)) renderEgresosCocina();
+});
+
+/* ===================== EDITAR EGRESO ===================== */
+
+function openEditarEgreso(egreso) {
+  $('ede-row-index').value = egreso.rowIndex;
+  $('ede-fecha').value = egreso.fecha;
+  $('ede-monto').value = egreso.monto;
+  $('ede-moneda').value = egreso.moneda || 'ARS';
+  $('ede-categoria').value = egreso.categoria;
+  $('ede-concepto').value = egreso.concepto;
+  $('ede-notas').value = egreso.notas || '';
+
+  const esMateriaP = egreso.categoria === 'Materia Prima';
+  const esPersonal = egreso.categoria === 'Personal';
+
+  $('ede-proveedor-group').style.display = esMateriaP ? '' : 'none';
+  if (esMateriaP) $('ede-proveedor').value = egreso.proveedor || '';
+
+  $('ede-personal-group').style.display = esPersonal ? '' : 'none';
+  if (esPersonal) {
+    $('ede-empleado').value = egreso.nombreEmpleado || '';
+    $('ede-rol').value = egreso.rolPago || '';
+  }
+
+  hide('ede-error');
+  show('modal-editar-egreso');
+}
+
+async function submitEditarEgreso(ev) {
+  ev.preventDefault();
+  hide('ede-error');
+
+  const rowIndex = parseInt($('ede-row-index').value);
+  const original = allEgresos.find(x => x.rowIndex === rowIndex);
+  if (!original) return;
+
+  const updated = {
+    ...original,
+    fecha: $('ede-fecha').value,
+    monto: parseFloat($('ede-monto').value) || 0,
+    moneda: $('ede-moneda').value,
+    concepto: $('ede-concepto').value.trim(),
+    notas: $('ede-notas').value.trim(),
+    proveedor: original.categoria === 'Materia Prima' ? ($('ede-proveedor').value.trim()) : (original.proveedor || ''),
+    nombreEmpleado: original.categoria === 'Personal' ? ($('ede-empleado').value.trim()) : original.nombreEmpleado,
+    rolPago: original.categoria === 'Personal' ? ($('ede-rol').value.trim()) : original.rolPago,
+  };
+
+  try {
+    await apiFetch(`/egresos/${rowIndex}`, { method: 'PUT', body: updated });
+    const idx = allEgresos.findIndex(x => x.rowIndex === rowIndex);
+    if (idx !== -1) allEgresos[idx] = updated;
+    allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    renderEgresos();
+    if (egresosCocCargados) renderEgresosCocina();
+    hide('modal-editar-egreso');
+  } catch (err) {
+    show('ede-error');
+    $('ede-error').textContent = err.message || 'Error al guardar';
+  }
+}
+
+document.getElementById('editar-egreso-form')?.addEventListener('submit', submitEditarEgreso);
+document.getElementById('close-editar-egreso-btn')?.addEventListener('click', () => hide('modal-editar-egreso'));
+document.getElementById('cancel-editar-egreso-btn')?.addEventListener('click', () => hide('modal-editar-egreso'));
+
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest('.btn-egr-edit');
+  if (!btn) return;
+  const rowIndex = parseInt(btn.dataset.row);
+  const egreso = allEgresos.find(x => x.rowIndex === rowIndex);
+  if (egreso) openEditarEgreso(egreso);
 });
 
 /* ===================== SESSION RESTORE ===================== */

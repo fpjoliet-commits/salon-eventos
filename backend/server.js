@@ -323,6 +323,13 @@ app.post('/api/egresos', auth, adminOnly, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
+  try {
+    const rowIndex = parseInt(req.params.rowIndex);
+    res.json(await sheets.updateEgreso(rowIndex, req.body));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
