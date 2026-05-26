@@ -50,11 +50,10 @@
     .page-header.has-bg::before {
       content: '';
       position: absolute;
-      inset: -15%;
+      inset: 0;
       background-image: var(--header-bg-img);
       background-size: cover;
-      background-position: center;
-      transform: rotate(3.5deg);
+      background-position: center top;
       z-index: 0;
     }
     .page-header.has-bg::after {
@@ -497,7 +496,7 @@
 <script>
   // Número de WhatsApp del salón
   const WA_NUMBER   = '5491154240870';
-  const HEADER_IMG  = '/img/propuesta/evento.jpg.png'; // Foto de fondo del encabezado
+  const HEADER_IMG  = '/img/propuesta/salon.jpg.jpeg'; // Foto de fondo del encabezado
   const HERO_IMG    = ''; // URL de foto sobre el formulario (opcional)
 
   // Cal.com link — completar después de crear la cuenta en cal.com
