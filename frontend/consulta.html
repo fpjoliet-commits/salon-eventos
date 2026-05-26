@@ -467,7 +467,6 @@
 <script>
   // Número de WhatsApp del salón (modificar cuando esté disponible)
   const WA_NUMBER = '5491154240870';
-  const WA_MSG    = encodeURIComponent('Hola! Acabo de completar el formulario de consulta y quisiera más información.');
 
   // Cal.com link — completar después de crear la cuenta en cal.com
   // Ej: 'https://cal.com/joliet-eventos/visita-presencial'
@@ -487,11 +486,7 @@
   const successPanel = document.getElementById('success-panel');
   const waBtn = document.getElementById('wa-btn');
 
-  if (WA_NUMBER) {
-    waBtn.href = `https://wa.me/${WA_NUMBER}?text=${WA_MSG}`;
-  } else {
-    waBtn.style.display = 'none';
-  }
+  if (!WA_NUMBER) waBtn.style.display = 'none';
 
   const calBtn = document.getElementById('cal-btn');
   if (CAL_LINK) {
@@ -568,7 +563,23 @@
         return;
       }
 
-      // Éxito
+      // Éxito — armar mensaje de WhatsApp con datos del form
+      if (WA_NUMBER) {
+        const fechaEvento = form.elements.fechaEvento.value;
+        const lines = ['Hola! Acabo de completar el formulario de consulta. Mis datos:'];
+        lines.push(`• Nombre: ${nombre}`);
+        lines.push(`• Tipo de evento: ${tipoEvento}`);
+        if (fechaEvento) {
+          const [y, m, d] = fechaEvento.split('-');
+          lines.push(`• Fecha tentativa: ${d}/${m}/${y}`);
+        }
+        if (cantidadInvitados) lines.push(`• Invitados: ${cantidadInvitados}`);
+        lines.push(`• Turno: ${turno}`);
+        const mensajeVal = form.elements.mensaje.value.trim();
+        if (mensajeVal) lines.push(`• Mensaje: ${mensajeVal}`);
+        waBtn.href = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(lines.join('\n'))}`;
+      }
+
       form.style.display = 'none';
       successPanel.classList.add('visible');
 
