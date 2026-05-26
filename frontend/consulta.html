@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consultas — Joliet Salón de Eventos</title>
+  <meta name="description" content="Consultá disponibilidad y recibí una propuesta personalizada para tu evento.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --jet:       #121009;
+      --cream:     #f8f5ef;
+      --cream-deep:#efe9de;
+      --gold:      #c4993e;
+      --gold-light:#f8f0da;
+      --gold-border:#e8d59a;
+      --surface:   #ffffff;
+      --text:      #0e0c08;
+      --text-muted:#6a6050;
+      --border:    #ddd6c8;
+      --error:     #991b1b;
+      --error-bg:  #fef2f2;
+      --error-border:#fbd5d5;
+      --success:   #276044;
+      --success-bg:#eaf5ef;
+      --radius:    10px;
+      --shadow:    0 6px 24px rgba(12,10,6,.10), 0 2px 8px rgba(12,10,6,.06);
+    }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--cream);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      background: var(--jet);
+      padding: 32px 20px 28px;
+      text-align: center;
+    }
+    .page-header h1 {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: clamp(26px, 7vw, 38px);
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: .04em;
+      line-height: 1.15;
+    }
+    .page-header p {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #b8a98a;
+      font-weight: 300;
+      letter-spacing: .03em;
+    }
+    .gold-line {
+      width: 48px;
+      height: 1px;
+      background: var(--gold);
+      margin: 14px auto 0;
+      opacity: .5;
+    }
+
+    /* ── Container ── */
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-body { padding: 28px 24px 32px; }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 14px;
+    }
+    .full { grid-column: 1 / -1; }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .form-group label .req {
+      color: var(--gold);
+      margin-left: 2px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--cream);
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      padding: 10px 12px;
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+      width: 100%;
+    }
+    .form-group input::placeholder,
+    .form-group textarea::placeholder { color: #b8a98a; }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(196,153,62,.12);
+      background: #fff;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    /* ── Divider ── */
+    .section-sep {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── Submit ── */
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      background: var(--jet);
+      color: var(--gold);
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 22px;
+      transition: background .18s, transform .1s;
+    }
+    .btn-submit:hover { background: #1e1b14; }
+    .btn-submit:active { transform: scale(.99); }
+    .btn-submit:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    /* ── Error message ── */
+    .error-msg {
+      display: none;
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
+      color: var(--error);
+      padding: 10px 14px;
+      border-radius: 7px;
+      font-size: 13px;
+      margin-top: 14px;
+    }
+    .error-msg.visible { display: block; }
+
+    /* ── Field error ── */
+    .form-group input.err,
+    .form-group select.err,
+    .form-group textarea.err {
+      border-color: var(--error);
+      background: var(--error-bg);
+    }
+
+    /* ── Success state ── */
+    .success-panel {
+      display: none;
+      text-align: center;
+      padding: 40px 24px;
+    }
+    .success-panel.visible { display: block; }
+    .success-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--success-bg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 18px;
+      font-size: 24px;
+    }
+    .success-panel h2 {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 26px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .success-panel p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 340px;
+      margin: 0 auto;
+    }
+    .btn-wa {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 24px;
+      padding: 13px 22px;
+      background: #25d366;
+      color: #fff;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .btn-wa:hover { background: #1ebe5c; }
+    .btn-wa svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ── Footer ── */
+    .page-footer {
+      text-align: center;
+      padding: 20px 16px;
+      font-size: 11px;
+      color: #b8a98a;
+      letter-spacing: .04em;
+    }
+
+    /* ── Honeypot (invisible) ── */
+    .hp-field { position: absolute; left: -9999px; opacity: 0; pointer-events: none; }
+
+    /* ── Mobile ── */
+    @media (max-width: 400px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .full { grid-column: 1; }
+      .card-body { padding: 20px 16px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Joliet Salón de Eventos</h1>
+  <p>Hacé tu consulta y te respondemos a la brevedad</p>
+  <div class="gold-line"></div>
+</header>
+
+<div class="container">
+  <div class="card">
+
+    <!-- Formulario -->
+    <form id="consulta-form" class="card-body" novalidate>
+
+      <!-- Honeypot anti-bot (no visible para humanos) -->
+      <div class="hp-field" aria-hidden="true">
+        <input type="text" name="_hp" tabindex="-1" autocomplete="off">
+      </div>
+
+      <div class="form-grid">
+
+        <!-- Nombre -->
+        <div class="form-group full">
+          <label>Nombre y apellido <span class="req">*</span></label>
+          <input type="text" name="nombre" placeholder="Ej: María González" autocomplete="name">
+        </div>
+
+        <!-- Teléfono -->
+        <div class="form-group">
+          <label>Teléfono <span class="req">*</span></label>
+          <input type="tel" name="telefono" placeholder="11-1234-5678" autocomplete="tel">
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" name="email" placeholder="tu@email.com" autocomplete="email">
+        </div>
+
+        <hr class="section-sep full">
+
+        <!-- Tipo de evento -->
+        <div class="form-group full">
+          <label>Tipo de evento <span class="req">*</span></label>
+          <select name="tipoEvento">
+            <option value="">— Seleccioná —</option>
+            <option>Casamiento</option>
+            <option>Cumpleaños de 15</option>
+            <option>Cumpleaños</option>
+            <option>Bautismo</option>
+            <option>Corporativo</option>
+            <option>Otro</option>
+          </select>
+        </div>
+
+        <!-- Fecha tentativa -->
+        <div class="form-group">
+          <label>Fecha tentativa</label>
+          <input type="date" name="fechaEvento" min="">
+        </div>
+
+        <!-- Cantidad de invitados -->
+        <div class="form-group">
+          <label>Cantidad de invitados</label>
+          <input type="number" name="cantidadInvitados" placeholder="Ej: 120" min="80">
+          <span class="field-hint">Mínimo 80 personas</span>
+        </div>
+
+        <!-- Turno -->
+        <div class="form-group full">
+          <label>Turno <span class="req">*</span></label>
+          <select name="turno">
+            <option value="">— Seleccioná —</option>
+            <option value="Noche">Noche — desde las 21hs</option>
+            <option value="Tarde">Tarde / Mediodía — solo domingos y feriados (bajo consulta)</option>
+          </select>
+        </div>
+
+        <!-- Mensaje -->
+        <div class="form-group full">
+          <label>Mensaje adicional</label>
+          <textarea name="mensaje" placeholder="Contanos algo más sobre tu evento, preferencias, preguntas..."></textarea>
+        </div>
+
+      </div><!-- /form-grid -->
+
+      <div id="error-msg" class="error-msg"></div>
+
+      <button type="submit" class="btn-submit" id="btn-submit">
+        Enviar consulta
+      </button>
+
+    </form><!-- /form -->
+
+    <!-- Estado de éxito (reemplaza el form) -->
+    <div id="success-panel" class="success-panel">
+      <div class="success-icon">✓</div>
+      <h2>¡Consulta recibida!</h2>
+      <p>Gracias por escribirnos. Fabio o Mariana van a estar en contacto a la brevedad para darte todos los detalles.</p>
+      <a id="wa-btn" href="#" class="btn-wa" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        Escribinos por WhatsApp
+      </a>
+    </div>
+
+  </div><!-- /card -->
+</div><!-- /container -->
+
+<footer class="page-footer">
+  Joliet Salón de Eventos · Tu privacidad está protegida
+</footer>
+
+<script>
+  // Número de WhatsApp del salón (modificar cuando esté disponible)
+  const WA_NUMBER = ''; // Ej: '5491112345678'
+  const WA_MSG    = encodeURIComponent('Hola! Acabo de completar el formulario de consulta y quisiera más información.');
+
+  // Setear fecha mínima = hoy
+  const fechaInput = document.querySelector('input[name="fechaEvento"]');
+  const hoy = new Date().toISOString().split('T')[0];
+  fechaInput.min = hoy;
+
+  // Origen desde UTM (se envía al servidor)
+  const utm = new URLSearchParams(location.search).get('utm_source') || '';
+
+  const form     = document.getElementById('consulta-form');
+  const errorMsg = document.getElementById('error-msg');
+  const btnSubmit = document.getElementById('btn-submit');
+  const successPanel = document.getElementById('success-panel');
+  const waBtn = document.getElementById('wa-btn');
+
+  if (WA_NUMBER) {
+    waBtn.href = `https://wa.me/${WA_NUMBER}?text=${WA_MSG}`;
+  } else {
+    waBtn.style.display = 'none';
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.classList.add('visible');
+    errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function clearErrors() {
+    errorMsg.classList.remove('visible');
+    form.querySelectorAll('.err').forEach(el => el.classList.remove('err'));
+  }
+  function markErr(name) {
+    const el = form.elements[name];
+    if (el) el.classList.add('err');
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors();
+
+    const nombre            = form.elements.nombre.value.trim();
+    const telefono          = form.elements.telefono.value.trim();
+    const email             = form.elements.email.value.trim();
+    const tipoEvento        = form.elements.tipoEvento.value;
+    const turno             = form.elements.turno.value;
+    const cantidadInvitados = form.elements.cantidadInvitados.value;
+
+    // Validaciones del cliente
+    if (!nombre)     { markErr('nombre');     showError('El nombre es obligatorio.'); return; }
+    if (!telefono)   { markErr('telefono');   showError('El teléfono es obligatorio.'); return; }
+    if (!email || !email.includes('@')) { markErr('email'); showError('Ingresá un email válido.'); return; }
+    if (!tipoEvento) { markErr('tipoEvento'); showError('Seleccioná el tipo de evento.'); return; }
+    if (!turno)      { markErr('turno');      showError('Seleccioná el turno.'); return; }
+    if (cantidadInvitados && parseInt(cantidadInvitados) < 80) {
+      markErr('cantidadInvitados');
+      showError('La capacidad mínima del salón es de 80 invitados.');
+      return;
+    }
+
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = 'Enviando…';
+
+    try {
+      const payload = {
+        nombre,
+        telefono,
+        email,
+        tipoEvento,
+        fechaEvento:        form.elements.fechaEvento.value,
+        cantidadInvitados,
+        turno,
+        mensaje:            form.elements.mensaje.value.trim(),
+        utm_source:         utm,
+        _hp:                form.elements._hp.value,
+      };
+
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showError(data.error || 'Error al enviar. Intentá de nuevo.');
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Enviar consulta';
+        return;
+      }
+
+      // Éxito
+      form.style.display = 'none';
+      successPanel.classList.add('visible');
+
+    } catch {
+      showError('Sin conexión. Verificá tu internet e intentá de nuevo.');
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = 'Enviar consulta';
+    }
+  });
+
+  // Limpiar error visual al modificar el campo
+  form.querySelectorAll('input, select, textarea').forEach(el => {
+    el.addEventListener('input', () => el.classList.remove('err'));
+  });
+</script>
+</body>
+</html>

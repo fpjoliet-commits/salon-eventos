@@ -330,6 +330,62 @@ app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Formulario público de consultas ──────────────────────────────────────────
+
+// Rate limiter en memoria: max 5 envíos por IP cada 10 min
+const _rlMap = new Map();
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const window = 10 * 60 * 1000;
+  const entry = _rlMap.get(ip) || { count: 0, start: now };
+  if (now - entry.start > window) { entry.count = 1; entry.start = now; }
+  else entry.count++;
+  _rlMap.set(ip, entry);
+  return entry.count > 5;
+}
+
+app.get('/consulta', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/consulta.html'));
+});
+
+app.post('/api/leads', async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+  if (checkRateLimit(ip)) return res.status(429).json({ error: 'Demasiadas solicitudes. Intentá más tarde.' });
+
+  // Honeypot: si el campo oculto tiene valor, es un bot
+  if (req.body._hp) return res.status(400).json({ error: 'Formulario inválido.' });
+
+  const { nombre, telefono, email, tipoEvento, fechaEvento, cantidadInvitados, turno, mensaje, utm_source } = req.body;
+
+  if (!nombre?.trim() || !telefono?.trim() || !email?.trim() || !tipoEvento || !turno) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios.' });
+  }
+  if (cantidadInvitados && parseInt(cantidadInvitados) < 80) {
+    return res.status(400).json({ error: 'La capacidad mínima del salón es de 80 invitados.' });
+  }
+
+  try {
+    const origen = (['Instagram','TikTok','Facebook','Google','WhatsApp'].includes(utm_source) ? utm_source : null) || 'Web';
+    await sheets.addCliente({
+      apellidoNombre: nombre.trim(),
+      telefono: telefono.trim(),
+      gmail: email.trim(),
+      tipoEvento,
+      fechaEvento: fechaEvento || '',
+      cantidadInvitados: cantidadInvitados || '',
+      turno,
+      observaciones: mensaje?.trim() || '',
+      estado: 'Consulta',
+      origen,
+      cargadoPor: 'bot-formulario',
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Error en /api/leads:', e.message);
+    res.status(500).json({ error: 'Error al registrar la consulta. Intentá más tarde.' });
+  }
+});
+
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
