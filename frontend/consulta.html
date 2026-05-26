@@ -438,6 +438,20 @@
           <textarea name="mensaje" placeholder="Contanos algo más sobre tu evento, preferencias, preguntas..."></textarea>
         </div>
 
+        <!-- Cómo nos conociste -->
+        <div class="form-group full">
+          <label>¿Cómo nos conociste? <span style="font-weight:400;color:#b8a98a">(opcional)</span></label>
+          <select name="origen">
+            <option value="">— Seleccioná —</option>
+            <option value="Instagram">Instagram</option>
+            <option value="TikTok">TikTok</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Google">Google</option>
+            <option value="Recomendacion">Me lo recomendaron</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+
       </div><!-- /form-grid -->
 
       <div id="error-msg" class="error-msg"></div>
@@ -587,7 +601,7 @@
         cantidadInvitados,
         turno,
         mensaje:            form.elements.mensaje.value.trim(),
-        utm_source:         utm,
+        origen:             form.elements.origen.value || utm || '',
         _hp:                form.elements._hp.value,
       };
 
