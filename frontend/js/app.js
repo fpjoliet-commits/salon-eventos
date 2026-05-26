@@ -81,6 +81,20 @@ function seguimientoClass(dateStr) {
   return '';
 }
 
+function parseFechaCarga(str) {
+  if (!str) return null;
+  if (str.includes('/')) {
+    const [d, m, y] = str.split('/');
+    const date = new Date(+y, +m - 1, +d); date.setHours(0,0,0,0);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  if (str.includes('-')) {
+    const date = new Date(str); date.setHours(0,0,0,0);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
 async function apiFetch(path, opts = {}) {
   const res = await fetch(`${API}${path}`, {
     ...opts,
@@ -220,6 +234,7 @@ if (view === 'calendario') loadCalendario();
   if (view === 'propuesta') initPropuesta();
   if (view === 'egresos') initEgresos();
   if (view === 'egresos-cocina') initEgresosCocina();
+  if (view === 'seguimientos') initSeguimientos();
 }
 
 /* ===================== TIMING PLANNER GLOBAL ===================== */
@@ -267,13 +282,6 @@ function calcReminders() {
     c.estado === 'Visita agendada' && c.proximoSeguimiento === todayStr
   );
 
-  const eventosProximos = allClientes.filter(c => {
-    if (c.estado !== 'Confirmado' || !c.fechaEvento) return false;
-    const evDate = new Date(c.fechaEvento); evDate.setHours(0, 0, 0, 0);
-    const diff = (evDate - today) / 86400000;
-    return diff >= 0 && diff <= 4;
-  });
-
   const tareasVencidas = allClientes.filter(c => {
     if (c.estado === 'Cancelado' || c.estado === 'Realizado') return false;
     if (!c.proximoSeguimiento) return false;
@@ -288,18 +296,17 @@ function calcReminders() {
     return d >= today && d <= en7;
   });
 
-  return { visitasHoy, eventosProximos, tareasVencidas, tareasSemana };
+  return { visitasHoy, tareasVencidas, tareasSemana };
 }
 
 function renderRemindersBar() {
   const bar = $('reminders-bar');
   if (!bar) return;
-  const { visitasHoy, eventosProximos, tareasVencidas, tareasSemana } = calcReminders();
-  if (!visitasHoy.length && !eventosProximos.length && !tareasVencidas.length && !tareasSemana.length) {
+  const { visitasHoy, tareasVencidas, tareasSemana } = calcReminders();
+  if (!visitasHoy.length && !tareasVencidas.length && !tareasSemana.length) {
     bar.innerHTML = ''; bar.classList.add('hidden'); return;
   }
 
-  const today = new Date(); today.setHours(0,0,0,0);
   let html = '<div class="reminders-inner">';
 
   if (tareasVencidas.length) {
@@ -323,16 +330,6 @@ function renderRemindersBar() {
       <strong>Visitas hoy:</strong>&nbsp;${visitasHoy.length} cliente${visitasHoy.length > 1 ? 's' : ''}
     </div>`;
   }
-
-  eventosProximos.forEach(c => {
-    const evDate = new Date(c.fechaEvento); evDate.setHours(0,0,0,0);
-    const diff = Math.round((evDate - today) / 86400000);
-    const cuando = diff === 0 ? 'HOY' : diff === 1 ? 'mañana' : `en ${diff} días`;
-    html += `<div class="reminder-item reminder-evento" onclick="abrirClientePorId('${c.id}')">
-      <span class="reminder-icon">⚠️</span>
-      <strong>${esc(c.apellidoNombre)}</strong>&nbsp;— ${c.tipoEvento || 'Evento'} ${cuando}
-    </div>`;
-  });
 
   html += '</div>';
   bar.innerHTML = html;
@@ -1005,7 +1002,6 @@ function renderCalendario() {
   const todayStr = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
 
   const pillClass = {
-    'Confirmado': 'cal-pill-confirmado',
     'Visita agendada': 'cal-pill-visita',
     'Por cerrar': 'cal-pill-cerrar',
     'Consulta': 'cal-pill-consulta',
@@ -1023,7 +1019,8 @@ function renderCalendario() {
       <span class="cal-cell-num${isToday ? ' cal-num-today' : ''}">${d}</span>
       ${evs.map(c => {
         const sub = [c.tipoEvento, c.cantidadInvitados ? `${c.cantidadInvitados} PAX` : ''].filter(Boolean).join(' · ');
-        return `<div class="cal-pill ${pillClass[c.estado] || ''}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${c.apellidoNombre}${c.turno ? ' · '+c.turno : ''}">
+        const tc = c.estado === 'Confirmado' ? tipoColor(c.tipoEvento) : null;
+        return `<div class="cal-pill ${tc ? '' : (pillClass[c.estado] || '')}" ${tc ? `style="background:${tc.bg};color:${tc.color};border-left:3px solid ${tc.border}"` : ''} onclick="openClienteModal(window._cmap['${c.id}'])" title="${c.apellidoNombre}${c.turno ? ' · '+c.turno : ''}">
           <div class="cal-pill-nombre">${c.apellidoNombre}</div>
           ${sub ? `<div class="cal-pill-sub">${sub}</div>` : ''}
         </div>`;
@@ -1064,6 +1061,20 @@ function renderCalendario() {
 }
 
 const ESTADOS_COBRO = ['Confirmado', 'Por cerrar'];
+
+const TIPO_COLOR = {
+  'XV años':     { bg: '#f3e8ff', color: '#6b21a8', border: '#d8b4fe' },
+  'Casamiento':  { bg: '#fef9c3', color: '#92400e', border: '#fde047' },
+  'Cumpleaños':  { bg: '#fce7f3', color: '#9d174d', border: '#f9a8d4' },
+  'Bautismo':    { bg: '#e0f2fe', color: '#0c4a6e', border: '#7dd3fc' },
+  'Comunión':    { bg: '#ecfdf5', color: '#065f46', border: '#6ee7b7' },
+  'Graduación':  { bg: '#fff7ed', color: '#9a3412', border: '#fdba74' },
+  'Corporativo': { bg: '#f1f5f9', color: '#334155', border: '#94a3b8' },
+  'Aniversario': { bg: '#fff1f2', color: '#9f1239', border: '#fda4af' },
+  'Baby shower': { bg: '#fdf2f8', color: '#9d174d', border: '#f0abfc' },
+};
+const TIPO_COLOR_DEFAULT = { bg: '#f8fafc', color: '#1e293b', border: '#cbd5e1' };
+function tipoColor(tipo) { return TIPO_COLOR[tipo] || TIPO_COLOR_DEFAULT; }
 
 function renderSeguimientosPanel() {
   const aside = $('calendario-aside');
@@ -1110,6 +1121,27 @@ function renderSeguimientosPanel() {
     return !c.proximoSeguimiento;
   }).sort((a, b) => (a.apellidoNombre || '').localeCompare(b.apellidoNombre || ''));
 
+  // Eventos confirmados con fechaEvento dentro de los próximos 7 días
+  const eventosProximos = allClientes.filter(c => {
+    if (c.estado !== 'Confirmado' || !c.fechaEvento) return false;
+    const evDate = new Date(c.fechaEvento); evDate.setHours(0,0,0,0);
+    const diff = (evDate - hoy) / 86400000;
+    return diff >= 0 && diff <= 7;
+  }).sort((a, b) => a.fechaEvento.localeCompare(b.fechaEvento));
+
+  // Clientes sin actividad hace 14+ días (no confirmados, sin próximo seguimiento futuro)
+  const sinActividad = allClientes.filter(c => {
+    if (['Confirmado', 'Realizado', 'Cancelado'].includes(c.estado)) return false;
+    const fc = parseFechaCarga(c.fechaCarga);
+    if (!fc) return false;
+    if ((hoy - fc) / 86400000 < 14) return false;
+    if (c.proximoSeguimiento) {
+      const seg = new Date(c.proximoSeguimiento); seg.setHours(0,0,0,0);
+      if (seg >= hoy) return false;
+    }
+    return true;
+  }).sort((a, b) => (a.apellidoNombre || '').localeCompare(b.apellidoNombre || ''));
+
   const badge = c => {
     if (esCobro(c)) return '<span class="seg-badge seg-badge-cobro">cobro</span>';
     if (c.estado === 'Visita agendada') return '<span class="seg-badge seg-badge-visita">visita</span>';
@@ -1124,13 +1156,37 @@ function renderSeguimientosPanel() {
     </div>`;
   };
 
+  const itemEvento = (c) => {
+    const tc = tipoColor(c.tipoEvento);
+    const evDate = new Date(c.fechaEvento); evDate.setHours(0,0,0,0);
+    const diff = Math.round((evDate - hoy) / 86400000);
+    const cuando = diff === 0 ? '¡HOY!' : diff === 1 ? 'Mañana' : `en ${diff} días`;
+    return `<div class="seg-item seg-item-evento" style="background:${tc.bg};border-left-color:${tc.border}" onclick="openClienteModal(window._cmap['${c.id}'])">
+      <div class="seg-item-nombre" style="color:${tc.color}">${esc(c.apellidoNombre)}</div>
+      <div class="seg-item-meta">${c.tipoEvento || 'Evento'} · <strong>${cuando}</strong></div>
+    </div>`;
+  };
+
+  const itemContactar = (c) => {
+    const fc = parseFechaCarga(c.fechaCarga);
+    const dias = fc ? Math.round((hoy - fc) / 86400000) : '?';
+    return `<div class="seg-item seg-item-contactar" onclick="openClienteModal(window._cmap['${c.id}'])">
+      <div class="seg-item-nombre">${esc(c.apellidoNombre)} <span class="seg-badge seg-badge-contactar">seguir</span></div>
+      <div class="seg-item-meta">${c.tipoEvento || '—'} · ${dias}d sin actividad</div>
+    </div>`;
+  };
+
   let html = `<div class="seg-panel-title">Pendientes</div>`;
 
-  const hayAlgo = vencidos.length || paraHoy.length || proximos.length || cobros.length || visitas.length;
+  const hayAlgo = vencidos.length || paraHoy.length || proximos.length || cobros.length || visitas.length || eventosProximos.length || sinActividad.length;
   if (!hayAlgo) {
     html += `<p class="seg-empty">Sin tareas para los próximos días ✓</p>`;
   }
 
+  if (eventosProximos.length > 0) {
+    html += `<div class="seg-section-label seg-label-evento">🎉 Eventos esta semana</div>`;
+    html += eventosProximos.map(c => itemEvento(c)).join('');
+  }
   if (vencidos.length > 0) {
     html += `<div class="seg-section-label seg-label-urgente">⚠ Vencidos (${vencidos.length})</div>`;
     html += vencidos.map(c => item(c, 'urgente')).join('');
@@ -1151,8 +1207,72 @@ function renderSeguimientosPanel() {
     html += `<div class="seg-section-label seg-label-visita">Visitas agendadas</div>`;
     html += visitas.map(c => item(c, 'visita')).join('');
   }
+  if (sinActividad.length > 0) {
+    html += `<div class="seg-section-label seg-label-contactar">📱 Sin actividad +14d</div>`;
+    html += sinActividad.map(c => itemContactar(c)).join('');
+  }
 
   aside.innerHTML = html;
+}
+
+/* ===================== SEGUIMIENTOS ===================== */
+function initSeguimientos() {
+  renderSeguimientosView();
+}
+
+function renderSeguimientosView() {
+  const con = $('seguimientos-content');
+  if (!con) return;
+
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+
+  const stale = allClientes.filter(c => {
+    if (['Confirmado', 'Realizado', 'Cancelado'].includes(c.estado)) return false;
+    const fc = parseFechaCarga(c.fechaCarga);
+    if (!fc) return false;
+    if ((hoy - fc) / 86400000 < 14) return false;
+    if (c.proximoSeguimiento) {
+      const seg = new Date(c.proximoSeguimiento); seg.setHours(0,0,0,0);
+      if (seg >= hoy) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    const fa = parseFechaCarga(a.fechaCarga) || new Date(0);
+    const fb = parseFechaCarga(b.fechaCarga) || new Date(0);
+    return fa - fb;
+  });
+
+  if (!stale.length) {
+    con.innerHTML = '<p class="seg-empty" style="padding:40px 0">✓ Ningún cliente sin actividad reciente</p>';
+    return;
+  }
+
+  const rows = stale.map(c => {
+    const fc = parseFechaCarga(c.fechaCarga);
+    const dias = fc ? Math.round((hoy - fc) / 86400000) : '?';
+    const tel = c.telefono || '';
+    const telLink = tel
+      ? `<a href="tel:${tel}" class="seg-tel-link" onclick="event.stopPropagation()">${tel}</a>`
+      : '—';
+    const waNum = tel.replace(/\D/g, '');
+    const waLink = waNum
+      ? `<a href="https://wa.me/54${waNum}" target="_blank" class="btn btn-sm btn-primary seg-wa-btn" onclick="event.stopPropagation()">💬 WA</a>`
+      : '';
+    return `<tr class="seg-fila" onclick="openClienteModal(window._cmap['${c.id}'])">
+      <td><strong>${esc(c.apellidoNombre)}</strong></td>
+      <td>${estadoBadge(c.estado)}</td>
+      <td>${c.tipoEvento || '—'}</td>
+      <td class="seg-dias-cell">${dias}d</td>
+      <td>${telLink} ${waLink}</td>
+    </tr>`;
+  }).join('');
+
+  con.innerHTML = `
+    <p class="seg-view-info">${stale.length} cliente${stale.length > 1 ? 's' : ''} sin actividad en los últimos 14 días o más — hacé clic en una fila para abrir el perfil</p>
+    <table class="tabla">
+      <thead><tr><th>Cliente</th><th>Estado</th><th>Tipo de evento</th><th>Inactividad</th><th>Contacto</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 /* ===================== FORM CLIENTE ===================== */

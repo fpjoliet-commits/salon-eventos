@@ -1041,6 +1041,18 @@ textarea { resize: vertical; min-height: 70px; }
 .seg-badge-seg    { background: #f1f5f9;             color: #475569;        border: 1px solid #cbd5e1; }
 .seg-label-cobro  { color: var(--success) !important; }
 .seg-empty        { font-size: 12.5px; color: var(--text-muted); text-align: center; padding: 20px 0; }
+.seg-item-evento  { border-left-width: 3px; border-left-style: solid; }
+.seg-item-contactar { border-left-color: #fb923c; background: #fff7ed; }
+.seg-badge-contactar { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.seg-label-evento   { color: #6b21a8 !important; }
+.seg-label-contactar { color: #c2410c !important; }
+.seg-view-info    { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px; }
+.seg-fila         { cursor: pointer; }
+.seg-fila:hover td { background: var(--cream) !important; }
+.seg-tel-link     { color: var(--text-primary); text-decoration: none; font-size: 12.5px; }
+.seg-tel-link:hover { text-decoration: underline; }
+.seg-wa-btn       { font-size: 11px; padding: 2px 8px; margin-left: 6px; }
+.seg-dias-cell    { font-weight: 700; color: var(--error); font-size: 12px; }
 
 /* Filas por estado — confirmados y por cerrar destacados */
 tr.tr-confirmado td {
