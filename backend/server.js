@@ -365,7 +365,7 @@ app.post('/api/leads', async (req, res) => {
   }
 
   try {
-    const origen = (['Instagram','TikTok','Facebook','Google','WhatsApp'].includes(utm_source) ? utm_source : null) || 'Web';
+    const origen = (['Instagram','TikTok','Facebook','Google','WhatsApp'].includes(utm_source) ? utm_source : 'Formulario');
     await sheets.addCliente({
       apellidoNombre: nombre.trim(),
       telefono: telefono.trim(),

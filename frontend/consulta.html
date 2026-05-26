@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Consultas — Joliet Salón de Eventos</title>
+  <title>Consultas — Joliet Eventos</title>
   <meta name="description" content="Consultá disponibilidad y recibí una propuesta personalizada para tu evento.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -328,10 +328,15 @@
 <body>
 
 <header class="page-header">
-  <h1>Joliet Salón de Eventos</h1>
-  <p>Hacé tu consulta y te respondemos a la brevedad</p>
+  <h1>Joliet Eventos</h1>
+  <p>Hacé tu consulta o agendá tu visita al salón · Te respondemos a la brevedad</p>
   <div class="gold-line"></div>
 </header>
+
+<!-- Foto del salón — reemplazar HERO_IMG con la URL de tu foto -->
+<div id="hero-wrap" style="display:none; max-width:520px; margin:20px auto -12px; padding:0 16px;">
+  <img id="hero-img" src="" alt="Joliet Eventos" style="width:100%; height:220px; object-fit:cover; border-radius:10px 10px 0 0; display:block;">
+</div>
 
 <div class="container">
   <div class="card">
@@ -461,12 +466,13 @@
 </section>
 
 <footer class="page-footer">
-  Joliet Salón de Eventos · Tu privacidad está protegida
+  Joliet Eventos · Tu privacidad está protegida
 </footer>
 
 <script>
   // Número de WhatsApp del salón (modificar cuando esté disponible)
   const WA_NUMBER = '5491154240870';
+  const HERO_IMG  = ''; // Pegá aquí la URL directa de una foto del salón
 
   // Cal.com link — completar después de crear la cuenta en cal.com
   // Ej: 'https://cal.com/joliet-eventos/visita-presencial'
@@ -487,6 +493,11 @@
   const waBtn = document.getElementById('wa-btn');
 
   if (!WA_NUMBER) waBtn.style.display = 'none';
+
+  if (HERO_IMG) {
+    document.getElementById('hero-img').src = HERO_IMG;
+    document.getElementById('hero-wrap').style.display = 'block';
+  }
 
   const calBtn = document.getElementById('cal-btn');
   if (CAL_LINK) {

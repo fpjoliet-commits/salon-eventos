@@ -485,6 +485,7 @@ function applyFilters() {
   const search = $('search-input').value.toLowerCase();
   const estado = $('filter-estado').value;
   const evento = $('filter-evento').value;
+  const origen = $('filter-origen').value;
 
   let filtered = allClientes.filter(c => {
     const matchSearch = !search ||
@@ -494,7 +495,9 @@ function applyFilters() {
     const matchEstado = !estado ||
       (estado === '__con_fecha__' ? !!c.proximoSeguimiento : c.estado === estado);
     const matchEvento = !evento || c.tipoEvento === evento;
-    return matchSearch && matchEstado && matchEvento;
+    const matchOrigen = !origen ||
+      (origen === '__formulario__' ? c.cargadoPor === 'bot-formulario' : c.origen === origen);
+    return matchSearch && matchEstado && matchEvento && matchOrigen;
   });
 
   renderClientes(filtered);
@@ -503,6 +506,7 @@ function applyFilters() {
 $('search-input').addEventListener('input', applyFilters);
 $('filter-estado').addEventListener('change', applyFilters);
 $('filter-evento').addEventListener('change', applyFilters);
+$('filter-origen').addEventListener('change', applyFilters);
 
 /* ===================== MODAL CLIENTE ===================== */
 function openClienteModal(cliente, tabInicial = 'info') {
