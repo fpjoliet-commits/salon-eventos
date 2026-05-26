@@ -1344,6 +1344,8 @@ function resetNuevoClienteForm() {
   $('edit-cliente-id').value = '';
   $('edit-persona-id').value = '';
   $('edit-persona-row-index').value = '';
+  const modoHistoricoEl = $('modo-historico');
+  if (modoHistoricoEl) modoHistoricoEl.checked = false;
   const visitaRow = $('visita-fecha-row');
   if (visitaRow) visitaRow.style.display = 'none';
   const fechaVisita = $('fechaVisita');
@@ -1451,16 +1453,18 @@ $('cliente-form').addEventListener('submit', async e => {
   const rowIndex = $('edit-row-index').value;
   const isEdit = !!rowIndex;
 
-  // Validar: gmail obligatorio y único para personas nuevas
+  const modoHistorico = $('modo-historico')?.checked;
+
+  // Validar: gmail obligatorio y único para personas nuevas (se omite si "cliente histórico" está tildado)
   const personaIdExistente = $('edit-persona-id').value;
   if (!personaIdExistente && !isEdit) {
     const gmail = (form.gmail.value || '').trim().toLowerCase();
-    if (!gmail) {
-      $('form-error').textContent = 'El Gmail es obligatorio para registrar un nuevo cliente.';
+    if (!gmail && !modoHistorico) {
+      $('form-error').textContent = 'El Gmail es obligatorio. Si el cliente no tiene email, tildá "Cliente histórico" arriba del formulario.';
       show('form-error');
       return;
     }
-    const duplicadoGmail = allPersonas.find(p => p.gmail && p.gmail.toLowerCase() === gmail);
+    const duplicadoGmail = gmail && allPersonas.find(p => p.gmail && p.gmail.toLowerCase() === gmail);
     if (duplicadoGmail) {
       const ok = confirm(`"${duplicadoGmail.apellidoNombre}" ya está registrado con ese Gmail.\n¿Crear un nuevo evento para esa persona?`);
       if (!ok) return;
@@ -1480,8 +1484,8 @@ $('cliente-form').addEventListener('submit', async e => {
     }
   }
 
-  // Validar: no se puede reservar fecha sin seña
-  if (form.estadoFecha.value === 'Reservada') {
+  // Validar: no se puede reservar fecha sin seña (se omite si "cliente histórico" está tildado)
+  if (form.estadoFecha.value === 'Reservada' && !modoHistorico) {
     if (!isEdit) {
       $('form-error').textContent = 'Para reservar la fecha necesitás registrar una seña primero. Guardá el cliente con fecha Tentativa y luego cargá la seña desde su ficha.';
       show('form-error');

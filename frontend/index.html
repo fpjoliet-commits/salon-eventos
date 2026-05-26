@@ -179,11 +179,14 @@
 
         <details class="guia-carga">
           <summary class="guia-carga-header">
-            <span>💡 ¿Cargando clientes de papel con fecha y pagos?</span>
+            <span>💡 ¿Cargando un cliente viejo o con fecha y pagos?</span>
             <span class="guia-chevron">▾</span>
           </summary>
           <div class="guia-carga-body">
-            <p class="guia-intro">Para un cliente que <strong>ya tiene fecha reservada y ya pagó algo</strong>, seguí este orden:</p>
+            <p class="guia-intro"><strong>¿El cliente no tiene email registrado o sus pagos los cargás después?</strong><br>
+            Tildá la opción <em>"Cliente histórico"</em> que aparece más abajo en el formulario. Esto te permite guardar sin ingresar email y sin necesidad de registrar una seña antes de marcar la fecha como Reservada. Los pagos los podés cargar después desde la ficha → tab <strong>Plan de pago</strong>.</p>
+            <hr class="guia-divider">
+            <p class="guia-intro">Para un cliente <strong>nuevo</strong> que ya tiene fecha reservada y ya pagó algo, seguí este orden:</p>
             <ol class="guia-steps">
               <li>Completá todos los datos del cliente (nombre, teléfono, tipo de evento, fecha, invitados, etc.)</li>
               <li>
@@ -203,6 +206,14 @@
           <input type="hidden" id="edit-cliente-id">
           <input type="hidden" id="edit-persona-id">
           <input type="hidden" id="edit-persona-row-index">
+
+          <div class="modo-historico-row" id="modo-historico-row">
+            <label class="modo-historico-label">
+              <input type="checkbox" id="modo-historico">
+              <span>Cliente histórico</span>
+            </label>
+            <span class="modo-historico-hint">Sin email y sin pagos previos — se pueden cargar después</span>
+          </div>
 
           <!-- Búsqueda de persona existente (solo en modo nuevo) -->
           <div class="form-section" id="persona-search-section">
@@ -246,7 +257,7 @@
               </div>
               <div class="form-group">
                 <label>Gmail *</label>
-                <input type="email" name="gmail" required placeholder="email@gmail.com">
+                <input type="email" name="gmail" placeholder="email@gmail.com">
               </div>
               <div class="form-group">
                 <label>Origen</label>
