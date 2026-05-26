@@ -395,21 +395,35 @@ app.post('/api/cal-booking', async (req, res) => {
     const { triggerEvent, payload } = req.body;
     if (triggerEvent !== 'BOOKING_CREATED') return res.json({ ok: true });
 
-    const rowIndex = parseInt(payload?.metadata?.rowIndex);
-    if (!rowIndex || isNaN(rowIndex)) {
-      console.log('cal-booking: sin rowIndex en metadata, ignorando');
-      return res.json({ ok: true });
-    }
-
     const startTime = new Date(payload.startTime);
     const visitDate = startTime.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
 
-    await sheets.patchEvento(rowIndex, {
-      estado: 'Visita agendada',
-      proximoSeguimiento: visitDate,
-    });
+    const rowIndex = parseInt(payload?.metadata?.rowIndex);
 
-    console.log(`cal-booking: rowIndex ${rowIndex} → Visita agendada el ${visitDate}`);
+    if (rowIndex && !isNaN(rowIndex)) {
+      // Vino desde el formulario: actualizar el registro existente
+      await sheets.patchEvento(rowIndex, {
+        estado: 'Visita agendada',
+        proximoSeguimiento: visitDate,
+      });
+      console.log(`cal-booking: rowIndex ${rowIndex} → Visita agendada el ${visitDate}`);
+    } else {
+      // Reserva directa en Cal.com: crear registro nuevo en el CRM
+      const attendee = payload?.attendees?.[0] || {};
+      const nombre = attendee.name || payload?.responses?.name?.value || 'Sin nombre';
+      const email  = attendee.email || payload?.responses?.email?.value || '';
+      await sheets.addCliente({
+        apellidoNombre: nombre,
+        gmail: email,
+        telefono: '',
+        estado: 'Visita agendada',
+        proximoSeguimiento: visitDate,
+        origen: 'Cal.com',
+        cargadoPor: 'cal-booking',
+      });
+      console.log(`cal-booking: nuevo registro → ${nombre} / Visita agendada el ${visitDate}`);
+    }
+
     res.json({ ok: true });
   } catch (e) {
     console.error('Error en /api/cal-booking:', e.message);
