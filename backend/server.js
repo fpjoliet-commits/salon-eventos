@@ -355,7 +355,7 @@ app.post('/api/leads', async (req, res) => {
   // Honeypot: si el campo oculto tiene valor, es un bot
   if (req.body._hp) return res.status(400).json({ error: 'Formulario inválido.' });
 
-  const { nombre, telefono, email, tipoEvento, fechaEvento, cantidadInvitados, turno, mensaje, utm_source } = req.body;
+  const { nombre, telefono, email, tipoEvento, fechaEvento, cantidadInvitados, turno, mensaje } = req.body;
 
   if (!nombre?.trim() || !telefono?.trim() || !email?.trim() || !tipoEvento || !turno) {
     return res.status(400).json({ error: 'Faltan campos obligatorios.' });
@@ -365,8 +365,11 @@ app.post('/api/leads', async (req, res) => {
   }
 
   try {
-    const origen = (['Instagram','TikTok','Facebook','Google','WhatsApp'].includes(utm_source) ? utm_source : 'Formulario');
-    await sheets.addCliente({
+    const ORIGENES_VALIDOS = ['Instagram','TikTok','Facebook','Google','WhatsApp','Recomendacion','Otro'];
+    const origenRaw = req.body.origen || req.body.utm_source || '';
+    const origen = ORIGENES_VALIDOS.includes(origenRaw) ? origenRaw : 'Formulario';
+
+    const cliente = await sheets.addCliente({
       apellidoNombre: nombre.trim(),
       telefono: telefono.trim(),
       gmail: email.trim(),
@@ -379,10 +382,38 @@ app.post('/api/leads', async (req, res) => {
       origen,
       cargadoPor: 'bot-formulario',
     });
-    res.json({ ok: true });
+    res.json({ ok: true, rowIndex: cliente.rowIndex });
   } catch (e) {
     console.error('Error en /api/leads:', e.message);
     res.status(500).json({ error: 'Error al registrar la consulta. Intentá más tarde.' });
+  }
+});
+
+// Webhook de Cal.com — se llama cuando alguien agenda una visita al salón
+app.post('/api/cal-booking', async (req, res) => {
+  try {
+    const { triggerEvent, payload } = req.body;
+    if (triggerEvent !== 'BOOKING_CREATED') return res.json({ ok: true });
+
+    const rowIndex = parseInt(payload?.metadata?.rowIndex);
+    if (!rowIndex || isNaN(rowIndex)) {
+      console.log('cal-booking: sin rowIndex en metadata, ignorando');
+      return res.json({ ok: true });
+    }
+
+    const startTime = new Date(payload.startTime);
+    const visitDate = startTime.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+
+    await sheets.patchEvento(rowIndex, {
+      estado: 'Visita agendada',
+      proximoSeguimiento: visitDate,
+    });
+
+    console.log(`cal-booking: rowIndex ${rowIndex} → Visita agendada el ${visitDate}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Error en /api/cal-booking:', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 

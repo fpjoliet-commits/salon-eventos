@@ -619,6 +619,15 @@
         return;
       }
 
+      // Actualizar link de Cal.com con rowIndex para enlazar la reserva al cliente en el CRM
+      if (CAL_LINK && data.rowIndex) {
+        const calUrl = new URL(CAL_LINK);
+        calUrl.searchParams.set('metadata[rowIndex]', data.rowIndex);
+        calUrl.searchParams.set('name', nombre);
+        if (email) calUrl.searchParams.set('email', email);
+        calBtn.href = calUrl.toString();
+      }
+
       // Éxito — armar mensaje de WhatsApp con datos del form
       if (WA_NUMBER) {
         const fechaEvento = form.elements.fechaEvento.value;

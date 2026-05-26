@@ -1143,9 +1143,30 @@ async function initSheets() {
   }
 }
 
+// Actualiza solo campos específicos de un evento sin tocar el resto de la fila
+async function patchEvento(rowIndex, patch) {
+  if (!tieneCredenciales) {
+    const idx = memEventos.findIndex(e => e.rowIndex === rowIndex);
+    if (idx !== -1) Object.assign(memEventos[idx], patch);
+    return;
+  }
+  const sh = getSheets();
+  const data = [];
+  if (patch.estado !== undefined)
+    data.push({ range: `Eventos!C${rowIndex}`, values: [[patch.estado]] });
+  if (patch.proximoSeguimiento !== undefined)
+    data.push({ range: `Eventos!Q${rowIndex}`, values: [[patch.proximoSeguimiento]] });
+  if (data.length) {
+    await sh.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { valueInputOption: 'USER_ENTERED', data },
+    });
+  }
+}
+
 module.exports = {
   getPersonas, addPersona, updatePersona,
-  getClientes, addCliente, updateCliente, deleteEvento,
+  getClientes, addCliente, updateCliente, deleteEvento, patchEvento,
   getIngresos, addIngreso, confirmarIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
