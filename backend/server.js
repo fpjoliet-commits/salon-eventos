@@ -395,8 +395,8 @@ app.post('/api/cal-booking', async (req, res) => {
     const { triggerEvent, payload } = req.body;
     if (triggerEvent !== 'BOOKING_CREATED') return res.json({ ok: true });
 
-    const startTime = new Date(payload.startTime);
-    const visitDate = startTime.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+    // Formato YYYY-MM-DD que espera el calendario del CRM (sv-SE da ISO sin hora)
+    const visitDate = new Date(payload.startTime).toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
 
     const rowIndex = parseInt(payload?.metadata?.rowIndex);
 
