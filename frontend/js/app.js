@@ -5199,7 +5199,7 @@ function openActualizarStockForm() {
   let html = '';
   catOrder.forEach(cat => {
     const color = cocCatColor(cat);
-    html += `<tr class="cocina-cat-header-row"><td colspan="3" class="cocina-cat-header-cell" style="background:${color}">${esc(cat)}</td></tr>`;
+    html += `<tr class="cocina-cat-header-row"><td colspan="3" class="cocina-cat-header-cell" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
     byCategory[cat].forEach(item => {
       const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
       html += `<tr style="background:${color}22">
@@ -5996,7 +5996,7 @@ function renderCatalogoPanel() {
   const UNITS = ['und', 'lt', 'kg', 'gr'];
   let html = `<div class="cat-panel-header"><strong>Catálogo de ítems — Unidades</strong></div><div class="cat-panel-body">`;
   for (const [cat, items] of Object.entries(cats)) {
-    html += `<div class="cat-panel-group-header" style="background:${cocCatColor(cat)}">${cat}</div>`;
+    html += `<div class="cat-panel-group-header" style="background:${cocCatColor(cat)}">${catDisplayName(cat)}</div>`;
     for (const item of items) {
       const opts = UNITS.map(u => `<option value="${u}"${item.unidad === u ? ' selected' : ''}>${u}</option>`).join('');
       html += `<div class="cat-panel-row" data-row="${item.rowIndex}">

@@ -1076,7 +1076,17 @@ const ITEMS_DEACTIVATE_PATTERNS = [
   ['Plato Central - Ave', 'relleno:'],
   ['Plato Central - Ave', ' · '],
   ['Plato Central - Carne', '— salsa:'],
+  ['Plato Central - Carne', ' · '],
 ];
+
+// Categorías enteras a desactivar (cualquier ítem que pertenezca a estas categorías)
+const CATS_DEACTIVATE_ALL = new Set([
+  // Gourmet — fusionados en Primer Plato - Pastas / Salsas
+  'Pastas Gourmet', 'Primer Plato - Pastas Gourmet',
+  'Salsas Gourmet', 'Primer Plato - Salsas Gourmet',
+  // Guarniciones — renombrado a "Guarnición plato central"
+  'Guarniciones', 'Plato Central - Guarniciones',
+]);
 
 // Categorías que NO van a StockActual (no persisten semana a semana)
 const CATEGORIAS_SIN_STOCK = new Set([
@@ -1375,6 +1385,7 @@ async function actualizarStockActual(actualizaciones) {
 async function sincronizarCatalogoConInicial() {
   const shouldDeactivateItem = (cat, nombre) =>
     ITEMS_DEACTIVATE.has(`${cat}||${nombre}`) ||
+    CATS_DEACTIVATE_ALL.has(cat) ||
     ITEMS_DEACTIVATE_PATTERNS.some(([c, pat]) => c === cat && nombre.includes(pat));
 
   if (!tieneCredenciales) {
