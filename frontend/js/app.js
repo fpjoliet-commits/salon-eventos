@@ -5895,23 +5895,35 @@ function buildPrintPedidoHTML(pedido) {
   const hoy = new Date().toLocaleDateString('es-AR');
   const byCategory = {}, catOrder = [];
   (pedido.items || []).filter(i => i.cantidad > 0).forEach(item => {
-    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
-    byCategory[item.categoria].push(item);
+    const cat = item.categoria || 'Sin categoría';
+    if (!byCategory[cat]) { byCategory[cat] = []; catOrder.push(cat); }
+    byCategory[cat].push(item);
   });
   let rows = '';
   catOrder.forEach(cat => {
     const color = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
-    rows += `<tr><td colspan="4" style="background:${color};padding:4px 8px;font-weight:700;font-size:9pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(cat)}</td></tr>`;
+    rows += `<tr><td colspan="4" style="background:${color};padding:3px 8px;font-weight:700;font-size:8pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}</td></tr>`;
     byCategory[cat].forEach(i => {
-      rows += `<tr style="background:${color}60"><td style="padding-left:14px">${esc(i.nombre)}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:center">${esc(i.unidad||'und')}</td><td>${esc(i.observaciones||'')}</td></tr>`;
+      rows += `<tr style="background:${color}40"><td style="padding-left:12px">${esc(i.nombre)}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:center">${esc(i.unidad||'und')}</td><td>${esc(i.observaciones||'')}</td></tr>`;
     });
   });
-  return `<div class="print-header"><h2>JOLIET — PEDIDO DE PRODUCCIÓN</h2>
-    <p><strong>Evento:</strong> ${esc(pedido.nombreEvento||'—')}</p>
-    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Generado:</strong> ${hoy}</p></div>
-    <table class="print-table"><thead><tr><th>Ítem</th><th style="width:65px">Cant.</th><th style="width:50px">Unid.</th><th style="width:27%">Observaciones</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems con cantidad asignada</td></tr>'}</tbody></table>
-    <p class="print-footer">Completado por: _____________________ &nbsp;&nbsp;&nbsp; Fecha: ___/___/______</p>`;
+  const evento = esc(pedido.nombreEvento||'—');
+  const fechaEvento = pedido.fecha ? formatDate(pedido.fecha) : '—';
+  return `<table class="print-table">
+    <thead>
+      <tr><td colspan="4" class="print-doc-header">
+        <div class="ph-title">JOLIET — PEDIDO DE PRODUCCIÓN</div>
+        <div class="ph-meta">
+          <span><b>Evento:</b> ${evento}</span>
+          <span><b>Fecha del evento:</b> ${fechaEvento}</span>
+          <span><b>Generado:</b> ${hoy}</span>
+        </div>
+        <div class="ph-fill">Completado por: _____________________ &nbsp;&nbsp; Fecha: ___/___/______</div>
+      </td></tr>
+      <tr><th>Ítem</th><th style="width:60px">Cant.</th><th style="width:50px">Unid.</th><th style="width:28%">Observaciones</th></tr>
+    </thead>
+    <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems con cantidad asignada</td></tr>'}</tbody>
+  </table>`;
 }
 
 function buildPrintRelevamientoHTML(pedido) {
@@ -5920,43 +5932,55 @@ function buildPrintRelevamientoHTML(pedido) {
   (pedido.items || []).forEach(i => { if (i.id) pedidoMap[i.id] = i; else pedidoMap[i.nombre] = i; });
   const byCategory = {}, catOrder = [];
   cocinaCatalogo.forEach(item => {
-    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
-    byCategory[item.categoria].push(item);
+    const pedItem = pedidoMap[item.id] || pedidoMap[item.nombre];
+    if (!pedItem || !(pedItem.cantidad > 0)) return;
+    const cat = item.categoria || 'Sin categoría';
+    if (!byCategory[cat]) { byCategory[cat] = []; catOrder.push(cat); }
+    byCategory[cat].push({ catItem: item, pedItem });
   });
   let rows = '';
   catOrder.forEach(cat => {
     const color = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
-    rows += `<tr><td colspan="5" style="background:${color};padding:4px 8px;font-weight:700;font-size:9pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(cat)}</td></tr>`;
-    byCategory[cat].forEach(catItem => {
-      const pedItem = pedidoMap[catItem.id] || pedidoMap[catItem.nombre];
-      const preparado = pedItem?.cantidad > 0 ? `${pedItem.cantidad} ${catItem.unidad||'und'}` : '—';
-      const stock = pedItem?.stock != null ? pedItem.stock : '';
-      const consumido = (stock !== '' && pedItem?.cantidad > 0) ? (pedItem.cantidad - Number(stock)) : '';
-      rows += `<tr style="background:${color}60"><td style="padding-left:14px">${esc(catItem.nombre)}</td><td style="text-align:center">${preparado}</td><td style="text-align:center">${stock}</td><td style="text-align:center">${consumido!==''?consumido:''}</td><td></td></tr>`;
+    rows += `<tr><td colspan="4" style="background:${color};padding:3px 8px;font-weight:700;font-size:8pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}</td></tr>`;
+    byCategory[cat].forEach(({ catItem, pedItem }) => {
+      const preparado = `${pedItem.cantidad} ${catItem.unidad||'und'}`;
+      rows += `<tr style="background:${color}40"><td style="padding-left:12px">${esc(catItem.nombre)}</td><td style="text-align:center">${preparado}</td><td></td><td></td></tr>`;
     });
   });
-  return `<div class="print-header"><h2>JOLIET — CONTROL DE STOCK POST-EVENTO</h2>
-    <p><strong>Evento:</strong> ${esc(pedido.nombreEvento||'—')}</p>
-    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Generado:</strong> ${hoy}</p></div>
-    <table class="print-table"><thead><tr><th>Ítem</th><th style="width:90px">Preparado</th><th style="width:90px">Stock</th><th style="width:90px">Consumido</th><th style="width:70px">Firma</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody></table>
-    <p class="print-footer">Realizado por: ______________________ &nbsp;&nbsp; Fecha: ___/___/______</p>`;
+  const evento = esc(pedido.nombreEvento||'—');
+  const fechaEvento = pedido.fecha ? formatDate(pedido.fecha) : '—';
+  return `<table class="print-table">
+    <thead>
+      <tr><td colspan="4" class="print-doc-header">
+        <div class="ph-title">JOLIET — CONTROL DE STOCK POST-EVENTO</div>
+        <div class="ph-meta">
+          <span><b>Evento:</b> ${evento}</span>
+          <span><b>Fecha del evento:</b> ${fechaEvento}</span>
+          <span><b>Generado:</b> ${hoy}</span>
+        </div>
+        <div class="ph-fill">Relevamiento realizado por: _____________________ &nbsp;&nbsp; Fecha: ___/___/______</div>
+      </td></tr>
+      <tr><th>Ítem</th><th style="width:95px">Preparado</th><th style="width:95px">Sobrante</th><th style="width:95px">Consumido</th></tr>
+    </thead>
+    <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody>
+  </table>`;
 }
 
 function abrirVentanaImpresion(htmlContent) {
   const win = window.open('', '_blank', 'width=900,height=700');
   if (!win) { alert('Habilitá las ventanas emergentes para este sitio e intentá nuevamente.'); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-  body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0;padding:20px;background:#fff}
-  .print-header{margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #333}
-  .print-header h2{font-size:14pt;margin:0 0 6px 0}
-  .print-header p{font-size:9.5pt;margin:2px 0;color:#333}
-  .print-table{width:100%;border-collapse:collapse;font-size:9.5pt}
-  .print-table th{background:#e8e8e8;padding:5px 8px;border:1px solid #999;text-align:left}
-  .print-table td{border:1px solid #ccc;padding:4px 8px;vertical-align:top}
-  .print-footer{margin-top:12px;font-size:8.5pt;color:#555;border-top:1px solid #ddd;padding-top:6px}
-  @page{size:A4 portrait;margin:12mm 15mm}
-  @media print{body{padding:0}}
+  body{font-family:Arial,sans-serif;font-size:8.5pt;color:#000;margin:0;padding:10px;background:#fff}
+  thead{display:table-header-group}
+  .print-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-top:0}
+  .print-table th{background:#e0e0e0;padding:4px 7px;border:1px solid #999;text-align:left;font-size:8pt}
+  .print-table td{border:1px solid #ccc;padding:3px 6px;vertical-align:top}
+  .print-doc-header{border:none!important;border-bottom:2px solid #333!important;padding:4px 0 8px 0!important}
+  .ph-title{font-size:12.5pt;font-weight:700;margin:0 0 5px 0}
+  .ph-meta{font-size:8pt;color:#333;display:flex;gap:20px;flex-wrap:wrap;margin-bottom:3px}
+  .ph-fill{font-size:7.5pt;color:#555;margin-top:5px;padding-top:5px;border-top:1px dashed #bbb}
+  @page{size:A4 portrait;margin:12mm 15mm 18mm 15mm;@bottom-right{content:"Hoja " counter(page) " / " counter(pages);font-size:7.5pt;color:#888}}
+  @media print{body{padding:0;margin:0}}
   </style></head><body>${htmlContent}<script>setTimeout(function(){window.print();},300);<\/script></body></html>`);
   win.document.close();
 }
