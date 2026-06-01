@@ -453,6 +453,17 @@ app.post('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
   }
 });
 
+app.put('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { unidad } = req.body;
+    if (!unidad) return res.status(400).json({ error: 'unidad requerida' });
+    await sheets.updateCatalogoItem(parseInt(req.params.rowIndex), { unidad });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, res) => {
   try {
     await sheets.deleteCatalogoItem(parseInt(req.params.rowIndex));

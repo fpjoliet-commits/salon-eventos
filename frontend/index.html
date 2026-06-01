@@ -716,8 +716,13 @@
       <section id="view-cocina" class="view hidden">
         <div class="view-header">
           <h2>📋 Pedidos de Cocina</h2>
-          <button id="cocina-nuevo-btn" class="btn btn-primary">+ Nuevo pedido</button>
+          <div style="display:flex;gap:8px">
+            <button id="cocina-catalogo-btn" class="btn btn-secondary">Catálogo de ítems</button>
+            <button id="cocina-nuevo-btn" class="btn btn-primary">+ Nuevo pedido</button>
+          </div>
         </div>
+        <!-- Panel: editar unidades del catálogo -->
+        <div id="cocina-catalogo-panel" class="cocina-catalogo-panel hidden"></div>
 
         <!-- Lista de pedidos guardados -->
         <div id="cocina-lista-container">

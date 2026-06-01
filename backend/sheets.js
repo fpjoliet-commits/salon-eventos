@@ -1196,6 +1196,23 @@ async function addCatalogoItem(data) {
   return item;
 }
 
+async function updateCatalogoItem(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memCatalogoItems.findIndex(i => i.rowIndex === rowIndex);
+    if (idx !== -1) Object.assign(memCatalogoItems[idx], data);
+    return;
+  }
+  const sheets = getSheets();
+  if (data.unidad !== undefined) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `CatalogoItems!E${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [[data.unidad]] },
+    });
+  }
+}
+
 async function deleteCatalogoItem(rowIndex) {
   if (!tieneCredenciales) {
     const idx = memCatalogoItems.findIndex(i => i.rowIndex === rowIndex);
@@ -1591,7 +1608,7 @@ module.exports = {
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado,
   getEgresos, addEgreso, updateEgreso,
-  getCatalogoItems, addCatalogoItem, deleteCatalogoItem,
+  getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
   getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial,
   initSheets,

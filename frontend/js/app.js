@@ -5665,6 +5665,63 @@ function abrirVentanaImpresion(htmlContent) {
 function imprimirPedidoCocina(pedido) { abrirVentanaImpresion(buildPrintPedidoHTML(pedido)); }
 function imprimirRelevamientoCocina(pedido) { abrirVentanaImpresion(buildPrintRelevamientoHTML(pedido)); }
 
+function toggleCatalogoPanel() {
+  const panel = $('cocina-catalogo-panel');
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    renderCatalogoPanel();
+    panel.classList.remove('hidden');
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function renderCatalogoPanel() {
+  const panel = $('cocina-catalogo-panel');
+  if (!panel) return;
+  const cats = {};
+  for (const item of cocinaCatalogo) {
+    if (!cats[item.categoria]) cats[item.categoria] = [];
+    cats[item.categoria].push(item);
+  }
+  const UNITS = ['und', 'lt', 'kg', 'gr'];
+  let html = `<div class="cat-panel-header">
+    <strong>Catálogo de ítems — Unidades</strong>
+    <button class="btn btn-secondary btn-sm" onclick="$('cocina-catalogo-panel').classList.add('hidden')">Cerrar</button>
+  </div><div class="cat-panel-body">`;
+  for (const [cat, items] of Object.entries(cats)) {
+    html += `<div class="cat-panel-group-header" style="background:${cocCatColor(cat)}">${cat}</div>`;
+    for (const item of items) {
+      const opts = UNITS.map(u => `<option value="${u}"${item.unidad === u ? ' selected' : ''}>${u}</option>`).join('');
+      html += `<div class="cat-panel-row" data-row="${item.rowIndex}">
+        <span class="cat-panel-nombre">${item.nombre}</span>
+        <select class="cat-panel-unidad-sel" data-row="${item.rowIndex}">${opts}</select>
+        <span class="cat-panel-status" id="cat-status-${item.rowIndex}"></span>
+      </div>`;
+    }
+  }
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+document.addEventListener('change', async ev => {
+  const sel = ev.target.closest('.cat-panel-unidad-sel');
+  if (!sel) return;
+  const rowIndex = parseInt(sel.dataset.row);
+  const unidad = sel.value;
+  const statusEl = document.getElementById(`cat-status-${rowIndex}`);
+  if (statusEl) statusEl.textContent = '…';
+  try {
+    await apiFetch(`/catalogo-items/${rowIndex}`, { method: 'PUT', body: { unidad } });
+    const item = cocinaCatalogo.find(i => i.rowIndex === rowIndex);
+    if (item) item.unidad = unidad;
+    if (statusEl) { statusEl.textContent = '✓'; setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000); }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '✗';
+    alert('Error al guardar unidad: ' + e.message);
+  }
+});
+
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
 $('cocina-form-cancel-btn')?.addEventListener('click', () => {
   $('cocina-form-wrap')?.classList.add('hidden');
@@ -5672,6 +5729,7 @@ $('cocina-form-cancel-btn')?.addEventListener('click', () => {
   $('cocina-stock-actual-panel')?.classList.add('hidden');
   cocinaPedidoActual = null;
 });
+$('cocina-catalogo-btn')?.addEventListener('click', toggleCatalogoPanel);
 $('cocina-agregar-item-btn')?.addEventListener('click', toggleAgregarPanel);
 $('cocina-ver-stock-btn')?.addEventListener('click', toggleStockActualPanel);
 $('cocina-guardar-btn')?.addEventListener('click', guardarPedido);
