@@ -1032,14 +1032,26 @@ function detectarUnidad(categoria, nombre) {
 
 // Items a desactivar en sheets existentes (nombres viejos o eliminados)
 const ITEMS_DEACTIVATE = new Set([
+  // Plato central - nombres viejos con "salsa: ___"
   'Plato Central - Ave||Pechuga tradición — relleno: ________ / salsa: ________',
   'Plato Central - Ave||Pechuga caprese — relleno: tomate / albahaca / mozzarella / salsa: ________',
   'Plato Central - Ave||Pechuga doble puerro — relleno: puerro / salsa: crema de puerro',
   'Plato Central - Carne||Lomo Reserva — salsa: ________',
   'Plato Central - Carne||Bife del bosque — salsa: hongos del bosque',
   'Plato Central - Carne||Lomo Dijon — salsa: mostaza Dijon',
+  // Islas externas
   'Islas||Mesa de fiambres', 'Islas||Sushi',
-  'Plato Central - Salsas||Salsa del plato',
+  // Gourmet — se fusionan con las categorías base
+  'Primer Plato - Pastas Gourmet||Sorrentinos de trucha y almendras',
+  'Primer Plato - Pastas Gourmet||Fagotinnis de cordero y romero',
+  'Primer Plato - Pastas Gourmet||Sorrentinos de salmón y philadelphia',
+  'Primer Plato - Salsas Gourmet||Portobellos y ciboulette',
+  'Primer Plato - Salsas Gourmet||Queso azul y nuez',
+  // Guarniciones — categoría renombrada
+  'Plato Central - Guarniciones||Rosti de papa',
+  'Plato Central - Guarniciones||Papas a la suiza gratinadas',
+  'Plato Central - Guarniciones||Milhojas de papa',
+  // Mesa de Dulces y Cafetería — externos, no se stockean
   'Mesa de Dulces||Lemon pie', 'Mesa de Dulces||Cheese cake', 'Mesa de Dulces||Chocotorta',
   'Mesa de Dulces||Torta África', 'Mesa de Dulces||Tarta de frutillas', 'Mesa de Dulces||Flan',
   'Mesa de Dulces||Mil Hojas', 'Mesa de Dulces||Brownies relleno', 'Mesa de Dulces||Copas Heladas',
@@ -1052,8 +1064,9 @@ const ITEMS_DEACTIVATE = new Set([
 
 // Categorías que NO van a StockActual (no persisten semana a semana)
 const CATEGORIAS_SIN_STOCK = new Set([
-  'Recepción - Canapés', 'Recepción - Bruschettas',
-  'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros',
+  'Recepción - Canapés', 'Recepción - Bruschettas', 'Recepción - Fríos',
+  'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros', 'Sanguche de Miga - Totales',
+  'Mesa de Dulces', 'Cafetería / Fin de Fiesta',
 ]);
 
 const CATALOGO_INICIAL = [
@@ -1110,6 +1123,7 @@ const CATALOGO_INICIAL = [
   { categoria: 'Recepción - Calientes', nombre: 'Mini hamburguesas caseras', unidad: 'und' },
   { categoria: 'Recepción - Calientes', nombre: 'Pollo frito (Buffalo wings)', unidad: 'und' },
   { categoria: 'Recepción - Calientes', nombre: 'Croquetitas de papa', unidad: 'und' },
+  { categoria: 'Recepción - Calientes', nombre: 'Envoltinis de bondiola', unidad: 'und' },
   // Islas — solo tacos (Mesa de fiambres y Sushi van a pedido externo)
   { categoria: 'Islas', nombre: 'Tacos - Relleno de carne', unidad: 'und' },
   { categoria: 'Islas', nombre: 'Tacos - Relleno de pollo', unidad: 'und' },
@@ -1121,11 +1135,11 @@ const CATALOGO_INICIAL = [
   { categoria: 'Primer Plato - Pastas', nombre: 'Raviolones de espinaca y parmesano', unidad: 'und' },
   { categoria: 'Primer Plato - Pastas', nombre: 'Agnolotis de pollo', unidad: 'und' },
   { categoria: 'Primer Plato - Pastas', nombre: 'Ñoquis de papa', unidad: 'und' },
-  // Primer Plato - Pastas Gourmet
-  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de trucha y almendras', unidad: 'und' },
-  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Fagotinnis de cordero y romero', unidad: 'und' },
-  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de salmón y philadelphia', unidad: 'und' },
-  // Primer Plato - Salsas
+  // Primer Plato - Pastas (incluye las antes llamadas Gourmet)
+  { categoria: 'Primer Plato - Pastas', nombre: 'Sorrentinos de trucha y almendras', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Fagotinnis de cordero y romero', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Sorrentinos de salmón y philadelphia', unidad: 'und' },
+  // Primer Plato - Salsas (incluye las antes llamadas Gourmet)
   { categoria: 'Primer Plato - Salsas', nombre: 'Filetto', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Bolognesa', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Rosé', unidad: 'lt' },
@@ -1133,9 +1147,8 @@ const CATALOGO_INICIAL = [
   { categoria: 'Primer Plato - Salsas', nombre: 'Crema de espinaca', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Italiana', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Salsa blanca', unidad: 'lt' },
-  // Primer Plato - Salsas Gourmet
-  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Portobellos y ciboulette', unidad: 'lt' },
-  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Queso azul y nuez', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Portobellos y ciboulette', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Queso azul y nuez', unidad: 'lt' },
   // Plato Central - Ave (con descripción de relleno)
   { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición · JyQ y mozzarella', unidad: 'und' },
   { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese · mozzarella, tomate y albahaca', unidad: 'und' },
@@ -1144,11 +1157,28 @@ const CATALOGO_INICIAL = [
   { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva · reducción de Malbec', unidad: 'und' },
   { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque · hongos de pino', unidad: 'und' },
   { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon · crema de mostaza', unidad: 'und' },
-  // Plato Central - Guarniciones
-  { categoria: 'Plato Central - Guarniciones', nombre: 'Rosti de papa', unidad: 'und' },
-  { categoria: 'Plato Central - Guarniciones', nombre: 'Papas a la suiza gratinadas', unidad: 'und' },
-  { categoria: 'Plato Central - Guarniciones', nombre: 'Milhojas de papa', unidad: 'und' },
-  // Mesa de Dulces y Cafetería: externos (pastelería/panadería), no van en el sistema
+  // Plato Central - Salsas (aparece junto al plato central)
+  { categoria: 'Plato Central - Salsas', nombre: 'Salsa del plato', unidad: 'lt' },
+  // Guarnición plato central (antes "Plato Central - Guarniciones")
+  { categoria: 'Guarnición plato central', nombre: 'Rosti de papa', unidad: 'und' },
+  { categoria: 'Guarnición plato central', nombre: 'Papas a la suiza gratinadas', unidad: 'und' },
+  { categoria: 'Guarnición plato central', nombre: 'Milhojas de papa', unidad: 'und' },
+  // Mesa de Dulces y Cafetería: externos — van en pedido pero no en stock
+  { categoria: 'Mesa de Dulces', nombre: 'Lemon pie', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Cheese cake', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Chocotorta', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Torta África', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Tarta de frutillas', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Flan', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Mil Hojas', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Brownies relleno', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Copas Heladas', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Panqueques', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Torta Homenaje', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Presentaciones Individuales', unidad: 'und' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Café con leche y mini facturas', unidad: 'und' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Pizza con cerveza', unidad: 'und' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Mate con bizcochitos', unidad: 'und' },
 ];
 
 // Ingredientes y materias primas que se trackean en stock pero no son ítems de producción

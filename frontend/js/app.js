@@ -233,7 +233,7 @@ if (view === 'calendario') loadCalendario();
   if (view === 'timing-global') initTimingGlobal();
   if (view === 'propuesta') initPropuesta();
   if (view === 'egresos') initEgresos();
-  if (view === 'egresos-cocina') initEgresosCocina();
+  if (view === 'egresos-cocina') { navigateTo('cocina'); switchCocinaTab('compras'); return; }
   if (view === 'seguimientos') initSeguimientos();
   if (view === 'cocina') loadCocina();
 }
@@ -4824,9 +4824,9 @@ function initEgresosCocina() {
   const fechaEl = $('egc-fecha');
   if (fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
   if (!egresosCocCargados) {
-    loadEgresosCocina();
     egresosCocCargados = true;
     setupEgresosCocinaForm();
+    loadEgresosCocina();
   } else {
     renderEgresosCocina();
   }
@@ -5061,18 +5061,20 @@ const COCINA_CAT_COLORS = {
   'Recepción - Fríos':             '#E3F2FD',
   'Sanguche de Miga - Blancos':    '#FFFDE7',
   'Sanguche de Miga - Negros':     '#D7CCC8',
+  'Sanguche de Miga - Totales':    '#EFEBE9',
   'Recepción - Brochettes':        '#FCE4EC',
   'Recepción - Empanaditas':       '#E8F5E9',
   'Recepción - Calientes':         '#FBE9E7',
   'Islas':                         '#EDE7F6',
   'Primer Plato - Pastas':         '#E0F7FA',
-  'Primer Plato - Pastas Gourmet': '#B2EBF2',
   'Primer Plato - Salsas':         '#E0F2F1',
-  'Primer Plato - Salsas Gourmet': '#B2DFDB',
   'Plato Central - Ave':           '#FFF9C4',
   'Plato Central - Carne':         '#FFEBEE',
-  'Plato Central - Guarniciones':  '#F3E5F5',
-  // Stock-only ingredient categories
+  'Plato Central - Salsas':        '#FFF3E0',
+  'Guarnición plato central':      '#F3E5F5',
+  'Mesa de Dulces':                '#FCE4EC',
+  'Cafetería / Fin de Fiesta':     '#E8EAF6',
+  // Ingredientes (solo stock)
   'Bruschetta - Toppings':         '#FFF8E1',
   'Fiambres':                      '#FAFAFA',
   'Condimentos':                   '#F9FBE7',
@@ -5080,6 +5082,40 @@ const COCINA_CAT_COLORS = {
   'Verduras':                      '#E8F5E9',
   'Aceites y Sales':               '#FFF3E0',
 };
+
+// Categorías que NO aparecen en el stock dashboard (no persisten semana a semana)
+const CATS_NO_STOCK_DISPLAY = new Set([
+  'Recepción - Canapés', 'Recepción - Bruschettas', 'Recepción - Fríos',
+  'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros', 'Sanguche de Miga - Totales',
+  'Mesa de Dulces', 'Cafetería / Fin de Fiesta',
+]);
+
+// Orden de categorías en stock dashboard (las que van)
+const STOCK_CAT_ORDER = [
+  'Recepción - Brochettes', 'Recepción - Empanaditas', 'Recepción - Calientes',
+  'Islas',
+  'Primer Plato - Pastas', 'Primer Plato - Salsas',
+  'Plato Central - Ave', 'Plato Central - Carne', 'Plato Central - Salsas', 'Guarnición plato central',
+  'Bruschetta - Toppings', 'Fiambres', 'Condimentos', 'Básicos', 'Verduras', 'Aceites y Sales',
+];
+
+// Orden de categorías en formulario de pedido
+const PEDIDO_CAT_ORDER = [
+  'Recepción - Canapés', 'Recepción - Bruschettas', 'Recepción - Fríos',
+  'Sanguche de Miga - Totales', 'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros',
+  'Recepción - Brochettes', 'Recepción - Empanaditas', 'Recepción - Calientes',
+  'Islas',
+  'Primer Plato - Pastas', 'Primer Plato - Salsas',
+  'Plato Central - Ave', 'Plato Central - Carne', 'Plato Central - Salsas', 'Guarnición plato central',
+  'Mesa de Dulces', 'Cafetería / Fin de Fiesta',
+];
+
+function catDisplayName(cat) {
+  return cat
+    .replace(/^Recepción - /, '')
+    .replace(/^Primer Plato - /, '')
+    .replace(/^Plato Central - /, '');
+}
 
 function cocCatColor(cat) { return COCINA_CAT_COLORS[cat] || '#F5F5F5'; }
 
@@ -5111,25 +5147,32 @@ function switchCocinaTab(tabName) {
   $(`cocina-tab-${tabName}`)?.classList.remove('hidden');
   if (tabName === 'catalogo') renderCatalogoPanel();
   if (tabName === 'stock') renderStockDashboard();
+  if (tabName === 'compras') initEgresosCocina();
 }
 
 function renderStockDashboard() {
   const el = $('cocina-stock-dashboard');
   if (!el) return;
-  if (!cocinaStockActual.length) {
+  const items = cocinaStockActual.filter(i => !CATS_NO_STOCK_DISPLAY.has(i.categoria));
+  if (!items.length) {
     el.innerHTML = '<p class="empty-msg" style="padding:20px 0">Sin datos de stock.</p>';
     return;
   }
-  const byCategory = {}, catOrder = [];
-  cocinaStockActual.forEach(item => {
-    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+  const byCategory = {}, seenCats = new Set();
+  items.forEach(item => {
+    if (!byCategory[item.categoria]) byCategory[item.categoria] = [];
     byCategory[item.categoria].push(item);
+    seenCats.add(item.categoria);
   });
+  const catOrder = [
+    ...STOCK_CAT_ORDER.filter(c => seenCats.has(c)),
+    ...[...seenCats].filter(c => !STOCK_CAT_ORDER.includes(c)),
+  ];
   let html = '<div class="stock-dash-grid">';
   catOrder.forEach(cat => {
     const color = cocCatColor(cat);
     html += `<div class="stock-dash-section">
-      <div class="stock-dash-cat-header" style="background:${color}">${esc(cat)}</div>`;
+      <div class="stock-dash-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</div>`;
     byCategory[cat].forEach(item => {
       const level = item.cantidad === 0 ? 'sin-stock' : item.cantidad < 5 ? 'bajo' : 'ok';
       html += `<div class="stock-dash-item-row">
@@ -5338,23 +5381,74 @@ function renderItemsTableEditable(existingItems) {
   const tbody = $('cocina-items-tbody');
   if (!tbody) return;
 
-  const items = existingItems?.length
+  const baseItems = existingItems?.length
     ? existingItems.map(i => ({
         ...i,
         unidad: i.unidad || cocinaCatalogo.find(c => c.id === i.id)?.unidad || 'und',
       }))
     : cocinaCatalogo.map(c => ({ id: c.id, categoria: c.categoria, nombre: c.nombre, cantidad: '', observaciones: '', unidad: c.unidad || 'und' }));
 
-  const byCategory = {}, catOrder = [];
-  items.forEach(item => {
-    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+  // Inject totales placeholders for Sanguche de Miga if there are miga items
+  const hasMiga = baseItems.some(i => i.categoria === 'Sanguche de Miga - Blancos' || i.categoria === 'Sanguche de Miga - Negros');
+  const existingTotales = baseItems.filter(i => i.categoria === 'Sanguche de Miga - Totales');
+  const itemsWithTotales = hasMiga && !existingTotales.length
+    ? [
+        { id: '', categoria: 'Sanguche de Miga - Totales', nombre: 'Blancos', cantidad: '', observaciones: '', unidad: 'und' },
+        { id: '', categoria: 'Sanguche de Miga - Totales', nombre: 'Negros', cantidad: '', observaciones: '', unidad: 'und' },
+        ...baseItems,
+      ]
+    : baseItems;
+
+  const byCategory = {};
+  itemsWithTotales.forEach(item => {
+    if (!byCategory[item.categoria]) byCategory[item.categoria] = [];
     byCategory[item.categoria].push(item);
   });
+  const seenCats = new Set(Object.keys(byCategory));
+  const catOrder = [
+    ...PEDIDO_CAT_ORDER.filter(c => seenCats.has(c)),
+    ...[...seenCats].filter(c => !PEDIDO_CAT_ORDER.includes(c)),
+  ];
 
   let html = '', globalIdx = 0;
+  let migaSuperHeaderRendered = false;
+
   catOrder.forEach(cat => {
     const color = cocCatColor(cat);
-    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="5" class="cocina-cat-header-cell" style="background:${color}">${esc(cat)}</td></tr>`;
+    const isMiga = cat === 'Sanguche de Miga - Blancos' || cat === 'Sanguche de Miga - Negros' || cat === 'Sanguche de Miga - Totales';
+
+    if (isMiga && !migaSuperHeaderRendered) {
+      migaSuperHeaderRendered = true;
+      html += `<tr class="cocina-cat-header-row"><td colspan="5" class="cocina-cat-header-cell" style="background:#EFEBE9">🥪 Sanguche de Miga</td></tr>`;
+    }
+
+    if (cat === 'Sanguche de Miga - Totales') {
+      const totalesItems = byCategory[cat] || [];
+      const tB = totalesItems.find(t => t.nombre === 'Blancos');
+      const tN = totalesItems.find(t => t.nombre === 'Negros');
+      html += `<tr class="cocina-miga-totales-header-row"><td colspan="5" style="padding:4px 12px;font-size:0.82rem;color:#795548;font-weight:600;background:#EFEBE9">TOTALES</td></tr>`;
+      if (tB) {
+        html += `<tr data-idx="${globalIdx++}" data-id="" data-cat="Sanguche de Miga - Totales" data-nombre="Blancos" data-unidad="und" style="background:#FFFDE722">
+          <td style="padding-left:20px" class="cocina-item-nombre-cell">Blancos (total)</td>
+          <td>${_cantWrap(tB.cantidad||'', '1', 'cocina-cant-input', 'data-field="cantidad"')}</td>
+          <td class="cocina-unidad-cell">und</td>
+          <td><input class="cocina-obs-input" value="" placeholder="" data-field="observaciones"></td>
+          <td></td></tr>`;
+      }
+      if (tN) {
+        html += `<tr data-idx="${globalIdx++}" data-id="" data-cat="Sanguche de Miga - Totales" data-nombre="Negros" data-unidad="und" style="background:#D7CCC822">
+          <td style="padding-left:20px" class="cocina-item-nombre-cell">Negros (total)</td>
+          <td>${_cantWrap(tN.cantidad||'', '1', 'cocina-cant-input', 'data-field="cantidad"')}</td>
+          <td class="cocina-unidad-cell">und</td>
+          <td><input class="cocina-obs-input" value="" placeholder="" data-field="observaciones"></td>
+          <td></td></tr>`;
+      }
+      html += `<tr class="cocina-miga-totales-header-row"><td colspan="5" style="padding:4px 12px;font-size:0.82rem;color:#795548;font-weight:600;background:#EFEBE9">DESGLOSE</td></tr>`;
+      return;
+    }
+
+    const catLabel = isMiga ? (cat === 'Sanguche de Miga - Blancos' ? 'Blancos' : 'Negros') : catDisplayName(cat);
+    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="5" class="cocina-cat-header-cell" style="background:${color}">${esc(catLabel)}</td></tr>`;
     byCategory[cat].forEach(item => {
       const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
       html += `<tr data-idx="${globalIdx++}" data-id="${esc(item.id||'')}" data-cat="${esc(item.categoria)}" data-nombre="${esc(item.nombre)}" data-unidad="${esc(item.unidad||'und')}" style="background:${color}22">
