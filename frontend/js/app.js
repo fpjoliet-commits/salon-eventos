@@ -5908,10 +5908,10 @@ function buildPrintPedidoHTML(pedido) {
   });
   return `<div class="print-header"><h2>JOLIET — PEDIDO DE PRODUCCIÓN</h2>
     <p><strong>Evento:</strong> ${esc(pedido.nombreEvento||'—')}</p>
-    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Pedido:</strong> ${hoy} &nbsp;|&nbsp; <strong>Por:</strong> ${esc(pedido.creadoPor||'—')}</p></div>
+    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Generado:</strong> ${hoy}</p></div>
     <table class="print-table"><thead><tr><th>Ítem</th><th style="width:65px">Cant.</th><th style="width:50px">Unid.</th><th style="width:27%">Observaciones</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems con cantidad asignada</td></tr>'}</tbody></table>
-    <p class="print-footer">Impreso el ${hoy}</p>`;
+    <p class="print-footer">Completado por: _____________________ &nbsp;&nbsp;&nbsp; Fecha: ___/___/______</p>`;
 }
 
 function buildPrintRelevamientoHTML(pedido) {
@@ -5937,7 +5937,7 @@ function buildPrintRelevamientoHTML(pedido) {
   });
   return `<div class="print-header"><h2>JOLIET — CONTROL DE STOCK POST-EVENTO</h2>
     <p><strong>Evento:</strong> ${esc(pedido.nombreEvento||'—')}</p>
-    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Impresión:</strong> ${hoy} &nbsp;|&nbsp; <strong>Relevamiento:</strong> ___/___/______</p></div>
+    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Generado:</strong> ${hoy}</p></div>
     <table class="print-table"><thead><tr><th>Ítem</th><th style="width:90px">Preparado</th><th style="width:90px">Stock</th><th style="width:90px">Consumido</th><th style="width:70px">Firma</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody></table>
     <p class="print-footer">Realizado por: ______________________ &nbsp;&nbsp; Fecha: ___/___/______</p>`;
