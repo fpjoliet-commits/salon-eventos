@@ -5376,28 +5376,31 @@ function buildPrintRelevamientoHTML(pedido) {
     <p class="print-footer">Relevamiento de stock realizado por: ______________________ &nbsp;&nbsp;|&nbsp;&nbsp; Fecha: ___/___/______</p>`;
 }
 
+function abrirVentanaImpresion(htmlContent) {
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #000; margin: 0; padding: 20px; background: #fff; }
+  .print-header { margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #333; }
+  .print-header h2 { font-size: 14pt; margin: 0 0 6px 0; }
+  .print-header p { font-size: 9.5pt; margin: 2px 0; color: #333; }
+  .print-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  .print-table th { background: #e8e8e8; padding: 5px 8px; border: 1px solid #999; text-align: left; }
+  .print-table td { border: 1px solid #ccc; padding: 4px 8px; vertical-align: top; }
+  .print-footer { margin-top: 12px; font-size: 8.5pt; color: #555; border-top: 1px solid #ddd; padding-top: 6px; }
+  @page { size: A4 portrait; margin: 12mm 15mm; }
+  @media print { body { padding: 0; } }
+</style>
+</head><body>${htmlContent}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
+}
+
 function imprimirPedidoCocina(pedido) {
-  const printEl = $('cocina-print-pedido');
-  if (!printEl) return;
-  printEl.innerHTML = buildPrintPedidoHTML(pedido);
-  printEl.style.display = 'block';
-  $('cocina-print-relevamiento').style.display = 'none';
-  document.body.classList.add('printing-cocina');
-  window.print();
-  document.body.classList.remove('printing-cocina');
-  printEl.style.display = 'none';
+  abrirVentanaImpresion(buildPrintPedidoHTML(pedido));
 }
 
 function imprimirRelevamientoCocina(pedido) {
-  const printEl = $('cocina-print-relevamiento');
-  if (!printEl) return;
-  printEl.innerHTML = buildPrintRelevamientoHTML(pedido);
-  printEl.style.display = 'block';
-  $('cocina-print-pedido').style.display = 'none';
-  document.body.classList.add('printing-cocina');
-  window.print();
-  document.body.classList.remove('printing-cocina');
-  printEl.style.display = 'none';
+  abrirVentanaImpresion(buildPrintRelevamientoHTML(pedido));
 }
 
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
