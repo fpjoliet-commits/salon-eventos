@@ -1307,12 +1307,14 @@ async function updateCatalogoItem(rowIndex, data) {
     return;
   }
   const sheets = getSheets();
-  if (data.unidad !== undefined) {
-    await sheets.spreadsheets.values.update({
+  const updates = [];
+  if (data.nombre !== undefined) updates.push({ range: `CatalogoItems!C${rowIndex}`, values: [[data.nombre]] });
+  if (data.categoria !== undefined) updates.push({ range: `CatalogoItems!B${rowIndex}`, values: [[data.categoria]] });
+  if (data.unidad !== undefined) updates.push({ range: `CatalogoItems!E${rowIndex}`, values: [[data.unidad]] });
+  if (updates.length) {
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
-      range: `CatalogoItems!E${rowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values: [[data.unidad]] },
+      resource: { valueInputOption: 'USER_ENTERED', data: updates },
     });
   }
 }

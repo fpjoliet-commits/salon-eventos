@@ -6027,18 +6027,33 @@ function renderCatalogoPanel() {
   const panel = $('cocina-catalogo-panel');
   if (!panel) return;
   const cats = {};
+  const catNames = [];
   for (const item of cocinaCatalogo) {
-    if (!cats[item.categoria]) cats[item.categoria] = [];
+    if (!cats[item.categoria]) { cats[item.categoria] = []; catNames.push(item.categoria); }
     cats[item.categoria].push(item);
   }
+  const uniqueCats = [...new Set(catNames)];
   const UNITS = ['und', 'lt', 'kg', 'gr'];
-  let html = `<div class="cat-panel-header"><strong>Catálogo de ítems — Unidades</strong></div><div class="cat-panel-body">`;
+  const catOpts = uniqueCats.map(c => `<option value="${esc(c)}">${esc(catDisplayName(c))}</option>`).join('');
+
+  let html = `<div class="cat-nuevo-form">
+    <select id="cat-nuevo-cat" class="cat-nuevo-sel">${catOpts}<option value="__nueva">+ Nueva categoría…</option></select>
+    <input id="cat-nueva-cat-txt" class="cat-nuevo-txt hidden" placeholder="Nombre de categoría">
+    <input id="cat-nuevo-nombre" class="cat-nuevo-txt" placeholder="Nombre del ítem" style="flex:2">
+    <select id="cat-nuevo-unidad" class="cat-panel-unidad-sel">${UNITS.map(u => `<option>${u}</option>`).join('')}</select>
+    <button id="cat-nuevo-agregar-btn" class="btn btn-primary btn-sm">＋ Agregar</button>
+  </div>
+  <div class="cat-panel-body">`;
+
   for (const [cat, items] of Object.entries(cats)) {
     html += `<div class="cat-panel-group-header" style="background:${cocCatColor(cat)}">${catDisplayName(cat)}</div>`;
     for (const item of items) {
       const opts = UNITS.map(u => `<option value="${u}"${item.unidad === u ? ' selected' : ''}>${u}</option>`).join('');
       html += `<div class="cat-panel-row" data-row="${item.rowIndex}">
-        <span class="cat-panel-nombre">${item.nombre}</span>
+        <span class="cat-panel-nombre" data-row="${item.rowIndex}">${esc(item.nombre)}</span>
+        <input class="cat-panel-nombre-edit hidden" data-row="${item.rowIndex}" value="${esc(item.nombre)}">
+        <button class="cat-panel-edit-btn" data-row="${item.rowIndex}" title="Editar nombre">✏️</button>
+        <button class="cat-panel-save-btn hidden" data-row="${item.rowIndex}">✓</button>
         <select class="cat-panel-unidad-sel" data-row="${item.rowIndex}">${opts}</select>
         <span class="cat-panel-status" id="cat-status-${item.rowIndex}"></span>
         <button class="cat-panel-deact-btn" data-row="${item.rowIndex}" title="Desactivar ítem">✕</button>
@@ -6047,6 +6062,27 @@ function renderCatalogoPanel() {
   }
   html += '</div>';
   panel.innerHTML = html;
+
+  // Categoría "Nueva" toggle
+  document.getElementById('cat-nuevo-cat')?.addEventListener('change', e => {
+    document.getElementById('cat-nueva-cat-txt')?.classList.toggle('hidden', e.target.value !== '__nueva');
+  });
+
+  // Agregar ítem nuevo
+  document.getElementById('cat-nuevo-agregar-btn')?.addEventListener('click', async () => {
+    const sel = document.getElementById('cat-nuevo-cat');
+    const cat = sel?.value === '__nueva'
+      ? (document.getElementById('cat-nueva-cat-txt')?.value.trim() || '')
+      : (sel?.value || '');
+    const nombre = document.getElementById('cat-nuevo-nombre')?.value.trim() || '';
+    const unidad = document.getElementById('cat-nuevo-unidad')?.value || 'und';
+    if (!cat || !nombre) { alert('Completá categoría y nombre.'); return; }
+    try {
+      const nuevo = await apiFetch('/catalogo-items', { method: 'POST', body: { categoria: cat, nombre, unidad } });
+      cocinaCatalogo.push(nuevo);
+      renderCatalogoPanel();
+    } catch (e) { alert('Error al agregar: ' + e.message); }
+  });
 }
 
 document.addEventListener('change', async ev => {
@@ -6064,6 +6100,47 @@ document.addEventListener('change', async ev => {
   } catch (e) {
     if (statusEl) statusEl.textContent = '✗';
     alert('Error al guardar unidad: ' + e.message);
+  }
+});
+
+document.addEventListener('click', ev => {
+  const editBtn = ev.target.closest('.cat-panel-edit-btn');
+  if (editBtn) {
+    const row = editBtn.dataset.row;
+    document.querySelector(`.cat-panel-nombre[data-row="${row}"]`)?.classList.add('hidden');
+    const inp = document.querySelector(`.cat-panel-nombre-edit[data-row="${row}"]`);
+    inp?.classList.remove('hidden');
+    inp?.focus();
+    document.querySelector(`.cat-panel-save-btn[data-row="${row}"]`)?.classList.remove('hidden');
+    editBtn.classList.add('hidden');
+    return;
+  }
+});
+
+document.addEventListener('click', async ev => {
+  const saveBtn = ev.target.closest('.cat-panel-save-btn');
+  if (saveBtn) {
+    const row = parseInt(saveBtn.dataset.row);
+    const inp = document.querySelector(`.cat-panel-nombre-edit[data-row="${row}"]`);
+    const nombre = inp?.value.trim();
+    if (!nombre) return;
+    const statusEl = document.getElementById(`cat-status-${row}`);
+    if (statusEl) statusEl.textContent = '…';
+    try {
+      await apiFetch(`/catalogo-items/${row}`, { method: 'PUT', body: { nombre } });
+      const item = cocinaCatalogo.find(i => i.rowIndex === row);
+      if (item) item.nombre = nombre;
+      const span = document.querySelector(`.cat-panel-nombre[data-row="${row}"]`);
+      if (span) span.textContent = nombre;
+      span?.classList.remove('hidden');
+      inp?.classList.add('hidden');
+      saveBtn.classList.add('hidden');
+      document.querySelector(`.cat-panel-edit-btn[data-row="${row}"]`)?.classList.remove('hidden');
+      if (statusEl) { statusEl.textContent = '✓'; setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000); }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = '✗';
+    }
+    return;
   }
 });
 
@@ -6100,6 +6177,7 @@ $('cocina-imprimir-planilla-btn')?.addEventListener('click', imprimirPlanillaSto
 // Tab pedido
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
 $('cocina-toggle-stock-col-btn')?.addEventListener('click', toggleStockCol);
+$('cocina-descontar-stock-btn')?.addEventListener('click', descontarStockDelPedido);
 $('cocina-form-cancel-btn')?.addEventListener('click', () => {
   $('cocina-form-wrap')?.classList.add('hidden');
   $('cocina-agregar-panel')?.classList.add('hidden');

@@ -762,7 +762,7 @@
             <button id="cocina-nuevo-btn" class="btn btn-primary">+ Nuevo pedido</button>
           </div>
 
-          <div class="cocina-hint">💡 <strong>Flujo de uso:</strong> antes de cada evento creás un pedido con lo que se va a preparar → cocina lo usa para producir → después del evento abrís el pedido y cargás lo que sobró con el botón "Control de stock". Eso actualiza automáticamente el stock disponible.</div>
+          <div class="cocina-hint">💡 <strong>Flujo de uso:</strong> antes de cada evento creás un pedido con lo que se va a preparar → cocina lo usa para producir → después del evento abrís el pedido y cargás lo que sobró con el botón "CARGAR STOCK". Eso actualiza automáticamente el stock disponible.</div>
 
           <!-- Lista de pedidos guardados -->
           <div id="cocina-lista-container">
@@ -773,7 +773,7 @@
 
           <!-- Formulario: Crear / Editar pedido -->
           <div id="cocina-form-wrap" class="cocina-panel hidden">
-            <div class="cocina-hint cocina-hint-sm">💡 Completá las cantidades de cada ítem. Podés dejar en 0 los que no se usan en este evento. Al guardar, el pedido queda registrado. Usá "📦 Descontar stock" para restar estas cantidades del stock disponible.</div>
+            <div class="cocina-hint cocina-hint-sm">💡 Completá las cantidades. Usá "📦 Descontar stock" para restar del stock disponible lo que ya está preparado — así sabés qué falta producir.</div>
             <div class="cocina-panel-header">
               <h3 id="cocina-form-titulo">Nuevo pedido</h3>
               <button id="cocina-form-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
@@ -812,7 +812,8 @@
             <div id="cocina-agregar-panel" class="cocina-agregar-panel hidden"></div>
             <div class="cocina-panel-footer">
               <button id="cocina-agregar-item-btn" class="btn btn-secondary">＋ Agregar ítem</button>
-              <button id="cocina-toggle-stock-col-btn" class="btn btn-secondary btn-sm" type="button">👁 Ver stock disponible</button>
+              <button id="cocina-toggle-stock-col-btn" class="btn btn-secondary btn-sm" type="button">👁 Stock</button>
+              <button id="cocina-descontar-stock-btn" class="btn btn-secondary btn-sm" type="button">📦 Descontar stock</button>
               <div style="flex:1"></div>
               <button id="cocina-guardar-btn" class="btn btn-primary">Guardar pedido</button>
             </div>

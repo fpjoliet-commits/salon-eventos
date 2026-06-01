@@ -3812,9 +3812,13 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-top: 10px;
+  padding: 10px 0 4px;
   border-top: 1px solid var(--border);
   flex-wrap: wrap;
+  position: sticky;
+  bottom: 0;
+  background: var(--surface, #fff);
+  z-index: 8;
 }
 
 /* Panel catálogo de ítems */
@@ -3855,6 +3859,37 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   border-bottom: 1px solid #f0f0f0;
 }
 .cat-panel-row:last-child { border-bottom: none; }
+
+/* Formulario de nuevo ítem */
+.cat-nuevo-form {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px; background: #f7f7f7;
+  border-bottom: 2px solid var(--border);
+}
+.cat-nuevo-sel {
+  font-size: 13px; padding: 4px 8px; border: 1px solid #ccc;
+  border-radius: 4px; flex: 1; min-width: 120px;
+}
+.cat-nuevo-txt {
+  font-size: 13px; padding: 4px 8px; border: 1px solid #ccc;
+  border-radius: 4px; flex: 1; min-width: 120px;
+}
+
+/* Edición inline de nombre */
+.cat-panel-nombre-edit {
+  font-size: 13px; padding: 2px 6px; border: 1px solid var(--gold);
+  border-radius: 4px; flex: 1; min-width: 80px;
+}
+.cat-panel-edit-btn {
+  background: none; border: none; cursor: pointer; color: #bbb;
+  font-size: 13px; padding: 2px 4px; border-radius: 4px; flex-shrink: 0;
+}
+.cat-panel-edit-btn:hover { color: var(--gold); }
+.cat-panel-save-btn {
+  background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32;
+  font-size: 13px; cursor: pointer; padding: 2px 8px; border-radius: 4px; flex-shrink: 0;
+}
+
 .cat-panel-deact-btn {
   background: none; border: none; color: #bbb; font-size: 14px; cursor: pointer;
   padding: 2px 4px; border-radius: 4px; line-height: 1; flex-shrink: 0;
