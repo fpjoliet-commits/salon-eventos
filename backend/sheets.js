@@ -1032,13 +1032,22 @@ function detectarUnidad(categoria, nombre) {
 
 // Items a desactivar en sheets existentes (nombres viejos o eliminados)
 const ITEMS_DEACTIVATE = new Set([
-  // Plato central - nombres viejos con "salsa: ___"
+  // Plato Central - Ave: nombres viejos (varias variantes de guiones bajos) — se cubren por patrón en sincronizarCatalogoConInicial
   'Plato Central - Ave||Pechuga tradición — relleno: ________ / salsa: ________',
   'Plato Central - Ave||Pechuga caprese — relleno: tomate / albahaca / mozzarella / salsa: ________',
   'Plato Central - Ave||Pechuga doble puerro — relleno: puerro / salsa: crema de puerro',
+  // Plato Central - Ave: nombres intermedios con "·" — reemplazados por nombres limpios
+  'Plato Central - Ave||Pechuga tradición · JyQ y mozzarella',
+  'Plato Central - Ave||Pechuga caprese · mozzarella, tomate y albahaca',
+  'Plato Central - Ave||Pechuga doble puerro · puerros, crema de almendras',
+  // Plato Central - Carne: nombres viejos con "— salsa:" — cubiertos también por patrón
   'Plato Central - Carne||Lomo Reserva — salsa: ________',
   'Plato Central - Carne||Bife del bosque — salsa: hongos del bosque',
   'Plato Central - Carne||Lomo Dijon — salsa: mostaza Dijon',
+  // Plato Central - Carne: nombres intermedios con "·" — reemplazados por nombres limpios
+  'Plato Central - Carne||Lomo Reserva · reducción de Malbec',
+  'Plato Central - Carne||Bife del bosque · hongos de pino',
+  'Plato Central - Carne||Lomo Dijon · crema de mostaza',
   // Islas externas
   'Islas||Mesa de fiambres', 'Islas||Sushi',
   // Gourmet — se fusionan con las categorías base
@@ -1061,6 +1070,13 @@ const ITEMS_DEACTIVATE = new Set([
   'Cafetería / Fin de Fiesta||Mate con bizcochitos',
   'Recepción - Fríos||Sanguche de Miga',
 ]);
+
+// Patrones para desactivar por substring (captura variantes con distinto número de guiones bajos, etc.)
+const ITEMS_DEACTIVATE_PATTERNS = [
+  ['Plato Central - Ave', 'relleno:'],
+  ['Plato Central - Ave', ' · '],
+  ['Plato Central - Carne', '— salsa:'],
+];
 
 // Categorías que NO van a StockActual (no persisten semana a semana)
 const CATEGORIAS_SIN_STOCK = new Set([
@@ -1149,14 +1165,14 @@ const CATALOGO_INICIAL = [
   { categoria: 'Primer Plato - Salsas', nombre: 'Salsa blanca', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Portobellos y ciboulette', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Queso azul y nuez', unidad: 'lt' },
-  // Plato Central - Ave (con descripción de relleno)
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición · JyQ y mozzarella', unidad: 'und' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese · mozzarella, tomate y albahaca', unidad: 'und' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro · puerros, crema de almendras', unidad: 'und' },
-  // Plato Central - Carne (con descripción)
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva · reducción de Malbec', unidad: 'und' },
-  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque · hongos de pino', unidad: 'und' },
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon · crema de mostaza', unidad: 'und' },
+  // Plato Central - Ave
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición', unidad: 'und' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese', unidad: 'und' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro', unidad: 'und' },
+  // Plato Central - Carne
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva', unidad: 'und' },
+  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque', unidad: 'und' },
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon', unidad: 'und' },
   // Plato Central - Salsas (aparece junto al plato central)
   { categoria: 'Plato Central - Salsas', nombre: 'Salsa del plato', unidad: 'lt' },
   // Guarnición plato central (antes "Plato Central - Guarniciones")
@@ -1357,9 +1373,13 @@ async function actualizarStockActual(actualizaciones) {
 }
 
 async function sincronizarCatalogoConInicial() {
+  const shouldDeactivateItem = (cat, nombre) =>
+    ITEMS_DEACTIVATE.has(`${cat}||${nombre}`) ||
+    ITEMS_DEACTIVATE_PATTERNS.some(([c, pat]) => c === cat && nombre.includes(pat));
+
   if (!tieneCredenciales) {
     memCatalogoItems.forEach(item => {
-      if (ITEMS_DEACTIVATE.has(`${item.categoria}||${item.nombre}`)) item.activo = false;
+      if (shouldDeactivateItem(item.categoria, item.nombre)) item.activo = false;
     });
     const existingKeys = new Set(memCatalogoItems.map(i => `${i.categoria}||${i.nombre}`));
     const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`));
@@ -1372,10 +1392,10 @@ async function sincronizarCatalogoConInicial() {
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:E' });
   const rows = res.data.values || [];
 
-  // Desactivar ítems obsoletos
+  // Desactivar ítems obsoletos (exact match o patrón substring)
   const toDeactivate = rows
     .map((r, i) => ({ r, rowIndex: i + 2 }))
-    .filter(({ r }) => r[0] && r[3] !== 'false' && ITEMS_DEACTIVATE.has(`${r[1]}||${r[2]}`));
+    .filter(({ r }) => r[0] && r[3] !== 'false' && shouldDeactivateItem(r[1], r[2]));
   if (toDeactivate.length) {
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,

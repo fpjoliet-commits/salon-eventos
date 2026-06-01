@@ -5301,7 +5301,7 @@ function renderPedidosList() {
     btn.addEventListener('click', () => {
       const p = cocinaPedidos.find(x => x.rowIndex === parseInt(btn.dataset.row));
       if (p) imprimirPedidoCocina(p);
-    });
+    }, { once: false });
   });
   listEl.querySelectorAll('.cocina-btn-sobrante').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -5419,19 +5419,20 @@ function renderItemsTableEditable(existingItems) {
 
     if (isMiga && !migaSuperHeaderRendered) {
       migaSuperHeaderRendered = true;
-      html += `<tr class="cocina-cat-header-row"><td colspan="5" class="cocina-cat-header-cell" style="background:#EFEBE9">🥪 Sanguche de Miga</td></tr>`;
+      html += `<tr class="cocina-cat-header-row"><td colspan="6" class="cocina-cat-header-cell" style="background:#EFEBE9">🥪 Sanguche de Miga</td></tr>`;
     }
 
     if (cat === 'Sanguche de Miga - Totales') {
       const totalesItems = byCategory[cat] || [];
       const tB = totalesItems.find(t => t.nombre === 'Blancos');
       const tN = totalesItems.find(t => t.nombre === 'Negros');
-      html += `<tr class="cocina-miga-totales-header-row"><td colspan="5" style="padding:4px 12px;font-size:0.82rem;color:#795548;font-weight:600;background:#EFEBE9">TOTALES</td></tr>`;
+      html += `<tr class="cocina-miga-totales-header-row"><td colspan="6" style="padding:4px 12px;font-size:0.82rem;color:#795548;font-weight:600;background:#EFEBE9">TOTALES</td></tr>`;
       if (tB) {
         html += `<tr data-idx="${globalIdx++}" data-id="" data-cat="Sanguche de Miga - Totales" data-nombre="Blancos" data-unidad="und" style="background:#FFFDE722">
           <td style="padding-left:20px" class="cocina-item-nombre-cell">Blancos (total)</td>
           <td>${_cantWrap(tB.cantidad||'', '1', 'cocina-cant-input', 'data-field="cantidad"')}</td>
           <td class="cocina-unidad-cell">und</td>
+          <td class="cocina-stock-col"></td>
           <td><input class="cocina-obs-input" value="" placeholder="" data-field="observaciones"></td>
           <td></td></tr>`;
       }
@@ -5440,21 +5441,25 @@ function renderItemsTableEditable(existingItems) {
           <td style="padding-left:20px" class="cocina-item-nombre-cell">Negros (total)</td>
           <td>${_cantWrap(tN.cantidad||'', '1', 'cocina-cant-input', 'data-field="cantidad"')}</td>
           <td class="cocina-unidad-cell">und</td>
+          <td class="cocina-stock-col"></td>
           <td><input class="cocina-obs-input" value="" placeholder="" data-field="observaciones"></td>
           <td></td></tr>`;
       }
-      html += `<tr class="cocina-miga-totales-header-row"><td colspan="5" style="padding:4px 12px;font-size:0.82rem;color:#795548;font-weight:600;background:#EFEBE9">DESGLOSE</td></tr>`;
+      html += `<tr class="cocina-miga-totales-header-row"><td colspan="6" style="padding:4px 12px;font-size:0.82rem;color:#795548;font-weight:600;background:#EFEBE9">DESGLOSE</td></tr>`;
       return;
     }
 
     const catLabel = isMiga ? (cat === 'Sanguche de Miga - Blancos' ? 'Blancos' : 'Negros') : catDisplayName(cat);
-    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="5" class="cocina-cat-header-cell" style="background:${color}">${esc(catLabel)}</td></tr>`;
+    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" style="background:${color}">${esc(catLabel)}</td></tr>`;
     byCategory[cat].forEach(item => {
       const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
+      const stockCant = cocinaStockActual.find(s => s.id === item.id)?.cantidad;
+      const stockDisplay = (stockCant != null && stockCant > 0) ? `${stockCant} ${esc(item.unidad||'und')}` : '—';
       html += `<tr data-idx="${globalIdx++}" data-id="${esc(item.id||'')}" data-cat="${esc(item.categoria)}" data-nombre="${esc(item.nombre)}" data-unidad="${esc(item.unidad||'und')}" style="background:${color}22">
         <td style="padding-left:16px" class="cocina-item-nombre-cell">${esc(item.nombre)}</td>
         <td>${_cantWrap(item.cantidad||'', step, 'cocina-cant-input', 'data-field="cantidad"')}</td>
         <td class="cocina-unidad-cell">${esc(item.unidad||'und')}</td>
+        <td class="cocina-stock-col cocina-stock-val">${stockDisplay}</td>
         <td><input class="cocina-obs-input" value="${esc(item.observaciones||'')}" placeholder="Obs." data-field="observaciones"></td>
         <td><button type="button" class="btn-icon cocina-remove-row" title="Quitar">✕</button></td>
       </tr>`;
@@ -5630,10 +5635,13 @@ function _agregarItemEnTabla(id, categoria, nombre, unidad) {
   newTr.setAttribute('data-nombre', nombre);
   newTr.setAttribute('data-unidad', unidad);
   newTr.style.background = `${color}22`;
+  const stockCantNew = cocinaStockActual.find(s => s.id === id)?.cantidad;
+  const stockDisplayNew = (stockCantNew != null && stockCantNew > 0) ? `${stockCantNew} ${esc(unidad||'und')}` : '—';
   newTr.innerHTML = `
     <td style="padding-left:16px" class="cocina-item-nombre-cell">${esc(nombre)}</td>
     <td>${_cantWrap('', step, 'cocina-cant-input', 'data-field="cantidad"')}</td>
     <td class="cocina-unidad-cell">${esc(unidad)}</td>
+    <td class="cocina-stock-col cocina-stock-val">${stockDisplayNew}</td>
     <td><input class="cocina-obs-input" value="" placeholder="Obs." data-field="observaciones"></td>
     <td><button type="button" class="btn-icon cocina-remove-row" title="Quitar">✕</button></td>`;
   _wirePMButtons(newTr);
@@ -5650,7 +5658,7 @@ function _agregarItemEnTabla(id, categoria, nombre, unidad) {
     const newHeader = document.createElement('tr');
     newHeader.classList.add('cocina-cat-header-row');
     newHeader.setAttribute('data-cat', categoria);
-    newHeader.innerHTML = `<td colspan="5" class="cocina-cat-header-cell" style="background:${color}">${esc(categoria)}</td>`;
+    newHeader.innerHTML = `<td colspan="6" class="cocina-cat-header-cell" style="background:${color}">${esc(categoria)}</td>`;
     tbody.appendChild(newHeader);
     tbody.appendChild(newTr);
   }
@@ -5911,12 +5919,60 @@ function abrirVentanaImpresion(htmlContent) {
   .print-footer{margin-top:12px;font-size:8.5pt;color:#555;border-top:1px solid #ddd;padding-top:6px}
   @page{size:A4 portrait;margin:12mm 15mm}
   @media print{body{padding:0}}
-  </style></head><body>${htmlContent}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  </style></head><body>${htmlContent}<script>setTimeout(function(){window.print();},300);<\/script></body></html>`);
   win.document.close();
 }
 
-function imprimirPedidoCocina(pedido) { abrirVentanaImpresion(buildPrintPedidoHTML(pedido)); }
+function imprimirPedidoCocina(pedido) {
+  document.getElementById('cocina-print-confirm')?.remove();
+  const tieneStock = pedido.items.some(i => {
+    const s = cocinaStockActual.find(x => x.id === i.id);
+    return s && s.cantidad > 0 && i.cantidad > 0;
+  });
+  if (!tieneStock) { abrirVentanaImpresion(buildPrintPedidoHTML(pedido)); return; }
+
+  const modal = document.createElement('div');
+  modal.id = 'cocina-print-confirm';
+  modal.className = 'cocina-print-confirm-overlay';
+  modal.innerHTML = `
+    <div class="cocina-print-confirm-box">
+      <p>¿Ajustar cantidades por stock disponible?</p>
+      <small>Hay ítems con stock disponible. Si ajustás, en la hoja impresa se muestra solo lo que falta preparar (total pedido − stock en mano).</small>
+      <div class="cocina-print-confirm-btns">
+        <button id="cpg-si" class="btn btn-primary">✅ Ajustar y imprimir</button>
+        <button id="cpg-no" class="btn btn-secondary">🖨️ Imprimir cantidades originales</button>
+        <button id="cpg-cancel" class="btn btn-secondary" style="color:#888">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  document.getElementById('cpg-si').addEventListener('click', () => {
+    modal.remove();
+    const adjustedItems = pedido.items.map(i => {
+      const s = cocinaStockActual.find(x => x.id === i.id);
+      if (s && s.cantidad > 0 && i.cantidad > 0)
+        return { ...i, cantidad: Math.max(0, i.cantidad - s.cantidad) };
+      return i;
+    });
+    abrirVentanaImpresion(buildPrintPedidoHTML({ ...pedido, items: adjustedItems }));
+  });
+  document.getElementById('cpg-no').addEventListener('click', () => {
+    modal.remove();
+    abrirVentanaImpresion(buildPrintPedidoHTML(pedido));
+  });
+  document.getElementById('cpg-cancel').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
 function imprimirRelevamientoCocina(pedido) { abrirVentanaImpresion(buildPrintRelevamientoHTML(pedido)); }
+
+function toggleStockCol() {
+  const wrap = $('cocina-form-wrap');
+  const btn = $('cocina-toggle-stock-col-btn');
+  if (!wrap) return;
+  const on = wrap.classList.toggle('stock-col-visible');
+  if (btn) btn.textContent = on ? '👁 Ocultar stock' : '👁 Ver stock disponible';
+}
 
 function toggleCatalogoPanel() {
   const panel = $('cocina-catalogo-panel');
@@ -5985,7 +6041,7 @@ $('cocina-imprimir-planilla-btn')?.addEventListener('click', imprimirPlanillaSto
 
 // Tab pedido
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
-$('cocina-descontar-stock-btn')?.addEventListener('click', descontarStockDelPedido);
+$('cocina-toggle-stock-col-btn')?.addEventListener('click', toggleStockCol);
 $('cocina-form-cancel-btn')?.addEventListener('click', () => {
   $('cocina-form-wrap')?.classList.add('hidden');
   $('cocina-agregar-panel')?.classList.add('hidden');

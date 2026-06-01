@@ -3533,6 +3533,36 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .cocina-tab-pane { /* shown/hidden via .hidden */ }
 
+/* ─── Stock column toggle en form pedido ─── */
+.cocina-stock-col { display: none; }
+#cocina-form-wrap.stock-col-visible .cocina-stock-col { display: table-cell; }
+.cocina-stock-val {
+  color: #a07848;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+/* ─── Modal confirmación antes de imprimir ─── */
+.cocina-print-confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.38);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000;
+}
+.cocina-print-confirm-box {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px 28px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+}
+.cocina-print-confirm-box p { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+.cocina-print-confirm-box small { color: var(--text-secondary); font-size: 13px; display: block; margin-bottom: 18px; line-height: 1.5; }
+.cocina-print-confirm-btns { display: flex; flex-direction: column; gap: 9px; }
+
 /* ─── Hints / lamparitas ─── */
 .cocina-hint {
   background: #fffbeb;
