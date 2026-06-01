@@ -5059,6 +5059,8 @@ const COCINA_CAT_COLORS = {
   'Recepción - Canapés':           '#FFF3E0',
   'Recepción - Bruschettas':       '#FFF8E1',
   'Recepción - Fríos':             '#E3F2FD',
+  'Sanguche de Miga - Blancos':    '#FFFDE7',
+  'Sanguche de Miga - Negros':     '#D7CCC8',
   'Recepción - Brochettes':        '#FCE4EC',
   'Recepción - Empanaditas':       '#E8F5E9',
   'Recepción - Calientes':         '#FBE9E7',

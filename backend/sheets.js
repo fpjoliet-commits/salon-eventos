@@ -1043,8 +1043,29 @@ const CATALOGO_INICIAL = [
   { categoria: 'Recepción - Bruschettas', nombre: 'Delicia Ibérica', unidad: 'und' },
   { categoria: 'Recepción - Bruschettas', nombre: 'BBQ', unidad: 'und' },
   // Recepción - Fríos
-  { categoria: 'Recepción - Fríos', nombre: 'Variedad de triples de miga', unidad: 'und' },
   { categoria: 'Recepción - Fríos', nombre: 'Arrollados', unidad: 'und' },
+  // Sanguche de Miga - Blancos
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'CyQ', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'CyR', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'JyT', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'JyQ', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'Atún', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'JyM', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'JyH', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'JyP', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'Caprese', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Blancos', nombre: 'HyQ', unidad: 'und' },
+  // Sanguche de Miga - Negros
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'CyQ', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'CyR', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'JyT', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'JyQ', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'Atún', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'JyM', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'JyH', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'JyP', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'Caprese', unidad: 'und' },
+  { categoria: 'Sanguche de Miga - Negros', nombre: 'HyQ', unidad: 'und' },
   // Recepción - Brochettes
   { categoria: 'Recepción - Brochettes', nombre: 'Criolla de carne', unidad: 'und' },
   { categoria: 'Recepción - Brochettes', nombre: 'Italiana', unidad: 'und' },
@@ -1237,6 +1258,35 @@ async function actualizarStockActual(actualizaciones) {
       spreadsheetId: SPREADSHEET_ID,
       resource: { valueInputOption: 'USER_ENTERED', data: updates },
     });
+  }
+}
+
+async function sincronizarCatalogoConInicial() {
+  if (!tieneCredenciales) {
+    const existingKeys = new Set(memCatalogoItems.map(i => `${i.categoria}||${i.nombre}`));
+    const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`));
+    faltantes.forEach(item => {
+      memCatalogoItems.push({ ...item, id: generateId('CAT'), activo: true, rowIndex: memCatalogoItems.length + 2 });
+    });
+    return;
+  }
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'CatalogoItems!A2:E',
+  });
+  const rows = res.data.values || [];
+  const existingKeys = new Set(rows.filter(r => r[0]).map(r => `${r[1]}||${r[2]}`));
+  const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`));
+  if (faltantes.length) {
+    const newRows = faltantes.map(item => catalogoItemToRow({ ...item, id: generateId('CAT'), activo: true }));
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'CatalogoItems!A:E',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: newRows },
+    });
+    console.log(`✅ CatalogoItems: ${faltantes.length} ítems nuevos desde catálogo inicial.`);
   }
 }
 
@@ -1500,6 +1550,9 @@ async function initSheets() {
       console.log(`✅ CatalogoItems pre-poblado con ${rows.length} ítems.`);
     }
 
+    // Agregar ítems nuevos del catálogo inicial (no borra nada existente)
+    await sincronizarCatalogoConInicial();
+
     // Sincronizar StockActual con el catálogo (agrega ítems faltantes, stock=0)
     await sincronizarStockConCatalogo();
     console.log('✅ StockActual sincronizado con catálogo.');
@@ -1540,7 +1593,7 @@ module.exports = {
   getEgresos, addEgreso, updateEgreso,
   getCatalogoItems, addCatalogoItem, deleteCatalogoItem,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
-  getStockActual, actualizarStockActual, sincronizarStockConCatalogo,
+  getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,
