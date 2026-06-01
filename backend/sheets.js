@@ -32,6 +32,8 @@ let memCuotas = [];
 let memTimming = [];
 let memEmpleados = [];
 let memEgresos = [];
+let memCatalogoItems = [];
+let memPedidosCocina = [];
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -1018,6 +1020,244 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   }
 }
 
+/* ===================== CATÁLOGO ITEMS COCINA ===================== */
+// Columnas A-D: id, categoria, nombre, activo
+
+const CATALOGO_INICIAL = [
+  // Recepción - Canapés
+  { categoria: 'Recepción - Canapés', nombre: 'Bocado mediterráneo' },
+  { categoria: 'Recepción - Canapés', nombre: 'Jamón Imperial' },
+  { categoria: 'Recepción - Canapés', nombre: 'Palma Serrana' },
+  { categoria: 'Recepción - Canapés', nombre: 'Azul y Nuez' },
+  { categoria: 'Recepción - Canapés', nombre: 'Bosque y Queso' },
+  // Recepción - Bruschettas
+  { categoria: 'Recepción - Bruschettas', nombre: 'Braseada suave' },
+  { categoria: 'Recepción - Bruschettas', nombre: 'Campo verde' },
+  { categoria: 'Recepción - Bruschettas', nombre: 'Delicia Ibérica' },
+  { categoria: 'Recepción - Bruschettas', nombre: 'BBQ' },
+  // Recepción - Fríos
+  { categoria: 'Recepción - Fríos', nombre: 'Variedad de triples de miga' },
+  { categoria: 'Recepción - Fríos', nombre: 'Arrollados' },
+  // Recepción - Brochettes
+  { categoria: 'Recepción - Brochettes', nombre: 'Criolla de carne' },
+  { categoria: 'Recepción - Brochettes', nombre: 'Italiana' },
+  { categoria: 'Recepción - Brochettes', nombre: 'Criolla de pollo' },
+  // Recepción - Empanaditas
+  { categoria: 'Recepción - Empanaditas', nombre: 'Fatay de carne' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Soles de calabaza y semillas grilladas' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Canastitas de batata y almendra' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Jamón y queso' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Cebolla y queso' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Paquetitos de boniato y amapola' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Pollo' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Fingers de zanahoria' },
+  // Recepción - Calientes
+  { categoria: 'Recepción - Calientes', nombre: 'Daditos de mozzarella' },
+  { categoria: 'Recepción - Calientes', nombre: 'Mini hamburguesas caseras' },
+  { categoria: 'Recepción - Calientes', nombre: 'Pollo frito (Buffalo wings)' },
+  { categoria: 'Recepción - Calientes', nombre: 'Croquetitas de papa' },
+  // Islas
+  { categoria: 'Islas', nombre: 'Mesa de fiambres' },
+  { categoria: 'Islas', nombre: 'Sushi' },
+  { categoria: 'Islas', nombre: 'Tacos - Relleno de carne' },
+  { categoria: 'Islas', nombre: 'Tacos - Relleno de pollo' },
+  { categoria: 'Islas', nombre: 'Tacos - Guacamole' },
+  // Primer Plato - Pastas
+  { categoria: 'Primer Plato - Pastas', nombre: 'Tagliatelle' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Sorrentinos de jamón y queso' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Canelones de verdura y ricota' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Raviolones de espinaca y parmesano' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Agnolotis de pollo' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Ñoquis de papa' },
+  // Primer Plato - Pastas Gourmet
+  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de trucha y almendras' },
+  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Fagotinnis de cordero y romero' },
+  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de salmón y philadelphia' },
+  // Primer Plato - Salsas
+  { categoria: 'Primer Plato - Salsas', nombre: 'Filetto' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Bolognesa' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Rosé' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Cuatro quesos' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Crema de espinaca' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Italiana' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Salsa blanca' },
+  // Primer Plato - Salsas Gourmet
+  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Portobellos y ciboulette' },
+  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Queso azul y nuez' },
+  // Plato Central - Ave
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición — relleno: ________ / salsa: ________' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese — relleno: tomate / albahaca / mozzarella / salsa: ________' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro — relleno: puerro / salsa: crema de puerro' },
+  // Plato Central - Carne
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva — salsa: ________' },
+  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque — salsa: hongos del bosque' },
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon — salsa: mostaza Dijon' },
+  // Plato Central - Guarniciones
+  { categoria: 'Plato Central - Guarniciones', nombre: 'Rosti de papa' },
+  { categoria: 'Plato Central - Guarniciones', nombre: 'Papas a la suiza gratinadas' },
+  { categoria: 'Plato Central - Guarniciones', nombre: 'Milhojas de papa' },
+  // Mesa de Dulces
+  { categoria: 'Mesa de Dulces', nombre: 'Lemon pie' },
+  { categoria: 'Mesa de Dulces', nombre: 'Cheese cake' },
+  { categoria: 'Mesa de Dulces', nombre: 'Chocotorta' },
+  { categoria: 'Mesa de Dulces', nombre: 'Torta África' },
+  { categoria: 'Mesa de Dulces', nombre: 'Tarta de frutillas' },
+  { categoria: 'Mesa de Dulces', nombre: 'Flan' },
+  { categoria: 'Mesa de Dulces', nombre: 'Mil Hojas' },
+  { categoria: 'Mesa de Dulces', nombre: 'Brownies relleno' },
+  { categoria: 'Mesa de Dulces', nombre: 'Copas Heladas' },
+  { categoria: 'Mesa de Dulces', nombre: 'Panqueques' },
+  { categoria: 'Mesa de Dulces', nombre: 'Torta Homenaje' },
+  { categoria: 'Mesa de Dulces', nombre: 'Presentaciones Individuales' },
+  // Cafetería / Fin de Fiesta
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Café con leche y mini facturas' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Pizza con cerveza' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Mate con bizcochitos' },
+];
+
+function rowToCatalogoItem(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    categoria: row[1] || '',
+    nombre: row[2] || '',
+    activo: row[3] !== 'false',
+  };
+}
+
+function catalogoItemToRow(item) {
+  return [item.id, item.categoria, item.nombre, item.activo !== false ? 'true' : 'false'];
+}
+
+async function getCatalogoItems() {
+  if (!tieneCredenciales) return memCatalogoItems.filter(i => i.id && i.activo !== false);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'CatalogoItems!A2:D',
+  });
+  return (res.data.values || []).map((row, i) => rowToCatalogoItem(row, i)).filter(i => i.id && i.activo !== false);
+}
+
+async function addCatalogoItem(data) {
+  const id = generateId('CAT');
+  const item = { ...data, id, activo: true };
+  if (!tieneCredenciales) {
+    item.rowIndex = memCatalogoItems.length + 2;
+    memCatalogoItems.push(item);
+    return item;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'CatalogoItems!A:D',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [catalogoItemToRow(item)] },
+  });
+  return item;
+}
+
+async function deleteCatalogoItem(rowIndex) {
+  if (!tieneCredenciales) {
+    const idx = memCatalogoItems.findIndex(i => i.rowIndex === rowIndex);
+    if (idx !== -1) memCatalogoItems[idx].activo = false;
+    return;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `CatalogoItems!D${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [['false']] },
+  });
+}
+
+/* ===================== PEDIDOS COCINA ===================== */
+// Columnas A-H: id, idCliente, nombreEvento, fecha, itemsJSON, estado, creadoPor, fechaCarga
+
+function rowToPedidoCocina(row, index) {
+  let items = [];
+  try { items = JSON.parse(row[4] || '[]'); } catch {}
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    idCliente: row[1] || '',
+    nombreEvento: row[2] || '',
+    fecha: row[3] || '',
+    items,
+    estado: row[5] || 'preparacion',
+    creadoPor: row[6] || '',
+    fechaCarga: row[7] || '',
+  };
+}
+
+function pedidoCocinaToRow(p) {
+  return [
+    p.id, p.idCliente || '', p.nombreEvento || '', p.fecha || '',
+    JSON.stringify(p.items || []), p.estado || 'preparacion',
+    p.creadoPor || '', p.fechaCarga || '',
+  ].map(v => String(v || ''));
+}
+
+async function getPedidosCocina() {
+  if (!tieneCredenciales) return memPedidosCocina.filter(p => p.id);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'PedidosCocina!A2:H',
+  });
+  return (res.data.values || []).map((row, i) => rowToPedidoCocina(row, i)).filter(p => p.id);
+}
+
+async function addPedidoCocina(data) {
+  const id = generateId('PED');
+  const now = new Date().toLocaleDateString('es-AR');
+  const pedido = { ...data, id, estado: 'preparacion', fechaCarga: now };
+  if (!tieneCredenciales) {
+    pedido.rowIndex = memPedidosCocina.length + 2;
+    memPedidosCocina.push(pedido);
+    return pedido;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'PedidosCocina!A:H',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [pedidoCocinaToRow(pedido)] },
+  });
+  return pedido;
+}
+
+async function updatePedidoCocina(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memPedidosCocina.findIndex(p => p.rowIndex === rowIndex);
+    if (idx !== -1) memPedidosCocina[idx] = { ...memPedidosCocina[idx], ...data, rowIndex };
+    return { ...data, rowIndex };
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `PedidosCocina!A${rowIndex}:H${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [pedidoCocinaToRow({ ...data, rowIndex })] },
+  });
+  return { ...data, rowIndex };
+}
+
+async function deletePedidoCocina(rowIndex) {
+  if (!tieneCredenciales) {
+    memPedidosCocina = memPedidosCocina.filter(p => p.rowIndex !== rowIndex);
+    return;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `PedidosCocina!A${rowIndex}:H${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [['', '', '', '', '', '', '', '']] },
+  });
+}
+
 /* ===================== MIGRACIÓN Clientes → Personas+Eventos ===================== */
 async function migrarClientesAPersonasEventos() {
   if (!tieneCredenciales) throw new Error('Solo se puede migrar con credenciales de Google.');
@@ -1100,6 +1340,8 @@ async function initSheets() {
     if (!existing.includes('Papelera')) toCreate.push('Papelera');
     if (!existing.includes('Empleados')) toCreate.push('Empleados');
     if (!existing.includes('Egresos')) toCreate.push('Egresos');
+    if (!existing.includes('CatalogoItems')) toCreate.push('CatalogoItems');
+    if (!existing.includes('PedidosCocina')) toCreate.push('PedidosCocina');
 
     if (toCreate.length) {
       await sheets.spreadsheets.batchUpdate({
@@ -1130,6 +1372,12 @@ async function initSheets() {
     if (!existing.includes('Egresos')) {
       headers.push({ range: 'Egresos!A1:L1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor']] });
     }
+    if (!existing.includes('CatalogoItems')) {
+      headers.push({ range: 'CatalogoItems!A1:D1', values: [['id','categoria','nombre','activo']] });
+    }
+    if (!existing.includes('PedidosCocina')) {
+      headers.push({ range: 'PedidosCocina!A1:H1', values: [['id','idCliente','nombreEvento','fecha','itemsJSON','estado','creadoPor','fechaCarga']] });
+    }
 
     if (headers.length) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -1137,6 +1385,22 @@ async function initSheets() {
         resource: { valueInputOption: 'USER_ENTERED', data: headers },
       });
       console.log('✅ Hojas creadas:', toCreate.join(', '));
+    }
+
+    // Pre-poblar CatalogoItems si está vacío
+    const catRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'CatalogoItems!A2:A',
+    });
+    if (!(catRes.data.values || []).some(r => r[0])) {
+      const rows = CATALOGO_INICIAL.map(item => catalogoItemToRow({ ...item, id: generateId('CAT'), activo: true }));
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'CatalogoItems!A:D',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: rows },
+      });
+      console.log(`✅ CatalogoItems pre-poblado con ${rows.length} ítems.`);
     }
   } catch (e) {
     console.error('Error en initSheets:', e.message);
@@ -1173,6 +1437,8 @@ module.exports = {
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado,
   getEgresos, addEgreso, updateEgreso,
+  getCatalogoItems, addCatalogoItem, deleteCatalogoItem,
+  getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,

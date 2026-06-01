@@ -79,6 +79,9 @@
         <a href="#" class="nav-item superadmin-only" data-view="egresos-cocina">
           <span class="nav-icon">🍳</span> Egresos Cocina
         </a>
+        <a href="#" class="nav-item superadmin-only" data-view="cocina">
+          <span class="nav-icon">📋</span> Pedidos Cocina
+        </a>
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
@@ -709,8 +712,95 @@
         </div>
       </section>
 
+      <!-- VISTA: PEDIDOS COCINA (solo superadmin) -->
+      <section id="view-cocina" class="view hidden">
+        <div class="view-header">
+          <h2>📋 Pedidos de Cocina</h2>
+          <button id="cocina-nuevo-btn" class="btn btn-primary">+ Nuevo pedido</button>
+        </div>
+
+        <!-- Lista de pedidos guardados -->
+        <div id="cocina-lista-container">
+          <div id="cocina-loading" class="loading-msg">Cargando...</div>
+          <div id="cocina-lista"></div>
+          <div id="cocina-empty" class="empty-msg hidden">No hay pedidos registrados. Creá el primero.</div>
+        </div>
+
+        <!-- Formulario: Crear / Editar pedido -->
+        <div id="cocina-form-wrap" class="cocina-panel hidden">
+          <div class="cocina-panel-header">
+            <h3 id="cocina-form-titulo">Nuevo pedido</h3>
+            <button id="cocina-form-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
+          </div>
+          <div class="cocina-form-fields">
+            <div class="form-group">
+              <label>Evento vinculado <span class="label-optional">(opcional)</span></label>
+              <select id="cocina-evento-select">
+                <option value="">— Sin vincular —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Descripción del pedido</label>
+              <input type="text" id="cocina-nombre-evento" placeholder="Ej: Boda García – turno tarde">
+            </div>
+            <div class="form-group">
+              <label>Fecha del evento</label>
+              <input type="date" id="cocina-fecha">
+            </div>
+          </div>
+          <div class="cocina-items-container">
+            <table class="cocina-items-table">
+              <thead>
+                <tr>
+                  <th style="width:22%">Categoría</th>
+                  <th>Ítem</th>
+                  <th style="width:90px">Cantidad</th>
+                  <th style="width:28%">Observaciones</th>
+                  <th style="width:36px"></th>
+                </tr>
+              </thead>
+              <tbody id="cocina-items-tbody"></tbody>
+            </table>
+          </div>
+          <div class="cocina-panel-footer">
+            <button id="cocina-agregar-item-btn" class="btn btn-secondary">＋ Agregar ítem</button>
+            <div style="flex:1"></div>
+            <button id="cocina-guardar-btn" class="btn btn-primary">Guardar pedido</button>
+          </div>
+        </div>
+
+        <!-- Formulario: Relevamiento post-evento -->
+        <div id="cocina-relevamiento-wrap" class="cocina-panel hidden">
+          <div class="cocina-panel-header">
+            <h3 id="cocina-relevamiento-titulo">Relevamiento post-evento</h3>
+            <button id="cocina-relevamiento-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
+          </div>
+          <div class="cocina-items-container">
+            <table class="cocina-items-table">
+              <thead>
+                <tr>
+                  <th style="width:22%">Categoría</th>
+                  <th>Ítem</th>
+                  <th style="width:100px">Preparado</th>
+                  <th style="width:100px">Stock</th>
+                </tr>
+              </thead>
+              <tbody id="cocina-relevamiento-tbody"></tbody>
+            </table>
+          </div>
+          <div class="cocina-panel-footer">
+            <div style="flex:1"></div>
+            <button id="cocina-relevamiento-guardar-btn" class="btn btn-primary">Guardar stock</button>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
+
+  <!-- ÁREAS DE IMPRESIÓN (ocultas en pantalla, visibles al imprimir) -->
+  <div id="cocina-print-pedido" class="cocina-print-area" style="display:none"></div>
+  <div id="cocina-print-relevamiento" class="cocina-print-area" style="display:none"></div>
 
   <!-- MODAL: Editar egreso -->
   <div id="modal-editar-egreso" class="modal-overlay hidden">

@@ -235,6 +235,7 @@ if (view === 'calendario') loadCalendario();
   if (view === 'egresos') initEgresos();
   if (view === 'egresos-cocina') initEgresosCocina();
   if (view === 'seguimientos') initSeguimientos();
+  if (view === 'cocina') loadCocina();
 }
 
 /* ===================== TIMING PLANNER GLOBAL ===================== */
@@ -5046,6 +5047,371 @@ document.addEventListener('click', ev => {
   const egreso = allEgresos.find(x => x.rowIndex === rowIndex);
   if (egreso) openEditarEgreso(egreso);
 });
+
+/* ===================== COCINA (superadmin) ===================== */
+
+let cocinaCatalogo = [];
+let cocinaPedidos = [];
+let cocinaPedidoActual = null;
+
+async function loadCocina() {
+  if (!isSuperAdmin()) return;
+  const listEl = $('cocina-lista');
+  const loadingEl = $('cocina-loading');
+  const emptyEl = $('cocina-empty');
+  if (loadingEl) loadingEl.style.display = '';
+  if (listEl) listEl.innerHTML = '';
+  emptyEl?.classList.add('hidden');
+  $('cocina-form-wrap')?.classList.add('hidden');
+  $('cocina-relevamiento-wrap')?.classList.add('hidden');
+  try {
+    [cocinaCatalogo, cocinaPedidos] = await Promise.all([
+      apiFetch('/catalogo-items'),
+      apiFetch('/pedidos-cocina'),
+    ]);
+    if (loadingEl) loadingEl.style.display = 'none';
+    renderPedidosList();
+  } catch (e) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    alert('Error cargando datos de cocina: ' + e.message);
+  }
+}
+
+function renderPedidosList() {
+  const listEl = $('cocina-lista');
+  const emptyEl = $('cocina-empty');
+  if (!listEl) return;
+  const sorted = [...cocinaPedidos].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  if (!sorted.length) {
+    emptyEl?.classList.remove('hidden');
+    listEl.innerHTML = '';
+    return;
+  }
+  emptyEl?.classList.add('hidden');
+  listEl.innerHTML = sorted.map(p => {
+    const badgeClass = p.estado === 'relevado' ? 'badge-relevado' : 'badge-preparacion';
+    const badgeText = p.estado === 'relevado' ? 'Relevado' : 'En preparación';
+    const cantItems = (p.items || []).filter(i => i.cantidad > 0).length;
+    return `
+      <div class="cocina-pedido-card">
+        <div class="cocina-pedido-info">
+          <span class="badge ${badgeClass}">${badgeText}</span>
+          <strong>${esc(p.nombreEvento || '—')}</strong>
+          <span class="cocina-pedido-meta">📅 ${p.fecha ? formatDate(p.fecha) : '—'} · ${cantItems} ítems</span>
+        </div>
+        <div class="cocina-pedido-acciones">
+          <button class="btn btn-sm btn-secondary cocina-btn-editar" data-row="${p.rowIndex}">✏️ Editar</button>
+          <button class="btn btn-sm btn-secondary cocina-btn-print-pedido" data-row="${p.rowIndex}">🖨️ Pedido</button>
+          ${p.estado !== 'relevado'
+            ? `<button class="btn btn-sm btn-secondary cocina-btn-sobrante" data-row="${p.rowIndex}">📥 Cargar stock</button>`
+            : `<button class="btn btn-sm btn-secondary cocina-btn-print-rel" data-row="${p.rowIndex}">🖨️ Stock</button>`
+          }
+          <button class="btn btn-sm btn-danger cocina-btn-eliminar" data-row="${p.rowIndex}">🗑</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  listEl.querySelectorAll('.cocina-btn-editar').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = cocinaPedidos.find(x => x.rowIndex === parseInt(btn.dataset.row));
+      if (p) openFormularioPedido(p);
+    });
+  });
+  listEl.querySelectorAll('.cocina-btn-print-pedido').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = cocinaPedidos.find(x => x.rowIndex === parseInt(btn.dataset.row));
+      if (p) imprimirPedidoCocina(p);
+    });
+  });
+  listEl.querySelectorAll('.cocina-btn-sobrante').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = cocinaPedidos.find(x => x.rowIndex === parseInt(btn.dataset.row));
+      if (p) openFormularioRelevamiento(p);
+    });
+  });
+  listEl.querySelectorAll('.cocina-btn-print-rel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = cocinaPedidos.find(x => x.rowIndex === parseInt(btn.dataset.row));
+      if (p) imprimirRelevamientoCocina(p);
+    });
+  });
+  listEl.querySelectorAll('.cocina-btn-eliminar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar este pedido?')) return;
+      try {
+        await apiFetch(`/pedidos-cocina/${btn.dataset.row}`, { method: 'DELETE' });
+        cocinaPedidos = cocinaPedidos.filter(x => x.rowIndex !== parseInt(btn.dataset.row));
+        renderPedidosList();
+      } catch (e) { alert('Error al eliminar: ' + e.message); }
+    });
+  });
+}
+
+function openFormularioPedido(pedido = null) {
+  cocinaPedidoActual = pedido;
+  $('cocina-relevamiento-wrap')?.classList.add('hidden');
+  $('cocina-form-wrap')?.classList.remove('hidden');
+  $('cocina-form-titulo').textContent = pedido ? 'Editar pedido' : 'Nuevo pedido';
+
+  const sel = $('cocina-evento-select');
+  if (sel) {
+    const confirmados = allClientes.filter(c => c.estado === 'Confirmado');
+    sel.innerHTML = '<option value="">— Sin vincular —</option>' +
+      confirmados.map(c =>
+        `<option value="${esc(c.id)}" data-nombre="${esc(c.apellidoNombre)}" data-fecha="${esc(c.fechaEvento || '')}">${esc(c.apellidoNombre)} – ${formatDate(c.fechaEvento)}</option>`
+      ).join('');
+    sel.value = pedido?.idCliente || '';
+    sel.onchange = () => {
+      const opt = sel.selectedOptions[0];
+      if (opt?.dataset.nombre) {
+        $('cocina-nombre-evento').value = opt.dataset.nombre;
+        $('cocina-fecha').value = opt.dataset.fecha || '';
+      }
+    };
+  }
+
+  $('cocina-nombre-evento').value = pedido?.nombreEvento || '';
+  $('cocina-fecha').value = pedido?.fecha || '';
+  renderItemsTableEditable(pedido?.items || null);
+  $('cocina-form-wrap').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderItemsTableEditable(existingItems) {
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  const items = existingItems?.length
+    ? existingItems.map(i => ({ ...i }))
+    : cocinaCatalogo.map(c => ({ id: c.id, categoria: c.categoria, nombre: c.nombre, cantidad: '', observaciones: '' }));
+
+  tbody.innerHTML = items.map((item, idx) => `
+    <tr data-idx="${idx}">
+      <td><input class="cocina-cat-input" value="${esc(item.categoria)}" placeholder="Categoría" data-field="categoria"></td>
+      <td><input class="cocina-nombre-input" value="${esc(item.nombre)}" placeholder="Nombre del ítem" data-field="nombre"></td>
+      <td><input type="number" class="cocina-cant-input" value="${item.cantidad || ''}" min="0" placeholder="0" data-field="cantidad"></td>
+      <td><input class="cocina-obs-input" value="${esc(item.observaciones || '')}" placeholder="Obs." data-field="observaciones"></td>
+      <td><button class="btn-icon cocina-remove-row" title="Quitar fila">✕</button></td>
+    </tr>`).join('');
+
+  tbody.querySelectorAll('.cocina-remove-row').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('tr').remove());
+  });
+}
+
+function getItemsFromTable() {
+  return [...document.querySelectorAll('#cocina-items-tbody tr')].map(tr => ({
+    categoria: tr.querySelector('[data-field="categoria"]')?.value.trim() || '',
+    nombre: tr.querySelector('[data-field="nombre"]')?.value.trim() || '',
+    cantidad: parseFloat(tr.querySelector('[data-field="cantidad"]')?.value) || 0,
+    observaciones: tr.querySelector('[data-field="observaciones"]')?.value.trim() || '',
+    stock: null,
+  })).filter(i => i.nombre);
+}
+
+async function guardarPedido() {
+  const nombreEvento = $('cocina-nombre-evento').value.trim();
+  if (!nombreEvento) { alert('Ingresá una descripción para el pedido.'); return; }
+  const payload = {
+    idCliente: $('cocina-evento-select').value,
+    nombreEvento,
+    fecha: $('cocina-fecha').value,
+    items: getItemsFromTable(),
+  };
+  try {
+    $('cocina-guardar-btn').disabled = true;
+    let saved;
+    if (cocinaPedidoActual?.rowIndex) {
+      saved = await apiFetch(`/pedidos-cocina/${cocinaPedidoActual.rowIndex}`, {
+        method: 'PUT',
+        body: { ...cocinaPedidoActual, ...payload, estado: cocinaPedidoActual.estado },
+      });
+      const idx = cocinaPedidos.findIndex(p => p.rowIndex === cocinaPedidoActual.rowIndex);
+      if (idx !== -1) cocinaPedidos[idx] = { ...cocinaPedidoActual, ...payload, ...saved };
+    } else {
+      saved = await apiFetch('/pedidos-cocina', { method: 'POST', body: payload });
+      cocinaPedidos.unshift(saved);
+    }
+    cocinaPedidoActual = null;
+    $('cocina-form-wrap')?.classList.add('hidden');
+    renderPedidosList();
+  } catch (e) {
+    alert('Error al guardar: ' + e.message);
+  } finally {
+    $('cocina-guardar-btn').disabled = false;
+  }
+}
+
+async function agregarItemAlPedido() {
+  const nombre = prompt('Nombre del ítem:');
+  if (!nombre?.trim()) return;
+  const categoria = prompt('Categoría (ej: Recepción - Calientes):', 'Otro');
+  if (!categoria?.trim()) return;
+  try {
+    await apiFetch('/catalogo-items', { method: 'POST', body: { categoria: categoria.trim(), nombre: nombre.trim() } });
+    const tbody = $('cocina-items-tbody');
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input class="cocina-cat-input" value="${esc(categoria.trim())}" placeholder="Categoría" data-field="categoria"></td>
+      <td><input class="cocina-nombre-input" value="${esc(nombre.trim())}" placeholder="Nombre del ítem" data-field="nombre"></td>
+      <td><input type="number" class="cocina-cant-input" value="" min="0" placeholder="0" data-field="cantidad"></td>
+      <td><input class="cocina-obs-input" value="" placeholder="Obs." data-field="observaciones"></td>
+      <td><button class="btn-icon cocina-remove-row" title="Quitar fila">✕</button></td>`;
+    tr.querySelector('.cocina-remove-row').addEventListener('click', () => tr.remove());
+    tbody.appendChild(tr);
+    tr.scrollIntoView({ behavior: 'smooth' });
+  } catch (e) { alert('Error al agregar ítem: ' + e.message); }
+}
+
+function openFormularioRelevamiento(pedido) {
+  cocinaPedidoActual = pedido;
+  $('cocina-form-wrap')?.classList.add('hidden');
+  $('cocina-relevamiento-wrap')?.classList.remove('hidden');
+  $('cocina-relevamiento-titulo').textContent = `Cargar stock — ${pedido.nombreEvento || ''}`;
+  const tbody = $('cocina-relevamiento-tbody');
+  if (!tbody) return;
+  const conCantidad = (pedido.items || []).filter(i => i.cantidad > 0);
+  tbody.innerHTML = conCantidad.map((item, idx) => `
+    <tr>
+      <td>${esc(item.categoria)}</td>
+      <td>${esc(item.nombre)}</td>
+      <td style="text-align:center;font-weight:600">${item.cantidad}</td>
+      <td><input type="number" class="cocina-sobrante-input" value="${item.stock != null ? item.stock : ''}" min="0" placeholder="0" data-idx="${idx}"></td>
+    </tr>`).join('');
+  $('cocina-relevamiento-wrap').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function guardarRelevamiento() {
+  if (!cocinaPedidoActual) return;
+  const inputs = document.querySelectorAll('.cocina-sobrante-input');
+  const conCantidad = (cocinaPedidoActual.items || []).filter(i => i.cantidad > 0);
+  let sobranteIdx = 0;
+  const itemsActualizados = cocinaPedidoActual.items.map(item => {
+    if (item.cantidad <= 0) return item;
+    const input = inputs[sobranteIdx++];
+    return { ...item, stock: input ? (parseFloat(input.value) ?? null) : (item.stock ?? null) };
+  });
+  try {
+    $('cocina-relevamiento-guardar-btn').disabled = true;
+    const updated = await apiFetch(`/pedidos-cocina/${cocinaPedidoActual.rowIndex}`, {
+      method: 'PUT',
+      body: { ...cocinaPedidoActual, items: itemsActualizados, estado: 'relevado' },
+    });
+    const idx = cocinaPedidos.findIndex(p => p.rowIndex === cocinaPedidoActual.rowIndex);
+    if (idx !== -1) cocinaPedidos[idx] = { ...cocinaPedidoActual, items: itemsActualizados, estado: 'relevado' };
+    cocinaPedidoActual = null;
+    $('cocina-relevamiento-wrap')?.classList.add('hidden');
+    renderPedidosList();
+  } catch (e) {
+    alert('Error al guardar stock: ' + e.message);
+  } finally {
+    $('cocina-relevamiento-guardar-btn').disabled = false;
+  }
+}
+
+function buildPrintPedidoHTML(pedido) {
+  const hoy = new Date().toLocaleDateString('es-AR');
+  const items = (pedido.items || []).filter(i => i.cantidad > 0);
+  const rows = items.map(i => `
+    <tr>
+      <td>${esc(i.categoria)}</td>
+      <td>${esc(i.nombre)}</td>
+      <td style="text-align:center">${i.cantidad}</td>
+      <td>${esc(i.observaciones || '')}</td>
+      <td style="text-align:center"></td>
+    </tr>`).join('');
+  return `
+    <div class="print-header">
+      <h2 style="margin:0 0 6px 0">JOLIET — PEDIDO DE PRODUCCIÓN</h2>
+      <p style="margin:2px 0"><strong>Evento:</strong> ${esc(pedido.nombreEvento || '—')}</p>
+      <p style="margin:2px 0"><strong>Fecha del evento:</strong> ${pedido.fecha ? formatDate(pedido.fecha) : '—'} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Fecha de pedido:</strong> ${hoy} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Preparado por:</strong> ${esc(pedido.creadoPor || '—')}</p>
+    </div>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th style="width:20%">Categoría</th>
+          <th>Ítem</th>
+          <th style="width:65px">Cant.</th>
+          <th style="width:27%">Observaciones</th>
+          <th style="width:75px">Stock *</th>
+        </tr>
+      </thead>
+      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems con cantidad asignada</td></tr>'}</tbody>
+    </table>
+    <p class="print-footer">* Completar "Stock" post-evento a mano y luego cargarlo al sistema (Pedidos Cocina → Cargar stock). &nbsp;&nbsp;|&nbsp;&nbsp; Impreso el ${hoy}</p>`;
+}
+
+function buildPrintRelevamientoHTML(pedido) {
+  const hoy = new Date().toLocaleDateString('es-AR');
+  const items = (pedido.items || []).filter(i => i.cantidad > 0);
+  const rows = items.map(i => {
+    const stock = i.stock != null ? i.stock : '';
+    const consumido = (stock !== '' && i.cantidad > 0) ? (i.cantidad - Number(stock)) : '';
+    return `
+      <tr>
+        <td>${esc(i.categoria)}</td>
+        <td>${esc(i.nombre)}</td>
+        <td style="text-align:center">${i.cantidad}</td>
+        <td style="text-align:center">${stock}</td>
+        <td style="text-align:center">${consumido !== '' ? consumido : ''}</td>
+      </tr>`;
+  }).join('');
+  return `
+    <div class="print-header">
+      <h2 style="margin:0 0 6px 0">JOLIET — RELEVAMIENTO DE STOCK POST-EVENTO</h2>
+      <p style="margin:2px 0"><strong>Evento:</strong> ${esc(pedido.nombreEvento || '—')}</p>
+      <p style="margin:2px 0"><strong>Fecha del evento:</strong> ${pedido.fecha ? formatDate(pedido.fecha) : '—'} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Fecha de impresión:</strong> ${hoy} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Fecha de relevamiento:</strong> ___/___/______</p>
+    </div>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th style="width:20%">Categoría</th>
+          <th>Ítem</th>
+          <th style="width:80px">Preparado</th>
+          <th style="width:80px">Stock</th>
+          <th style="width:80px">Consumido</th>
+        </tr>
+      </thead>
+      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody>
+    </table>
+    <p class="print-footer">Relevamiento de stock realizado por: ______________________ &nbsp;&nbsp;|&nbsp;&nbsp; Fecha: ___/___/______</p>`;
+}
+
+function imprimirPedidoCocina(pedido) {
+  const printEl = $('cocina-print-pedido');
+  if (!printEl) return;
+  printEl.innerHTML = buildPrintPedidoHTML(pedido);
+  printEl.style.display = 'block';
+  $('cocina-print-relevamiento').style.display = 'none';
+  document.body.classList.add('printing-cocina');
+  window.print();
+  document.body.classList.remove('printing-cocina');
+  printEl.style.display = 'none';
+}
+
+function imprimirRelevamientoCocina(pedido) {
+  const printEl = $('cocina-print-relevamiento');
+  if (!printEl) return;
+  printEl.innerHTML = buildPrintRelevamientoHTML(pedido);
+  printEl.style.display = 'block';
+  $('cocina-print-pedido').style.display = 'none';
+  document.body.classList.add('printing-cocina');
+  window.print();
+  document.body.classList.remove('printing-cocina');
+  printEl.style.display = 'none';
+}
+
+$('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
+$('cocina-form-cancel-btn')?.addEventListener('click', () => {
+  $('cocina-form-wrap')?.classList.add('hidden');
+  cocinaPedidoActual = null;
+});
+$('cocina-agregar-item-btn')?.addEventListener('click', agregarItemAlPedido);
+$('cocina-guardar-btn')?.addEventListener('click', guardarPedido);
+$('cocina-relevamiento-cancel-btn')?.addEventListener('click', () => {
+  $('cocina-relevamiento-wrap')?.classList.add('hidden');
+  cocinaPedidoActual = null;
+});
+$('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamiento);
 
 /* ===================== SESSION RESTORE ===================== */
 (function restoreSession() {

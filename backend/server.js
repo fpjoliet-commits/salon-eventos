@@ -431,6 +431,73 @@ app.post('/api/cal-booking', async (req, res) => {
   }
 });
 
+/* ===================== COCINA (superadmin) ===================== */
+
+app.get('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
+  try {
+    const items = await sheets.getCatalogoItems();
+    res.json(items);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { categoria, nombre } = req.body;
+    if (!categoria || !nombre) return res.status(400).json({ error: 'categoria y nombre requeridos' });
+    const item = await sheets.addCatalogoItem({ categoria, nombre });
+    res.json(item);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, res) => {
+  try {
+    await sheets.deleteCatalogoItem(parseInt(req.params.rowIndex));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/pedidos-cocina', auth, superAdminOnly, async (req, res) => {
+  try {
+    const pedidos = await sheets.getPedidosCocina();
+    res.json(pedidos);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/pedidos-cocina', auth, superAdminOnly, async (req, res) => {
+  try {
+    const pedido = await sheets.addPedidoCocina({ ...req.body, creadoPor: req.user.usuario });
+    res.json(pedido);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/pedidos-cocina/:rowIndex', auth, superAdminOnly, async (req, res) => {
+  try {
+    const pedido = await sheets.updatePedidoCocina(parseInt(req.params.rowIndex), req.body);
+    res.json(pedido);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/pedidos-cocina/:rowIndex', auth, superAdminOnly, async (req, res) => {
+  try {
+    await sheets.deletePedidoCocina(parseInt(req.params.rowIndex));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
