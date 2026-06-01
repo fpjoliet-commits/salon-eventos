@@ -1445,8 +1445,31 @@ async function sincronizarStockConCatalogo() {
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:A' }),
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:E' }),
   ]);
-  const existingIds = new Set((stockRes.data.values || []).map(r => r[0]).filter(Boolean));
-  const faltantes = (catRes.data.values || []).filter(r =>
+  const stockRows = (stockRes.data.values || []).map((r, i) => ({ id: r[0] || '', rowIndex: i + 2 }));
+  const catRows = catRes.data.values || [];
+
+  // IDs de ítems activos en el catálogo
+  const activeCatIds = new Set(catRows.filter(r => r[0] && r[3] !== 'false').map(r => r[0]));
+
+  // Blanquear filas de stock cuyo ítem fue desactivado en catálogo (no tocar ING-)
+  const toRemove = stockRows.filter(s => s.id && !s.id.startsWith('ING-') && !activeCatIds.has(s.id));
+  if (toRemove.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: {
+        valueInputOption: 'USER_ENTERED',
+        data: toRemove.map(({ rowIndex }) => ({
+          range: `StockActual!A${rowIndex}:F${rowIndex}`,
+          values: [['', '', '', '', '', '']],
+        })),
+      },
+    });
+    console.log(`✅ StockActual: ${toRemove.length} entradas obsoletas eliminadas.`);
+  }
+
+  // Agregar ítems activos que faltan en stock
+  const existingIds = new Set(stockRows.map(s => s.id).filter(Boolean));
+  const faltantes = catRows.filter(r =>
     r[0] && r[3] !== 'false' && !existingIds.has(r[0]) && !CATEGORIAS_SIN_STOCK.has(r[1])
   );
   if (faltantes.length) {

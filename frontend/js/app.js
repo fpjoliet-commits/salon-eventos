@@ -5164,14 +5164,20 @@ function renderStockDashboard() {
     byCategory[item.categoria].push(item);
     seenCats.add(item.categoria);
   });
-  const catOrder = [
-    ...STOCK_CAT_ORDER.filter(c => seenCats.has(c)),
-    ...[...seenCats].filter(c => !STOCK_CAT_ORDER.includes(c)),
-  ];
-  let html = '<div class="stock-dash-grid">';
+  let catOrder;
+  try {
+    const saved = JSON.parse(localStorage.getItem('cocina-stock-cat-order') || 'null');
+    if (saved && Array.isArray(saved)) {
+      catOrder = [...saved.filter(c => seenCats.has(c)), ...[...seenCats].filter(c => !saved.includes(c))];
+    }
+  } catch {}
+  if (!catOrder) {
+    catOrder = [...STOCK_CAT_ORDER.filter(c => seenCats.has(c)), ...[...seenCats].filter(c => !STOCK_CAT_ORDER.includes(c))];
+  }
+  let html = '<div class="stock-dash-grid" id="stock-dash-grid">';
   catOrder.forEach(cat => {
     const color = cocCatColor(cat);
-    html += `<div class="stock-dash-section">
+    html += `<div class="stock-dash-section" draggable="true" data-cat="${esc(cat)}">
       <div class="stock-dash-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</div>`;
     byCategory[cat].forEach(item => {
       const level = item.cantidad === 0 ? 'sin-stock' : item.cantidad < 5 ? 'bajo' : 'ok';
@@ -5185,6 +5191,38 @@ function renderStockDashboard() {
   });
   html += '</div>';
   el.innerHTML = html;
+  initStockDashDnD();
+}
+
+function initStockDashDnD() {
+  const grid = document.getElementById('stock-dash-grid');
+  if (!grid) return;
+  let dragEl = null;
+  grid.addEventListener('dragstart', e => {
+    dragEl = e.target.closest('.stock-dash-section');
+    if (!dragEl) return;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => dragEl && dragEl.classList.add('stock-dragging'), 0);
+  });
+  grid.addEventListener('dragend', () => {
+    if (dragEl) dragEl.classList.remove('stock-dragging');
+    grid.querySelectorAll('.stock-drag-over').forEach(el => el.classList.remove('stock-drag-over'));
+    const order = [...grid.querySelectorAll('.stock-dash-section')].map(el => el.dataset.cat);
+    try { localStorage.setItem('cocina-stock-cat-order', JSON.stringify(order)); } catch {}
+    dragEl = null;
+  });
+  grid.addEventListener('dragover', e => {
+    e.preventDefault();
+    if (!dragEl) return;
+    const target = e.target.closest('.stock-dash-section');
+    if (!target || target === dragEl) return;
+    grid.querySelectorAll('.stock-drag-over').forEach(el => el.classList.remove('stock-drag-over'));
+    target.classList.add('stock-drag-over');
+    const sections = [...grid.querySelectorAll('.stock-dash-section')];
+    if (sections.indexOf(dragEl) < sections.indexOf(target)) grid.insertBefore(dragEl, target.nextSibling);
+    else grid.insertBefore(dragEl, target);
+  });
+  grid.addEventListener('drop', e => e.preventDefault());
 }
 
 function openActualizarStockForm() {
@@ -6003,6 +6041,7 @@ function renderCatalogoPanel() {
         <span class="cat-panel-nombre">${item.nombre}</span>
         <select class="cat-panel-unidad-sel" data-row="${item.rowIndex}">${opts}</select>
         <span class="cat-panel-status" id="cat-status-${item.rowIndex}"></span>
+        <button class="cat-panel-deact-btn" data-row="${item.rowIndex}" title="Desactivar ítem">✕</button>
       </div>`;
     }
   }
@@ -6025,6 +6064,25 @@ document.addEventListener('change', async ev => {
   } catch (e) {
     if (statusEl) statusEl.textContent = '✗';
     alert('Error al guardar unidad: ' + e.message);
+  }
+});
+
+document.addEventListener('click', async ev => {
+  const btn = ev.target.closest('.cat-panel-deact-btn');
+  if (!btn) return;
+  const rowIndex = parseInt(btn.dataset.row);
+  const item = cocinaCatalogo.find(i => i.rowIndex === rowIndex);
+  if (!confirm(`¿Desactivar "${item?.nombre || 'este ítem'}"? No aparecerá más en pedidos ni stock.`)) return;
+  btn.disabled = true;
+  try {
+    await apiFetch(`/catalogo-items/${rowIndex}`, { method: 'DELETE' });
+    cocinaCatalogo = cocinaCatalogo.filter(i => i.rowIndex !== rowIndex);
+    cocinaStockActual = cocinaStockActual.filter(i => i.id !== item?.id);
+    renderCatalogoPanel();
+    if ($('cocina-tab-stock') && !$('cocina-tab-stock').classList.contains('hidden')) renderStockDashboard();
+  } catch (e) {
+    btn.disabled = false;
+    alert('Error al desactivar: ' + e.message);
   }
 });
 
