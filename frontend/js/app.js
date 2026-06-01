@@ -5053,6 +5053,29 @@ document.addEventListener('click', ev => {
 let cocinaCatalogo = [];
 let cocinaPedidos = [];
 let cocinaPedidoActual = null;
+let cocinaStockActual = [];
+
+const COCINA_CAT_COLORS = {
+  'Recepción - Canapés':           '#FFF3E0',
+  'Recepción - Bruschettas':       '#FFF8E1',
+  'Recepción - Fríos':             '#E3F2FD',
+  'Recepción - Brochettes':        '#FCE4EC',
+  'Recepción - Empanaditas':       '#E8F5E9',
+  'Recepción - Calientes':         '#FBE9E7',
+  'Islas':                         '#EDE7F6',
+  'Primer Plato - Pastas':         '#E0F7FA',
+  'Primer Plato - Pastas Gourmet': '#B2EBF2',
+  'Primer Plato - Salsas':         '#E0F2F1',
+  'Primer Plato - Salsas Gourmet': '#B2DFDB',
+  'Plato Central - Ave':           '#FFF9C4',
+  'Plato Central - Carne':         '#FFEBEE',
+  'Plato Central - Salsas':        '#FFF0F3',
+  'Plato Central - Guarniciones':  '#F3E5F5',
+  'Mesa de Dulces':                '#FCE4EC',
+  'Cafetería / Fin de Fiesta':     '#EFEBE9',
+};
+
+function cocCatColor(cat) { return COCINA_CAT_COLORS[cat] || '#F5F5F5'; }
 
 async function loadCocina() {
   if (!isSuperAdmin()) return;
@@ -5065,9 +5088,10 @@ async function loadCocina() {
   $('cocina-form-wrap')?.classList.add('hidden');
   $('cocina-relevamiento-wrap')?.classList.add('hidden');
   try {
-    [cocinaCatalogo, cocinaPedidos] = await Promise.all([
+    [cocinaCatalogo, cocinaPedidos, cocinaStockActual] = await Promise.all([
       apiFetch('/catalogo-items'),
       apiFetch('/pedidos-cocina'),
+      apiFetch('/stock-actual'),
     ]);
     if (loadingEl) loadingEl.style.display = 'none';
     renderPedidosList();
@@ -5103,7 +5127,7 @@ function renderPedidosList() {
           <button class="btn btn-sm btn-secondary cocina-btn-editar" data-row="${p.rowIndex}">✏️ Editar</button>
           <button class="btn btn-sm btn-secondary cocina-btn-print-pedido" data-row="${p.rowIndex}">🖨️ Pedido</button>
           ${p.estado !== 'relevado'
-            ? `<button class="btn btn-sm btn-secondary cocina-btn-sobrante" data-row="${p.rowIndex}">📥 Cargar stock</button>`
+            ? `<button class="btn btn-sm btn-secondary cocina-btn-sobrante" data-row="${p.rowIndex}">📦 Cargar stock</button>`
             : `<button class="btn btn-sm btn-secondary cocina-btn-print-rel" data-row="${p.rowIndex}">🖨️ Stock</button>`
           }
           <button class="btn btn-sm btn-danger cocina-btn-eliminar" data-row="${p.rowIndex}">🗑</button>
@@ -5150,6 +5174,8 @@ function renderPedidosList() {
 function openFormularioPedido(pedido = null) {
   cocinaPedidoActual = pedido;
   $('cocina-relevamiento-wrap')?.classList.add('hidden');
+  $('cocina-agregar-panel')?.classList.add('hidden');
+  $('cocina-stock-actual-panel')?.classList.add('hidden');
   $('cocina-form-wrap')?.classList.remove('hidden');
   $('cocina-form-titulo').textContent = pedido ? 'Editar pedido' : 'Nuevo pedido';
 
@@ -5176,33 +5202,78 @@ function openFormularioPedido(pedido = null) {
   $('cocina-form-wrap').scrollIntoView({ behavior: 'smooth' });
 }
 
+function _wirePMButtons(container) {
+  container.querySelectorAll('.cocina-minus-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = btn.nextElementSibling;
+      input.value = Math.max(0, (parseFloat(input.value) || 0) - (parseFloat(input.step) || 1));
+    });
+  });
+  container.querySelectorAll('.cocina-plus-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = btn.previousElementSibling;
+      input.value = (parseFloat(input.value) || 0) + (parseFloat(input.step) || 1);
+    });
+  });
+}
+
+function _cantWrap(value, step, cls, dataAttr) {
+  return `<div class="cocina-cant-wrap"><button type="button" class="cocina-pm-btn cocina-minus-btn" tabindex="-1">−</button><input type="number" class="${cls}" value="${value}" min="0" step="${step}" placeholder="0" ${dataAttr}><button type="button" class="cocina-pm-btn cocina-plus-btn" tabindex="-1">+</button></div>`;
+}
+
 function renderItemsTableEditable(existingItems) {
   const tbody = $('cocina-items-tbody');
   if (!tbody) return;
+
   const items = existingItems?.length
-    ? existingItems.map(i => ({ ...i }))
-    : cocinaCatalogo.map(c => ({ id: c.id, categoria: c.categoria, nombre: c.nombre, cantidad: '', observaciones: '' }));
+    ? existingItems.map(i => ({
+        ...i,
+        unidad: i.unidad || cocinaCatalogo.find(c => c.id === i.id)?.unidad || 'und',
+      }))
+    : cocinaCatalogo.map(c => ({ id: c.id, categoria: c.categoria, nombre: c.nombre, cantidad: '', observaciones: '', unidad: c.unidad || 'und' }));
 
-  tbody.innerHTML = items.map((item, idx) => `
-    <tr data-idx="${idx}">
-      <td><input class="cocina-cat-input" value="${esc(item.categoria)}" placeholder="Categoría" data-field="categoria"></td>
-      <td><input class="cocina-nombre-input" value="${esc(item.nombre)}" placeholder="Nombre del ítem" data-field="nombre"></td>
-      <td><input type="number" class="cocina-cant-input" value="${item.cantidad || ''}" min="0" placeholder="0" data-field="cantidad"></td>
-      <td><input class="cocina-obs-input" value="${esc(item.observaciones || '')}" placeholder="Obs." data-field="observaciones"></td>
-      <td><button class="btn-icon cocina-remove-row" title="Quitar fila">✕</button></td>
-    </tr>`).join('');
+  const byCategory = {}, catOrder = [];
+  items.forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
 
-  tbody.querySelectorAll('.cocina-remove-row').forEach(btn => {
-    btn.addEventListener('click', () => btn.closest('tr').remove());
+  let html = '', globalIdx = 0;
+  catOrder.forEach(cat => {
+    const color = cocCatColor(cat);
+    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="5" class="cocina-cat-header-cell" style="background:${color}">${esc(cat)}</td></tr>`;
+    byCategory[cat].forEach(item => {
+      const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
+      html += `<tr data-idx="${globalIdx++}" data-id="${esc(item.id||'')}" data-cat="${esc(item.categoria)}" data-nombre="${esc(item.nombre)}" data-unidad="${esc(item.unidad||'und')}" style="background:${color}22">
+        <td style="padding-left:16px" class="cocina-item-nombre-cell">${esc(item.nombre)}</td>
+        <td>${_cantWrap(item.cantidad||'', step, 'cocina-cant-input', 'data-field="cantidad"')}</td>
+        <td class="cocina-unidad-cell">${esc(item.unidad||'und')}</td>
+        <td><input class="cocina-obs-input" value="${esc(item.observaciones||'')}" placeholder="Obs." data-field="observaciones"></td>
+        <td><button type="button" class="btn-icon cocina-remove-row" title="Quitar">✕</button></td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+  _wirePMButtons(tbody);
+  tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => btn.closest('tr').remove()));
+  tbody.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.classList.contains('cocina-cant-input')) {
+      e.preventDefault();
+      const all = [...tbody.querySelectorAll('.cocina-cant-input')];
+      const next = all[all.indexOf(e.target) + 1];
+      if (next) next.focus();
+    }
   });
 }
 
 function getItemsFromTable() {
-  return [...document.querySelectorAll('#cocina-items-tbody tr')].map(tr => ({
-    categoria: tr.querySelector('[data-field="categoria"]')?.value.trim() || '',
-    nombre: tr.querySelector('[data-field="nombre"]')?.value.trim() || '',
-    cantidad: parseFloat(tr.querySelector('[data-field="cantidad"]')?.value) || 0,
-    observaciones: tr.querySelector('[data-field="observaciones"]')?.value.trim() || '',
+  return [...document.querySelectorAll('#cocina-items-tbody tr[data-idx]')].map(tr => ({
+    id: tr.dataset.id || '',
+    categoria: tr.dataset.cat || '',
+    nombre: tr.dataset.nombre || '',
+    cantidad: parseFloat(tr.querySelector('.cocina-cant-input')?.value) || 0,
+    unidad: tr.dataset.unidad || 'und',
+    observaciones: tr.querySelector('.cocina-obs-input')?.value.trim() || '',
     stock: null,
   })).filter(i => i.nombre);
 }
@@ -5232,6 +5303,7 @@ async function guardarPedido() {
     }
     cocinaPedidoActual = null;
     $('cocina-form-wrap')?.classList.add('hidden');
+    $('cocina-agregar-panel')?.classList.add('hidden');
     renderPedidosList();
   } catch (e) {
     alert('Error al guardar: ' + e.message);
@@ -5240,62 +5312,263 @@ async function guardarPedido() {
   }
 }
 
-async function agregarItemAlPedido() {
-  const nombre = prompt('Nombre del ítem:');
-  if (!nombre?.trim()) return;
-  const categoria = prompt('Categoría (ej: Recepción - Calientes):', 'Otro');
-  if (!categoria?.trim()) return;
-  try {
-    await apiFetch('/catalogo-items', { method: 'POST', body: { categoria: categoria.trim(), nombre: nombre.trim() } });
-    const tbody = $('cocina-items-tbody');
-    if (!tbody) return;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><input class="cocina-cat-input" value="${esc(categoria.trim())}" placeholder="Categoría" data-field="categoria"></td>
-      <td><input class="cocina-nombre-input" value="${esc(nombre.trim())}" placeholder="Nombre del ítem" data-field="nombre"></td>
-      <td><input type="number" class="cocina-cant-input" value="" min="0" placeholder="0" data-field="cantidad"></td>
-      <td><input class="cocina-obs-input" value="" placeholder="Obs." data-field="observaciones"></td>
-      <td><button class="btn-icon cocina-remove-row" title="Quitar fila">✕</button></td>`;
-    tr.querySelector('.cocina-remove-row').addEventListener('click', () => tr.remove());
-    tbody.appendChild(tr);
-    tr.scrollIntoView({ behavior: 'smooth' });
-  } catch (e) { alert('Error al agregar ítem: ' + e.message); }
+function toggleAgregarPanel() {
+  const panel = $('cocina-agregar-panel');
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    renderAgregarPanel();
+    panel.classList.remove('hidden');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function renderAgregarPanel() {
+  const panel = $('cocina-agregar-panel');
+  if (!panel) return;
+
+  const currentIds = new Set(getItemsFromTable().map(i => i.id).filter(Boolean));
+  const currentNombres = new Set(getItemsFromTable().map(i => i.nombre.toLowerCase()));
+  const available = cocinaCatalogo.filter(c => !currentIds.has(c.id) && !currentNombres.has(c.nombre.toLowerCase()));
+
+  const byCategory = {}, catOrder = [];
+  available.forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
+
+  const allCats = [...new Set(cocinaCatalogo.map(c => c.categoria))];
+  const catOpts = allCats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('') + '<option value="__nueva__">+ Nueva categoría...</option>';
+
+  let itemsHtml = '';
+  if (!available.length) {
+    itemsHtml = '<p style="color:#888;font-size:13px;padding:8px 0">Todos los ítems del catálogo ya están en el pedido.</p>';
+  } else {
+    catOrder.forEach(cat => {
+      const color = cocCatColor(cat);
+      itemsHtml += `<div class="agregar-cat-label" style="background:${color}">${esc(cat)}</div>`;
+      byCategory[cat].forEach(item => {
+        itemsHtml += `<button type="button" class="agregar-item-btn" data-id="${esc(item.id)}" data-cat="${esc(item.categoria)}" data-nombre="${esc(item.nombre)}" data-unidad="${esc(item.unidad||'und')}">＋ ${esc(item.nombre)} <span class="agregar-item-unidad">${item.unidad||'und'}</span></button>`;
+      });
+    });
+  }
+
+  panel.innerHTML = `
+    <div class="agregar-panel-titulo">Ítems disponibles del catálogo</div>
+    <div class="agregar-items-list">${itemsHtml}</div>
+    <div class="agregar-nuevo-wrap">
+      <div class="agregar-nuevo-titulo">Crear ítem nuevo:</div>
+      <div class="agregar-nuevo-fields">
+        <input type="text" id="agregar-nuevo-nombre" placeholder="Nombre del ítem">
+        <select id="agregar-nuevo-cat">${catOpts}</select>
+        <select id="agregar-nuevo-unidad"><option value="und">und</option><option value="lt">lt</option><option value="kg">kg</option><option value="gr">gr</option></select>
+      </div>
+      <div class="agregar-nuevo-actions">
+        <label class="agregar-guardar-label"><input type="checkbox" id="agregar-nuevo-guardar" checked> Guardar en catálogo</label>
+        <button type="button" id="agregar-nuevo-confirmar-btn" class="btn btn-primary btn-sm">Agregar al pedido</button>
+      </div>
+    </div>`;
+
+  panel.querySelectorAll('.agregar-item-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _agregarItemEnTabla(btn.dataset.id, btn.dataset.cat, btn.dataset.nombre, btn.dataset.unidad);
+      btn.remove();
+    });
+  });
+
+  $('agregar-nuevo-cat')?.addEventListener('change', () => {
+    if ($('agregar-nuevo-cat').value === '__nueva__') {
+      const nv = prompt('Nombre de la nueva categoría:');
+      if (nv?.trim()) {
+        const opt = document.createElement('option');
+        opt.value = nv.trim(); opt.textContent = nv.trim(); opt.selected = true;
+        $('agregar-nuevo-cat').insertBefore(opt, $('agregar-nuevo-cat').lastElementChild);
+      } else {
+        $('agregar-nuevo-cat').value = allCats[0] || '';
+      }
+    }
+  });
+
+  $('agregar-nuevo-confirmar-btn')?.addEventListener('click', async () => {
+    const nombre = $('agregar-nuevo-nombre')?.value.trim();
+    const categoria = $('agregar-nuevo-cat')?.value;
+    const unidad = $('agregar-nuevo-unidad')?.value || 'und';
+    const guardar = $('agregar-nuevo-guardar')?.checked;
+    if (!nombre || !categoria || categoria === '__nueva__') { alert('Completá nombre y categoría.'); return; }
+    let id = `temp-${Date.now()}`;
+    if (guardar) {
+      try {
+        const nuevo = await apiFetch('/catalogo-items', { method: 'POST', body: { categoria, nombre, unidad } });
+        id = nuevo.id;
+        cocinaCatalogo.push(nuevo);
+      } catch (e) { alert('Error al guardar en catálogo: ' + e.message); return; }
+    }
+    _agregarItemEnTabla(id, categoria, nombre, unidad);
+    $('agregar-nuevo-nombre').value = '';
+    panel.classList.add('hidden');
+  });
+}
+
+function _agregarItemEnTabla(id, categoria, nombre, unidad) {
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  const color = cocCatColor(categoria);
+  const step = unidad === 'lt' || unidad === 'kg' ? '0.5' : '1';
+  const idx = tbody.querySelectorAll('tr[data-idx]').length;
+  const newTr = document.createElement('tr');
+  newTr.setAttribute('data-idx', idx);
+  newTr.setAttribute('data-id', id);
+  newTr.setAttribute('data-cat', categoria);
+  newTr.setAttribute('data-nombre', nombre);
+  newTr.setAttribute('data-unidad', unidad);
+  newTr.style.background = `${color}22`;
+  newTr.innerHTML = `
+    <td style="padding-left:16px" class="cocina-item-nombre-cell">${esc(nombre)}</td>
+    <td>${_cantWrap('', step, 'cocina-cant-input', 'data-field="cantidad"')}</td>
+    <td class="cocina-unidad-cell">${esc(unidad)}</td>
+    <td><input class="cocina-obs-input" value="" placeholder="Obs." data-field="observaciones"></td>
+    <td><button type="button" class="btn-icon cocina-remove-row" title="Quitar">✕</button></td>`;
+  _wirePMButtons(newTr);
+  newTr.querySelector('.cocina-remove-row').addEventListener('click', () => newTr.remove());
+
+  // Insert after existing category or at end
+  const existingHeader = [...tbody.querySelectorAll('.cocina-cat-header-row')].find(r => r.dataset.cat === categoria);
+  if (existingHeader) {
+    let lastInCat = existingHeader;
+    let next = existingHeader.nextElementSibling;
+    while (next && !next.classList.contains('cocina-cat-header-row')) { lastInCat = next; next = next.nextElementSibling; }
+    lastInCat.insertAdjacentElement('afterend', newTr);
+  } else {
+    const newHeader = document.createElement('tr');
+    newHeader.classList.add('cocina-cat-header-row');
+    newHeader.setAttribute('data-cat', categoria);
+    newHeader.innerHTML = `<td colspan="5" class="cocina-cat-header-cell" style="background:${color}">${esc(categoria)}</td>`;
+    tbody.appendChild(newHeader);
+    tbody.appendChild(newTr);
+  }
+  newTr.querySelector('.cocina-cant-input').focus();
+  newTr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleStockActualPanel() {
+  const panel = $('cocina-stock-actual-panel');
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    renderStockActualPanel();
+    panel.classList.remove('hidden');
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function renderStockActualPanel() {
+  const panel = $('cocina-stock-actual-panel');
+  if (!panel) return;
+  const byCategory = {}, catOrder = [];
+  cocinaCatalogo.forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
+  let html = '<div class="stock-panel-titulo">📦 Stock actual del salón</div><table class="stock-panel-table">';
+  catOrder.forEach(cat => {
+    const color = cocCatColor(cat);
+    html += `<tr><td colspan="3" class="cocina-cat-header-cell" style="background:${color};font-size:11px;padding:3px 8px">${esc(cat)}</td></tr>`;
+    byCategory[cat].forEach(item => {
+      const stockItem = cocinaStockActual.find(s => s.id === item.id);
+      const cant = stockItem?.cantidad ?? 0;
+      const level = cant === 0 ? 'sin-stock' : cant < 5 ? 'stock-bajo' : 'stock-ok';
+      html += `<tr>
+        <td style="padding-left:12px;font-size:12px">${esc(item.nombre)}</td>
+        <td style="text-align:right;font-weight:600;font-size:12px" class="stock-${level}">${cant}</td>
+        <td style="font-size:11px;color:#888;width:35px">${esc(item.unidad||'und')}</td>
+      </tr>`;
+    });
+  });
+  html += '</table>';
+  panel.innerHTML = html;
 }
 
 function openFormularioRelevamiento(pedido) {
   cocinaPedidoActual = pedido;
   $('cocina-form-wrap')?.classList.add('hidden');
+  $('cocina-agregar-panel')?.classList.add('hidden');
   $('cocina-relevamiento-wrap')?.classList.remove('hidden');
-  $('cocina-relevamiento-titulo').textContent = `Cargar stock — ${pedido.nombreEvento || ''}`;
+  $('cocina-relevamiento-titulo').textContent = `Control de stock — ${pedido.nombreEvento || ''}`;
+
+  const pedidoMap = {};
+  (pedido.items || []).forEach(item => { if (item.id) pedidoMap[item.id] = item; else pedidoMap[item.nombre] = item; });
+
   const tbody = $('cocina-relevamiento-tbody');
   if (!tbody) return;
-  const conCantidad = (pedido.items || []).filter(i => i.cantidad > 0);
-  tbody.innerHTML = conCantidad.map((item, idx) => `
-    <tr>
-      <td>${esc(item.categoria)}</td>
-      <td>${esc(item.nombre)}</td>
-      <td style="text-align:center;font-weight:600">${item.cantidad}</td>
-      <td><input type="number" class="cocina-sobrante-input" value="${item.stock != null ? item.stock : ''}" min="0" placeholder="0" data-idx="${idx}"></td>
-    </tr>`).join('');
+
+  const byCategory = {}, catOrder = [];
+  cocinaCatalogo.forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
+
+  let html = '';
+  catOrder.forEach(cat => {
+    const color = cocCatColor(cat);
+    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="4" class="cocina-cat-header-cell" style="background:${color}">${esc(cat)}</td></tr>`;
+    byCategory[cat].forEach(catItem => {
+      const pedItem = pedidoMap[catItem.id] || pedidoMap[catItem.nombre] || null;
+      const preparado = pedItem?.cantidad > 0 ? pedItem.cantidad : null;
+      const stockPrev = pedItem?.stock != null ? pedItem.stock : (cocinaStockActual.find(s => s.id === catItem.id)?.cantidad ?? '');
+      const unidad = catItem.unidad || 'und';
+      const step = unidad === 'lt' || unidad === 'kg' ? '0.5' : '1';
+      html += `<tr data-item-id="${esc(catItem.id)}" style="background:${color}22">
+        <td style="padding-left:16px;font-size:13px">${esc(catItem.nombre)}</td>
+        <td style="text-align:center;font-weight:${preparado!==null?'600':'400'};color:${preparado!==null?'#333':'#bbb'}">
+          ${preparado !== null ? `${preparado} <span style="font-size:11px;font-weight:400;color:#888">${esc(unidad)}</span>` : '—'}
+        </td>
+        <td>${_cantWrap(stockPrev, step, 'cocina-sobrante-input', `data-item-id="${esc(catItem.id)}"`)}</td>
+        <td class="cocina-unidad-cell">${esc(unidad)}</td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+  _wirePMButtons(tbody);
+  tbody.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.classList.contains('cocina-sobrante-input')) {
+      e.preventDefault();
+      const all = [...tbody.querySelectorAll('.cocina-sobrante-input')];
+      const next = all[all.indexOf(e.target) + 1];
+      if (next) next.focus();
+    }
+  });
   $('cocina-relevamiento-wrap').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function guardarRelevamiento() {
   if (!cocinaPedidoActual) return;
-  const inputs = document.querySelectorAll('.cocina-sobrante-input');
-  const conCantidad = (cocinaPedidoActual.items || []).filter(i => i.cantidad > 0);
-  let sobranteIdx = 0;
-  const itemsActualizados = cocinaPedidoActual.items.map(item => {
-    if (item.cantidad <= 0) return item;
-    const input = inputs[sobranteIdx++];
-    return { ...item, stock: input ? (parseFloat(input.value) ?? null) : (item.stock ?? null) };
-  });
+  const stockInputs = [...document.querySelectorAll('.cocina-sobrante-input')];
+  const stockActs = stockInputs.filter(i => i.value !== '').map(i => ({ id: i.dataset.itemId, cantidad: parseFloat(i.value) || 0 }));
+
+  const pedidoMap = {};
+  (cocinaPedidoActual.items || []).forEach(item => { if (item.id) pedidoMap[item.id] = item; });
+  const stockMap = {};
+  stockInputs.forEach(i => { if (i.value !== '') stockMap[i.dataset.itemId] = parseFloat(i.value) || 0; });
+
+  const itemsActualizados = cocinaPedidoActual.items.map(item => ({
+    ...item,
+    stock: stockMap[item.id] !== undefined ? stockMap[item.id] : (item.stock ?? null),
+  }));
+
   try {
     $('cocina-relevamiento-guardar-btn').disabled = true;
-    const updated = await apiFetch(`/pedidos-cocina/${cocinaPedidoActual.rowIndex}`, {
+    await apiFetch(`/pedidos-cocina/${cocinaPedidoActual.rowIndex}`, {
       method: 'PUT',
       body: { ...cocinaPedidoActual, items: itemsActualizados, estado: 'relevado' },
     });
+    if (stockActs.length) {
+      await apiFetch('/stock-actual/actualizar', { method: 'POST', body: { actualizaciones: stockActs } });
+      stockActs.forEach(act => {
+        const idx = cocinaStockActual.findIndex(s => s.id === act.id);
+        if (idx !== -1) cocinaStockActual[idx].cantidad = act.cantidad;
+      });
+    }
     const idx = cocinaPedidos.findIndex(p => p.rowIndex === cocinaPedidoActual.rowIndex);
     if (idx !== -1) cocinaPedidos[idx] = { ...cocinaPedidoActual, items: itemsActualizados, estado: 'relevado' };
     cocinaPedidoActual = null;
@@ -5308,107 +5581,97 @@ async function guardarRelevamiento() {
   }
 }
 
+const _PRINT_CAT_COLORS = {
+  'Recepción - Canapés':'#FFF3E0','Recepción - Bruschettas':'#FFF8E1','Recepción - Fríos':'#E3F2FD',
+  'Recepción - Brochettes':'#FCE4EC','Recepción - Empanaditas':'#E8F5E9','Recepción - Calientes':'#FBE9E7',
+  'Islas':'#EDE7F6','Primer Plato - Pastas':'#E0F7FA','Primer Plato - Pastas Gourmet':'#B2EBF2',
+  'Primer Plato - Salsas':'#E0F2F1','Primer Plato - Salsas Gourmet':'#B2DFDB',
+  'Plato Central - Ave':'#FFF9C4','Plato Central - Carne':'#FFEBEE','Plato Central - Salsas':'#FFF0F3',
+  'Plato Central - Guarniciones':'#F3E5F5','Mesa de Dulces':'#FCE4EC','Cafetería / Fin de Fiesta':'#EFEBE9',
+};
+
 function buildPrintPedidoHTML(pedido) {
   const hoy = new Date().toLocaleDateString('es-AR');
-  const items = (pedido.items || []).filter(i => i.cantidad > 0);
-  const rows = items.map(i => `
-    <tr>
-      <td>${esc(i.categoria)}</td>
-      <td>${esc(i.nombre)}</td>
-      <td style="text-align:center">${i.cantidad}</td>
-      <td>${esc(i.observaciones || '')}</td>
-      <td style="text-align:center"></td>
-    </tr>`).join('');
-  return `
-    <div class="print-header">
-      <h2 style="margin:0 0 6px 0">JOLIET — PEDIDO DE PRODUCCIÓN</h2>
-      <p style="margin:2px 0"><strong>Evento:</strong> ${esc(pedido.nombreEvento || '—')}</p>
-      <p style="margin:2px 0"><strong>Fecha del evento:</strong> ${pedido.fecha ? formatDate(pedido.fecha) : '—'} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Fecha de pedido:</strong> ${hoy} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Preparado por:</strong> ${esc(pedido.creadoPor || '—')}</p>
-    </div>
-    <table class="print-table">
-      <thead>
-        <tr>
-          <th style="width:20%">Categoría</th>
-          <th>Ítem</th>
-          <th style="width:65px">Cant.</th>
-          <th style="width:27%">Observaciones</th>
-          <th style="width:75px">Stock *</th>
-        </tr>
-      </thead>
-      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems con cantidad asignada</td></tr>'}</tbody>
-    </table>
-    <p class="print-footer">* Completar "Stock" post-evento a mano y luego cargarlo al sistema (Pedidos Cocina → Cargar stock). &nbsp;&nbsp;|&nbsp;&nbsp; Impreso el ${hoy}</p>`;
+  const byCategory = {}, catOrder = [];
+  (pedido.items || []).filter(i => i.cantidad > 0).forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
+  let rows = '';
+  catOrder.forEach(cat => {
+    const color = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
+    rows += `<tr><td colspan="4" style="background:${color};padding:4px 8px;font-weight:700;font-size:9pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(cat)}</td></tr>`;
+    byCategory[cat].forEach(i => {
+      rows += `<tr style="background:${color}60"><td style="padding-left:14px">${esc(i.nombre)}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:center">${esc(i.unidad||'und')}</td><td>${esc(i.observaciones||'')}</td></tr>`;
+    });
+  });
+  return `<div class="print-header"><h2>JOLIET — PEDIDO DE PRODUCCIÓN</h2>
+    <p><strong>Evento:</strong> ${esc(pedido.nombreEvento||'—')}</p>
+    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Pedido:</strong> ${hoy} &nbsp;|&nbsp; <strong>Por:</strong> ${esc(pedido.creadoPor||'—')}</p></div>
+    <table class="print-table"><thead><tr><th>Ítem</th><th style="width:65px">Cant.</th><th style="width:50px">Unid.</th><th style="width:27%">Observaciones</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems con cantidad asignada</td></tr>'}</tbody></table>
+    <p class="print-footer">Impreso el ${hoy}</p>`;
 }
 
 function buildPrintRelevamientoHTML(pedido) {
   const hoy = new Date().toLocaleDateString('es-AR');
-  const items = (pedido.items || []).filter(i => i.cantidad > 0);
-  const rows = items.map(i => {
-    const stock = i.stock != null ? i.stock : '';
-    const consumido = (stock !== '' && i.cantidad > 0) ? (i.cantidad - Number(stock)) : '';
-    return `
-      <tr>
-        <td>${esc(i.categoria)}</td>
-        <td>${esc(i.nombre)}</td>
-        <td style="text-align:center">${i.cantidad}</td>
-        <td style="text-align:center">${stock}</td>
-        <td style="text-align:center">${consumido !== '' ? consumido : ''}</td>
-      </tr>`;
-  }).join('');
-  return `
-    <div class="print-header">
-      <h2 style="margin:0 0 6px 0">JOLIET — RELEVAMIENTO DE STOCK POST-EVENTO</h2>
-      <p style="margin:2px 0"><strong>Evento:</strong> ${esc(pedido.nombreEvento || '—')}</p>
-      <p style="margin:2px 0"><strong>Fecha del evento:</strong> ${pedido.fecha ? formatDate(pedido.fecha) : '—'} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Fecha de impresión:</strong> ${hoy} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Fecha de relevamiento:</strong> ___/___/______</p>
-    </div>
-    <table class="print-table">
-      <thead>
-        <tr>
-          <th style="width:20%">Categoría</th>
-          <th>Ítem</th>
-          <th style="width:80px">Preparado</th>
-          <th style="width:80px">Stock</th>
-          <th style="width:80px">Consumido</th>
-        </tr>
-      </thead>
-      <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody>
-    </table>
-    <p class="print-footer">Relevamiento de stock realizado por: ______________________ &nbsp;&nbsp;|&nbsp;&nbsp; Fecha: ___/___/______</p>`;
+  const pedidoMap = {};
+  (pedido.items || []).forEach(i => { if (i.id) pedidoMap[i.id] = i; else pedidoMap[i.nombre] = i; });
+  const byCategory = {}, catOrder = [];
+  cocinaCatalogo.forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
+  let rows = '';
+  catOrder.forEach(cat => {
+    const color = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
+    rows += `<tr><td colspan="5" style="background:${color};padding:4px 8px;font-weight:700;font-size:9pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(cat)}</td></tr>`;
+    byCategory[cat].forEach(catItem => {
+      const pedItem = pedidoMap[catItem.id] || pedidoMap[catItem.nombre];
+      const preparado = pedItem?.cantidad > 0 ? `${pedItem.cantidad} ${catItem.unidad||'und'}` : '—';
+      const stock = pedItem?.stock != null ? pedItem.stock : '';
+      const consumido = (stock !== '' && pedItem?.cantidad > 0) ? (pedItem.cantidad - Number(stock)) : '';
+      rows += `<tr style="background:${color}60"><td style="padding-left:14px">${esc(catItem.nombre)}</td><td style="text-align:center">${preparado}</td><td style="text-align:center">${stock}</td><td style="text-align:center">${consumido!==''?consumido:''}</td><td></td></tr>`;
+    });
+  });
+  return `<div class="print-header"><h2>JOLIET — CONTROL DE STOCK POST-EVENTO</h2>
+    <p><strong>Evento:</strong> ${esc(pedido.nombreEvento||'—')}</p>
+    <p><strong>Fecha del evento:</strong> ${pedido.fecha?formatDate(pedido.fecha):'—'} &nbsp;|&nbsp; <strong>Impresión:</strong> ${hoy} &nbsp;|&nbsp; <strong>Relevamiento:</strong> ___/___/______</p></div>
+    <table class="print-table"><thead><tr><th>Ítem</th><th style="width:90px">Preparado</th><th style="width:90px">Stock</th><th style="width:90px">Consumido</th><th style="width:70px">Firma</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody></table>
+    <p class="print-footer">Realizado por: ______________________ &nbsp;&nbsp; Fecha: ___/___/______</p>`;
 }
 
 function abrirVentanaImpresion(htmlContent) {
   const win = window.open('', '_blank', 'width=900,height=700');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #000; margin: 0; padding: 20px; background: #fff; }
-  .print-header { margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #333; }
-  .print-header h2 { font-size: 14pt; margin: 0 0 6px 0; }
-  .print-header p { font-size: 9.5pt; margin: 2px 0; color: #333; }
-  .print-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-  .print-table th { background: #e8e8e8; padding: 5px 8px; border: 1px solid #999; text-align: left; }
-  .print-table td { border: 1px solid #ccc; padding: 4px 8px; vertical-align: top; }
-  .print-footer { margin-top: 12px; font-size: 8.5pt; color: #555; border-top: 1px solid #ddd; padding-top: 6px; }
-  @page { size: A4 portrait; margin: 12mm 15mm; }
-  @media print { body { padding: 0; } }
-</style>
-</head><body>${htmlContent}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  if (!win) { alert('Habilitá las ventanas emergentes para este sitio e intentá nuevamente.'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0;padding:20px;background:#fff}
+  .print-header{margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #333}
+  .print-header h2{font-size:14pt;margin:0 0 6px 0}
+  .print-header p{font-size:9.5pt;margin:2px 0;color:#333}
+  .print-table{width:100%;border-collapse:collapse;font-size:9.5pt}
+  .print-table th{background:#e8e8e8;padding:5px 8px;border:1px solid #999;text-align:left}
+  .print-table td{border:1px solid #ccc;padding:4px 8px;vertical-align:top}
+  .print-footer{margin-top:12px;font-size:8.5pt;color:#555;border-top:1px solid #ddd;padding-top:6px}
+  @page{size:A4 portrait;margin:12mm 15mm}
+  @media print{body{padding:0}}
+  </style></head><body>${htmlContent}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
   win.document.close();
 }
 
-function imprimirPedidoCocina(pedido) {
-  abrirVentanaImpresion(buildPrintPedidoHTML(pedido));
-}
-
-function imprimirRelevamientoCocina(pedido) {
-  abrirVentanaImpresion(buildPrintRelevamientoHTML(pedido));
-}
+function imprimirPedidoCocina(pedido) { abrirVentanaImpresion(buildPrintPedidoHTML(pedido)); }
+function imprimirRelevamientoCocina(pedido) { abrirVentanaImpresion(buildPrintRelevamientoHTML(pedido)); }
 
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
 $('cocina-form-cancel-btn')?.addEventListener('click', () => {
   $('cocina-form-wrap')?.classList.add('hidden');
+  $('cocina-agregar-panel')?.classList.add('hidden');
+  $('cocina-stock-actual-panel')?.classList.add('hidden');
   cocinaPedidoActual = null;
 });
-$('cocina-agregar-item-btn')?.addEventListener('click', agregarItemAlPedido);
+$('cocina-agregar-item-btn')?.addEventListener('click', toggleAgregarPanel);
+$('cocina-ver-stock-btn')?.addEventListener('click', toggleStockActualPanel);
 $('cocina-guardar-btn')?.addEventListener('click', guardarPedido);
 $('cocina-relevamiento-cancel-btn')?.addEventListener('click', () => {
   $('cocina-relevamiento-wrap')?.classList.add('hidden');

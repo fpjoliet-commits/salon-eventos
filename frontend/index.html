@@ -730,8 +730,13 @@
         <div id="cocina-form-wrap" class="cocina-panel hidden">
           <div class="cocina-panel-header">
             <h3 id="cocina-form-titulo">Nuevo pedido</h3>
-            <button id="cocina-form-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button id="cocina-ver-stock-btn" class="btn btn-secondary btn-sm">📦 Stock actual</button>
+              <button id="cocina-form-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
+            </div>
           </div>
+          <!-- Panel stock actual (colapsable) -->
+          <div id="cocina-stock-actual-panel" class="hidden"></div>
           <div class="cocina-form-fields">
             <div class="form-group">
               <label>Evento vinculado <span class="label-optional">(opcional)</span></label>
@@ -752,16 +757,18 @@
             <table class="cocina-items-table">
               <thead>
                 <tr>
-                  <th style="width:22%">Categoría</th>
                   <th>Ítem</th>
-                  <th style="width:90px">Cantidad</th>
-                  <th style="width:28%">Observaciones</th>
+                  <th style="width:130px">Cantidad</th>
+                  <th style="width:50px">Unid.</th>
+                  <th style="width:27%">Observaciones</th>
                   <th style="width:36px"></th>
                 </tr>
               </thead>
               <tbody id="cocina-items-tbody"></tbody>
             </table>
           </div>
+          <!-- Panel para agregar ítems (se despliega al hacer clic en el botón) -->
+          <div id="cocina-agregar-panel" class="cocina-agregar-panel hidden"></div>
           <div class="cocina-panel-footer">
             <button id="cocina-agregar-item-btn" class="btn btn-secondary">＋ Agregar ítem</button>
             <div style="flex:1"></div>
@@ -769,20 +776,20 @@
           </div>
         </div>
 
-        <!-- Formulario: Relevamiento post-evento -->
+        <!-- Formulario: Control de stock post-evento -->
         <div id="cocina-relevamiento-wrap" class="cocina-panel hidden">
           <div class="cocina-panel-header">
-            <h3 id="cocina-relevamiento-titulo">Relevamiento post-evento</h3>
+            <h3 id="cocina-relevamiento-titulo">Control de stock post-evento</h3>
             <button id="cocina-relevamiento-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
           </div>
           <div class="cocina-items-container">
             <table class="cocina-items-table">
               <thead>
                 <tr>
-                  <th style="width:22%">Categoría</th>
                   <th>Ítem</th>
                   <th style="width:100px">Preparado</th>
-                  <th style="width:100px">Stock</th>
+                  <th style="width:140px">Stock actual</th>
+                  <th style="width:50px">Unid.</th>
                 </tr>
               </thead>
               <tbody id="cocina-relevamiento-tbody"></tbody>
@@ -790,7 +797,7 @@
           </div>
           <div class="cocina-panel-footer">
             <div style="flex:1"></div>
-            <button id="cocina-relevamiento-guardar-btn" class="btn btn-primary">Guardar stock</button>
+            <button id="cocina-relevamiento-guardar-btn" class="btn btn-primary">💾 Guardar stock</button>
           </div>
         </div>
       </section>

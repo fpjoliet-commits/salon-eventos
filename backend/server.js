@@ -444,9 +444,9 @@ app.get('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
 
 app.post('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
   try {
-    const { categoria, nombre } = req.body;
+    const { categoria, nombre, unidad } = req.body;
     if (!categoria || !nombre) return res.status(400).json({ error: 'categoria y nombre requeridos' });
-    const item = await sheets.addCatalogoItem({ categoria, nombre });
+    const item = await sheets.addCatalogoItem({ categoria, nombre, unidad });
     res.json(item);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -492,6 +492,25 @@ app.put('/api/pedidos-cocina/:rowIndex', auth, superAdminOnly, async (req, res) 
 app.delete('/api/pedidos-cocina/:rowIndex', auth, superAdminOnly, async (req, res) => {
   try {
     await sheets.deletePedidoCocina(parseInt(req.params.rowIndex));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/stock-actual', auth, superAdminOnly, async (req, res) => {
+  try {
+    res.json(await sheets.getStockActual());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/stock-actual/actualizar', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { actualizaciones } = req.body;
+    if (!Array.isArray(actualizaciones)) return res.status(400).json({ error: 'actualizaciones requerido' });
+    await sheets.actualizarStockActual(actualizaciones);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

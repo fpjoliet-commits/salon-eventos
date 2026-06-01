@@ -34,6 +34,7 @@ let memEmpleados = [];
 let memEgresos = [];
 let memCatalogoItems = [];
 let memPedidosCocina = [];
+let memStockActual = [];
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -1021,98 +1022,106 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
 }
 
 /* ===================== CATÁLOGO ITEMS COCINA ===================== */
-// Columnas A-D: id, categoria, nombre, activo
+// Columnas A-E: id, categoria, nombre, activo, unidad
+
+function detectarUnidad(categoria, nombre) {
+  const cat = (categoria || '').toLowerCase();
+  if (cat.includes('salsas') || cat.includes('salsa')) return 'lt';
+  return 'und';
+}
 
 const CATALOGO_INICIAL = [
   // Recepción - Canapés
-  { categoria: 'Recepción - Canapés', nombre: 'Bocado mediterráneo' },
-  { categoria: 'Recepción - Canapés', nombre: 'Jamón Imperial' },
-  { categoria: 'Recepción - Canapés', nombre: 'Palma Serrana' },
-  { categoria: 'Recepción - Canapés', nombre: 'Azul y Nuez' },
-  { categoria: 'Recepción - Canapés', nombre: 'Bosque y Queso' },
+  { categoria: 'Recepción - Canapés', nombre: 'Bocado mediterráneo', unidad: 'und' },
+  { categoria: 'Recepción - Canapés', nombre: 'Jamón Imperial', unidad: 'und' },
+  { categoria: 'Recepción - Canapés', nombre: 'Palma Serrana', unidad: 'und' },
+  { categoria: 'Recepción - Canapés', nombre: 'Azul y Nuez', unidad: 'und' },
+  { categoria: 'Recepción - Canapés', nombre: 'Bosque y Queso', unidad: 'und' },
   // Recepción - Bruschettas
-  { categoria: 'Recepción - Bruschettas', nombre: 'Braseada suave' },
-  { categoria: 'Recepción - Bruschettas', nombre: 'Campo verde' },
-  { categoria: 'Recepción - Bruschettas', nombre: 'Delicia Ibérica' },
-  { categoria: 'Recepción - Bruschettas', nombre: 'BBQ' },
+  { categoria: 'Recepción - Bruschettas', nombre: 'Braseada suave', unidad: 'und' },
+  { categoria: 'Recepción - Bruschettas', nombre: 'Campo verde', unidad: 'und' },
+  { categoria: 'Recepción - Bruschettas', nombre: 'Delicia Ibérica', unidad: 'und' },
+  { categoria: 'Recepción - Bruschettas', nombre: 'BBQ', unidad: 'und' },
   // Recepción - Fríos
-  { categoria: 'Recepción - Fríos', nombre: 'Variedad de triples de miga' },
-  { categoria: 'Recepción - Fríos', nombre: 'Arrollados' },
+  { categoria: 'Recepción - Fríos', nombre: 'Variedad de triples de miga', unidad: 'und' },
+  { categoria: 'Recepción - Fríos', nombre: 'Arrollados', unidad: 'und' },
   // Recepción - Brochettes
-  { categoria: 'Recepción - Brochettes', nombre: 'Criolla de carne' },
-  { categoria: 'Recepción - Brochettes', nombre: 'Italiana' },
-  { categoria: 'Recepción - Brochettes', nombre: 'Criolla de pollo' },
+  { categoria: 'Recepción - Brochettes', nombre: 'Criolla de carne', unidad: 'und' },
+  { categoria: 'Recepción - Brochettes', nombre: 'Italiana', unidad: 'und' },
+  { categoria: 'Recepción - Brochettes', nombre: 'Criolla de pollo', unidad: 'und' },
   // Recepción - Empanaditas
-  { categoria: 'Recepción - Empanaditas', nombre: 'Fatay de carne' },
-  { categoria: 'Recepción - Empanaditas', nombre: 'Soles de calabaza y semillas grilladas' },
-  { categoria: 'Recepción - Empanaditas', nombre: 'Canastitas de batata y almendra' },
-  { categoria: 'Recepción - Empanaditas', nombre: 'Jamón y queso' },
-  { categoria: 'Recepción - Empanaditas', nombre: 'Cebolla y queso' },
-  { categoria: 'Recepción - Empanaditas', nombre: 'Paquetitos de boniato y amapola' },
-  { categoria: 'Recepción - Empanaditas', nombre: 'Pollo' },
-  { categoria: 'Recepción - Empanaditas', nombre: 'Fingers de zanahoria' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Fatay de carne', unidad: 'und' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Soles de calabaza y semillas grilladas', unidad: 'und' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Canastitas de batata y almendra', unidad: 'und' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Jamón y queso', unidad: 'und' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Cebolla y queso', unidad: 'und' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Paquetitos de boniato y amapola', unidad: 'und' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Pollo', unidad: 'und' },
+  { categoria: 'Recepción - Empanaditas', nombre: 'Fingers de zanahoria', unidad: 'und' },
   // Recepción - Calientes
-  { categoria: 'Recepción - Calientes', nombre: 'Daditos de mozzarella' },
-  { categoria: 'Recepción - Calientes', nombre: 'Mini hamburguesas caseras' },
-  { categoria: 'Recepción - Calientes', nombre: 'Pollo frito (Buffalo wings)' },
-  { categoria: 'Recepción - Calientes', nombre: 'Croquetitas de papa' },
+  { categoria: 'Recepción - Calientes', nombre: 'Daditos de mozzarella', unidad: 'und' },
+  { categoria: 'Recepción - Calientes', nombre: 'Mini hamburguesas caseras', unidad: 'und' },
+  { categoria: 'Recepción - Calientes', nombre: 'Pollo frito (Buffalo wings)', unidad: 'und' },
+  { categoria: 'Recepción - Calientes', nombre: 'Croquetitas de papa', unidad: 'und' },
   // Islas
-  { categoria: 'Islas', nombre: 'Mesa de fiambres' },
-  { categoria: 'Islas', nombre: 'Sushi' },
-  { categoria: 'Islas', nombre: 'Tacos - Relleno de carne' },
-  { categoria: 'Islas', nombre: 'Tacos - Relleno de pollo' },
-  { categoria: 'Islas', nombre: 'Tacos - Guacamole' },
+  { categoria: 'Islas', nombre: 'Mesa de fiambres', unidad: 'und' },
+  { categoria: 'Islas', nombre: 'Sushi', unidad: 'und' },
+  { categoria: 'Islas', nombre: 'Tacos - Relleno de carne', unidad: 'und' },
+  { categoria: 'Islas', nombre: 'Tacos - Relleno de pollo', unidad: 'und' },
+  { categoria: 'Islas', nombre: 'Tacos - Guacamole', unidad: 'und' },
   // Primer Plato - Pastas
-  { categoria: 'Primer Plato - Pastas', nombre: 'Tagliatelle' },
-  { categoria: 'Primer Plato - Pastas', nombre: 'Sorrentinos de jamón y queso' },
-  { categoria: 'Primer Plato - Pastas', nombre: 'Canelones de verdura y ricota' },
-  { categoria: 'Primer Plato - Pastas', nombre: 'Raviolones de espinaca y parmesano' },
-  { categoria: 'Primer Plato - Pastas', nombre: 'Agnolotis de pollo' },
-  { categoria: 'Primer Plato - Pastas', nombre: 'Ñoquis de papa' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Tagliatelle', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Sorrentinos de jamón y queso', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Canelones de verdura y ricota', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Raviolones de espinaca y parmesano', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Agnolotis de pollo', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas', nombre: 'Ñoquis de papa', unidad: 'und' },
   // Primer Plato - Pastas Gourmet
-  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de trucha y almendras' },
-  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Fagotinnis de cordero y romero' },
-  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de salmón y philadelphia' },
+  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de trucha y almendras', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Fagotinnis de cordero y romero', unidad: 'und' },
+  { categoria: 'Primer Plato - Pastas Gourmet', nombre: 'Sorrentinos de salmón y philadelphia', unidad: 'und' },
   // Primer Plato - Salsas
-  { categoria: 'Primer Plato - Salsas', nombre: 'Filetto' },
-  { categoria: 'Primer Plato - Salsas', nombre: 'Bolognesa' },
-  { categoria: 'Primer Plato - Salsas', nombre: 'Rosé' },
-  { categoria: 'Primer Plato - Salsas', nombre: 'Cuatro quesos' },
-  { categoria: 'Primer Plato - Salsas', nombre: 'Crema de espinaca' },
-  { categoria: 'Primer Plato - Salsas', nombre: 'Italiana' },
-  { categoria: 'Primer Plato - Salsas', nombre: 'Salsa blanca' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Filetto', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Bolognesa', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Rosé', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Cuatro quesos', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Crema de espinaca', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Italiana', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas', nombre: 'Salsa blanca', unidad: 'lt' },
   // Primer Plato - Salsas Gourmet
-  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Portobellos y ciboulette' },
-  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Queso azul y nuez' },
+  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Portobellos y ciboulette', unidad: 'lt' },
+  { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Queso azul y nuez', unidad: 'lt' },
   // Plato Central - Ave
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición — relleno: ________ / salsa: ________' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese — relleno: tomate / albahaca / mozzarella / salsa: ________' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro — relleno: puerro / salsa: crema de puerro' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición — relleno: ________ / salsa: ________', unidad: 'und' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese — relleno: tomate / albahaca / mozzarella / salsa: ________', unidad: 'und' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro — relleno: puerro / salsa: crema de puerro', unidad: 'und' },
   // Plato Central - Carne
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva — salsa: ________' },
-  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque — salsa: hongos del bosque' },
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon — salsa: mostaza Dijon' },
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva — salsa: ________', unidad: 'und' },
+  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque — salsa: hongos del bosque', unidad: 'und' },
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon — salsa: mostaza Dijon', unidad: 'und' },
+  // Plato Central - Salsas
+  { categoria: 'Plato Central - Salsas', nombre: 'Salsa del plato', unidad: 'lt' },
   // Plato Central - Guarniciones
-  { categoria: 'Plato Central - Guarniciones', nombre: 'Rosti de papa' },
-  { categoria: 'Plato Central - Guarniciones', nombre: 'Papas a la suiza gratinadas' },
-  { categoria: 'Plato Central - Guarniciones', nombre: 'Milhojas de papa' },
+  { categoria: 'Plato Central - Guarniciones', nombre: 'Rosti de papa', unidad: 'und' },
+  { categoria: 'Plato Central - Guarniciones', nombre: 'Papas a la suiza gratinadas', unidad: 'und' },
+  { categoria: 'Plato Central - Guarniciones', nombre: 'Milhojas de papa', unidad: 'und' },
   // Mesa de Dulces
-  { categoria: 'Mesa de Dulces', nombre: 'Lemon pie' },
-  { categoria: 'Mesa de Dulces', nombre: 'Cheese cake' },
-  { categoria: 'Mesa de Dulces', nombre: 'Chocotorta' },
-  { categoria: 'Mesa de Dulces', nombre: 'Torta África' },
-  { categoria: 'Mesa de Dulces', nombre: 'Tarta de frutillas' },
-  { categoria: 'Mesa de Dulces', nombre: 'Flan' },
-  { categoria: 'Mesa de Dulces', nombre: 'Mil Hojas' },
-  { categoria: 'Mesa de Dulces', nombre: 'Brownies relleno' },
-  { categoria: 'Mesa de Dulces', nombre: 'Copas Heladas' },
-  { categoria: 'Mesa de Dulces', nombre: 'Panqueques' },
-  { categoria: 'Mesa de Dulces', nombre: 'Torta Homenaje' },
-  { categoria: 'Mesa de Dulces', nombre: 'Presentaciones Individuales' },
+  { categoria: 'Mesa de Dulces', nombre: 'Lemon pie', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Cheese cake', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Chocotorta', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Torta África', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Tarta de frutillas', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Flan', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Mil Hojas', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Brownies relleno', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Copas Heladas', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Panqueques', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Torta Homenaje', unidad: 'und' },
+  { categoria: 'Mesa de Dulces', nombre: 'Presentaciones Individuales', unidad: 'und' },
   // Cafetería / Fin de Fiesta
-  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Café con leche y mini facturas' },
-  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Pizza con cerveza' },
-  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Mate con bizcochitos' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Café con leche y mini facturas', unidad: 'und' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Pizza con cerveza', unidad: 'und' },
+  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Mate con bizcochitos', unidad: 'und' },
 ];
 
 function rowToCatalogoItem(row, index) {
@@ -1122,11 +1131,12 @@ function rowToCatalogoItem(row, index) {
     categoria: row[1] || '',
     nombre: row[2] || '',
     activo: row[3] !== 'false',
+    unidad: row[4] || detectarUnidad(row[1], row[2]),
   };
 }
 
 function catalogoItemToRow(item) {
-  return [item.id, item.categoria, item.nombre, item.activo !== false ? 'true' : 'false'];
+  return [item.id, item.categoria, item.nombre, item.activo !== false ? 'true' : 'false', item.unidad || 'und'];
 }
 
 async function getCatalogoItems() {
@@ -1134,25 +1144,33 @@ async function getCatalogoItems() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'CatalogoItems!A2:D',
+    range: 'CatalogoItems!A2:E',
   });
   return (res.data.values || []).map((row, i) => rowToCatalogoItem(row, i)).filter(i => i.id && i.activo !== false);
 }
 
 async function addCatalogoItem(data) {
   const id = generateId('CAT');
-  const item = { ...data, id, activo: true };
+  const unidad = data.unidad || detectarUnidad(data.categoria, data.nombre);
+  const item = { ...data, id, activo: true, unidad };
   if (!tieneCredenciales) {
     item.rowIndex = memCatalogoItems.length + 2;
     memCatalogoItems.push(item);
+    memStockActual.push({ rowIndex: memStockActual.length + 2, id: item.id, categoria: item.categoria, nombre: item.nombre, unidad: item.unidad, cantidad: 0, actualizado: '' });
     return item;
   }
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'CatalogoItems!A:D',
+    range: 'CatalogoItems!A:E',
     valueInputOption: 'USER_ENTERED',
     resource: { values: [catalogoItemToRow(item)] },
+  });
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'StockActual!A:F',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [[item.id, item.categoria, item.nombre, item.unidad, 0, '']] },
   });
   return item;
 }
@@ -1170,6 +1188,81 @@ async function deleteCatalogoItem(rowIndex) {
     valueInputOption: 'USER_ENTERED',
     resource: { values: [['false']] },
   });
+}
+
+/* ===================== STOCK ACTUAL COCINA ===================== */
+// Columnas A-F: id, categoria, nombre, unidad, cantidad, actualizado
+
+function rowToStockItem(row, index) {
+  return {
+    rowIndex: index + 2,
+    id: row[0] || '',
+    categoria: row[1] || '',
+    nombre: row[2] || '',
+    unidad: row[3] || 'und',
+    cantidad: parseFloat(row[4]) || 0,
+    actualizado: row[5] || '',
+  };
+}
+
+async function getStockActual() {
+  if (!tieneCredenciales) return memStockActual.filter(s => s.id);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'StockActual!A2:F',
+  });
+  return (res.data.values || []).map((row, i) => rowToStockItem(row, i)).filter(s => s.id);
+}
+
+async function actualizarStockActual(actualizaciones) {
+  const now = new Date().toLocaleDateString('es-AR');
+  if (!tieneCredenciales) {
+    for (const act of actualizaciones) {
+      const idx = memStockActual.findIndex(s => s.id === act.id);
+      if (idx !== -1) { memStockActual[idx].cantidad = act.cantidad; memStockActual[idx].actualizado = now; }
+    }
+    return;
+  }
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:A' });
+  const rows = res.data.values || [];
+  const updates = [];
+  for (const act of actualizaciones) {
+    const rowIdx = rows.findIndex(r => r[0] === act.id);
+    if (rowIdx !== -1) updates.push({ range: `StockActual!E${rowIdx + 2}:F${rowIdx + 2}`, values: [[act.cantidad, now]] });
+  }
+  if (updates.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { valueInputOption: 'USER_ENTERED', data: updates },
+    });
+  }
+}
+
+async function sincronizarStockConCatalogo() {
+  if (!tieneCredenciales) {
+    const existingIds = new Set(memStockActual.map(s => s.id));
+    memCatalogoItems.filter(i => i.activo !== false && i.id && !existingIds.has(i.id)).forEach(item => {
+      memStockActual.push({ rowIndex: memStockActual.length + 2, id: item.id, categoria: item.categoria, nombre: item.nombre, unidad: item.unidad || 'und', cantidad: 0, actualizado: '' });
+    });
+    return;
+  }
+  const sheets = getSheets();
+  const [stockRes, catRes] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:A' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:E' }),
+  ]);
+  const existingIds = new Set((stockRes.data.values || []).map(r => r[0]).filter(Boolean));
+  const faltantes = (catRes.data.values || []).filter(r => r[0] && r[3] !== 'false' && !existingIds.has(r[0]));
+  if (faltantes.length) {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'StockActual!A:F',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: faltantes.map(r => [r[0], r[1], r[2], r[4] || detectarUnidad(r[1], r[2]), 0, '']) },
+    });
+  }
 }
 
 /* ===================== PEDIDOS COCINA ===================== */
@@ -1342,6 +1435,7 @@ async function initSheets() {
     if (!existing.includes('Egresos')) toCreate.push('Egresos');
     if (!existing.includes('CatalogoItems')) toCreate.push('CatalogoItems');
     if (!existing.includes('PedidosCocina')) toCreate.push('PedidosCocina');
+    if (!existing.includes('StockActual')) toCreate.push('StockActual');
 
     if (toCreate.length) {
       await sheets.spreadsheets.batchUpdate({
@@ -1373,10 +1467,13 @@ async function initSheets() {
       headers.push({ range: 'Egresos!A1:L1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor']] });
     }
     if (!existing.includes('CatalogoItems')) {
-      headers.push({ range: 'CatalogoItems!A1:D1', values: [['id','categoria','nombre','activo']] });
+      headers.push({ range: 'CatalogoItems!A1:E1', values: [['id','categoria','nombre','activo','unidad']] });
     }
     if (!existing.includes('PedidosCocina')) {
       headers.push({ range: 'PedidosCocina!A1:H1', values: [['id','idCliente','nombreEvento','fecha','itemsJSON','estado','creadoPor','fechaCarga']] });
+    }
+    if (!existing.includes('StockActual')) {
+      headers.push({ range: 'StockActual!A1:F1', values: [['id','categoria','nombre','unidad','cantidad','actualizado']] });
     }
 
     if (headers.length) {
@@ -1396,12 +1493,16 @@ async function initSheets() {
       const rows = CATALOGO_INICIAL.map(item => catalogoItemToRow({ ...item, id: generateId('CAT'), activo: true }));
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: 'CatalogoItems!A:D',
+        range: 'CatalogoItems!A:E',
         valueInputOption: 'USER_ENTERED',
         resource: { values: rows },
       });
       console.log(`✅ CatalogoItems pre-poblado con ${rows.length} ítems.`);
     }
+
+    // Sincronizar StockActual con el catálogo (agrega ítems faltantes, stock=0)
+    await sincronizarStockConCatalogo();
+    console.log('✅ StockActual sincronizado con catálogo.');
   } catch (e) {
     console.error('Error en initSheets:', e.message);
   }
@@ -1439,6 +1540,7 @@ module.exports = {
   getEgresos, addEgreso, updateEgreso,
   getCatalogoItems, addCatalogoItem, deleteCatalogoItem,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
+  getStockActual, actualizarStockActual, sincronizarStockConCatalogo,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,
