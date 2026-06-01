@@ -1030,6 +1030,32 @@ function detectarUnidad(categoria, nombre) {
   return 'und';
 }
 
+// Items a desactivar en sheets existentes (nombres viejos o eliminados)
+const ITEMS_DEACTIVATE = new Set([
+  'Plato Central - Ave||Pechuga tradición — relleno: ________ / salsa: ________',
+  'Plato Central - Ave||Pechuga caprese — relleno: tomate / albahaca / mozzarella / salsa: ________',
+  'Plato Central - Ave||Pechuga doble puerro — relleno: puerro / salsa: crema de puerro',
+  'Plato Central - Carne||Lomo Reserva — salsa: ________',
+  'Plato Central - Carne||Bife del bosque — salsa: hongos del bosque',
+  'Plato Central - Carne||Lomo Dijon — salsa: mostaza Dijon',
+  'Islas||Mesa de fiambres', 'Islas||Sushi',
+  'Plato Central - Salsas||Salsa del plato',
+  'Mesa de Dulces||Lemon pie', 'Mesa de Dulces||Cheese cake', 'Mesa de Dulces||Chocotorta',
+  'Mesa de Dulces||Torta África', 'Mesa de Dulces||Tarta de frutillas', 'Mesa de Dulces||Flan',
+  'Mesa de Dulces||Mil Hojas', 'Mesa de Dulces||Brownies relleno', 'Mesa de Dulces||Copas Heladas',
+  'Mesa de Dulces||Panqueques', 'Mesa de Dulces||Torta Homenaje', 'Mesa de Dulces||Presentaciones Individuales',
+  'Cafetería / Fin de Fiesta||Café con leche y mini facturas',
+  'Cafetería / Fin de Fiesta||Pizza con cerveza',
+  'Cafetería / Fin de Fiesta||Mate con bizcochitos',
+  'Recepción - Fríos||Sanguche de Miga',
+]);
+
+// Categorías que NO van a StockActual (no persisten semana a semana)
+const CATEGORIAS_SIN_STOCK = new Set([
+  'Recepción - Canapés', 'Recepción - Bruschettas',
+  'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros',
+]);
+
 const CATALOGO_INICIAL = [
   // Recepción - Canapés
   { categoria: 'Recepción - Canapés', nombre: 'Bocado mediterráneo', unidad: 'und' },
@@ -1084,9 +1110,7 @@ const CATALOGO_INICIAL = [
   { categoria: 'Recepción - Calientes', nombre: 'Mini hamburguesas caseras', unidad: 'und' },
   { categoria: 'Recepción - Calientes', nombre: 'Pollo frito (Buffalo wings)', unidad: 'und' },
   { categoria: 'Recepción - Calientes', nombre: 'Croquetitas de papa', unidad: 'und' },
-  // Islas
-  { categoria: 'Islas', nombre: 'Mesa de fiambres', unidad: 'und' },
-  { categoria: 'Islas', nombre: 'Sushi', unidad: 'und' },
+  // Islas — solo tacos (Mesa de fiambres y Sushi van a pedido externo)
   { categoria: 'Islas', nombre: 'Tacos - Relleno de carne', unidad: 'und' },
   { categoria: 'Islas', nombre: 'Tacos - Relleno de pollo', unidad: 'und' },
   { categoria: 'Islas', nombre: 'Tacos - Guacamole', unidad: 'und' },
@@ -1112,37 +1136,61 @@ const CATALOGO_INICIAL = [
   // Primer Plato - Salsas Gourmet
   { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Portobellos y ciboulette', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas Gourmet', nombre: 'Queso azul y nuez', unidad: 'lt' },
-  // Plato Central - Ave
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición — relleno: ________ / salsa: ________', unidad: 'und' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese — relleno: tomate / albahaca / mozzarella / salsa: ________', unidad: 'und' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro — relleno: puerro / salsa: crema de puerro', unidad: 'und' },
-  // Plato Central - Carne
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva — salsa: ________', unidad: 'und' },
-  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque — salsa: hongos del bosque', unidad: 'und' },
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon — salsa: mostaza Dijon', unidad: 'und' },
-  // Plato Central - Salsas
-  { categoria: 'Plato Central - Salsas', nombre: 'Salsa del plato', unidad: 'lt' },
+  // Plato Central - Ave (con descripción de relleno)
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición · JyQ y mozzarella', unidad: 'und' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese · mozzarella, tomate y albahaca', unidad: 'und' },
+  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro · puerros, crema de almendras', unidad: 'und' },
+  // Plato Central - Carne (con descripción)
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva · reducción de Malbec', unidad: 'und' },
+  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque · hongos de pino', unidad: 'und' },
+  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon · crema de mostaza', unidad: 'und' },
   // Plato Central - Guarniciones
   { categoria: 'Plato Central - Guarniciones', nombre: 'Rosti de papa', unidad: 'und' },
   { categoria: 'Plato Central - Guarniciones', nombre: 'Papas a la suiza gratinadas', unidad: 'und' },
   { categoria: 'Plato Central - Guarniciones', nombre: 'Milhojas de papa', unidad: 'und' },
-  // Mesa de Dulces
-  { categoria: 'Mesa de Dulces', nombre: 'Lemon pie', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Cheese cake', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Chocotorta', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Torta África', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Tarta de frutillas', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Flan', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Mil Hojas', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Brownies relleno', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Copas Heladas', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Panqueques', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Torta Homenaje', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Presentaciones Individuales', unidad: 'und' },
-  // Cafetería / Fin de Fiesta
-  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Café con leche y mini facturas', unidad: 'und' },
-  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Pizza con cerveza', unidad: 'und' },
-  { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Mate con bizcochitos', unidad: 'und' },
+  // Mesa de Dulces y Cafetería: externos (pastelería/panadería), no van en el sistema
+];
+
+// Ingredientes y materias primas que se trackean en stock pero no son ítems de producción
+const INGREDIENTES_STOCK = [
+  { categoria: 'Bruschetta - Toppings', nombre: 'Cerdo con BBQ', unidad: 'kg' },
+  { categoria: 'Bruschetta - Toppings', nombre: 'Carne braseada', unidad: 'kg' },
+  { categoria: 'Bruschetta - Toppings', nombre: 'Pollo con verdeo', unidad: 'kg' },
+  { categoria: 'Fiambres', nombre: 'Jamón barra', unidad: 'und' },
+  { categoria: 'Fiambres', nombre: 'Queso barra', unidad: 'und' },
+  { categoria: 'Fiambres', nombre: 'Salame', unidad: 'und' },
+  { categoria: 'Fiambres', nombre: 'Salamín', unidad: 'und' },
+  { categoria: 'Fiambres', nombre: 'Queso Azul', unidad: 'kg' },
+  { categoria: 'Fiambres', nombre: 'Leberwurst', unidad: 'und' },
+  { categoria: 'Fiambres', nombre: 'Mar del plata', unidad: 'und' },
+  { categoria: 'Fiambres', nombre: 'Crudo', unidad: 'und' },
+  { categoria: 'Fiambres', nombre: 'Aceitunas', unidad: 'kg' },
+  { categoria: 'Fiambres', nombre: 'Pepinillos', unidad: 'und' },
+  { categoria: 'Condimentos', nombre: 'Mayonesa', unidad: 'kg' },
+  { categoria: 'Condimentos', nombre: 'Mostaza', unidad: 'kg' },
+  { categoria: 'Condimentos', nombre: 'Ketchup', unidad: 'kg' },
+  { categoria: 'Condimentos', nombre: 'Barbacoa', unidad: 'kg' },
+  { categoria: 'Condimentos', nombre: 'Cheddar', unidad: 'kg' },
+  { categoria: 'Básicos', nombre: 'Leche', unidad: 'lt' },
+  { categoria: 'Básicos', nombre: 'Manteca', unidad: 'kg' },
+  { categoria: 'Básicos', nombre: 'Harina', unidad: 'kg' },
+  { categoria: 'Básicos', nombre: 'Azúcar', unidad: 'kg' },
+  { categoria: 'Básicos', nombre: 'Huevo', unidad: 'und' },
+  { categoria: 'Básicos', nombre: 'Pan rallado', unidad: 'kg' },
+  { categoria: 'Verduras', nombre: 'Lechuga', unidad: 'und' },
+  { categoria: 'Verduras', nombre: 'Tomate', unidad: 'kg' },
+  { categoria: 'Verduras', nombre: 'Papa', unidad: 'kg' },
+  { categoria: 'Verduras', nombre: 'Cebolla', unidad: 'kg' },
+  { categoria: 'Verduras', nombre: 'Verdeo', unidad: 'und' },
+  { categoria: 'Verduras', nombre: 'Puerro', unidad: 'und' },
+  { categoria: 'Verduras', nombre: 'Perejil', unidad: 'und' },
+  { categoria: 'Verduras', nombre: 'Acelga', unidad: 'und' },
+  { categoria: 'Verduras', nombre: 'Batata', unidad: 'kg' },
+  { categoria: 'Verduras', nombre: 'Zanahoria', unidad: 'kg' },
+  { categoria: 'Aceites y Sales', nombre: 'Aceite girasol', unidad: 'lt' },
+  { categoria: 'Aceites y Sales', nombre: 'Aceite oliva', unidad: 'lt' },
+  { categoria: 'Aceites y Sales', nombre: 'Sal gruesa', unidad: 'kg' },
+  { categoria: 'Aceites y Sales', nombre: 'Sal fina', unidad: 'kg' },
 ];
 
 function rowToCatalogoItem(row, index) {
@@ -1280,6 +1328,9 @@ async function actualizarStockActual(actualizaciones) {
 
 async function sincronizarCatalogoConInicial() {
   if (!tieneCredenciales) {
+    memCatalogoItems.forEach(item => {
+      if (ITEMS_DEACTIVATE.has(`${item.categoria}||${item.nombre}`)) item.activo = false;
+    });
     const existingKeys = new Set(memCatalogoItems.map(i => `${i.categoria}||${i.nombre}`));
     const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`));
     faltantes.forEach(item => {
@@ -1288,11 +1339,22 @@ async function sincronizarCatalogoConInicial() {
     return;
   }
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'CatalogoItems!A2:E',
-  });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:E' });
   const rows = res.data.values || [];
+
+  // Desactivar ítems obsoletos
+  const toDeactivate = rows
+    .map((r, i) => ({ r, rowIndex: i + 2 }))
+    .filter(({ r }) => r[0] && r[3] !== 'false' && ITEMS_DEACTIVATE.has(`${r[1]}||${r[2]}`));
+  if (toDeactivate.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { valueInputOption: 'USER_ENTERED', data: toDeactivate.map(({ rowIndex }) => ({ range: `CatalogoItems!D${rowIndex}`, values: [['false']] })) },
+    });
+    console.log(`✅ CatalogoItems: ${toDeactivate.length} ítems obsoletos desactivados.`);
+  }
+
+  // Agregar ítems faltantes del catálogo inicial
   const existingKeys = new Set(rows.filter(r => r[0]).map(r => `${r[1]}||${r[2]}`));
   const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`));
   if (faltantes.length) {
@@ -1310,9 +1372,11 @@ async function sincronizarCatalogoConInicial() {
 async function sincronizarStockConCatalogo() {
   if (!tieneCredenciales) {
     const existingIds = new Set(memStockActual.map(s => s.id));
-    memCatalogoItems.filter(i => i.activo !== false && i.id && !existingIds.has(i.id)).forEach(item => {
-      memStockActual.push({ rowIndex: memStockActual.length + 2, id: item.id, categoria: item.categoria, nombre: item.nombre, unidad: item.unidad || 'und', cantidad: 0, actualizado: '' });
-    });
+    memCatalogoItems
+      .filter(i => i.activo !== false && i.id && !existingIds.has(i.id) && !CATEGORIAS_SIN_STOCK.has(i.categoria))
+      .forEach(item => {
+        memStockActual.push({ rowIndex: memStockActual.length + 2, id: item.id, categoria: item.categoria, nombre: item.nombre, unidad: item.unidad || 'und', cantidad: 0, actualizado: '' });
+      });
     return;
   }
   const sheets = getSheets();
@@ -1321,7 +1385,9 @@ async function sincronizarStockConCatalogo() {
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:E' }),
   ]);
   const existingIds = new Set((stockRes.data.values || []).map(r => r[0]).filter(Boolean));
-  const faltantes = (catRes.data.values || []).filter(r => r[0] && r[3] !== 'false' && !existingIds.has(r[0]));
+  const faltantes = (catRes.data.values || []).filter(r =>
+    r[0] && r[3] !== 'false' && !existingIds.has(r[0]) && !CATEGORIAS_SIN_STOCK.has(r[1])
+  );
   if (faltantes.length) {
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
@@ -1329,6 +1395,34 @@ async function sincronizarStockConCatalogo() {
       valueInputOption: 'USER_ENTERED',
       resource: { values: faltantes.map(r => [r[0], r[1], r[2], r[4] || detectarUnidad(r[1], r[2]), 0, '']) },
     });
+  }
+}
+
+async function sincronizarIngredientesStock() {
+  if (!tieneCredenciales) {
+    const existingIngKeys = new Set(
+      memStockActual.filter(s => s.id && s.id.startsWith('ING-')).map(s => `${s.categoria}||${s.nombre}`)
+    );
+    INGREDIENTES_STOCK.forEach(ing => {
+      if (!existingIngKeys.has(`${ing.categoria}||${ing.nombre}`)) {
+        memStockActual.push({ rowIndex: memStockActual.length + 2, id: generateId('ING'), categoria: ing.categoria, nombre: ing.nombre, unidad: ing.unidad, cantidad: 0, actualizado: '' });
+      }
+    });
+    return;
+  }
+  const sheets = getSheets();
+  const stockRes = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:F' });
+  const rows = stockRes.data.values || [];
+  const existingIngKeys = new Set(rows.filter(r => r[0] && r[0].startsWith('ING-')).map(r => `${r[1]}||${r[2]}`));
+  const faltantes = INGREDIENTES_STOCK.filter(ing => !existingIngKeys.has(`${ing.categoria}||${ing.nombre}`));
+  if (faltantes.length) {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'StockActual!A:F',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: faltantes.map(ing => [generateId('ING'), ing.categoria, ing.nombre, ing.unidad, 0, '']) },
+    });
+    console.log(`✅ StockActual: ${faltantes.length} ingredientes agregados.`);
   }
 }
 
@@ -1567,12 +1661,15 @@ async function initSheets() {
       console.log(`✅ CatalogoItems pre-poblado con ${rows.length} ítems.`);
     }
 
-    // Agregar ítems nuevos del catálogo inicial (no borra nada existente)
+    // Agregar ítems nuevos del catálogo inicial (no borra nada existente), desactivar obsoletos
     await sincronizarCatalogoConInicial();
 
-    // Sincronizar StockActual con el catálogo (agrega ítems faltantes, stock=0)
+    // Sincronizar StockActual con el catálogo (agrega ítems producibles, excluye sin-stock)
     await sincronizarStockConCatalogo();
-    console.log('✅ StockActual sincronizado con catálogo.');
+
+    // Agregar ingredientes y materias primas al stock (fiambres, verduras, básicos, etc.)
+    await sincronizarIngredientesStock();
+    console.log('✅ StockActual sincronizado con catálogo e ingredientes.');
   } catch (e) {
     console.error('Error en initSheets:', e.message);
   }
@@ -1610,7 +1707,7 @@ module.exports = {
   getEgresos, addEgreso, updateEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
-  getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial,
+  getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial, sincronizarIngredientesStock,
   initSheets,
   migrarClientesAPersonasEventos,
   tieneCredenciales,

@@ -5071,24 +5071,25 @@ const COCINA_CAT_COLORS = {
   'Primer Plato - Salsas Gourmet': '#B2DFDB',
   'Plato Central - Ave':           '#FFF9C4',
   'Plato Central - Carne':         '#FFEBEE',
-  'Plato Central - Salsas':        '#FFF0F3',
   'Plato Central - Guarniciones':  '#F3E5F5',
-  'Mesa de Dulces':                '#FCE4EC',
-  'Cafetería / Fin de Fiesta':     '#EFEBE9',
+  // Stock-only ingredient categories
+  'Bruschetta - Toppings':         '#FFF8E1',
+  'Fiambres':                      '#FAFAFA',
+  'Condimentos':                   '#F9FBE7',
+  'Básicos':                       '#F3F3F3',
+  'Verduras':                      '#E8F5E9',
+  'Aceites y Sales':               '#FFF3E0',
 };
 
 function cocCatColor(cat) { return COCINA_CAT_COLORS[cat] || '#F5F5F5'; }
 
 async function loadCocina() {
   if (!isSuperAdmin()) return;
-  const listEl = $('cocina-lista');
   const loadingEl = $('cocina-loading');
-  const emptyEl = $('cocina-empty');
   if (loadingEl) loadingEl.style.display = '';
-  if (listEl) listEl.innerHTML = '';
-  emptyEl?.classList.add('hidden');
   $('cocina-form-wrap')?.classList.add('hidden');
   $('cocina-relevamiento-wrap')?.classList.add('hidden');
+  $('cocina-actualizar-stock-form')?.classList.add('hidden');
   try {
     [cocinaCatalogo, cocinaPedidos, cocinaStockActual] = await Promise.all([
       apiFetch('/catalogo-items'),
@@ -5096,10 +5097,120 @@ async function loadCocina() {
       apiFetch('/stock-actual'),
     ]);
     if (loadingEl) loadingEl.style.display = 'none';
+    renderStockDashboard();
     renderPedidosList();
   } catch (e) {
     if (loadingEl) loadingEl.style.display = 'none';
     alert('Error cargando datos de cocina: ' + e.message);
+  }
+}
+
+function switchCocinaTab(tabName) {
+  document.querySelectorAll('.cocina-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+  document.querySelectorAll('.cocina-tab-pane').forEach(p => p.classList.add('hidden'));
+  $(`cocina-tab-${tabName}`)?.classList.remove('hidden');
+  if (tabName === 'catalogo') renderCatalogoPanel();
+  if (tabName === 'stock') renderStockDashboard();
+}
+
+function renderStockDashboard() {
+  const el = $('cocina-stock-dashboard');
+  if (!el) return;
+  if (!cocinaStockActual.length) {
+    el.innerHTML = '<p class="empty-msg" style="padding:20px 0">Sin datos de stock.</p>';
+    return;
+  }
+  const byCategory = {}, catOrder = [];
+  cocinaStockActual.forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
+  let html = '<div class="stock-dash-grid">';
+  catOrder.forEach(cat => {
+    const color = cocCatColor(cat);
+    html += `<div class="stock-dash-section">
+      <div class="stock-dash-cat-header" style="background:${color}">${esc(cat)}</div>`;
+    byCategory[cat].forEach(item => {
+      const level = item.cantidad === 0 ? 'sin-stock' : item.cantidad < 5 ? 'bajo' : 'ok';
+      html += `<div class="stock-dash-item-row">
+        <span class="stock-dash-nombre">${esc(item.nombre)}</span>
+        <span class="stock-dash-cant stock-${level}">${item.cantidad}</span>
+        <span class="stock-dash-unidad">${esc(item.unidad||'und')}</span>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function openActualizarStockForm() {
+  const form = $('cocina-actualizar-stock-form');
+  const tbody = $('cocina-actualizar-stock-tbody');
+  if (!form || !tbody) return;
+  const byCategory = {}, catOrder = [];
+  cocinaStockActual.forEach(item => {
+    if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
+    byCategory[item.categoria].push(item);
+  });
+  let html = '';
+  catOrder.forEach(cat => {
+    const color = cocCatColor(cat);
+    html += `<tr class="cocina-cat-header-row"><td colspan="3" class="cocina-cat-header-cell" style="background:${color}">${esc(cat)}</td></tr>`;
+    byCategory[cat].forEach(item => {
+      const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
+      html += `<tr style="background:${color}22">
+        <td style="padding-left:16px;font-size:13px">${esc(item.nombre)}</td>
+        <td>${_cantWrap(item.cantidad || 0, step, 'cocina-stock-update-input', `data-item-id="${esc(item.id)}"`)}</td>
+        <td class="cocina-unidad-cell">${esc(item.unidad||'und')}</td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+  _wirePMButtons(tbody);
+  form.classList.remove('hidden');
+  form.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function guardarActualizacionStock() {
+  const inputs = [...document.querySelectorAll('.cocina-stock-update-input')];
+  const actualizaciones = inputs.map(i => ({ id: i.dataset.itemId, cantidad: parseFloat(i.value) || 0 }));
+  try {
+    $('cocina-actualizar-stock-guardar-btn').disabled = true;
+    await apiFetch('/stock-actual/actualizar', { method: 'POST', body: { actualizaciones } });
+    actualizaciones.forEach(act => {
+      const idx = cocinaStockActual.findIndex(s => s.id === act.id);
+      if (idx !== -1) cocinaStockActual[idx].cantidad = act.cantidad;
+    });
+    $('cocina-actualizar-stock-form').classList.add('hidden');
+    renderStockDashboard();
+  } catch (e) {
+    alert('Error al guardar stock: ' + e.message);
+  } finally {
+    $('cocina-actualizar-stock-guardar-btn').disabled = false;
+  }
+}
+
+function descontarStockDelPedido() {
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  let count = 0;
+  tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+    const id = tr.dataset.id;
+    if (!id) return;
+    const stockItem = cocinaStockActual.find(s => s.id === id);
+    if (!stockItem || stockItem.cantidad <= 0) return;
+    const input = tr.querySelector('.cocina-cant-input');
+    if (!input) return;
+    const pedido = parseFloat(input.value) || 0;
+    const nuevo = Math.max(0, pedido - stockItem.cantidad);
+    if (nuevo !== pedido) { input.value = nuevo; count++; }
+  });
+  const btn = $('cocina-descontar-stock-btn');
+  if (btn) {
+    const orig = btn.innerHTML;
+    btn.innerHTML = count > 0 ? `✓ ${count} descontados` : '📦 Sin stock disponible';
+    setTimeout(() => { btn.innerHTML = orig; }, 2000);
   }
 }
 
@@ -5174,10 +5285,10 @@ function renderPedidosList() {
 }
 
 function openFormularioPedido(pedido = null) {
+  switchCocinaTab('pedido');
   cocinaPedidoActual = pedido;
   $('cocina-relevamiento-wrap')?.classList.add('hidden');
   $('cocina-agregar-panel')?.classList.add('hidden');
-  $('cocina-stock-actual-panel')?.classList.add('hidden');
   $('cocina-form-wrap')?.classList.remove('hidden');
   $('cocina-form-titulo').textContent = pedido ? 'Editar pedido' : 'Nuevo pedido';
 
@@ -5492,6 +5603,7 @@ function renderStockActualPanel() {
 }
 
 function openFormularioRelevamiento(pedido) {
+  switchCocinaTab('pedido');
   cocinaPedidoActual = pedido;
   $('cocina-form-wrap')?.classList.add('hidden');
   $('cocina-agregar-panel')?.classList.add('hidden');
@@ -5588,9 +5700,56 @@ const _PRINT_CAT_COLORS = {
   'Recepción - Brochettes':'#FCE4EC','Recepción - Empanaditas':'#E8F5E9','Recepción - Calientes':'#FBE9E7',
   'Islas':'#EDE7F6','Primer Plato - Pastas':'#E0F7FA','Primer Plato - Pastas Gourmet':'#B2EBF2',
   'Primer Plato - Salsas':'#E0F2F1','Primer Plato - Salsas Gourmet':'#B2DFDB',
-  'Plato Central - Ave':'#FFF9C4','Plato Central - Carne':'#FFEBEE','Plato Central - Salsas':'#FFF0F3',
-  'Plato Central - Guarniciones':'#F3E5F5','Mesa de Dulces':'#FCE4EC','Cafetería / Fin de Fiesta':'#EFEBE9',
+  'Plato Central - Ave':'#FFF9C4','Plato Central - Carne':'#FFEBEE','Plato Central - Guarniciones':'#F3E5F5',
+  'Bruschetta - Toppings':'#FFF8E1','Fiambres':'#FAFAFA','Condimentos':'#F9FBE7',
+  'Básicos':'#F3F3F3','Verduras':'#E8F5E9','Aceites y Sales':'#FFF3E0',
 };
+
+function imprimirPlanillaStock() {
+  const STOCKABLE_CATS = ['Recepción - Fríos','Recepción - Brochettes','Recepción - Empanaditas',
+    'Recepción - Calientes','Islas','Primer Plato - Pastas','Primer Plato - Pastas Gourmet',
+    'Primer Plato - Salsas','Primer Plato - Salsas Gourmet','Plato Central - Ave',
+    'Plato Central - Carne','Plato Central - Guarniciones'];
+  const ING_CATS = ['Bruschetta - Toppings','Fiambres','Condimentos','Básicos','Verduras','Aceites y Sales'];
+  const hoy = new Date().toLocaleDateString('es-AR');
+
+  function buildCol(items) {
+    let html = '';
+    const bycat = {}, order = [];
+    items.forEach(i => { if (!bycat[i.categoria]) { bycat[i.categoria] = []; order.push(i.categoria); } bycat[i.categoria].push(i); });
+    order.forEach(cat => {
+      const c = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
+      html += `<tr><td colspan="3" style="background:${c};padding:3px 6px;font-size:8pt;font-weight:700;color:#5d4037">${cat}</td></tr>`;
+      bycat[cat].forEach(i => {
+        html += `<tr><td style="padding:2px 6px 2px 12px;font-size:8pt">${esc(i.nombre)}</td><td style="font-size:8pt;color:#888;width:28px">${esc(i.unidad||'und')}</td><td style="border:1px solid #bbb;width:50px;padding:2px">&nbsp;</td></tr>`;
+      });
+    });
+    return html;
+  }
+
+  const stockProdItems = cocinaStockActual.filter(s => STOCKABLE_CATS.includes(s.categoria));
+  const stockIngItems = cocinaStockActual.filter(s => ING_CATS.includes(s.categoria));
+
+  const html = `
+    <div style="border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-end">
+      <h2 style="font-size:13pt;margin:0">JOLIET — PLANILLA DE STOCK</h2>
+      <span style="font-size:9pt">Fecha: _______________</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr>
+        <td style="width:50%;vertical-align:top;padding-right:10px">
+          <div style="font-size:8.5pt;font-weight:700;background:#e8e8e8;padding:3px 6px;margin-bottom:4px">PRODUCCIÓN</div>
+          <table style="width:100%;border-collapse:collapse">${buildCol(stockProdItems)}</table>
+        </td>
+        <td style="width:50%;vertical-align:top;padding-left:10px;border-left:1px solid #ddd">
+          <div style="font-size:8.5pt;font-weight:700;background:#e8e8e8;padding:3px 6px;margin-bottom:4px">INGREDIENTES Y MATERIAS PRIMAS</div>
+          <table style="width:100%;border-collapse:collapse">${buildCol(stockIngItems)}</table>
+        </td>
+      </tr>
+    </table>
+    <p style="margin-top:10px;font-size:8pt;color:#666;border-top:1px solid #ddd;padding-top:4px">Impreso el ${hoy}</p>`;
+  abrirVentanaImpresion(html);
+}
 
 function buildPrintPedidoHTML(pedido) {
   const hoy = new Date().toLocaleDateString('es-AR');
@@ -5685,10 +5844,7 @@ function renderCatalogoPanel() {
     cats[item.categoria].push(item);
   }
   const UNITS = ['und', 'lt', 'kg', 'gr'];
-  let html = `<div class="cat-panel-header">
-    <strong>Catálogo de ítems — Unidades</strong>
-    <button class="btn btn-secondary btn-sm" onclick="$('cocina-catalogo-panel').classList.add('hidden')">Cerrar</button>
-  </div><div class="cat-panel-body">`;
+  let html = `<div class="cat-panel-header"><strong>Catálogo de ítems — Unidades</strong></div><div class="cat-panel-body">`;
   for (const [cat, items] of Object.entries(cats)) {
     html += `<div class="cat-panel-group-header" style="background:${cocCatColor(cat)}">${cat}</div>`;
     for (const item of items) {
@@ -5722,16 +5878,26 @@ document.addEventListener('change', async ev => {
   }
 });
 
+// Tabs de cocina
+document.querySelectorAll('.cocina-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchCocinaTab(btn.dataset.tab));
+});
+
+// Tab stock
+$('cocina-actualizar-stock-btn')?.addEventListener('click', openActualizarStockForm);
+$('cocina-actualizar-cancel-btn')?.addEventListener('click', () => $('cocina-actualizar-stock-form')?.classList.add('hidden'));
+$('cocina-actualizar-stock-guardar-btn')?.addEventListener('click', guardarActualizacionStock);
+$('cocina-imprimir-planilla-btn')?.addEventListener('click', imprimirPlanillaStock);
+
+// Tab pedido
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
+$('cocina-descontar-stock-btn')?.addEventListener('click', descontarStockDelPedido);
 $('cocina-form-cancel-btn')?.addEventListener('click', () => {
   $('cocina-form-wrap')?.classList.add('hidden');
   $('cocina-agregar-panel')?.classList.add('hidden');
-  $('cocina-stock-actual-panel')?.classList.add('hidden');
   cocinaPedidoActual = null;
 });
-$('cocina-catalogo-btn')?.addEventListener('click', toggleCatalogoPanel);
 $('cocina-agregar-item-btn')?.addEventListener('click', toggleAgregarPanel);
-$('cocina-ver-stock-btn')?.addEventListener('click', toggleStockActualPanel);
 $('cocina-guardar-btn')?.addEventListener('click', guardarPedido);
 $('cocina-relevamiento-cancel-btn')?.addEventListener('click', () => {
   $('cocina-relevamiento-wrap')?.classList.add('hidden');

@@ -3503,6 +3503,74 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   background: var(--border);
 }
 
+/* ===================== COCINA — TABS DE NAVEGACIÓN ===================== */
+
+.cocina-tabs-nav {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.cocina-tab-btn {
+  padding: 8px 18px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 4px 4px 0 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.cocina-tab-btn:hover { color: var(--text-primary); background: var(--cream-deep); }
+.cocina-tab-btn.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+  font-weight: 600;
+}
+.cocina-tab-pane { /* shown/hidden via .hidden */ }
+
+/* ─── Stock dashboard ─── */
+.cocina-stock-tab-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.stock-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.stock-dash-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.stock-dash-cat-header {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5d4037;
+  letter-spacing: 0.03em;
+}
+.stock-dash-item-row {
+  display: flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-top: 1px solid #f0f0f0;
+  gap: 6px;
+}
+.stock-dash-nombre { flex: 1; font-size: 0.82rem; }
+.stock-dash-cant { font-weight: 700; font-size: 0.88rem; min-width: 32px; text-align: right; }
+.stock-dash-unidad { font-size: 0.72rem; color: var(--text-muted); min-width: 28px; }
+.stock-sin-stock { color: #d32f2f; }
+.stock-bajo      { color: #f57c00; }
+.stock-ok        { color: #388e3c; }
+
 /* ===================== COCINA — PEDIDOS DE PRODUCCIÓN ===================== */
 
 /* Lista de pedidos */
