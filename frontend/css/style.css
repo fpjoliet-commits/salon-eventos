@@ -3533,6 +3533,20 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .cocina-tab-pane { /* shown/hidden via .hidden */ }
 
+/* ─── Hints / lamparitas ─── */
+.cocina-hint {
+  background: #fffbeb;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 6px 6px 0;
+  color: #6a5a2a;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 14px;
+  padding: 9px 14px;
+}
+.cocina-hint strong { color: #4a3a10; }
+.cocina-hint-sm { margin-bottom: 0; margin-top: 0; border-radius: 0 6px 6px 0; font-size: 12.5px; padding: 7px 12px; }
+
 /* ─── Stock dashboard ─── */
 .cocina-stock-tab-actions {
   display: flex;

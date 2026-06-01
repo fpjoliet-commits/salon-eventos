@@ -725,6 +725,7 @@
 
         <!-- ─── TAB: STOCK ACTUAL ─── -->
         <div id="cocina-tab-stock" class="cocina-tab-pane">
+          <div class="cocina-hint">💡 Acá se ve cuánto hay disponible de cada ítem en este momento. Se actualiza solo cuando cargás el sobrante post-evento. Lo que no tiene stock (como canapés o sanguches) no aparece acá porque se hace por pedido y se usa todo.</div>
           <div class="cocina-stock-tab-actions">
             <button id="cocina-actualizar-stock-btn" class="btn btn-primary btn-sm">📝 Actualizar stock</button>
             <button id="cocina-imprimir-planilla-btn" class="btn btn-secondary btn-sm">🖨️ Imprimir planilla</button>
@@ -761,6 +762,8 @@
             <button id="cocina-nuevo-btn" class="btn btn-primary">+ Nuevo pedido</button>
           </div>
 
+          <div class="cocina-hint">💡 <strong>Flujo de uso:</strong> antes de cada evento creás un pedido con lo que se va a preparar → cocina lo usa para producir → después del evento abrís el pedido y cargás lo que sobró con el botón "Control de stock". Eso actualiza automáticamente el stock disponible.</div>
+
           <!-- Lista de pedidos guardados -->
           <div id="cocina-lista-container">
             <div id="cocina-loading" class="loading-msg">Cargando...</div>
@@ -770,10 +773,11 @@
 
           <!-- Formulario: Crear / Editar pedido -->
           <div id="cocina-form-wrap" class="cocina-panel hidden">
+            <div class="cocina-hint cocina-hint-sm">💡 Completá las cantidades de cada ítem. Podés dejar en 0 los que no se usan en este evento. Al guardar, el pedido queda registrado. Usá "📦 Descontar stock" para restar estas cantidades del stock disponible.</div>
             <div class="cocina-panel-header">
               <h3 id="cocina-form-titulo">Nuevo pedido</h3>
               <div style="display:flex;gap:8px;align-items:center">
-                <button id="cocina-descontar-stock-btn" class="btn btn-secondary btn-sm">📦 Descontar stock</button>
+                <button id="cocina-descontar-stock-btn" class="btn btn-secondary btn-sm" title="Resta del stock actual las cantidades de este pedido. Usalo después de guardar el pedido, antes del evento.">📦 Descontar stock</button>
                 <button id="cocina-form-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
               </div>
             </div>
@@ -817,6 +821,7 @@
 
           <!-- Formulario: Control de stock post-evento -->
           <div id="cocina-relevamiento-wrap" class="cocina-panel hidden">
+            <div class="cocina-hint cocina-hint-sm">💡 Anotá cuánto sobró de cada ítem. La columna "Preparado" muestra lo que se pidió; en "Stock actual" ingresás lo que realmente quedó. Al guardar, el stock se actualiza.</div>
             <div class="cocina-panel-header">
               <h3 id="cocina-relevamiento-titulo">Control de stock post-evento</h3>
               <button id="cocina-relevamiento-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
@@ -843,6 +848,7 @@
 
         <!-- ─── TAB: CATÁLOGO ─── -->
         <div id="cocina-tab-catalogo" class="cocina-tab-pane hidden">
+          <div class="cocina-hint">💡 El catálogo es la lista de todos los ítems disponibles para armar pedidos. Podés agregar ítems nuevos o desactivar los que ya no se usan. Los cambios se ven en la próxima vez que armés un pedido.</div>
           <div id="cocina-catalogo-panel" class="cocina-catalogo-panel"></div>
         </div>
 
