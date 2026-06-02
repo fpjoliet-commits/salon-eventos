@@ -473,6 +473,15 @@ app.delete('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, re
   }
 });
 
+app.post('/api/catalogo-items/sync', auth, superAdminOnly, async (req, res) => {
+  try {
+    const result = await sheets.sincronizarCatalogoConInicial();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/pedidos-cocina', auth, superAdminOnly, async (req, res) => {
   try {
     const pedidos = await sheets.getPedidosCocina();

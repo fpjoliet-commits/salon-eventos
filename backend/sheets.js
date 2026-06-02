@@ -1384,11 +1384,27 @@ async function actualizarStockActual(actualizaciones) {
   }
 }
 
+// Normaliza strings para comparación tolerante: minúsculas, guiones unificados, espacios comprimidos
+function _normStr(s) {
+  return (s || '').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 async function sincronizarCatalogoConInicial() {
-  const shouldDeactivateItem = (cat, nombre) =>
-    ITEMS_DEACTIVATE.has(`${cat}||${nombre}`) ||
-    CATS_DEACTIVATE_ALL.has(cat) ||
-    ITEMS_DEACTIVATE_PATTERNS.some(([c, pat]) => c === cat && nombre.includes(pat));
+  // Sets normalizados para lookup rápido
+  const DEACT_KEYS_NORM = new Set([...ITEMS_DEACTIVATE].map(k => {
+    const [c, n] = k.split('||');
+    return `${_normStr(c)}||${_normStr(n)}`;
+  }));
+  const DEACT_CATS_NORM = new Set([...CATS_DEACTIVATE_ALL].map(_normStr));
+  const DEACT_PAT_NORM = ITEMS_DEACTIVATE_PATTERNS.map(([c, pat]) => [_normStr(c), _normStr(pat)]);
+
+  const shouldDeactivateItem = (cat, nombre) => {
+    const catN = _normStr(cat), nomN = _normStr(nombre);
+    return DEACT_KEYS_NORM.has(`${catN}||${nomN}`) ||
+      DEACT_CATS_NORM.has(catN) ||
+      catN.includes('gourmet') ||
+      DEACT_PAT_NORM.some(([c, pat]) => c === catN && nomN.includes(pat));
+  };
 
   if (!tieneCredenciales) {
     memCatalogoItems.forEach(item => {
@@ -1399,13 +1415,13 @@ async function sincronizarCatalogoConInicial() {
     faltantes.forEach(item => {
       memCatalogoItems.push({ ...item, id: generateId('CAT'), activo: true, rowIndex: memCatalogoItems.length + 2 });
     });
-    return;
+    return { desactivados: 0, agregados: faltantes.length };
   }
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:E' });
   const rows = res.data.values || [];
 
-  // Desactivar ítems obsoletos (exact match o patrón substring)
+  // Desactivar ítems obsoletos (comparación normalizada)
   const toDeactivate = rows
     .map((r, i) => ({ r, rowIndex: i + 2 }))
     .filter(({ r }) => r[0] && r[3] !== 'false' && shouldDeactivateItem(r[1], r[2]));
@@ -1414,7 +1430,7 @@ async function sincronizarCatalogoConInicial() {
       spreadsheetId: SPREADSHEET_ID,
       resource: { valueInputOption: 'USER_ENTERED', data: toDeactivate.map(({ rowIndex }) => ({ range: `CatalogoItems!D${rowIndex}`, values: [['false']] })) },
     });
-    console.log(`✅ CatalogoItems: ${toDeactivate.length} ítems obsoletos desactivados.`);
+    console.log(`✅ CatalogoItems: ${toDeactivate.length} ítems obsoletos desactivados:`, toDeactivate.map(x => `${x.r[1]}|${x.r[2]}`).join(', '));
   }
 
   // Agregar ítems faltantes del catálogo inicial
@@ -1430,6 +1446,7 @@ async function sincronizarCatalogoConInicial() {
     });
     console.log(`✅ CatalogoItems: ${faltantes.length} ítems nuevos desde catálogo inicial.`);
   }
+  return { desactivados: toDeactivate.length, desactivadosDetalle: toDeactivate.map(x => `${x.r[1]} / ${x.r[2]}`), agregados: faltantes.length };
 }
 
 async function sincronizarStockConCatalogo() {

@@ -6060,7 +6060,11 @@ function renderCatalogoPanel() {
   const UNITS = ['und', 'lt', 'kg', 'gr'];
   const catOpts = uniqueCats.map(c => `<option value="${esc(c)}">${esc(catDisplayName(c))}</option>`).join('');
 
-  let html = `<div class="cat-nuevo-form">
+  let html = `<div class="cat-panel-toolbar">
+    <button id="cat-sync-btn" class="btn btn-secondary btn-sm">🧹 Limpiar obsoletos</button>
+    <span id="cat-sync-result" style="font-size:12px;color:#666;margin-left:8px"></span>
+  </div>
+  <div class="cat-nuevo-form">
     <select id="cat-nuevo-cat" class="cat-nuevo-sel">${catOpts}<option value="__nueva">+ Nueva categoría…</option></select>
     <input id="cat-nueva-cat-txt" class="cat-nuevo-txt hidden" placeholder="Nombre de categoría">
     <input id="cat-nuevo-nombre" class="cat-nuevo-txt" placeholder="Nombre del ítem" style="flex:2">
@@ -6086,6 +6090,30 @@ function renderCatalogoPanel() {
   }
   html += '</div>';
   panel.innerHTML = html;
+
+  // Botón sync/limpieza
+  document.getElementById('cat-sync-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('cat-sync-btn');
+    const result = document.getElementById('cat-sync-result');
+    btn.disabled = true;
+    btn.textContent = '⏳ Limpiando…';
+    result.textContent = '';
+    try {
+      const data = await apiFetch('catalogo-items/sync', { method: 'POST' });
+      result.textContent = `Desactivados: ${data.desactivados} | Agregados: ${data.agregados}`;
+      if (data.desactivados > 0 || data.agregados > 0) {
+        const items = await apiFetch('catalogo-items');
+        cocinaCatalogo = items;
+        renderCatalogoPanel();
+        if ($('cocina-tab-stock') && !$('cocina-tab-stock').classList.contains('hidden')) renderStockDashboard();
+      }
+    } catch (e) {
+      result.textContent = 'Error: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🧹 Limpiar obsoletos';
+    }
+  });
 
   // Categoría "Nueva" toggle
   document.getElementById('cat-nuevo-cat')?.addEventListener('change', e => {
