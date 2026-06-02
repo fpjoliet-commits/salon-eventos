@@ -3860,12 +3860,6 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .cat-panel-row:last-child { border-bottom: none; }
 
-/* Toolbar del catálogo */
-.cat-panel-toolbar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px; background: #f0f0f0; border-bottom: 1px solid var(--border);
-}
-
 /* Formulario de nuevo ítem */
 .cat-nuevo-form {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
