@@ -5758,31 +5758,34 @@ function openFormularioRelevamiento(pedido) {
 
   const byCategory = {}, catOrder = [];
   cocinaCatalogo.forEach(item => {
+    const pedItem = pedidoMap[item.id] || pedidoMap[item.nombre] || null;
+    const preparado = pedItem?.cantidad > 0 ? pedItem.cantidad : 0;
+    const stockPrev = cocinaStockActual.find(s => s.id === item.id)?.cantidad || 0;
+    if (preparado === 0 && stockPrev === 0) return; // ocultar ítems sin relevancia
     if (!byCategory[item.categoria]) { byCategory[item.categoria] = []; catOrder.push(item.categoria); }
-    byCategory[item.categoria].push(item);
+    byCategory[item.categoria].push({ catItem: item, pedItem, preparado, stockPrev });
   });
 
   let html = '';
   catOrder.forEach(cat => {
     const color = cocCatColor(cat);
-    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="4" class="cocina-cat-header-cell" style="background:${color}">${esc(cat)}</td></tr>`;
-    byCategory[cat].forEach(catItem => {
-      const pedItem = pedidoMap[catItem.id] || pedidoMap[catItem.nombre] || null;
-      const preparado = pedItem?.cantidad > 0 ? pedItem.cantidad : null;
-      const stockPrev = pedItem?.stock != null ? pedItem.stock : (cocinaStockActual.find(s => s.id === catItem.id)?.cantidad ?? '');
+    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
+    byCategory[cat].forEach(({ catItem, pedItem, preparado, stockPrev }) => {
+      const total = preparado + stockPrev;
       const unidad = catItem.unidad || 'und';
       const step = unidad === 'lt' || unidad === 'kg' ? '0.5' : '1';
+      const sobraAnterior = pedItem?.stock != null ? pedItem.stock : '';
       html += `<tr data-item-id="${esc(catItem.id)}" style="background:${color}22">
         <td style="padding-left:16px;font-size:13px">${esc(catItem.nombre)}</td>
-        <td style="text-align:center;font-weight:${preparado!==null?'600':'400'};color:${preparado!==null?'#333':'#bbb'}">
-          ${preparado !== null ? `${preparado} <span style="font-size:11px;font-weight:400;color:#888">${esc(unidad)}</span>` : '—'}
-        </td>
-        <td>${_cantWrap(stockPrev, step, 'cocina-sobrante-input', `data-item-id="${esc(catItem.id)}"`)}</td>
+        <td style="text-align:center;color:#666;font-size:13px">${stockPrev > 0 ? stockPrev : '—'}</td>
+        <td style="text-align:center;font-weight:${preparado>0?'600':'400'};color:${preparado>0?'#333':'#aaa'}">${preparado > 0 ? preparado : '—'}</td>
+        <td style="text-align:center;font-weight:700;color:#222">${total}</td>
+        <td>${_cantWrap(sobraAnterior, step, 'cocina-sobrante-input', `data-item-id="${esc(catItem.id)}"`)}</td>
         <td class="cocina-unidad-cell">${esc(unidad)}</td>
       </tr>`;
     });
   });
-  tbody.innerHTML = html;
+  tbody.innerHTML = html || `<tr><td colspan="6" style="text-align:center;padding:16px;color:#888">No hay ítems con stock o en el pedido</td></tr>`;
   _wirePMButtons(tbody);
   tbody.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.classList.contains('cocina-sobrante-input')) {
@@ -5933,25 +5936,34 @@ function buildPrintRelevamientoHTML(pedido) {
   const byCategory = {}, catOrder = [];
   cocinaCatalogo.forEach(item => {
     const pedItem = pedidoMap[item.id] || pedidoMap[item.nombre];
-    if (!pedItem || !(pedItem.cantidad > 0)) return;
+    const preparado = pedItem?.cantidad > 0 ? pedItem.cantidad : 0;
+    const stockPrev = cocinaStockActual.find(s => s.id === item.id)?.cantidad || 0;
+    if (preparado === 0 && stockPrev === 0) return;
     const cat = item.categoria || 'Sin categoría';
     if (!byCategory[cat]) { byCategory[cat] = []; catOrder.push(cat); }
-    byCategory[cat].push({ catItem: item, pedItem });
+    byCategory[cat].push({ catItem: item, pedItem, preparado, stockPrev });
   });
   let rows = '';
   catOrder.forEach(cat => {
     const color = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
-    rows += `<tr><td colspan="4" style="background:${color};padding:3px 8px;font-weight:700;font-size:8pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}</td></tr>`;
-    byCategory[cat].forEach(({ catItem, pedItem }) => {
-      const preparado = `${pedItem.cantidad} ${catItem.unidad||'und'}`;
-      rows += `<tr style="background:${color}40"><td style="padding-left:12px">${esc(catItem.nombre)}</td><td style="text-align:center">${preparado}</td><td></td><td></td></tr>`;
+    rows += `<tr><td colspan="5" style="background:${color};padding:3px 8px;font-weight:700;font-size:8pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}</td></tr>`;
+    byCategory[cat].forEach(({ catItem, pedItem, preparado, stockPrev }) => {
+      const total = preparado + stockPrev;
+      const unid = catItem.unidad || 'und';
+      rows += `<tr style="background:${color}40">
+        <td style="padding-left:12px">${esc(catItem.nombre)}</td>
+        <td style="text-align:center;color:#555">${stockPrev > 0 ? `${stockPrev} ${esc(unid)}` : '—'}</td>
+        <td style="text-align:center;font-weight:${preparado>0?'600':'400'}">${preparado > 0 ? `${preparado} ${esc(unid)}` : '—'}</td>
+        <td style="text-align:center;font-weight:700">${total} ${esc(unid)}</td>
+        <td></td>
+      </tr>`;
     });
   });
   const evento = esc(pedido.nombreEvento||'—');
   const fechaEvento = pedido.fecha ? formatDate(pedido.fecha) : '—';
   return `<table class="print-table">
     <thead>
-      <tr><td colspan="4" class="print-doc-header">
+      <tr><td colspan="5" class="print-doc-header">
         <div class="ph-title">JOLIET — CONTROL DE STOCK POST-EVENTO</div>
         <div class="ph-meta">
           <span><b>Evento:</b> ${evento}</span>
@@ -5960,9 +5972,9 @@ function buildPrintRelevamientoHTML(pedido) {
         </div>
         <div class="ph-fill">Relevamiento realizado por: _____________________ &nbsp;&nbsp; Fecha: ___/___/______</div>
       </td></tr>
-      <tr><th>Ítem</th><th style="width:95px">Preparado</th><th style="width:95px">Sobrante</th><th style="width:95px">Consumido</th></tr>
+      <tr><th>Ítem</th><th style="width:80px;text-align:center">Stock previo</th><th style="width:80px;text-align:center">Preparado</th><th style="width:80px;text-align:center">Total</th><th style="width:90px;text-align:center">Sobrante</th></tr>
     </thead>
-    <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody>
+    <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:12px">Sin ítems</td></tr>'}</tbody>
   </table>`;
 }
 

@@ -821,7 +821,7 @@
 
           <!-- Formulario: Control de stock post-evento -->
           <div id="cocina-relevamiento-wrap" class="cocina-panel hidden">
-            <div class="cocina-hint cocina-hint-sm">💡 Anotá cuánto sobró de cada ítem. La columna "Preparado" muestra lo que se pidió; en "Stock actual" ingresás lo que realmente quedó. Al guardar, el stock se actualiza.</div>
+            <div class="cocina-hint cocina-hint-sm">💡 Anotá cuánto sobró físicamente de cada ítem (contando tanto el stock anterior como lo que se preparó para este evento). El total disponible = stock previo + preparado. Al guardar, el stock queda actualizado con lo que pusiste en "Sobrante".</div>
             <div class="cocina-panel-header">
               <h3 id="cocina-relevamiento-titulo">Control de stock post-evento</h3>
               <button id="cocina-relevamiento-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
@@ -831,9 +831,11 @@
                 <thead>
                   <tr>
                     <th>Ítem</th>
-                    <th style="width:100px">Preparado</th>
-                    <th style="width:140px">Stock actual</th>
-                    <th style="width:50px">Unid.</th>
+                    <th style="width:80px;text-align:center">Stock previo</th>
+                    <th style="width:80px;text-align:center">Preparado</th>
+                    <th style="width:70px;text-align:center">Total</th>
+                    <th style="width:145px">Sobrante</th>
+                    <th style="width:45px">Unid.</th>
                   </tr>
                 </thead>
                 <tbody id="cocina-relevamiento-tbody"></tbody>
