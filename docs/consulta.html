@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consultas — Joliet Eventos</title>
+  <meta name="description" content="El espacio donde cada celebración se vuelve memorable. Consultanos y recibí una propuesta a medida.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --jet:       #121009;
+      --cream:     #f8f5ef;
+      --cream-deep:#efe9de;
+      --gold:      #c4993e;
+      --gold-light:#f8f0da;
+      --gold-border:#e8d59a;
+      --surface:   #ffffff;
+      --text:      #0e0c08;
+      --text-muted:#6a6050;
+      --border:    #ddd6c8;
+      --error:     #991b1b;
+      --error-bg:  #fef2f2;
+      --error-border:#fbd5d5;
+      --success:   #276044;
+      --success-bg:#eaf5ef;
+      --radius:    10px;
+      --shadow:    0 6px 24px rgba(12,10,6,.10), 0 2px 8px rgba(12,10,6,.06);
+    }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--cream);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      background: var(--jet);
+      padding: 52px 20px 44px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .page-header.has-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: var(--header-bg-img);
+      background-size: cover;
+      background-position: center top;
+      z-index: 0;
+    }
+    .page-header.has-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(10,8,4,.68) 0%, rgba(10,8,4,.72) 100%);
+      z-index: 1;
+    }
+    .page-header h1,
+    .page-header p,
+    .page-header .gold-line {
+      position: relative;
+      z-index: 2;
+    }
+    .page-header h1 {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: clamp(42px, 12vw, 72px);
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: .08em;
+      line-height: 1.1;
+    }
+    .page-header p {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #c8b88e;
+      font-weight: 300;
+      letter-spacing: .04em;
+    }
+    .gold-line {
+      width: 48px;
+      height: 1px;
+      background: var(--gold);
+      margin: 16px auto 0;
+      opacity: .5;
+    }
+
+    /* ── Container ── */
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-body { padding: 28px 24px 32px; }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 14px;
+    }
+    .full { grid-column: 1 / -1; }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .form-group label .req {
+      color: var(--gold);
+      margin-left: 2px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--cream);
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      padding: 10px 12px;
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+      width: 100%;
+    }
+    .form-group input::placeholder,
+    .form-group textarea::placeholder { color: #b8a98a; }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(196,153,62,.12);
+      background: #fff;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    /* ── Divider ── */
+    .section-sep {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── Submit ── */
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      background: var(--jet);
+      color: var(--gold);
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 22px;
+      transition: background .18s, transform .1s;
+    }
+    .btn-submit:hover { background: #1e1b14; }
+    .btn-submit:active { transform: scale(.99); }
+    .btn-submit:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    /* ── Error message ── */
+    .error-msg {
+      display: none;
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
+      color: var(--error);
+      padding: 10px 14px;
+      border-radius: 7px;
+      font-size: 13px;
+      margin-top: 14px;
+    }
+    .error-msg.visible { display: block; }
+
+    /* ── Field error ── */
+    .form-group input.err,
+    .form-group select.err,
+    .form-group textarea.err {
+      border-color: var(--error);
+      background: var(--error-bg);
+    }
+
+    /* ── Success state ── */
+    .success-panel {
+      display: none;
+      text-align: center;
+      padding: 40px 24px;
+    }
+    .success-panel.visible { display: block; }
+    .success-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--success-bg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 18px;
+      font-size: 24px;
+    }
+    .success-panel h2 {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 26px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .success-panel p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 340px;
+      margin: 0 auto;
+    }
+    .btn-wa {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 24px;
+      padding: 13px 22px;
+      background: #25d366;
+      color: #fff;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .btn-wa:hover { background: #1ebe5c; }
+    .btn-wa svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ── Footer ── */
+    .page-footer {
+      text-align: center;
+      padding: 20px 16px;
+      font-size: 11px;
+      color: #b8a98a;
+      letter-spacing: .04em;
+    }
+
+    /* ── Honeypot (invisible) ── */
+    .hp-field { position: absolute; left: -9999px; opacity: 0; pointer-events: none; }
+
+    /* ── Botones del panel de éxito ── */
+    .btn-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .btn-row .btn-wa { margin-top: 0; }
+    .btn-cal {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 22px;
+      background: var(--jet);
+      color: var(--gold);
+      border: 1.5px solid var(--gold);
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      font-family: inherit;
+      transition: background .15s;
+    }
+    .btn-cal:hover { background: #1e1b14; }
+    .btn-cal svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ── Mapa ── */
+    .map-section {
+      max-width: 520px;
+      margin: 0 auto 48px;
+      padding: 0 16px;
+    }
+    .map-title {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 14px;
+      letter-spacing: .03em;
+    }
+    .map-frame {
+      width: 100%;
+      height: 260px;
+      border-radius: var(--radius);
+      border: none;
+      box-shadow: var(--shadow);
+      display: block;
+    }
+    .btn-maps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 11px 20px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-maps:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── Mobile ── */
+    @media (max-width: 400px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .full { grid-column: 1; }
+      .card-body { padding: 20px 16px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Joliet Eventos</h1>
+  <p>El espacio donde cada celebración se vuelve memorable · Consultanos sin compromiso</p>
+  <div class="gold-line"></div>
+</header>
+
+<div id="hero-wrap" style="display:none; max-width:520px; margin:20px auto -12px; padding:0 16px;">
+  <img id="hero-img" src="" alt="Joliet Eventos" style="width:100%; height:220px; object-fit:cover; border-radius:10px 10px 0 0; display:block;">
+</div>
+
+<div class="container">
+  <div class="card">
+
+    <!-- Formulario -->
+    <form id="consulta-form" class="card-body" novalidate>
+
+      <!-- Honeypot anti-bot -->
+      <div class="hp-field" aria-hidden="true">
+        <input type="text" name="_hp" tabindex="-1" autocomplete="off">
+      </div>
+
+      <div class="form-grid">
+
+        <div class="form-group full">
+          <label>Nombre y apellido <span class="req">*</span></label>
+          <input type="text" name="nombre" placeholder="Ej: María González" autocomplete="name">
+        </div>
+
+        <div class="form-group">
+          <label>Teléfono <span class="req">*</span></label>
+          <input type="tel" name="telefono" placeholder="11-1234-5678" autocomplete="tel">
+        </div>
+
+        <div class="form-group">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" name="email" placeholder="tu@email.com" autocomplete="email">
+        </div>
+
+        <hr class="section-sep full">
+
+        <div class="form-group full">
+          <label>Tipo de evento <span class="req">*</span></label>
+          <select name="tipoEvento">
+            <option value="">— Seleccioná —</option>
+            <option>Casamiento</option>
+            <option>Cumpleaños de 15</option>
+            <option>Cumpleaños</option>
+            <option>Bautismo</option>
+            <option>Corporativo</option>
+            <option>Otro</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Fecha tentativa</label>
+          <input type="date" name="fechaEvento" min="">
+        </div>
+
+        <div class="form-group">
+          <label>Cantidad de invitados</label>
+          <input type="number" name="cantidadInvitados" placeholder="Ej: 120" min="80">
+          <span class="field-hint">Mínimo 80 personas</span>
+        </div>
+
+        <div class="form-group full">
+          <label>Turno <span class="req">*</span></label>
+          <select name="turno">
+            <option value="">— Seleccioná —</option>
+            <option value="Noche">Noche — desde las 21hs</option>
+            <option value="Tarde">Tarde / Mediodía — solo domingos y feriados (bajo consulta)</option>
+          </select>
+        </div>
+
+        <div class="form-group full">
+          <label>Mensaje adicional</label>
+          <textarea name="mensaje" placeholder="Contanos algo más sobre tu evento, preferencias, preguntas..."></textarea>
+        </div>
+
+        <div class="form-group full">
+          <label>¿Cómo nos conociste? <span style="font-weight:400;color:#b8a98a">(opcional)</span></label>
+          <select name="origen">
+            <option value="">— Seleccioná —</option>
+            <option value="Instagram">Instagram</option>
+            <option value="TikTok">TikTok</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Google">Google</option>
+            <option value="Recomendacion">Me lo recomendaron</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+
+      </div><!-- /form-grid -->
+
+      <div id="error-msg" class="error-msg"></div>
+
+      <button type="submit" class="btn-submit" id="btn-submit">
+        Enviar consulta
+      </button>
+
+    </form>
+
+    <!-- Estado de éxito -->
+    <div id="success-panel" class="success-panel">
+      <div class="success-icon">✓</div>
+      <h2>¡Ya lo recibimos!</h2>
+      <p>Fabio o Mariana van a contactarte a la brevedad para coordinar una visita al salón, donde arman todo a medida y sin compromiso.</p>
+      <div class="btn-row">
+        <a id="wa-btn" href="#" class="btn-wa" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Escribinos por WhatsApp
+        </a>
+        <a id="cal-btn" href="#" class="btn-cal" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Agendá una visita al salón
+        </a>
+      </div>
+    </div>
+
+  </div><!-- /card -->
+</div><!-- /container -->
+
+<section class="map-section">
+  <p class="map-title">¿Dónde encontrarnos?</p>
+  <iframe
+    class="map-frame"
+    src="https://maps.google.com/maps?q=-34.6132559,-58.6400373&z=17&output=embed"
+    loading="lazy"
+    allowfullscreen
+    referrerpolicy="no-referrer-when-downgrade"
+    title="Ubicación de Joliet Salón de Eventos"
+  ></iframe>
+  <a
+    href="https://maps.app.goo.gl/5TCmbjojY8nwKJ7F6"
+    target="_blank"
+    rel="noopener"
+    class="btn-maps"
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    Abrir en Google Maps
+  </a>
+</section>
+
+<footer class="page-footer">
+  Joliet Eventos · Cada detalle, una celebración
+</footer>
+
+<script>
+  const API_BASE   = 'https://salon-eventos.onrender.com';
+  const WA_NUMBER  = '5491154240870';
+  const HEADER_IMG = API_BASE + '/img/propuesta/salon.jpg.jpeg';
+  const HERO_IMG   = '';
+  const CAL_LINK   = 'https://cal.com/fabio-pino-3oro7p/visita-al-salon';
+
+  // Despierta Render en segundo plano mientras el usuario llena el form
+  fetch(API_BASE + '/api/status').catch(() => {});
+
+  // Fecha mínima = hoy
+  document.querySelector('input[name="fechaEvento"]').min = new Date().toISOString().split('T')[0];
+
+  const utm = new URLSearchParams(location.search).get('utm_source') || '';
+
+  const form         = document.getElementById('consulta-form');
+  const errorMsg     = document.getElementById('error-msg');
+  const btnSubmit    = document.getElementById('btn-submit');
+  const successPanel = document.getElementById('success-panel');
+  const waBtn        = document.getElementById('wa-btn');
+  const calBtn       = document.getElementById('cal-btn');
+
+  if (!WA_NUMBER) waBtn.style.display = 'none';
+
+  if (HEADER_IMG) {
+    const hdr = document.querySelector('.page-header');
+    hdr.style.setProperty('--header-bg-img', `url("${HEADER_IMG}")`);
+    hdr.classList.add('has-bg');
+  }
+  if (HERO_IMG) {
+    document.getElementById('hero-img').src = HERO_IMG;
+    document.getElementById('hero-wrap').style.display = 'block';
+  }
+  if (CAL_LINK) { calBtn.href = CAL_LINK; } else { calBtn.style.display = 'none'; }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.classList.add('visible');
+    errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function clearErrors() {
+    errorMsg.classList.remove('visible');
+    form.querySelectorAll('.err').forEach(el => el.classList.remove('err'));
+  }
+  function markErr(name) {
+    const el = form.elements[name];
+    if (el) el.classList.add('err');
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors();
+
+    const nombre            = form.elements.nombre.value.trim();
+    const telefono          = form.elements.telefono.value.trim();
+    const email             = form.elements.email.value.trim();
+    const tipoEvento        = form.elements.tipoEvento.value;
+    const turno             = form.elements.turno.value;
+    const cantidadInvitados = form.elements.cantidadInvitados.value;
+
+    if (!nombre)     { markErr('nombre');     showError('El nombre es obligatorio.'); return; }
+    if (!telefono)   { markErr('telefono');   showError('El teléfono es obligatorio.'); return; }
+    if (!email || !email.includes('@')) { markErr('email'); showError('Ingresá un email válido.'); return; }
+    if (!tipoEvento) { markErr('tipoEvento'); showError('Seleccioná el tipo de evento.'); return; }
+    if (!turno)      { markErr('turno');      showError('Seleccioná el turno.'); return; }
+    if (cantidadInvitados && parseInt(cantidadInvitados) < 80) {
+      markErr('cantidadInvitados');
+      showError('La capacidad mínima del salón es de 80 invitados.');
+      return;
+    }
+
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = 'Enviando…';
+
+    try {
+      const payload = {
+        nombre, telefono, email, tipoEvento, turno,
+        fechaEvento:        form.elements.fechaEvento.value,
+        cantidadInvitados,
+        mensaje:            form.elements.mensaje.value.trim(),
+        origen:             form.elements.origen.value || utm || '',
+        _hp:                form.elements._hp.value,
+      };
+
+      const res = await fetch(API_BASE + '/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showError(data.error || 'Error al enviar. Intentá de nuevo.');
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Enviar consulta';
+        return;
+      }
+
+      if (CAL_LINK && data.rowIndex) {
+        const calUrl = new URL(CAL_LINK);
+        calUrl.searchParams.set('metadata[rowIndex]', data.rowIndex);
+        calUrl.searchParams.set('name', nombre);
+        if (email) calUrl.searchParams.set('email', email);
+        calBtn.href = calUrl.toString();
+      }
+
+      if (WA_NUMBER) {
+        const fechaEvento = form.elements.fechaEvento.value;
+        const lines = ['Hola! Acabo de completar el formulario de consulta. Mis datos:'];
+        lines.push(`• Nombre: ${nombre}`);
+        lines.push(`• Tipo de evento: ${tipoEvento}`);
+        if (fechaEvento) {
+          const [y, m, d] = fechaEvento.split('-');
+          lines.push(`• Fecha tentativa: ${d}/${m}/${y}`);
+        }
+        if (cantidadInvitados) lines.push(`• Invitados: ${cantidadInvitados}`);
+        lines.push(`• Turno: ${turno}`);
+        const mensajeVal = form.elements.mensaje.value.trim();
+        if (mensajeVal) lines.push(`• Mensaje: ${mensajeVal}`);
+        waBtn.href = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(lines.join('\n'))}`;
+      }
+
+      form.style.display = 'none';
+      successPanel.classList.add('visible');
+
+    } catch {
+      showError('Sin conexión. Verificá tu internet e intentá de nuevo.');
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = 'Enviar consulta';
+    }
+  });
+
+  form.querySelectorAll('input, select, textarea').forEach(el => {
+    el.addEventListener('input', () => el.classList.remove('err'));
+  });
+</script>
+</body>
+</html>
