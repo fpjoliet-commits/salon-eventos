@@ -998,6 +998,20 @@ function renderCalendario() {
     segMap[c.proximoSeguimiento].push(c);
   });
 
+  // Clientes sin actividad hace 14+ días: aparecen en HOY en el calendario
+  const hoyDate = new Date(); hoyDate.setHours(0,0,0,0);
+  const sinActividadCal = allClientes.filter(c => {
+    if (['Confirmado', 'Realizado', 'Cancelado'].includes(c.estado)) return false;
+    const fc = parseFechaCarga(c.fechaCarga);
+    if (!fc) return false;
+    if ((hoyDate - fc) / 86400000 < 14) return false;
+    if (c.proximoSeguimiento) {
+      const seg = new Date(c.proximoSeguimiento); seg.setHours(0,0,0,0);
+      if (seg >= hoyDate) return false;
+    }
+    return true;
+  });
+
   const firstDay = new Date(calYear, calMonth, 1);
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   let startDow = firstDay.getDay();
@@ -1020,6 +1034,9 @@ function renderCalendario() {
     const isToday = ds === todayStr;
     const evs = eventMap[ds] || [];
     const segs = (segMap[ds] || []).filter(c => c.fechaEvento !== ds); // no duplicar si el evento es ese día
+    const sinAct = isToday
+      ? sinActividadCal.filter(c => !evs.some(e => e.id === c.id) && !segs.some(s => s.id === c.id))
+      : [];
     cells += `<div class="cal-cell${isToday ? ' cal-cell-today' : ''}">
       <span class="cal-cell-num${isToday ? ' cal-num-today' : ''}">${d}</span>
       ${evs.map(c => {
@@ -1038,6 +1055,14 @@ function renderCalendario() {
         const titulo = esCobro ? 'Cobro' : (esVisita ? 'Visita' : 'Seguimiento');
         return `<div class="cal-pill cal-pill-seg ${cls}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${titulo}: ${c.apellidoNombre}">
           <div class="cal-pill-nombre">${icono} ${c.apellidoNombre}</div>
+        </div>`;
+      }).join('')}
+      ${sinAct.map(c => {
+        const fcDate = parseFechaCarga(c.fechaCarga);
+        const dias = fcDate ? Math.round((hoyDate - fcDate) / 86400000) : '?';
+        return `<div class="cal-pill cal-pill-seg cal-pill-sin-actividad" onclick="openClienteModal(window._cmap['${c.id}'])" title="Sin actividad (${dias}d): ${c.apellidoNombre}">
+          <div class="cal-pill-nombre">📞 ${c.apellidoNombre}</div>
+          <div class="cal-pill-sub">${c.tipoEvento || '—'} · ${dias}d</div>
         </div>`;
       }).join('')}
     </div>`;
