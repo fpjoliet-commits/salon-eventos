@@ -930,8 +930,8 @@ textarea { resize: vertical; min-height: 70px; }
 .cal-cell {
   border-right: 1px solid var(--border-light);
   border-bottom: 1px solid var(--border-light);
-  min-height: 96px;
-  padding: 7px;
+  min-height: 140px;
+  padding: 6px;
   background: #fff;
   overflow: hidden;
 }
@@ -952,17 +952,17 @@ textarea { resize: vertical; min-height: 70px; }
 .cal-num-today { background: var(--jet); color: #fff; }
 .cal-pill {
   display: block;
-  font-size: 10.5px;
-  padding: 3px 7px;
+  font-size: 10px;
+  padding: 2px 6px;
   border-radius: 3px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   cursor: pointer;
   overflow: hidden;
   transition: opacity .12s, transform .12s;
 }
 .cal-pill:hover { opacity: .8; transform: translateX(1px); }
-.cal-pill-nombre { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cal-pill-sub { font-size: 9.5px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-pill-nombre { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+.cal-pill-sub { font-size: 9px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 .cal-pill-confirmado { background: #dcfce7; color: #14532d; }
 .cal-pill-visita     { background: #dbeafe; color: #1e3a8a; }
 .cal-pill-cerrar     { background: #ffedd5; color: #7c2d12; }
