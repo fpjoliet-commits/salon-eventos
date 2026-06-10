@@ -2375,6 +2375,19 @@ const FIN_FIESTA_OPT = [
   'Café con leche y mini facturas', 'Pizza con cerveza', 'Mate con bizcochitos',
 ];
 
+/* Menú informal — formato Americano: islas en vivo reemplazan al plato servido */
+const ISLA_AMERICANO_BASE = 'Bovalino — Pasta Italiana';
+const ISLAS_AMERICANO_OPT = [
+  'Azteca — Tacos', 'Dijon — Pollo a la mostaza', 'Bianca — Pollo en vino blanco',
+  'Francesa — Lomo Demiglace', 'Del Bosque — Carne y hongos',
+];
+const ISLAS_AMERICANO_PREMIUM_OPT = [
+  'Delicias de Mar', 'Paella Mediterránea',
+];
+const POSTRES_AMERICANO_OPT = [
+  'Pavlova de estación', 'American Sweet', 'África de autor', 'Key Lime Pie',
+];
+
 function actividadSelectHTML(selectId, customId, valor = '') {
   const esPredefinida = ACTIVIDADES_TIMMING.includes(valor.toUpperCase());
   const esOtro = valor && !esPredefinida;
@@ -2654,9 +2667,15 @@ function checkboxListHTML(items, selectedArr, prefix) {
   }).join('');
 }
 
+function getCocinaModo() {
+  return document.querySelector('#tim-panel-cocina .timming-wrap')?.dataset.modo === 'informal' ? 'informal' : 'formal';
+}
+
 function getCocinaFormData() {
   const getChecked = cls => [...document.querySelectorAll(`.${cls}-check:checked`)].map(el => el.value);
-  return {
+  const modo = getCocinaModo();
+  const base = {
+    modo,
     horaRecepcion: $('coc-hora-recepcion')?.value || '',
     canapes: getChecked('coc-canape'),
     bruschettas: getChecked('coc-bruschetta'),
@@ -2669,6 +2688,19 @@ function getCocinaFormData() {
       ...getChecked('coc-isla'),
       ...($('coc-isla-extra')?.value.trim() ? [$('coc-isla-extra').value.trim()] : []),
     ],
+    horaCafeteria: $('coc-hora-cafeteria')?.value || '',
+    finFiesta: getChecked('coc-fin-fiesta'),
+  };
+  if (modo === 'informal') {
+    return {
+      ...base,
+      horaPostres: $('coc-hora-postres')?.value || '',
+      postres: getChecked('coc-postre-am'),
+      tortaHomenaje: $('coc-torta-homenaje')?.value.trim() || '',
+    };
+  }
+  return {
+    ...base,
     horaPrimerPlato: $('coc-hora-primer-plato')?.value || '',
     pastas: getChecked('coc-pasta'),
     pastasGourmet: getChecked('coc-pasta-gourmet'),
@@ -2683,56 +2715,24 @@ function getCocinaFormData() {
     horaMesaDulces: $('coc-hora-mesa-dulces')?.value || '',
     mesaDulces: getChecked('coc-dulce'),
     postre: $('coc-postre')?.value.trim() || '',
-    horaCafeteria: $('coc-hora-cafeteria')?.value || '',
-    finFiesta: getChecked('coc-fin-fiesta'),
   };
-}
-
-function setCocinaFormData(d) {
-  if (!d) return;
-  const setChecked = (cls, arr) => {
-    document.querySelectorAll(`.${cls}-check`).forEach(el => {
-      el.checked = arr && arr.includes(el.value);
-    });
-  };
-  setTimePicker('coc-hora-recepcion', d.horaRecepcion || '');
-  setChecked('coc-canape', d.canapes);
-  setChecked('coc-bruschetta', d.bruschettas);
-  setChecked('coc-rf-otros', d.recepcionOtros);
-  setChecked('coc-brochette', d.brochettes);
-  setChecked('coc-empanadita', d.empanaditas);
-  setChecked('coc-rc-otros', d.calientesOtros);
-  setTimePicker('coc-hora-islas', d.horaIslas || '');
-  setChecked('coc-isla', d.islas);
-  if ($('coc-isla-extra')) $('coc-isla-extra').value = '';
-  setTimePicker('coc-hora-primer-plato', d.horaPrimerPlato || '');
-  setChecked('coc-pasta', d.pastas);
-  setChecked('coc-pasta-gourmet', d.pastasGourmet);
-  if ($('coc-nsalsas')) $('coc-nsalsas').value = d.cantidadSalsas || '';
-  setChecked('coc-salsa', d.salsas);
-  setChecked('coc-salsa-gourmet', d.salsasGourmet);
-  setTimePicker('coc-hora-plato-central', d.horaPlatoCentral || '');
-  if ($('coc-plato-ave')) $('coc-plato-ave').value = d.platoCentralAve || '';
-  if ($('coc-guarnicion-ave')) $('coc-guarnicion-ave').value = d.guarnicionAve || '';
-  if ($('coc-plato-carne')) $('coc-plato-carne').value = d.platoCentralCarne || '';
-  if ($('coc-guarnicion-carne')) $('coc-guarnicion-carne').value = d.guarnicionCarne || '';
-  setTimePicker('coc-hora-mesa-dulces', d.horaMesaDulces || '');
-  setChecked('coc-dulce', d.mesaDulces);
-  if ($('coc-postre')) $('coc-postre').value = d.postre || '';
-  setTimePicker('coc-hora-cafeteria', d.horaCafeteria || '');
-  setChecked('coc-fin-fiesta', d.finFiesta);
 }
 
 function renderTimmingCocina(cliente, cocinaItem) {
-  const panel = $('tim-panel-cocina');
-  if (!panel) return;
-
   let cocinaData = {};
   let cocinaRowIndex = null;
   if (cocinaItem) {
-    try { cocinaData = JSON.parse(cocinaItem.actividad); } catch {}
+    try { cocinaData = JSON.parse(cocinaItem.actividad) || {}; } catch {}
     cocinaRowIndex = cocinaItem.rowIndex;
   }
+  renderCocinaForm(cliente, cocinaData, cocinaRowIndex);
+}
+
+function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
+  const panel = $('tim-panel-cocina');
+  if (!panel) return;
+  cocinaData = cocinaData || {};
+  const modo = cocinaData.modo === 'informal' ? 'informal' : 'formal';
 
   const chk = (cls, items, sel) => checkboxListHTML(items, sel, cls);
   const secHeader = (titulo, horaId, horaVal) => `
@@ -2741,53 +2741,16 @@ function renderTimmingCocina(cliente, cocinaItem) {
       ${timePicker(horaId, horaVal || '')}
     </div>`;
 
-  panel.innerHTML = `
-    <div class="timming-wrap">
-      <div class="timming-header-row">
-        <h4 class="timming-title">Menú de cocina</h4>
-        <div style="display:flex;gap:8px">
-          <button id="btn-save-cocina" class="btn btn-sm btn-primary">💾 Guardar</button>
-          <button id="btn-print-cocina" class="btn btn-sm btn-secondary">🖨 Imprimir</button>
-        </div>
-      </div>
-      <div class="coc-presets">
-        <span style="font-size:12px;color:#888;margin-right:6px">Preset:</span>
-        <button class="btn btn-xs btn-secondary" id="coc-preset-formal">Formal</button>
-        <button class="btn btn-xs btn-secondary" id="coc-preset-informal">Informal</button>
-        <button class="btn btn-xs btn-secondary" id="coc-preset-clear">Limpiar</button>
-      </div>
+  // islas guardadas que no figuran en las opciones predefinidas (texto libre)
+  const islasConocidas = modo === 'informal'
+    ? [ISLA_AMERICANO_BASE, ...ISLAS_AMERICANO_OPT, ...ISLAS_AMERICANO_PREMIUM_OPT]
+    : ISLAS_OPT;
+  const islasCustom = (cocinaData.islas || []).filter(i => !islasConocidas.includes(i));
 
-      <div class="coc-section">
-        ${secHeader('RECEPCIÓN', 'coc-hora-recepcion', cocinaData.horaRecepcion)}
-        <div class="coc-group">
-          <div class="coc-group-label">Bocados fríos — Canapés</div>
-          <div class="coc-checks">${chk('coc-canape', MENU_COCINA.canapes, cocinaData.canapes)}</div>
-        </div>
-        <div class="coc-group">
-          <div class="coc-group-label">Bocados fríos — Bruschettas</div>
-          <div class="coc-checks">${chk('coc-bruschetta', MENU_COCINA.bruschettas, cocinaData.bruschettas)}</div>
-        </div>
-        <div class="coc-group">
-          <div class="coc-group-label">Otros fríos</div>
-          <div class="coc-checks">${chk('coc-rf-otros', MENU_COCINA.recepcionOtros, cocinaData.recepcionOtros)}</div>
-        </div>
-        <div class="coc-group">
-          <div class="coc-group-label">Bocados calientes — Brochettes</div>
-          <div class="coc-checks">${chk('coc-brochette', MENU_COCINA.brochettes, cocinaData.brochettes)}</div>
-        </div>
-        <div class="coc-group">
-          <div class="coc-group-label">Bocados calientes — Mini Empanaditas</div>
-          <div class="coc-checks">${chk('coc-empanadita', MENU_COCINA.empanaditas, cocinaData.empanaditas)}</div>
-        </div>
-        <div class="coc-group">
-          <div class="coc-group-label">Bocados calientes — Otros</div>
-          <div class="coc-checks">${chk('coc-rc-otros', MENU_COCINA.calientesOtros, cocinaData.calientesOtros)}</div>
-        </div>
-      </div>
-
+  const cuerpoFormal = `
       <div class="coc-section">
         ${secHeader('ISLAS', 'coc-hora-islas', cocinaData.horaIslas)}
-        <div class="coc-checks">${chk('coc-isla', ISLAS_OPT, cocinaData.islas)}</div>
+        <div class="coc-checks">${chk('coc-isla', [...ISLAS_OPT, ...islasCustom], cocinaData.islas)}</div>
         <input type="text" id="coc-isla-extra" class="coc-input" placeholder="Otra isla..." style="margin-top:8px">
       </div>
 
@@ -2853,7 +2816,89 @@ function renderTimmingCocina(cliente, cocinaItem) {
           <p class="coc-hint">1 opción por cada 10 invitados. Una siempre es la torta principal.</p>
           <textarea id="coc-postre" class="coc-textarea" rows="2" placeholder="Ej: Torta principal + Lemon pie">${esc(cocinaData.postre || '')}</textarea>
         </div>
+      </div>`;
+
+  const cuerpoInformal = `
+      <div class="coc-section">
+        ${secHeader('ISLAS EN VIVO — PLATO CENTRAL', 'coc-hora-islas', cocinaData.horaIslas)}
+        <div class="coc-group">
+          <div class="coc-group-label">Isla base (siempre incluida)</div>
+          <div class="coc-checks">${chk('coc-isla', [ISLA_AMERICANO_BASE], cocinaData.islas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Islas adicionales (hasta 2 a elección del anfitrión)</div>
+          <div class="coc-checks">${chk('coc-isla', ISLAS_AMERICANO_OPT, cocinaData.islas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Islas premium</div>
+          <div class="coc-checks">${chk('coc-isla', ISLAS_AMERICANO_PREMIUM_OPT, cocinaData.islas)}</div>
+        </div>
+        ${islasCustom.length ? `
+        <div class="coc-group">
+          <div class="coc-group-label">Otras</div>
+          <div class="coc-checks">${chk('coc-isla', islasCustom, cocinaData.islas)}</div>
+        </div>` : ''}
+        <input type="text" id="coc-isla-extra" class="coc-input" placeholder="Otra isla..." style="margin-top:8px">
       </div>
+
+      <div class="coc-section">
+        ${secHeader('TORTA HOMENAJE & POSTRES', 'coc-hora-postres', cocinaData.horaPostres)}
+        <div class="coc-group">
+          <div class="coc-group-label">Postres</div>
+          <div class="coc-checks">${chk('coc-postre-am', POSTRES_AMERICANO_OPT, cocinaData.postres)}</div>
+        </div>
+        <div class="coc-group" style="margin-top:12px">
+          <div class="coc-group-label">Torta homenaje</div>
+          <p class="coc-hint">A pedido del agasajado · colores y decoración a convenir · se sirve después de los postres.</p>
+          <textarea id="coc-torta-homenaje" class="coc-textarea" rows="2" placeholder="Ej: Torta homenaje — chocolate, decoración dorada">${esc(cocinaData.tortaHomenaje || '')}</textarea>
+        </div>
+      </div>`;
+
+  panel.innerHTML = `
+    <div class="timming-wrap" data-modo="${modo}">
+      <div class="timming-header-row">
+        <h4 class="timming-title">Menú de cocina · ${modo === 'informal' ? 'Informal (Americano)' : 'Formal'}</h4>
+        <div style="display:flex;gap:8px">
+          <button id="btn-save-cocina" class="btn btn-sm btn-primary">💾 Guardar</button>
+          <button id="btn-print-cocina" class="btn btn-sm btn-secondary">🖨 Imprimir</button>
+        </div>
+      </div>
+      <div class="coc-presets">
+        <span style="font-size:12px;color:#888;margin-right:6px">Preset:</span>
+        <button class="btn btn-xs ${modo === 'formal' ? 'btn-primary' : 'btn-secondary'}" id="coc-preset-formal">Formal</button>
+        <button class="btn btn-xs ${modo === 'informal' ? 'btn-primary' : 'btn-secondary'}" id="coc-preset-informal">Informal</button>
+        <button class="btn btn-xs btn-secondary" id="coc-preset-clear">Limpiar</button>
+      </div>
+
+      <div class="coc-section">
+        ${secHeader('RECEPCIÓN', 'coc-hora-recepcion', cocinaData.horaRecepcion)}
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados fríos — Canapés</div>
+          <div class="coc-checks">${chk('coc-canape', MENU_COCINA.canapes, cocinaData.canapes)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados fríos — Bruschettas</div>
+          <div class="coc-checks">${chk('coc-bruschetta', MENU_COCINA.bruschettas, cocinaData.bruschettas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Otros fríos</div>
+          <div class="coc-checks">${chk('coc-rf-otros', MENU_COCINA.recepcionOtros, cocinaData.recepcionOtros)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados calientes — Brochettes</div>
+          <div class="coc-checks">${chk('coc-brochette', MENU_COCINA.brochettes, cocinaData.brochettes)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados calientes — Mini Empanaditas</div>
+          <div class="coc-checks">${chk('coc-empanadita', MENU_COCINA.empanaditas, cocinaData.empanaditas)}</div>
+        </div>
+        <div class="coc-group">
+          <div class="coc-group-label">Bocados calientes — Otros</div>
+          <div class="coc-checks">${chk('coc-rc-otros', MENU_COCINA.calientesOtros, cocinaData.calientesOtros)}</div>
+        </div>
+      </div>
+
+      ${modo === 'informal' ? cuerpoInformal : cuerpoFormal}
 
       <div class="coc-section">
         ${secHeader('CAFETERÍA / FIN DE FIESTA', 'coc-hora-cafeteria', cocinaData.horaCafeteria)}
@@ -2865,27 +2910,37 @@ function renderTimmingCocina(cliente, cocinaItem) {
 
   bindAllTimePickers(panel);
 
+  const recepcionPresetCompleta = () => ({
+    canapes: [...MENU_COCINA.canapes],
+    bruschettas: [...MENU_COCINA.bruschettas],
+    recepcionOtros: [...MENU_COCINA.recepcionOtros],
+    brochettes: [...MENU_COCINA.brochettes],
+    empanaditas: [...MENU_COCINA.empanaditas],
+  });
   $('coc-preset-formal')?.addEventListener('click', () => {
-    setCocinaFormData({
-      canapes: [...MENU_COCINA.canapes],
-      bruschettas: [...MENU_COCINA.bruschettas],
-      recepcionOtros: [...MENU_COCINA.recepcionOtros],
-      brochettes: [...MENU_COCINA.brochettes],
-      empanaditas: [...MENU_COCINA.empanaditas],
+    const cur = getCocinaFormData();
+    renderCocinaForm(cliente, {
+      modo: 'formal',
+      horaRecepcion: cur.horaRecepcion,
+      horaIslas: cur.horaIslas,
+      horaCafeteria: cur.horaCafeteria,
+      ...recepcionPresetCompleta(),
       calientesOtros: [],
-    });
+    }, cocinaRowIndex);
   });
   $('coc-preset-informal')?.addEventListener('click', () => {
-    setCocinaFormData({
-      canapes: [...MENU_COCINA.canapes],
-      bruschettas: [...MENU_COCINA.bruschettas],
-      recepcionOtros: [...MENU_COCINA.recepcionOtros],
-      brochettes: [...MENU_COCINA.brochettes],
-      empanaditas: [...MENU_COCINA.empanaditas],
-      calientesOtros: ['Azteca'],
-    });
+    const cur = getCocinaFormData();
+    renderCocinaForm(cliente, {
+      modo: 'informal',
+      horaRecepcion: cur.horaRecepcion,
+      horaIslas: cur.horaIslas,
+      horaCafeteria: cur.horaCafeteria,
+      ...recepcionPresetCompleta(),
+      calientesOtros: [...MENU_COCINA.calientesOtros],
+      islas: [ISLA_AMERICANO_BASE],
+    }, cocinaRowIndex);
   });
-  $('coc-preset-clear')?.addEventListener('click', () => setCocinaFormData({}));
+  $('coc-preset-clear')?.addEventListener('click', () => renderCocinaForm(cliente, { modo }, cocinaRowIndex));
 
   $('btn-save-cocina')?.addEventListener('click', async () => {
     const data = getCocinaFormData();
@@ -2987,6 +3042,58 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
 
   const todasPastas = [...(d.pastas || []), ...(d.pastasGourmet || [])];
   const todasSalsas = [...(d.salsas || []), ...(d.salsasGourmet || [])];
+  const esInformal = d.modo === 'informal';
+
+  const cuerpoMedio = esInformal ? `
+  <div class="sec">
+    ${sHead('Islas en vivo — Plato Central', d.horaIslas)}
+    ${boxGrid(d.islas, 1)}
+  </div>
+
+  <div class="sec">
+    ${sHead('Torta Homenaje & Postres', d.horaPostres)}
+    ${boxGrid(d.postres, 2)}
+    ${d.tortaHomenaje ? `<div class="postre-note">Torta homenaje: <strong>${esc(d.tortaHomenaje)}</strong></div>` : ''}
+  </div>` : `
+  <div class="sec">
+    ${sHead('Islas', d.horaIslas)}
+    ${boxGrid(d.islas, 1)}
+  </div>
+
+  <div class="r2">
+    <div class="sec">
+      ${sHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
+      ${todasPastas.length ? `
+        ${subGrp('Pastas', todasPastas)}
+        <div class="sg">
+          <span class="sl">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</span>
+          ${boxGrid(todasSalsas)}
+        </div>
+      ` : '<span class="empty">Sin primer plato</span>'}
+    </div>
+    <div class="sec">
+      ${sHead('Plato Central', d.horaPlatoCentral)}
+      ${d.platoCentralAve ? `
+        <div class="pc-row">
+          <div class="pc-tipo">Ave</div>
+          <div class="pc-val">${esc(d.platoCentralAve)}</div>
+          ${d.guarnicionAve ? `<div class="pc-guar">${esc(d.guarnicionAve)}</div>` : ''}
+        </div>` : ''}
+      ${d.platoCentralCarne ? `
+        <div class="pc-row">
+          <div class="pc-tipo">Carne</div>
+          <div class="pc-val">${esc(d.platoCentralCarne)}</div>
+          ${d.guarnicionCarne ? `<div class="pc-guar">${esc(d.guarnicionCarne)}</div>` : ''}
+        </div>` : ''}
+      ${!d.platoCentralAve && !d.platoCentralCarne ? '<span class="empty">—</span>' : ''}
+    </div>
+  </div>
+
+  <div class="sec">
+    ${sHead('Mesa de Dulces', d.horaMesaDulces)}
+    ${boxGrid(d.mesaDulces, 4)}
+    ${d.postre ? `<div class="postre-note">Postre / Torta: <strong>${esc(d.postre)}</strong></div>` : ''}
+  </div>`;
 
   const restHtml = (restricciones || []).length
     ? `<div class="rg">${restricciones.map(r =>
@@ -3051,7 +3158,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
 
 <div class="cab">
   <div>
-    <div class="marca">Joliet Eventos — Timing Cocina</div>
+    <div class="marca">Joliet Eventos — Timing Cocina${esInformal ? ' · Americano' : ''}</div>
     <div class="nombre">${esc(cliente.apellidoNombre) || '—'}</div>
   </div>
   <div class="cr">
@@ -3086,45 +3193,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
     </div>
   </div>
 
-  <div class="sec">
-    ${sHead('Islas', d.horaIslas)}
-    ${boxGrid(d.islas, 1)}
-  </div>
-
-  <div class="r2">
-    <div class="sec">
-      ${sHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
-      ${todasPastas.length ? `
-        ${subGrp('Pastas', todasPastas)}
-        <div class="sg">
-          <span class="sl">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</span>
-          ${boxGrid(todasSalsas)}
-        </div>
-      ` : '<span class="empty">Sin primer plato</span>'}
-    </div>
-    <div class="sec">
-      ${sHead('Plato Central', d.horaPlatoCentral)}
-      ${d.platoCentralAve ? `
-        <div class="pc-row">
-          <div class="pc-tipo">Ave</div>
-          <div class="pc-val">${esc(d.platoCentralAve)}</div>
-          ${d.guarnicionAve ? `<div class="pc-guar">${esc(d.guarnicionAve)}</div>` : ''}
-        </div>` : ''}
-      ${d.platoCentralCarne ? `
-        <div class="pc-row">
-          <div class="pc-tipo">Carne</div>
-          <div class="pc-val">${esc(d.platoCentralCarne)}</div>
-          ${d.guarnicionCarne ? `<div class="pc-guar">${esc(d.guarnicionCarne)}</div>` : ''}
-        </div>` : ''}
-      ${!d.platoCentralAve && !d.platoCentralCarne ? '<span class="empty">—</span>' : ''}
-    </div>
-  </div>
-
-  <div class="sec">
-    ${sHead('Mesa de Dulces', d.horaMesaDulces)}
-    ${boxGrid(d.mesaDulces, 4)}
-    ${d.postre ? `<div class="postre-note">Postre / Torta: <strong>${esc(d.postre)}</strong></div>` : ''}
-  </div>
+  ${cuerpoMedio}
 
   <div class="sec">
     ${sHead('Fin de Fiesta', d.horaCafeteria)}
