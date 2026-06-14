@@ -526,9 +526,16 @@ function timmingToRow(t) {
   return [t.id, t.idCliente, t.hora, t.actividad, t.tipo || 'maitre', t.descripcion || ''].map(v => String(v || ''));
 }
 
+// Treats 00:00–07:59 as "next day" so cross-midnight events sort correctly
+function toEventMinutes(hora) {
+  const [h, m] = (hora || '00:00').split(':').map(Number);
+  const total = h * 60 + (m || 0);
+  return total < 8 * 60 ? total + 24 * 60 : total;
+}
+
 async function getTimming(idCliente) {
   if (!tieneCredenciales) {
-    return memTimming.filter(t => t.idCliente === idCliente).sort((a, b) => a.hora.localeCompare(b.hora));
+    return memTimming.filter(t => t.idCliente === idCliente).sort((a, b) => toEventMinutes(a.hora) - toEventMinutes(b.hora));
   }
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
@@ -538,7 +545,7 @@ async function getTimming(idCliente) {
   return (res.data.values || [])
     .map((row, i) => rowToTimming(row, i))
     .filter(t => t.idCliente === idCliente && t.id)
-    .sort((a, b) => a.hora.localeCompare(b.hora));
+    .sort((a, b) => toEventMinutes(a.hora) - toEventMinutes(b.hora));
 }
 
 async function addTimmingItem(data) {

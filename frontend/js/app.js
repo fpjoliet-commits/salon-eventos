@@ -2553,6 +2553,7 @@ function renderTimmingMaitre(cliente, items) {
   const filas = items.length
     ? items.map(it => `
         <div class="tim-item" data-row="${it.rowIndex}">
+          <div class="tim-tl-dot"></div>
           <span class="tim-hora">${it.hora}</span>
           <div class="tim-info">
             <span class="tim-actividad">${esc(it.actividad)}</span>
@@ -2565,6 +2566,10 @@ function renderTimmingMaitre(cliente, items) {
         </div>`).join('')
     : '<p class="tim-empty">Sin actividades cargadas aún.</p>';
 
+  const quickBtns = ACTIVIDADES_TIMMING.map(a =>
+    `<button type="button" class="tim-quick-btn" data-act="${a}">${a.charAt(0) + a.slice(1).toLowerCase()}</button>`
+  ).join('');
+
   panel.innerHTML = `
     <div class="timming-wrap">
       <div class="timming-header-row">
@@ -2572,18 +2577,24 @@ function renderTimmingMaitre(cliente, items) {
         <button id="btn-print-timming" class="btn btn-sm btn-secondary">🖨 Imprimir</button>
       </div>
       <div class="tim-list">${filas}</div>
-      <form id="timming-add-form" class="tim-add-form">
-        <div class="tim-add-row1">
-          ${timePicker('tim-hora')}
-          <div class="tim-actividad-wrap">
-            ${actividadSelectHTML('tim-actividad-select', 'tim-actividad-custom')}
+      <div class="tim-form-card">
+        <div class="tim-quick-row">
+          <span class="tim-quick-label">Acceso rápido</span>
+          <div class="tim-quick-btns">${quickBtns}</div>
+        </div>
+        <form id="timming-add-form" class="tim-add-form">
+          <div class="tim-add-row1">
+            ${timePicker('tim-hora')}
+            <div class="tim-actividad-wrap">
+              ${actividadSelectHTML('tim-actividad-select', 'tim-actividad-custom')}
+            </div>
           </div>
-        </div>
-        <div class="tim-add-row2">
-          <input type="text" id="tim-descripcion" placeholder="Descripción / observación (ej: Cantante, preparar escenario)" class="tim-desc-input">
-          <button type="submit" class="btn btn-sm btn-primary">+ Agregar</button>
-        </div>
-      </form>
+          <div class="tim-add-row2">
+            <input type="text" id="tim-descripcion" placeholder="Nota o detalle adicional…" class="tim-desc-input">
+            <button type="submit" class="btn btn-sm btn-primary">+ Agregar</button>
+          </div>
+        </form>
+      </div>
     </div>`;
 
   bindMaitreAcciones(cliente, items);
@@ -2592,6 +2603,18 @@ function renderTimmingMaitre(cliente, items) {
 function bindMaitreAcciones(cliente, items) {
   bindActividadToggle('tim-actividad-select', 'tim-actividad-custom');
   bindAllTimePickers($('timming-add-form'));
+
+  $('tim-panel-maitre')?.querySelectorAll('.tim-quick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.act;
+      const sel = $('tim-actividad-select');
+      if (!sel) return;
+      sel.value = act;
+      const custom = $('tim-actividad-custom');
+      if (custom) { custom.hidden = true; custom.value = ''; }
+      sel.focus();
+    });
+  });
 
   document.querySelectorAll('.btn-tim-edit').forEach(btn => {
     btn.addEventListener('click', () => {
