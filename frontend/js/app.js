@@ -17,6 +17,27 @@ const hide = id => $(`${id}`)?.classList.add('hidden');
 const showEl = el => el?.classList.remove('hidden');
 const hideEl = el => el?.classList.add('hidden');
 
+/* Toast global — confirmación grande y clara (pensado para uso no-técnico).
+   toast('Pedido guardado')  |  toast('Algo falló', 'error') */
+function toast(mensaje, tipo = 'success') {
+  let cont = $('toast-container');
+  if (!cont) {
+    cont = document.createElement('div');
+    cont.id = 'toast-container';
+    document.body.appendChild(cont);
+  }
+  const el = document.createElement('div');
+  el.className = `toast toast-${tipo}`;
+  const icono = tipo === 'error' ? '⚠️' : '✓';
+  el.innerHTML = `<span class="toast-icon">${icono}</span><span>${esc(mensaje)}</span>`;
+  cont.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('toast-show'));
+  setTimeout(() => {
+    el.classList.remove('toast-show');
+    setTimeout(() => el.remove(), 300);
+  }, tipo === 'error' ? 4500 : 2800);
+}
+
 function formatDate(str) {
   if (!str) return '—';
   if (str.includes('-') && str.length === 10) {
@@ -96,16 +117,24 @@ function parseFechaCarga(str) {
 }
 
 async function apiFetch(path, opts = {}) {
-  const res = await fetch(`${API}${path}`, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...(opts.headers || {}),
-    },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  const data = await res.json();
+  let res;
+  try {
+    res = await fetch(`${API}${path}`, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...(opts.headers || {}),
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+  } catch {
+    // fetch rechaza solo por red caída / servidor dormido (Render) — mensaje claro
+    throw new Error('No se pudo conectar con el servidor. Revisá la conexión y volvé a intentar.');
+  }
+  // Respuesta podría no ser JSON (ej. error 502 del proxy con HTML)
+  let data = {};
+  try { data = await res.json(); } catch { data = {}; }
   if (res.status === 401) {
     clearSession();
     hide('app');
@@ -113,7 +142,7 @@ async function apiFetch(path, opts = {}) {
     $('login-form').reset();
     throw new Error('Sesión expirada. Por favor, ingresá nuevamente.');
   }
-  if (!res.ok) throw new Error(data.error || 'Error del servidor');
+  if (!res.ok) throw new Error(data.error || `Error del servidor (${res.status}). Probá de nuevo en un momento.`);
   return data;
 }
 
@@ -5382,6 +5411,7 @@ async function guardarActualizacionStock() {
     });
     $('cocina-actualizar-stock-form').classList.add('hidden');
     renderStockDashboard();
+    toast('Stock actualizado');
   } catch (e) {
     alert('Error al guardar stock: ' + e.message);
   } finally {
@@ -5509,7 +5539,18 @@ function openFormularioPedido(pedido = null) {
 
   $('cocina-nombre-evento').value = pedido?.nombreEvento || '';
   $('cocina-fecha').value = pedido?.fecha || '';
+
+  // Reset de la barra de herramientas (buscador / plegado / duplicar)
+  const search = $('cocina-item-search'); if (search) search.value = '';
+  _resetColapsarBtn();
+  if (pedido) {
+    $('cocina-duplicar-wrap')?.classList.add('hidden'); // editando: no aplica duplicar
+  } else {
+    populateDuplicarSelect(); // nuevo: ofrecer copiar de un pedido anterior
+  }
+
   renderItemsTableEditable(pedido?.items || null);
+  _applyPedidoVisibility();
   $('cocina-form-wrap').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -5605,7 +5646,12 @@ function renderItemsTableEditable(existingItems) {
     }
 
     const catLabel = isMiga ? (cat === 'Sanguche de Miga - Blancos' ? 'Blancos' : 'Negros') : catDisplayName(cat);
-    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" style="background:${color}">${esc(catLabel)}</td></tr>`;
+    const catItemsArr = byCategory[cat] || [];
+    const conCant = catItemsArr.filter(it => parseFloat(it.cantidad) > 0).length;
+    const countLabel = conCant > 0
+      ? `<span class="coc-cat-count coc-cat-has">${conCant}/${catItemsArr.length} cargados</span>`
+      : `<span class="coc-cat-count">${catItemsArr.length} ítems</span>`;
+    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" data-collapsible style="background:${color}"><span class="coc-cat-toggle">▾</span> ${esc(catLabel)} ${countLabel}</td></tr>`;
     byCategory[cat].forEach(item => {
       const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
       const stockCant = cocinaStockActual.find(s => s.id === item.id)?.cantidad;
@@ -5622,6 +5668,7 @@ function renderItemsTableEditable(existingItems) {
   });
   tbody.innerHTML = html;
   _wirePMButtons(tbody);
+  _wireCategoryCollapse(tbody);
   tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => btn.closest('tr').remove()));
   tbody.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.classList.contains('cocina-cant-input')) {
@@ -5643,6 +5690,118 @@ function getItemsFromTable() {
     observaciones: tr.querySelector('.cocina-obs-input')?.value.trim() || '',
     stock: null,
   })).filter(i => i.nombre);
+}
+
+/* ── Plegado de categorías + buscador del pedido ── */
+// Calcula la visibilidad de cada fila combinando: estado plegado de su categoría
+// + filtro de búsqueda. Una sola fuente de verdad para no pelear con el otro.
+function _applyPedidoVisibility() {
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  const q = ($('cocina-item-search')?.value || '').trim().toLowerCase();
+  let anyMatch = false;
+  let curHeader = null, curCollapsed = false;
+
+  let curCatMatch = false;
+  [...tbody.children].forEach(row => {
+    if (row.classList.contains('cocina-cat-header-row')) {
+      curHeader = row;
+      curCollapsed = row.classList.contains('coc-collapsed');
+      // La búsqueda también matchea por nombre de categoría (ej: "carne", "postre")
+      curCatMatch = !!q && _catSearchText(row.dataset.cat).includes(q);
+      // En búsqueda: el header arranca oculto y se revela si matchea o si algún hijo coincide.
+      row.classList.toggle('coc-row-hidden', !!q && !curCatMatch);
+      if (curCatMatch) anyMatch = true;
+      return;
+    }
+    if (q) {
+      const nameMatch = row.hasAttribute('data-idx') && (row.dataset.nombre || '').toLowerCase().includes(q);
+      const show = nameMatch || curCatMatch;
+      row.classList.toggle('coc-row-hidden', !show);
+      if (show) {
+        anyMatch = true;
+        if (curHeader) curHeader.classList.remove('coc-row-hidden');
+      }
+    } else {
+      row.classList.toggle('coc-row-hidden', curCollapsed);
+    }
+  });
+  $('cocina-items-noresults')?.classList.toggle('hidden', !q || anyMatch);
+}
+
+// Texto de categoría para búsqueda + sinónimos comunes que usa la cocina
+// ("principal" → Plato Central, "guarnicion" → Guarniciones, etc.)
+function _catSearchText(cat) {
+  const c = (cat || '').toLowerCase();
+  let extra = '';
+  if (c.includes('plato central')) extra += ' principal central';
+  if (c.includes('guarnicion')) extra += ' guarnicion';
+  if (c.includes('primer plato') || c.includes('pasta')) extra += ' entrada primer plato';
+  if (c.includes('postre')) extra += ' postre dulce';
+  if (c.includes('recepc') || c.includes('canap') || c.includes('isla')) extra += ' recepcion';
+  return c + extra;
+}
+
+function _wireCategoryCollapse(tbody) {
+  tbody.querySelectorAll('.cocina-cat-header-cell[data-collapsible]').forEach(cell => {
+    cell.addEventListener('click', () => {
+      cell.closest('tr').classList.toggle('coc-collapsed');
+      _applyPedidoVisibility();
+    });
+  });
+}
+
+function filterPedidoItems() { _applyPedidoVisibility(); }
+
+function _collapseAllCats(collapsed) {
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  tbody.querySelectorAll('.cocina-cat-header-cell[data-collapsible]')
+    .forEach(c => c.closest('tr').classList.toggle('coc-collapsed', collapsed));
+  const btn = $('cocina-colapsar-btn');
+  if (btn) btn.textContent = collapsed ? '⊞ Expandir todo' : '⊟ Colapsar todo';
+}
+
+function toggleColapsarTodo() {
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  const headers = [...tbody.querySelectorAll('.cocina-cat-header-cell[data-collapsible]')].map(c => c.closest('tr'));
+  if (!headers.length) return;
+  const anyExpanded = headers.some(h => !h.classList.contains('coc-collapsed'));
+  _collapseAllCats(anyExpanded);
+  _applyPedidoVisibility();
+}
+
+function _resetColapsarBtn() {
+  const btn = $('cocina-colapsar-btn');
+  if (btn) btn.textContent = '⊟ Colapsar todo';
+}
+
+/* ── Duplicar pedido anterior (reusar cantidades reales, sin predecir) ── */
+function populateDuplicarSelect() {
+  const sel = $('cocina-duplicar-select');
+  const wrap = $('cocina-duplicar-wrap');
+  if (!sel || !wrap) return;
+  const pedidos = [...cocinaPedidos].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  if (!pedidos.length) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  sel.innerHTML = '<option value="">📋 Duplicar de un pedido anterior…</option>' +
+    pedidos.map(p => `<option value="${p.rowIndex}">${esc(p.nombreEvento || '—')}${p.fecha ? ' · ' + formatDate(p.fecha) : ''}</option>`).join('');
+}
+
+function duplicarPedidoAnterior(rowIndex) {
+  if (!rowIndex) return;
+  const p = cocinaPedidos.find(x => x.rowIndex === parseInt(rowIndex));
+  if (!p) return;
+  // Sigue siendo un pedido NUEVO: solo precargamos las cantidades de uno anterior.
+  renderItemsTableEditable((p.items || []).map(i => ({ ...i })));
+  const search = $('cocina-item-search'); if (search) search.value = '';
+  // Reusás casi todo y solo cambiás algunas categorías → arranca colapsado para que
+  // sea cómodo: ves la lista corta y abrís solo lo que querés cambiar.
+  _collapseAllCats(true);
+  _applyPedidoVisibility();
+  toast(`Cantidades copiadas de "${p.nombreEvento || 'pedido anterior'}". Abrí la categoría que quieras cambiar.`);
+  const sel = $('cocina-duplicar-select'); if (sel) sel.value = '';
 }
 
 async function guardarPedido() {
@@ -5672,6 +5831,7 @@ async function guardarPedido() {
     $('cocina-form-wrap')?.classList.add('hidden');
     $('cocina-agregar-panel')?.classList.add('hidden');
     renderPedidosList();
+    toast('Pedido guardado');
   } catch (e) {
     alert('Error al guardar: ' + e.message);
   } finally {
@@ -5948,6 +6108,7 @@ async function guardarRelevamiento() {
     cocinaPedidoActual = null;
     $('cocina-relevamiento-wrap')?.classList.add('hidden');
     renderPedidosList();
+    toast('Sobrante guardado y stock actualizado');
   } catch (e) {
     alert('Error al guardar stock: ' + e.message);
   } finally {
@@ -6338,6 +6499,9 @@ $('cocina-form-cancel-btn')?.addEventListener('click', () => {
 });
 $('cocina-agregar-item-btn')?.addEventListener('click', toggleAgregarPanel);
 $('cocina-guardar-btn')?.addEventListener('click', guardarPedido);
+$('cocina-item-search')?.addEventListener('input', filterPedidoItems);
+$('cocina-colapsar-btn')?.addEventListener('click', toggleColapsarTodo);
+$('cocina-duplicar-select')?.addEventListener('change', e => duplicarPedidoAnterior(e.target.value));
 $('cocina-relevamiento-cancel-btn')?.addEventListener('click', () => {
   $('cocina-relevamiento-wrap')?.classList.add('hidden');
   cocinaPedidoActual = null;

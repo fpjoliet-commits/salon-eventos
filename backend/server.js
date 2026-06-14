@@ -7,12 +7,42 @@ const sheets = require('./sheets');
 
 const app = express();
 
-app.use(cors());
+// ── Cabeceras de seguridad básicas (sin dependencias externas) ──
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+  next();
+});
+
+// ── CORS restringido a orígenes conocidos ──
+// La app del CRM se sirve desde el mismo origen que la API (mismo Express), así que
+// sus pedidos son same-origin y NO se ven afectados. Esto solo bloquea a sitios de
+// terceros que quieran llamar a la API desde otro dominio.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://salon-eventos.onrender.com')
+  .split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin(origin, cb) {
+    // Sin origin = same-origin o llamada server-to-server (ej. webhook de Cal.com) → permitir
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error('Origen no permitido por CORS'));
+  },
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use(express.static(path.join(process.cwd(), 'frontend')));
 
 const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('❌ FALTA JWT_SECRET — sin este secreto no se pueden firmar tokens de forma segura.');
+  console.error('   Definí JWT_SECRET en las variables de entorno antes de iniciar el servidor.');
+  process.exit(1);
+}
 const PORT = process.env.PORT || 3001;
 
 const USERS = {
@@ -48,8 +78,25 @@ app.get('/api/status', (req, res) => {
   res.json({ googleSheets: sheets.tieneCredenciales });
 });
 
+// Anti fuerza-bruta en login: máx 10 intentos por IP cada 10 min
+const _loginAttempts = new Map();
+function clientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+}
+function loginRateLimited(ip) {
+  const now = Date.now(), windowMs = 10 * 60 * 1000, max = 10;
+  const e = _loginAttempts.get(ip) || { count: 0, start: now };
+  if (now - e.start > windowMs) { e.count = 0; e.start = now; }
+  e.count++;
+  _loginAttempts.set(ip, e);
+  return e.count > max;
+}
+
 // Login
 app.post('/api/login', (req, res) => {
+  if (loginRateLimited(clientIp(req))) {
+    return res.status(429).json({ error: 'Demasiados intentos. Esperá unos minutos e intentá de nuevo.' });
+  }
   const { password } = req.body;
   const usuario = req.body.usuario?.toLowerCase();
   const user = USERS[usuario];
@@ -391,6 +438,12 @@ app.post('/api/leads', async (req, res) => {
 
 // Webhook de Cal.com — se llama cuando alguien agenda una visita al salón
 app.post('/api/cal-booking', async (req, res) => {
+  // Verificación opcional: si definís CAL_WEBHOOK_SECRET, el webhook debe llamarse
+  // con ?secret=ESE_VALOR en la URL. Sin la variable, funciona como antes (no rompe).
+  const expectedSecret = process.env.CAL_WEBHOOK_SECRET;
+  if (expectedSecret && req.query.secret !== expectedSecret) {
+    return res.status(401).json({ error: 'Webhook no autorizado' });
+  }
   try {
     const { triggerEvent, payload } = req.body;
     if (triggerEvent !== 'BOOKING_CREATED') return res.json({ ok: true });

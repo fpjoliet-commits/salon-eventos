@@ -794,6 +794,16 @@
                 <input type="date" id="cocina-fecha">
               </div>
             </div>
+            <!-- Barra de herramientas del pedido: buscar / plegar / duplicar -->
+            <div class="cocina-pedido-toolbar">
+              <input type="text" id="cocina-item-search" class="cocina-item-search" placeholder="🔍 Buscar ítem o categoría (ej: carne, postre, empanada...)">
+              <button type="button" id="cocina-colapsar-btn" class="btn btn-secondary btn-sm">⊟ Colapsar todo</button>
+              <div id="cocina-duplicar-wrap" class="cocina-duplicar-wrap hidden">
+                <select id="cocina-duplicar-select" class="cocina-duplicar-select">
+                  <option value="">📋 Duplicar de un pedido anterior…</option>
+                </select>
+              </div>
+            </div>
             <div class="cocina-items-container">
               <table class="cocina-items-table">
                 <thead>
@@ -808,6 +818,7 @@
                 </thead>
                 <tbody id="cocina-items-tbody"></tbody>
               </table>
+              <div id="cocina-items-noresults" class="cocina-items-noresults hidden">Ningún ítem coincide con la búsqueda.</div>
             </div>
             <div id="cocina-agregar-panel" class="cocina-agregar-panel hidden"></div>
             <div class="cocina-panel-footer">
