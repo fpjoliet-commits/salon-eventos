@@ -852,6 +852,7 @@ $('restriccion-form').addEventListener('submit', async e => {
     $('rest-cantidad').value = '';
     $('rest-coronita').checked = false;
     loadRestriccionesModal(currentClienteModal);
+    toast('Restricción agregada');
   } catch (e) { alert(e.message); }
 });
 
@@ -981,6 +982,7 @@ $('pago-form').addEventListener('submit', async e => {
     }
     $('pago-success').textContent = 'Cobro registrado correctamente.';
     show('pago-success');
+    toast('Cobro registrado');
     $('pago-form').reset();
     $('pago-fecha').value = new Date().toISOString().split('T')[0];
     hideEl($('cuotas-a-tachar'));
@@ -1621,6 +1623,7 @@ $('cliente-form').addEventListener('submit', async e => {
     }
     $('form-success').textContent = isEdit ? 'Evento actualizado.' : 'Cliente guardado.';
     show('form-success');
+    toast(isEdit ? 'Evento actualizado' : 'Cliente guardado');
     form.reset();
     resetNuevoClienteForm();
     await Promise.all([loadClientes(), loadPersonas()]);
@@ -1905,6 +1908,7 @@ function bindFormCrearPlan(cliente) {
         indexacion: $('plan-indexacion').value || 'fija',
       }});
       loadCuotasTab(cliente);
+      toast('Plan de pagos creado');
     } catch (err) { alert(err.message); btn.disabled = false; }
   });
 }
@@ -4881,6 +4885,7 @@ async function submitEgreso(e) {
     renderEgresos();
     show('egr-success');
     setTimeout(() => hide('egr-success'), 3000);
+    toast('Egreso registrado');
     $('egr-monto').value = '';
     $('egr-notas').value = '';
     if (nuevoNombre && $('egr-nuevo-empleado')) $('egr-nuevo-empleado').value = '';
@@ -5044,6 +5049,7 @@ async function submitEgresosCocina(e) {
     renderEgresosCocina();
     show('egc-success');
     setTimeout(() => hide('egc-success'), 3000);
+    toast('Compra registrada');
     e.target.reset();
     $('egc-fecha').value = new Date().toISOString().split('T')[0];
     if ($('egc-otro-prov-row')) $('egc-otro-prov-row').style.display = 'none';
@@ -5176,6 +5182,7 @@ async function submitEditarEgreso(ev) {
     renderEgresos();
     if (egresosCocCargados) renderEgresosCocina();
     hide('modal-editar-egreso');
+    toast('Egreso actualizado');
   } catch (err) {
     show('ede-error');
     $('ede-error').textContent = err.message || 'Error al guardar';
@@ -6395,6 +6402,7 @@ function renderCatalogoPanel() {
       const nuevo = await apiFetch('/catalogo-items', { method: 'POST', body: { categoria: cat, nombre, unidad } });
       cocinaCatalogo.push(nuevo);
       renderCatalogoPanel();
+      toast('Ítem agregado al catálogo');
     } catch (e) { alert('Error al agregar: ' + e.message); }
   });
 }

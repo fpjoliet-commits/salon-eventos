@@ -29,7 +29,10 @@ app.use(cors({
   origin(origin, cb) {
     // Sin origin = same-origin o llamada server-to-server (ej. webhook de Cal.com) → permitir
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error('Origen no permitido por CORS'));
+    // Origen no permitido: NO mandamos cabeceras CORS (cb(null,false)) en vez de tirar error.
+    // Así el navegador bloquea a terceros cross-origin, pero los pedidos same-origin
+    // (la propia app, incluido localhost en desarrollo) siguen funcionando.
+    cb(null, false);
   },
 }));
 
