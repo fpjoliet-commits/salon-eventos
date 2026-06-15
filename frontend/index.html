@@ -1076,6 +1076,7 @@
           <button class="tab-btn" data-tab="cuotas">Plan de pago</button>
           <button class="tab-btn" data-tab="restricciones">Restricciones</button>
           <button class="tab-btn" data-tab="pagos">Historial</button>
+          <button class="tab-btn" data-tab="propuesta">Propuesta</button>
         </div>
 
         <!-- Tab: Info -->
@@ -1085,7 +1086,7 @@
           <div id="modal-seg-panel" class="modal-seg-panel internal-field" data-internal></div>
           <div class="modal-actions">
             <button id="btn-editar-cliente" class="btn btn-primary">Editar</button>
-            <button id="btn-propuesta-modal" class="btn btn-secondary" title="Crear propuesta comercial para este cliente">📋 Propuesta</button>
+
             <button id="btn-ver-timing" class="btn btn-secondary admin-only-btn hidden" title="Abrir el Timing Planner para este evento">⏱ Timing</button>
             <button id="btn-nuevo-evento" class="btn btn-secondary admin-only-btn hidden" title="Crear un nuevo evento para esta misma persona">➕ Nuevo evento</button>
             <button id="btn-eliminar-cliente" class="btn btn-danger admin-only-btn hidden" title="Eliminar este evento">🗑 Eliminar</button>
@@ -1217,6 +1218,11 @@
               <div id="pagos-total" class="total-box"></div>
             </div>
           </div>
+        </div>
+
+        <!-- Tab: Propuesta -->
+        <div id="tab-propuesta" class="tab-content hidden">
+          <div id="prop-tab-content"></div>
         </div>
 
       </div>

@@ -570,6 +570,7 @@ function openClienteModal(cliente, tabInicial = 'info') {
   renderClienteDetail(cliente);
   injectNombreAcciones(cliente);
   loadRestriccionesModal(cliente);
+  renderPropuestaTab(cliente);
   if (canManagePagos()) {
     initPagoForm(cliente);
     renderHistorialTab(cliente);
@@ -3298,6 +3299,13 @@ const RECORRIDO = {
   ]
 };
 
+function savePropuestaLocal(key, data) {
+  try { localStorage.setItem(`prop_${key}`, JSON.stringify(data)); } catch {}
+}
+function loadPropuestaLocal(key) {
+  try { return JSON.parse(localStorage.getItem(`prop_${key}`)) || null; } catch { return null; }
+}
+
 const propuestaState = {
   current: 1,
   total: 11,
@@ -3429,9 +3437,14 @@ function preFillPropuestaFromCliente(cliente) {
 }
 
 function startPropuestaFromCliente(cliente) {
-  hideEl($('modal-overlay'));
-  navigateTo('propuesta');
-  setTimeout(() => preFillPropuestaFromCliente(cliente), 60);
+  const saved = loadPropuestaLocal(cliente.id);
+  if (saved?.estilo) {
+    startPropuestaWithSavedState(cliente, saved);
+  } else {
+    hideEl($('modal-overlay'));
+    navigateTo('propuesta');
+    setTimeout(() => preFillPropuestaFromCliente(cliente), 60);
+  }
 }
 
 function actualizarBtnGuardar() {
@@ -3477,6 +3490,157 @@ async function guardarClientePropuesta() {
     if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar como cliente'; }
     if (statusEl) { statusEl.textContent = 'Error al guardar. Intentá de nuevo.'; statusEl.style.display = ''; }
   }
+}
+
+function renderPropuestaTab(cliente) {
+  const container = document.getElementById('prop-tab-content');
+  if (!container) return;
+
+  const saved = loadPropuestaLocal(cliente.id);
+  const savedPrecios = loadPropuestaLocal(cliente.id + '_precios');
+  const hasProposal = !!(saved?.estilo);
+
+  let resumenHTML;
+  if (hasProposal) {
+    const chips = [
+      saved.estilo,
+      saved.tipoEvento && saved.agasajado ? `${saved.tipoEvento} · ${saved.agasajado}` : saved.tipoEvento,
+      saved.fecha ? formatDate(saved.fecha) : '',
+      saved.turno,
+      saved.invitados ? `${saved.invitados} personas` : '',
+      saved.espacio,
+    ].filter(Boolean).map(c => `<span class="prop-chip">${esc(c)}</span>`).join('');
+    const adicChip = saved.adicionales?.length
+      ? `<span class="prop-chip prop-chip-muted">+${saved.adicionales.length} adicional${saved.adicionales.length > 1 ? 'es' : ''}</span>`
+      : '';
+    resumenHTML = `<div class="prop-resumen-chips">${chips}${adicChip}</div>`;
+  } else {
+    resumenHTML = `<p class="prop-tab-empty">Sin propuesta armada para este cliente.</p>`;
+  }
+
+  const adminHTML = isAdmin() ? (() => {
+    const infRow = saved?.menuInfantil
+      ? `<div class="form-group"><label>Infantil</label><input type="number" id="prop-precio-infantil" placeholder="0" min="0" value="${savedPrecios?.infantil || ''}"></div>`
+      : '';
+    return `<div class="prop-admin-section">
+      <div class="prop-section-title">Cotización <span class="prop-role-tag">Solo admin</span></div>
+      <div class="prop-precio-row">
+        <div class="form-group"><label>Precio / cubierto adulto</label>
+          <input type="number" id="prop-precio-adulto" placeholder="0" min="0" value="${savedPrecios?.adulto || ''}">
+        </div>
+        <div class="form-group"><label>Moneda</label>
+          <select id="prop-moneda-sel">
+            <option value="ARS"${(savedPrecios?.moneda || 'ARS') === 'ARS' ? ' selected' : ''}>$ ARS</option>
+            <option value="USD"${(savedPrecios?.moneda || '') === 'USD' ? ' selected' : ''}>U$D</option>
+          </select>
+        </div>
+        ${infRow}
+      </div>
+      <div id="prop-total-calc"></div>
+      <div class="prop-tab-actions" style="margin-top:10px">
+        <button class="btn btn-primary btn-sm" id="btn-prop-tab-contrato"${!hasProposal ? ' disabled' : ''}>💰 Cotización y contrato</button>
+      </div>
+    </div>`;
+  })() : '';
+
+  container.innerHTML = `
+    <div class="prop-tab-main">
+      ${resumenHTML}
+      <div class="prop-tab-actions">
+        <button class="btn btn-secondary" id="btn-prop-tab-build">✏️ ${hasProposal ? 'Editar propuesta' : 'Construir propuesta'}</button>
+        <button class="btn btn-secondary" id="btn-prop-tab-pdf"${!hasProposal ? ' disabled' : ''}>📄 Propuesta experiencial</button>
+      </div>
+      ${adminHTML}
+    </div>`;
+
+  document.getElementById('btn-prop-tab-build')?.addEventListener('click', () => {
+    startPropuestaFromCliente(cliente);
+  });
+
+  document.getElementById('btn-prop-tab-pdf')?.addEventListener('click', () => {
+    if (!hasProposal) return;
+    generatePropuestaPDF({ data: saved, tipo: 'experiencial' });
+  });
+
+  if (isAdmin()) {
+    const adultoEl = () => document.getElementById('prop-precio-adulto');
+    const monedaEl = () => document.getElementById('prop-moneda-sel');
+    const infantilEl = () => document.getElementById('prop-precio-infantil');
+    const calcEl = () => document.getElementById('prop-total-calc');
+
+    const updateTotal = () => {
+      const el = calcEl(); if (!el) return;
+      const pA = parseFloat(adultoEl()?.value) || 0;
+      const pI = parseFloat(infantilEl()?.value) || 0;
+      const inv = saved?.invitados || 0;
+      const invInf = saved?.menuInfantil ? (parseInt(saved?.infantilCant) || 0) : 0;
+      const total = (inv - invInf) * pA + invInf * pI;
+      const sym = monedaEl()?.value === 'USD' ? 'U$D' : '$';
+      el.innerHTML = total > 0
+        ? `<div class="prop-total-calc-row"><span class="prop-total-num">${sym} ${total.toLocaleString('es-AR')}</span><span class="prop-total-sub">${inv - invInf} adultos${invInf ? ` · ${invInf} infantil` : ''}</span></div>`
+        : '';
+    };
+
+    adultoEl()?.addEventListener('input', updateTotal);
+    monedaEl()?.addEventListener('change', updateTotal);
+    infantilEl()?.addEventListener('input', updateTotal);
+    updateTotal();
+
+    document.getElementById('btn-prop-tab-contrato')?.addEventListener('click', () => {
+      if (!hasProposal) return;
+      const precioAdulto = parseFloat(adultoEl()?.value) || 0;
+      const precioInfantil = parseFloat(infantilEl()?.value) || 0;
+      const moneda = monedaEl()?.value || 'ARS';
+      savePropuestaLocal(cliente.id + '_precios', { adulto: precioAdulto, infantil: precioInfantil, moneda });
+      generatePropuestaPDF({ data: saved, tipo: 'contrato', precioAdulto, precioInfantil, moneda });
+    });
+  }
+}
+
+function startPropuestaWithSavedState(cliente, saved) {
+  Object.assign(propuestaState.data, saved);
+
+  document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(c =>
+    c.classList.toggle('selected', c.dataset.estilo === saved.estilo));
+  document.querySelectorAll('#evento-cards .propuesta-card').forEach(c =>
+    c.classList.toggle('selected', c.dataset.value === saved.tipoEvento));
+  document.querySelectorAll('#turno-cards .propuesta-card').forEach(c =>
+    c.classList.toggle('selected', c.dataset.value === saved.turno));
+  document.querySelectorAll('#espacio-cards .propuesta-card').forEach(c =>
+    c.classList.toggle('selected', c.dataset.value === saved.espacio));
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  set('prop-fecha', saved.fecha || '');
+  set('prop-invitados', saved.invitados || 100);
+  set('prop-agasajado', saved.agasajado || '');
+  set('prop-infantil-cant', saved.infantilCant || '');
+  set('prop-pedidos', saved.pedidos || '');
+  const idDisp = document.getElementById('prop-invitados-display');
+  if (idDisp) idDisp.textContent = saved.invitados || 100;
+  const miCb = document.getElementById('prop-menu-infantil');
+  if (miCb) { miCb.checked = !!saved.menuInfantil; }
+  const infRow = document.getElementById('infantil-count-row');
+  if (infRow) infRow.style.display = saved.menuInfantil ? '' : 'none';
+  const sinAgasajado = ['Corporativo', 'Otro'];
+  const agRow = document.getElementById('agasajado-row');
+  if (agRow) agRow.style.display = sinAgasajado.includes(saved.tipoEvento) ? 'none' : '';
+  document.querySelectorAll('#view-propuesta .adicionales-grid input[type="checkbox"]').forEach(cb => {
+    cb.checked = (saved.adicionales || []).includes(cb.value);
+  });
+
+  hideEl($('modal-overlay'));
+  navigateTo('propuesta');
+  setTimeout(() => {
+    hideEl($('propuesta-preform'));
+    const slidesEl = document.querySelector('.propuesta-slides-container');
+    const navEl = document.querySelector('.propuesta-nav');
+    if (slidesEl) slidesEl.style.display = '';
+    if (navEl) navEl.style.display = '';
+    buildPropuestaDots();
+    goToPropuestaSlide(1);
+    actualizarBtnGuardar();
+    updatePortadaImage();
+  }, 60);
 }
 
 function buildRecorrido() {
@@ -4212,9 +4376,14 @@ function buildPropuestaResumen() {
   `;
 }
 
-function generatePropuestaPDF() {
-  readPropuestaData();
-  const d = propuestaState.data;
+function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto = 0, precioInfantil = 0, moneda = 'ARS' } = {}) {
+  if (!data) {
+    readPropuestaData();
+    if (propuestaState.data.clienteId) {
+      savePropuestaLocal(propuestaState.data.clienteId, { ...propuestaState.data });
+    }
+  }
+  const d = data || propuestaState.data;
   const hoy = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
   const anio = new Date().getFullYear();
   const fechaFmt = d.fecha ? formatDate(d.fecha) : '—';
@@ -4513,6 +4682,25 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 .tc-body{font-family:'Inter',sans-serif;font-size:7.8px;line-height:1.6;color:#5a5040;text-align:justify;columns:2;column-gap:22px;column-rule:1px solid var(--hairline);margin-top:6px}
 .tc-body p+p{margin-top:5px}
 .tc-clause{font-weight:700;font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block;margin-top:8px;margin-bottom:1px}
+/* COTIZACIÓN */
+.precio-tabla{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}
+.precio-tabla th{font-family:'Inter',sans-serif;font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:5px 8px;border-bottom:1px solid var(--hairline);text-align:left;font-weight:500}
+.precio-tabla td{padding:7px 8px;border-bottom:1px solid var(--hairline);font-family:'Cormorant Garamond',serif;font-size:14px}
+.precio-tabla td:nth-child(2),.precio-tabla td:nth-child(3),.precio-tabla td:nth-child(4){text-align:right}
+.precio-tabla tfoot td{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;border-bottom:none;border-top:2px solid var(--gold);padding-top:8px}
+.precio-nota{font-family:'Inter',sans-serif;font-size:8px;font-style:italic;color:var(--muted);margin-top:6px}
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
+.plan-item{background:var(--warm);border:1px solid var(--hairline);padding:10px;text-align:center}
+.plan-pct{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:400;color:var(--gold);line-height:1}
+.plan-lbl{font-family:'Inter',sans-serif;font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.plan-monto{font-family:'Cormorant Garamond',serif;font-size:14px;color:var(--ink);margin-top:3px}
+.plan-desc{font-family:'Inter',sans-serif;font-size:7px;color:var(--muted);margin-top:2px;font-style:italic}
+/* FIRMA */
+.firma-grid{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:14mm}
+.firma-col{text-align:center}
+.firma-line{height:1px;background:var(--ink);margin-bottom:7px}
+.firma-lbl{font-family:'Cormorant Garamond',serif;font-size:14px;letter-spacing:.06em}
+.firma-sub{font-family:'Inter',sans-serif;font-size:7.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:3px}
 </style>
 </head>
 <body>
@@ -4617,14 +4805,60 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   </div>
 </div>
 
+${tipo === 'contrato' ? (() => {
+  const invInf = d.menuInfantil ? (parseInt(d.infantilCant) || 0) : 0;
+  const invAdulto = (d.invitados || 0) - invInf;
+  const total = invAdulto * precioAdulto + invInf * precioInfantil;
+  const sym = moneda === 'USD' ? 'U$D' : '$';
+  const numSec = hasAdicionales ? 5 : 4;
+  const infRow = invInf > 0 && precioInfantil > 0 ? `
+    <tr><td>Menú infantil (menú reducido)</td><td style="text-align:right">${invInf}</td><td style="text-align:right">${sym} ${precioInfantil.toLocaleString('es-AR')}</td><td style="text-align:right">${sym} ${(invInf * precioInfantil).toLocaleString('es-AR')}</td></tr>` : '';
+  return `
+<div class="page">
+  <div class="ph"><div class="ph-logo"></div><div class="ph-folio">Cotización · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div></div>
+  <div class="stitle" style="margin-top:0">
+    <span class="snum">${numSec}.</span>
+    <span class="sname">Detalle económico</span>
+    <span class="srule"></span>
+  </div>
+  <table class="precio-tabla">
+    <thead><tr><th>Concepto</th><th>Cant.</th><th>P. unitario</th><th>Subtotal</th></tr></thead>
+    <tbody>
+      <tr><td>Menú por cubierto adulto</td><td style="text-align:right">${invAdulto}</td><td style="text-align:right">${sym} ${precioAdulto.toLocaleString('es-AR')}</td><td style="text-align:right">${sym} ${(invAdulto * precioAdulto).toLocaleString('es-AR')}</td></tr>
+      ${infRow}
+    </tbody>
+    <tfoot><tr><td colspan="3">TOTAL ESTIMADO</td><td style="text-align:right">${sym} ${total.toLocaleString('es-AR')}</td></tr></tfoot>
+  </table>
+  <p class="precio-nota">* Precio en ${moneda === 'USD' ? 'dólares estadounidenses' : 'pesos argentinos'}. Los adicionales elegidos pueden implicar un costo extra a convenir.</p>
+  <div class="stitle">
+    <span class="snum">${numSec + 1}.</span>
+    <span class="sname">Plan de pagos</span>
+    <span class="srule"></span>
+  </div>
+  <div class="plan-grid">
+    <div class="plan-item"><div class="plan-pct">10%</div><div class="plan-lbl">Seña inicial</div><div class="plan-monto">${sym} ${Math.round(total * 0.10).toLocaleString('es-AR')}</div><div class="plan-desc">Da inicio a la planificación</div></div>
+    <div class="plan-item"><div class="plan-pct">30%</div><div class="plan-lbl">Seña de reserva</div><div class="plan-monto">${sym} ${Math.round(total * 0.30).toLocaleString('es-AR')}</div><div class="plan-desc">Garantiza la exclusividad de la fecha</div></div>
+    <div class="plan-item"><div class="plan-pct">60%</div><div class="plan-lbl">Saldo final</div><div class="plan-monto">${sym} ${Math.round(total * 0.60).toLocaleString('es-AR')}</div><div class="plan-desc">30 días antes del evento</div></div>
+  </div>
+  <div class="stitle">
+    <span class="snum">${numSec + 2}.</span>
+    <span class="sname">Conformidad y firma</span>
+    <span class="srule"></span>
+  </div>
+  <p style="font-size:11px;line-height:1.65;color:#2A2620;margin-bottom:12mm">Las partes declaran haber leído y comprendido la totalidad de los términos y condiciones del presente documento, prestando su conformidad mediante firma a continuación.</p>
+  <div class="firma-grid">
+    <div class="firma-col"><div class="firma-line"></div><div class="firma-lbl">Cliente</div><div class="firma-sub">Nombre completo y DNI</div></div>
+    <div class="firma-col"><div class="firma-line"></div><div class="firma-lbl">Joliet Eventos</div><div class="firma-sub">Firma y aclaración</div></div>
+  </div>
+  <p style="margin-top:8mm;font-size:8.5px;color:var(--muted);text-align:center">Ciudad Tesei, ${esc(hoy)}</p>
+  <div class="pfoot"><span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span><span>Joliet Eventos · ${anio}</span></div>
+</div>
+
 <!-- TÉRMINOS Y CONDICIONES -->
 <div class="page">
-  <div class="ph">
-    <div class="ph-logo"></div>
-    <div class="ph-folio">Propuesta · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div>
-  </div>
+  <div class="ph"><div class="ph-logo"></div><div class="ph-folio">Cotización y contrato · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div></div>
   <div class="stitle" style="margin-top:0">
-    <span class="snum">${tcSecNum}.</span>
+    <span class="snum">${numSec + 3}.</span>
     <span class="sname">Términos y condiciones</span>
     <span class="srule"></span>
   </div>
@@ -4634,24 +4868,27 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
     <p><span class="tc-clause">3. Plan de pagos</span>El saldo restante luego de efectuada la reserva podrá ser abonado en cuotas mensuales acordadas entre las partes, conforme al cronograma que se establezca al momento de la firma. Las cuotas deberán estar canceladas en su totalidad con un mínimo de treinta (30) días corridos de anticipación a la fecha del evento. El incumplimiento de este plazo podrá dar lugar a la suspensión del servicio sin derecho a reintegro de los montos ya abonados.</p>
     <p><span class="tc-clause">4. Cantidad de invitados</span>La cantidad definitiva de invitados deberá ser informada y confirmada con no menos de diez (10) días de anticipación a la celebración. A partir de dicha confirmación no se aceptarán bajas en el número de cubiertos bajo ninguna circunstancia. En caso de incorporarse invitados adicionales con posterioridad a la confirmación final, cada cubierto extra se abonará al precio unitario vigente a la fecha de incorporación. Se admiten altas hasta cuarenta y ocho (48) horas antes del evento, sujeto a disponibilidad operativa del equipo.</p>
     <p><span class="tc-clause">5. Política de cancelación</span>No se realizan devoluciones de dinero bajo ningún concepto ni circunstancia, incluyendo casos de fuerza mayor, emergencias médicas o personales, causas climáticas, restricciones gubernamentales u otras contingencias ajenas a la voluntad de las partes. Todos los montos abonados —seña, reserva, cuotas parciales o cualquier pago a cuenta— quedan retenidos en su totalidad por Joliet Eventos en concepto de compensación por la gestión administrativa, la exclusividad de la fecha reservada, los costos de planificación ya incurridos y las reservas de personal y proveedores efectuadas desde la fecha de confirmación.</p>
-    <p><span class="tc-clause">6. Necesidades dietarias especiales</span>Joliet Eventos contempla y atiende sin cargo adicional las necesidades dietarias especiales de los invitados, incluyendo dietas celíacas (sin TACC), vegetarianas, veganas y alergias o intolerancias alimentarias. Para poder garantizar la disponibilidad, preparación adecuada y la trazabilidad de los ingredientes, dichas necesidades deberán ser informadas formalmente con un mínimo de quince (15) días de anticipación al evento. Necesidades informadas fuera de ese plazo se atenderán en la medida de lo posible, sin garantía de cobertura completa.</p>
-    <p><span class="tc-clause">7. Medios de pago</span>Se aceptan los siguientes medios de pago: efectivo, transferencia bancaria o depósito a CBU informado oportunamente, tarjeta de crédito (todas las marcas) y tarjeta de débito. Los pagos con tarjeta de crédito pueden estar sujetos a los recargos del sistema financiero vigentes al momento del pago, los cuales corren por cuenta del cliente. Los comprobantes de transferencia deben ser enviados por WhatsApp o correo electrónico dentro de las veinticuatro (24) horas de efectuada la operación para ser considerados válidos y registrados.</p>
-    <p><span class="tc-clause">8. Modificaciones al servicio contratado</span>Los servicios detallados en esta propuesta corresponden exclusivamente a los acordados al momento de la firma del contrato. Cualquier modificación, incorporación de servicios adicionales o cambio de menú posterior a la confirmación debe ser solicitado por escrito y aceptado expresamente por Joliet Eventos, pudiendo implicar ajustes en el valor total. Joliet Eventos se reserva el derecho de realizar ajustes menores en la presentación de platos o decoración cuando causas operativas o de abastecimiento lo justifiquen, sin que ello constituya incumplimiento de las obligaciones contractuales asumidas.</p>
-    <p><span class="tc-clause">9. Responsabilidad sobre bienes y personas</span>Joliet Eventos no se responsabiliza por daños, hurtos, extravíos o deterioro de objetos personales, decoraciones propias del cliente o equipamiento ajeno introducido al salón. El cliente asume plena responsabilidad por cualquier daño causado al mobiliario, instalaciones o equipamiento del salón por parte de sus invitados, familiares o personal externo contratado. Se recomienda enfáticamente la contratación de un seguro de evento para cubrir contingencias no contempladas en el presente contrato.</p>
-    <p><span class="tc-clause">10. Confidencialidad y protección de datos personales</span>La información personal suministrada por el cliente —nombre y apellido, datos de contacto, información del evento y medios de pago— será utilizada exclusivamente para la planificación, coordinación y ejecución del evento contratado. Joliet Eventos no cederá, comercializará ni compartirá dicha información con terceros, salvo requerimiento judicial o legal expreso. El cliente consiente el uso de imágenes del evento con fines de comunicación institucional de Joliet Eventos, pudiendo revocar dicho consentimiento en cualquier momento mediante notificación escrita.</p>
+    <p><span class="tc-clause">6. Necesidades dietarias especiales</span>Joliet Eventos contempla y atiende las necesidades dietarias especiales de los invitados, incluyendo dietas celíacas (sin TACC), vegetarianas, veganas y alergias o intolerancias. Dichas necesidades deberán ser informadas formalmente con un mínimo de quince (15) días de anticipación. Necesidades informadas fuera de ese plazo se atenderán en la medida de lo posible, sin garantía de cobertura completa.</p>
+    <p><span class="tc-clause">7. Medios de pago</span>Se aceptan efectivo, transferencia bancaria o depósito a CBU informado oportunamente, tarjeta de crédito (todas las marcas) y tarjeta de débito. Los pagos con tarjeta pueden estar sujetos a los recargos del sistema financiero vigentes al momento del pago. Los comprobantes de transferencia deben enviarse por WhatsApp o correo dentro de las 24 horas de realizada la operación.</p>
+    <p><span class="tc-clause">8. Modificaciones al servicio contratado</span>Los servicios detallados corresponden exclusivamente a los acordados al momento de la firma. Cualquier modificación posterior debe ser solicitada por escrito y aceptada expresamente por Joliet Eventos, pudiendo implicar ajustes en el valor total. Joliet Eventos se reserva el derecho de realizar ajustes menores en la presentación de platos o decoración cuando causas operativas o de abastecimiento lo justifiquen, sin que ello constituya incumplimiento.</p>
+    <p><span class="tc-clause">9. Responsabilidad</span>Joliet Eventos asume plena responsabilidad por la calidad del servicio gastronómico y la coordinación de su personal. Sin perjuicio de ello, Joliet Eventos no se responsabiliza por el extravío, daño o hurto de objetos personales de los invitados, ni de bienes o decoraciones aportadas por el cliente o terceros. El cliente asume la responsabilidad por los daños que sus invitados o personal externo puedan ocasionar al mobiliario o instalaciones del establecimiento. Se recomienda la contratación de un seguro de evento para cubrir contingencias no previstas.</p>
+    <p><span class="tc-clause">10. Uso de imágenes y protección de datos</span>La información personal del cliente será utilizada exclusivamente para la organización y ejecución del servicio contratado, y no será cedida a terceros salvo requerimiento judicial expreso. El uso de imágenes del evento por parte de Joliet Eventos con fines institucionales queda supeditado al consentimiento previo, expreso y escrito del cliente, otorgado con anterioridad al evento. En ausencia de dicho consentimiento, no se utilizarán ni publicarán imágenes identificables del evento.</p>
+    <p><span class="tc-clause">11. Consumo de alcohol y menores de edad</span>Joliet Eventos cumple estrictamente con la legislación vigente que prohíbe el suministro de bebidas alcohólicas a personas menores de 18 años. El cliente se obliga a informar anticipadamente la presencia de menores en el evento. El personal de Joliet podrá solicitar documentación identificatoria ante dudas fundadas sobre la edad de un comensal. Joliet Eventos no asume responsabilidad alguna derivada de la omisión de esta información por parte del cliente o sus acompañantes.</p>
+    <p><span class="tc-clause">12. Alérgenos y contaminación cruzada</span>Joliet Eventos elabora sus preparaciones en un establecimiento donde se manipulan los principales alérgenos alimentarios, incluyendo gluten, lácteos, huevo, frutos secos, mariscos y soja, entre otros. No es posible garantizar la ausencia absoluta de trazas por contaminación cruzada. El cliente es responsable de notificar con al menos 15 días de anticipación las alergias graves de sus invitados. Cada comensal con una alergia diagnosticada deberá evaluar individualmente el consumo de cada preparación.</p>
   </div>
-
-  <div class="closing">
+  <div class="pfoot"><span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span><span>Joliet Eventos · ${anio}</span></div>
+</div>`;
+})() : `
+<!-- CIERRE (solo propuesta experiencial) -->
+<div class="page">
+  <div class="ph"><div class="ph-logo"></div><div class="ph-folio">Propuesta · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div></div>
+  <div class="closing" style="margin-top:30mm">
     <div class="cl-line"></div>
     <div class="cl-text">Sin otro particular, y expresando nuestro sincero agradecimiento por habernos elegido, quedamos a su entera disposición para coordinar cada detalle y hacer de esta noche un momento que todos van a recordar.</div>
     <div class="cl-sig">Mariana Labarta<small>Coordinadora de Eventos · Joliet</small></div>
   </div>
-
-  <div class="pfoot">
-    <span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span>
-    <span>Joliet Eventos · ${anio}</span>
-  </div>
-</div>
+  <div class="pfoot"><span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span><span>Joliet Eventos · ${anio}</span></div>
+</div>`}
 
 </body></html>`;
 
@@ -4675,7 +4912,13 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
     if (propuestaState.current > 1) goToPropuestaSlide(propuestaState.current - 1);
   });
 
-  $('propuesta-close-btn')?.addEventListener('click', () => navigateTo('clientes'));
+  $('propuesta-close-btn')?.addEventListener('click', () => {
+    readPropuestaData();
+    if (propuestaState.data.clienteId) {
+      savePropuestaLocal(propuestaState.data.clienteId, { ...propuestaState.data });
+    }
+    navigateTo('clientes');
+  });
 
   // Fork: Formal / Americano
   document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(card => {
@@ -4753,12 +4996,6 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
     const ni = $('prop-contacto-nombre'); if (ni) ni.value = cliente.apellidoNombre || '';
     const ti = $('prop-contacto-telefono'); if (ti) ti.value = cliente.telefono || '';
     const gi = $('prop-contacto-gmail'); if (gi) gi.value = cliente.gmail || '';
-  });
-
-  // Botón propuesta desde modal de cliente
-  $('btn-propuesta-modal')?.addEventListener('click', () => {
-    if (!currentClienteModal) return;
-    startPropuestaFromCliente(currentClienteModal);
   });
 
   // Guardar cliente desde propuesta

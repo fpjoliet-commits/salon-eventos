@@ -778,8 +778,10 @@ textarea { resize: vertical; min-height: 70px; }
 /* Vista cliente: oculta tabs de dinero y su contenido */
 .modal.vista-cliente .tab-btn[data-tab="cuotas"],
 .modal.vista-cliente .tab-btn[data-tab="pagos"],
+.modal.vista-cliente .tab-btn[data-tab="propuesta"],
 .modal.vista-cliente #tab-cuotas,
-.modal.vista-cliente #tab-pagos { display: none !important; }
+.modal.vista-cliente #tab-pagos,
+.modal.vista-cliente #tab-propuesta { display: none !important; }
 
 .modal-tabs {
   display: flex;
@@ -4210,4 +4212,102 @@ tr.coc-row-hidden { display: none; }
 .toast-error { background: var(--error); }
 .toast-icon { font-size: 20px; line-height: 1; }
 @media print { #toast-container { display: none !important; } }
+
+/* ===================== TAB PROPUESTA (modal) ===================== */
+.prop-tab-main { padding: 4px 0; }
+
+.prop-resumen-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.prop-chip {
+  font-size: 12px;
+  background: var(--cream-deep);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.prop-chip-muted {
+  color: var(--text-muted);
+  background: transparent;
+  border-style: dashed;
+}
+.prop-tab-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 16px;
+}
+.prop-tab-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.prop-admin-section {
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  background: var(--cream);
+}
+.prop-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.prop-role-tag {
+  font-size: 9px;
+  background: var(--gold-light);
+  color: var(--gold);
+  border: 1px solid var(--gold-border);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: .03em;
+}
+.prop-precio-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+.prop-precio-row .form-group {
+  margin: 0;
+  min-width: 120px;
+  flex: 1;
+}
+.prop-precio-row label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  display: block;
+}
+.prop-total-calc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+}
+.prop-total-num {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.prop-total-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
 
