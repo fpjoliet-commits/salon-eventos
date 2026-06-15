@@ -3515,7 +3515,7 @@ function renderPropuestaTab(cliente) {
       : '';
     resumenHTML = `<div class="prop-resumen-chips">${chips}${adicChip}</div>`;
   } else {
-    resumenHTML = `<p class="prop-tab-empty">Sin propuesta armada para este cliente.</p>`;
+    resumenHTML = `<p class="prop-tab-empty">Sin personalización guardada · la propuesta experiencial usará datos estándar.</p>`;
   }
 
   const adminHTML = isAdmin() ? (() => {
@@ -3548,7 +3548,7 @@ function renderPropuestaTab(cliente) {
       ${resumenHTML}
       <div class="prop-tab-actions">
         <button class="btn btn-secondary" id="btn-prop-tab-build">✏️ ${hasProposal ? 'Editar propuesta' : 'Construir propuesta'}</button>
-        <button class="btn btn-secondary" id="btn-prop-tab-pdf"${!hasProposal ? ' disabled' : ''}>📄 Propuesta experiencial</button>
+        <button class="btn btn-secondary" id="btn-prop-tab-pdf">📄 Propuesta experiencial</button>
       </div>
       ${adminHTML}
     </div>`;
@@ -3558,8 +3558,29 @@ function renderPropuestaTab(cliente) {
   });
 
   document.getElementById('btn-prop-tab-pdf')?.addEventListener('click', () => {
-    if (!hasProposal) return;
-    generatePropuestaPDF({ data: saved, tipo: 'experiencial' });
+    const dataParaPDF = saved || {
+      nombre: cliente.apellidoNombre || '',
+      telefono: cliente.telefono || '',
+      gmail: cliente.gmail || '',
+      clienteId: cliente.id,
+      estilo: 'Formal',
+      tipoEvento: cliente.tipoEvento || '',
+      agasajado: '',
+      fecha: cliente.fechaEvento || '',
+      turno: cliente.turno || '',
+      invitados: parseInt(cliente.cantidadInvitados) || 100,
+      menuInfantil: false,
+      infantilCant: '',
+      espacio: '',
+      pedidos: '',
+      adicionales: [],
+      gastroAdicionales: [],
+      pastasSeleccionadas: [],
+      salsasSeleccionadas: [],
+      pastasGourmetSeleccionadas: [],
+      salsasGourmetSeleccionadas: [],
+    };
+    generatePropuestaPDF({ data: dataParaPDF, tipo: 'experiencial' });
   });
 
   if (isAdmin()) {
