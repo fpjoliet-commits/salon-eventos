@@ -3400,6 +3400,7 @@ function preFillPropuestaFromCliente(cliente) {
       c.classList.toggle('selected', c.dataset.value === cliente.tipoEvento));
     const agRow = $('agasajado-row');
     if (agRow) agRow.style.display = sinAgasajado.includes(cliente.tipoEvento) ? 'none' : '';
+    updatePortadaImage();
   }
   if (cliente.fechaEvento) {
     d.fecha = cliente.fechaEvento;
@@ -3549,9 +3550,24 @@ function goToPropuestaSlide(n) {
   const container = document.querySelector('.propuesta-slides-container');
   if (container) container.scrollTop = 0;
   updatePropuestaNav();
+  if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
   if (n === 9) buildGastroSlide();
   if (n === 11) buildPropuestaResumen();
+}
+
+function updatePortadaImage() {
+  const tipo = propuestaState.data.tipoEvento;
+  const map = {
+    'Boda':        'img/propuesta/mesa-elegante.jpeg',
+    'XV años':     'img/propuesta/portada.jpeg',
+    'Cumpleaños':  'img/propuesta/torta.jpg',
+    'Egresados':   'img/propuesta/fiesta.jpeg',
+    'Corporativo': 'img/propuesta/mesa-elegante.jpeg',
+  };
+  const img = map[tipo] || 'img/propuesta/salon.jpg.jpeg';
+  const el = document.getElementById('portada-photo');
+  if (el) el.style.backgroundImage = `url('${img}')`;
 }
 
 function readPropuestaData() {
@@ -4679,6 +4695,7 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
       document.querySelectorAll('#evento-cards .propuesta-card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       propuestaState.data.tipoEvento = card.dataset.value;
+      updatePortadaImage();
       const sinAgasajado = ['Corporativo', 'Otro'];
       const agRow = $('agasajado-row');
       if (agRow) agRow.style.display = sinAgasajado.includes(card.dataset.value) ? 'none' : '';
