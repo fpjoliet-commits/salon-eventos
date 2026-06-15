@@ -4719,7 +4719,7 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
     <div class="cov-num">Emitida: ${esc(hoy)}</div>
   </div>
 
-  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.38),rgba(26,26,26,.06)),url('${base}/img/propuesta/jardin.jpeg'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
+  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.38),rgba(26,26,26,.06)),url('${base}/${({'Boda':'img/propuesta/mesa-elegante.jpeg','XV años':'img/propuesta/portada.jpeg','Cumpleaños':'img/propuesta/torta.jpg','Egresados':'img/propuesta/fiesta.jpeg','Corporativo':'img/propuesta/mesa-elegante.jpeg'})[d.tipoEvento]||'img/propuesta/jardin.jpeg'}'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
 
   <div class="cov-client">
     <div class="cov-label">Preparada para</div>
