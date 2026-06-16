@@ -23,7 +23,7 @@ app.use((req, res, next) => {
 // La app del CRM se sirve desde el mismo origen que la API (mismo Express), así que
 // sus pedidos son same-origin y NO se ven afectados. Esto solo bloquea a sitios de
 // terceros que quieran llamar a la API desde otro dominio.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://salon-eventos.onrender.com')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://salon-eventos.onrender.com,https://fpjoliet-commits.github.io')
   .split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
   origin(origin, cb) {
