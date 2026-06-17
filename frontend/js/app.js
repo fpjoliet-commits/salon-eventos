@@ -6451,15 +6451,15 @@ function imprimirPlanillaStock() {
         html += `<tr>
           <td class="print-item-name">${esc(i.nombre)}</td>
           <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
-          <td style="width:110px;border:none;padding:2px 4px"><div class="print-blank-box"></div></td>
-          <td style="width:34%;border:none;padding:2px 4px"><div class="print-obs-box"></div></td>
+          <td style="width:110px;height:26px"></td>
+          <td style="width:34%;height:26px"></td>
         </tr>`;
       });
     });
     return html;
   }
 
-  function buildSection(titulo, hoja, totalHojas, rowsHtml) {
+  function buildSection(titulo, rowsHtml) {
     return `<table class="print-table">
       <thead>
         <tr><td colspan="4" class="print-doc-header">
@@ -6467,7 +6467,6 @@ function imprimirPlanillaStock() {
           <div class="ph-meta">
             <span><b>Sección:</b> ${esc(titulo)}</span>
             <span><b>Fecha:</b> ___/___/______</span>
-            <span><b>Hoja ${hoja} de ${totalHojas}</b></span>
           </div>
           <div class="ph-fill">Completado por: _____________________________________</div>
         </td></tr>
@@ -6485,7 +6484,7 @@ function imprimirPlanillaStock() {
   ].filter(s => s.rows);
 
   const html = `
-    ${secciones.map((s, i) => `${i > 0 ? '<div class="print-page-break"></div>' : ''}${buildSection(s.titulo, i + 1, secciones.length, s.rows)}`).join('')}
+    ${secciones.map((s, i) => `${i > 0 ? '<div class="print-page-break"></div>' : ''}${buildSection(s.titulo, s.rows)}`).join('')}
     <p style="margin-top:10px;font-size:9pt;color:#666;border-top:1px solid #ddd;padding-top:4px">Impreso el ${hoy}</p>`;
   abrirVentanaImpresion(html);
 }
@@ -6503,9 +6502,9 @@ function imprimirPlanillaPedidoVacia() {
     items.forEach(i => {
       rows += `<tr>
         <td class="print-item-name">${esc(i.nombre)}</td>
-        <td style="width:90px;border:none;padding:2px 4px"><div class="print-blank-box"></div></td>
+        <td style="width:90px;height:26px"></td>
         <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
-        <td style="width:34%;border:none;padding:2px 4px"><div class="print-obs-box"></div></td>
+        <td style="width:34%;height:26px"></td>
       </tr>`;
     });
   });
