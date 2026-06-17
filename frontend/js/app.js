@@ -6493,8 +6493,11 @@ function imprimirPlanillaStock() {
 function imprimirPlanillaPedidoVacia() {
   const hoy = new Date().toLocaleDateString('es-AR');
 
+  // El desglose de sanguches de miga (Blancos/Negros) no va en la planilla en blanco.
+  const SKIP_CATS = new Set(['Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros']);
   let rows = '';
   PEDIDO_CAT_ORDER.forEach(cat => {
+    if (SKIP_CATS.has(cat)) return;
     const items = cocinaCatalogo.filter(c => c.categoria === cat);
     if (!items.length) return;
     const color = cocCatColor(cat);
