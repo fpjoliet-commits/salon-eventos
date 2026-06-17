@@ -6451,15 +6451,15 @@ function imprimirPlanillaStock() {
         html += `<tr>
           <td class="print-item-name">${esc(i.nombre)}</td>
           <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
-          <td style="width:110px"><div class="print-blank-box"></div></td>
-          <td style="width:34%"><div class="print-obs-box"></div></td>
+          <td style="width:110px;border:none;padding:2px 4px"><div class="print-blank-box"></div></td>
+          <td style="width:34%;border:none;padding:2px 4px"><div class="print-obs-box"></div></td>
         </tr>`;
       });
     });
     return html;
   }
 
-  function buildSection(titulo, hoja, cats) {
+  function buildSection(titulo, hoja, totalHojas, rowsHtml) {
     return `<table class="print-table">
       <thead>
         <tr><td colspan="4" class="print-doc-header">
@@ -6467,20 +6467,25 @@ function imprimirPlanillaStock() {
           <div class="ph-meta">
             <span><b>Sección:</b> ${esc(titulo)}</span>
             <span><b>Fecha:</b> ___/___/______</span>
-            <span><b>Hoja ${hoja} de 2</b></span>
+            <span><b>Hoja ${hoja} de ${totalHojas}</b></span>
           </div>
           <div class="ph-fill">Completado por: _____________________________________</div>
         </td></tr>
         <tr><th>Ítem</th><th style="text-align:center">Unid.</th><th>Cantidad</th><th>Observaciones</th></tr>
       </thead>
-      <tbody>${buildRows(cats) || `<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems</td></tr>`}</tbody>
+      <tbody>${rowsHtml}</tbody>
     </table>`;
   }
 
+  // Solo se incluyen las secciones que tienen ítems cargados en el catálogo;
+  // si "Ingredientes y materias primas" está vacía, no se imprime esa hoja.
+  const secciones = [
+    { titulo: 'Producción', rows: buildRows(PROD_CATS) },
+    { titulo: 'Ingredientes y materias primas', rows: buildRows(ING_CATS) },
+  ].filter(s => s.rows);
+
   const html = `
-    ${buildSection('Producción', 1, PROD_CATS)}
-    <div class="print-page-break"></div>
-    ${buildSection('Ingredientes y materias primas', 2, ING_CATS)}
+    ${secciones.map((s, i) => `${i > 0 ? '<div class="print-page-break"></div>' : ''}${buildSection(s.titulo, i + 1, secciones.length, s.rows)}`).join('')}
     <p style="margin-top:10px;font-size:9pt;color:#666;border-top:1px solid #ddd;padding-top:4px">Impreso el ${hoy}</p>`;
   abrirVentanaImpresion(html);
 }
@@ -6498,9 +6503,9 @@ function imprimirPlanillaPedidoVacia() {
     items.forEach(i => {
       rows += `<tr>
         <td class="print-item-name">${esc(i.nombre)}</td>
-        <td style="width:90px"><div class="print-blank-box"></div></td>
+        <td style="width:90px;border:none;padding:2px 4px"><div class="print-blank-box"></div></td>
         <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
-        <td style="width:34%"><div class="print-obs-box"></div></td>
+        <td style="width:34%;border:none;padding:2px 4px"><div class="print-obs-box"></div></td>
       </tr>`;
     });
   });

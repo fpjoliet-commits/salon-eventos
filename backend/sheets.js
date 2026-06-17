@@ -1072,9 +1072,6 @@ const ITEMS_DEACTIVATE = new Set([
   'Mesa de Dulces||Torta África', 'Mesa de Dulces||Tarta de frutillas', 'Mesa de Dulces||Flan',
   'Mesa de Dulces||Mil Hojas', 'Mesa de Dulces||Brownies relleno', 'Mesa de Dulces||Copas Heladas',
   'Mesa de Dulces||Panqueques', 'Mesa de Dulces||Torta Homenaje', 'Mesa de Dulces||Presentaciones Individuales',
-  'Cafetería / Fin de Fiesta||Café con leche y mini facturas',
-  'Cafetería / Fin de Fiesta||Pizza con cerveza',
-  'Cafetería / Fin de Fiesta||Mate con bizcochitos',
   'Recepción - Fríos||Sanguche de Miga',
 ]);
 
@@ -1439,6 +1436,20 @@ async function sincronizarCatalogoConInicial() {
     console.log(`✅ CatalogoItems: ${toDeactivate.length} ítems obsoletos desactivados:`, toDeactivate.map(x => `${x.r[1]}|${x.r[2]}`).join(', '));
   }
 
+  // Reactivar ítems que figuran en el catálogo inicial (canónicos) pero quedaron desactivados
+  // por error (p.ej. una versión vieja del denylist) y ya no deberían estar apagados.
+  const inicialKeys = new Set(CATALOGO_INICIAL.map(item => `${item.categoria}||${item.nombre}`));
+  const toReactivate = rows
+    .map((r, i) => ({ r, rowIndex: i + 2 }))
+    .filter(({ r }) => r[0] && r[3] === 'false' && inicialKeys.has(`${r[1]}||${r[2]}`) && !shouldDeactivateItem(r[1], r[2]));
+  if (toReactivate.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { valueInputOption: 'USER_ENTERED', data: toReactivate.map(({ rowIndex }) => ({ range: `CatalogoItems!D${rowIndex}`, values: [['true']] })) },
+    });
+    console.log(`✅ CatalogoItems: ${toReactivate.length} ítems reactivados:`, toReactivate.map(x => `${x.r[1]}|${x.r[2]}`).join(', '));
+  }
+
   // Agregar ítems faltantes del catálogo inicial
   const existingKeys = new Set(rows.filter(r => r[0]).map(r => `${r[1]}||${r[2]}`));
   const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`));
@@ -1452,7 +1463,11 @@ async function sincronizarCatalogoConInicial() {
     });
     console.log(`✅ CatalogoItems: ${faltantes.length} ítems nuevos desde catálogo inicial.`);
   }
-  return { desactivados: toDeactivate.length, desactivadosDetalle: toDeactivate.map(x => `${x.r[1]} / ${x.r[2]}`), agregados: faltantes.length };
+  return {
+    desactivados: toDeactivate.length, desactivadosDetalle: toDeactivate.map(x => `${x.r[1]} / ${x.r[2]}`),
+    reactivados: toReactivate.length, reactivadosDetalle: toReactivate.map(x => `${x.r[1]} / ${x.r[2]}`),
+    agregados: faltantes.length,
+  };
 }
 
 async function sincronizarStockConCatalogo() {
