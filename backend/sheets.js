@@ -1243,13 +1243,19 @@ const INGREDIENTES_STOCK = [
   { categoria: 'Aceites y Sales', nombre: 'Sal fina', unidad: 'kg' },
 ];
 
+// Columna D es un checkbox en Sheets: la API puede devolver el booleano `false`
+// (no el string 'false'), así que la comparación tiene que cubrir ambos casos.
+function _isActivoCell(v) {
+  return String(v).toLowerCase() !== 'false';
+}
+
 function rowToCatalogoItem(row, index) {
   return {
     rowIndex: index + 2,
     id: row[0] || '',
     categoria: row[1] || '',
     nombre: row[2] || '',
-    activo: row[3] !== 'false',
+    activo: _isActivoCell(row[3]),
     unidad: row[4] || detectarUnidad(row[1], row[2]),
   };
 }
@@ -1427,7 +1433,7 @@ async function sincronizarCatalogoConInicial() {
   // Desactivar ítems obsoletos (comparación normalizada)
   const toDeactivate = rows
     .map((r, i) => ({ r, rowIndex: i + 2 }))
-    .filter(({ r }) => r[0] && r[3] !== 'false' && shouldDeactivateItem(r[1], r[2]));
+    .filter(({ r }) => r[0] && _isActivoCell(r[3]) && shouldDeactivateItem(r[1], r[2]));
   if (toDeactivate.length) {
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
@@ -1441,7 +1447,7 @@ async function sincronizarCatalogoConInicial() {
   const inicialKeys = new Set(CATALOGO_INICIAL.map(item => `${item.categoria}||${item.nombre}`));
   const toReactivate = rows
     .map((r, i) => ({ r, rowIndex: i + 2 }))
-    .filter(({ r }) => r[0] && r[3] === 'false' && inicialKeys.has(`${r[1]}||${r[2]}`) && !shouldDeactivateItem(r[1], r[2]));
+    .filter(({ r }) => r[0] && !_isActivoCell(r[3]) && inicialKeys.has(`${r[1]}||${r[2]}`) && !shouldDeactivateItem(r[1], r[2]));
   if (toReactivate.length) {
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
@@ -1489,7 +1495,7 @@ async function sincronizarStockConCatalogo() {
   const catRows = catRes.data.values || [];
 
   // IDs de ítems activos en el catálogo
-  const activeCatIds = new Set(catRows.filter(r => r[0] && r[3] !== 'false').map(r => r[0]));
+  const activeCatIds = new Set(catRows.filter(r => r[0] && _isActivoCell(r[3])).map(r => r[0]));
 
   // Blanquear filas de stock cuyo ítem fue desactivado en catálogo (no tocar ING-)
   const toRemove = stockRows.filter(s => s.id && !s.id.startsWith('ING-') && !activeCatIds.has(s.id));
@@ -1510,7 +1516,7 @@ async function sincronizarStockConCatalogo() {
   // Agregar ítems activos que faltan en stock
   const existingIds = new Set(stockRows.map(s => s.id).filter(Boolean));
   const faltantes = catRows.filter(r =>
-    r[0] && r[3] !== 'false' && !existingIds.has(r[0]) && !CATEGORIAS_SIN_STOCK.has(r[1])
+    r[0] && _isActivoCell(r[3]) && !existingIds.has(r[0]) && !CATEGORIAS_SIN_STOCK.has(r[1])
   );
   if (faltantes.length) {
     await sheets.spreadsheets.values.append({
