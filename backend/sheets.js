@@ -1093,13 +1093,15 @@ const CATS_DEACTIVATE_ALL = new Set([
   'Salsas Gourmet', 'Primer Plato - Salsas Gourmet',
   // Guarniciones — renombrado a "Guarnición plato central"
   'Guarniciones', 'Plato Central - Guarniciones',
+  // Mesa de Dulces — se contrata a un proveedor externo, no se pide en el pedido semanal de cocina
+  'Mesa de Dulces',
 ]);
 
 // Categorías que NO van a StockActual (no persisten semana a semana)
 const CATEGORIAS_SIN_STOCK = new Set([
   'Recepción - Canapés', 'Recepción - Bruschettas', 'Recepción - Fríos',
   'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros', 'Sanguche de Miga - Totales',
-  'Mesa de Dulces', 'Cafetería / Fin de Fiesta',
+  'Cafetería / Fin de Fiesta',
 ]);
 
 const CATALOGO_INICIAL = [
@@ -1196,19 +1198,7 @@ const CATALOGO_INICIAL = [
   { categoria: 'Guarnición plato central', nombre: 'Rosti de papa', unidad: 'und' },
   { categoria: 'Guarnición plato central', nombre: 'Papas a la suiza gratinadas', unidad: 'und' },
   { categoria: 'Guarnición plato central', nombre: 'Milhojas de papa', unidad: 'und' },
-  // Mesa de Dulces y Cafetería: externos — van en pedido pero no en stock
-  { categoria: 'Mesa de Dulces', nombre: 'Lemon pie', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Cheese cake', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Chocotorta', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Torta África', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Tarta de frutillas', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Flan', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Mil Hojas', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Brownies relleno', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Copas Heladas', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Panqueques', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Torta Homenaje', unidad: 'und' },
-  { categoria: 'Mesa de Dulces', nombre: 'Presentaciones Individuales', unidad: 'und' },
+  // Cafetería: externo — va en pedido pero no en stock
   { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Café con leche y mini facturas', unidad: 'und' },
   { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Pizza con cerveza', unidad: 'und' },
   { categoria: 'Cafetería / Fin de Fiesta', nombre: 'Mate con bizcochitos', unidad: 'und' },

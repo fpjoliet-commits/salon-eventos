@@ -5500,7 +5500,6 @@ const COCINA_CAT_COLORS = {
   'Plato Central - Carne':         '#FFEBEE',
   'Plato Central - Salsas':        '#FFF3E0',
   'Guarnición plato central':      '#F3E5F5',
-  'Mesa de Dulces':                '#FCE4EC',
   'Cafetería / Fin de Fiesta':     '#E8EAF6',
   // Ingredientes (solo stock)
   'Bruschetta - Toppings':         '#FFF8E1',
@@ -5515,7 +5514,7 @@ const COCINA_CAT_COLORS = {
 const CATS_NO_STOCK_DISPLAY = new Set([
   'Recepción - Canapés', 'Recepción - Bruschettas', 'Recepción - Fríos',
   'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros', 'Sanguche de Miga - Totales',
-  'Mesa de Dulces', 'Cafetería / Fin de Fiesta',
+  'Cafetería / Fin de Fiesta',
 ]);
 
 // Orden de categorías en stock dashboard (las que van)
@@ -5535,7 +5534,7 @@ const PEDIDO_CAT_ORDER = [
   'Islas',
   'Primer Plato - Pastas', 'Primer Plato - Salsas',
   'Plato Central - Ave', 'Plato Central - Carne', 'Plato Central - Salsas', 'Guarnición plato central',
-  'Mesa de Dulces', 'Cafetería / Fin de Fiesta',
+  'Cafetería / Fin de Fiesta',
 ];
 
 function catDisplayName(cat) {
@@ -5557,8 +5556,8 @@ const _CANON_NAMES_AVE_CARNE = {
   [_normStrCli('Plato Central - Ave')]: new Set(['Pechuga tradición', 'Pechuga caprese', 'Pechuga doble puerro'].map(_normStrCli)),
   [_normStrCli('Plato Central - Carne')]: new Set(['Lomo Reserva', 'Bife del bosque', 'Lomo Dijon'].map(_normStrCli)),
 };
-// Categorías viejas renombradas: ya no deben aparecer, sus ítems viven en la categoría canónica
-const _CATS_DESCARTAR_CLI = new Set(['Guarniciones', 'Plato Central - Guarniciones'].map(_normStrCli));
+// Categorías viejas renombradas o que ya no se piden por este canal: nunca deben aparecer
+const _CATS_DESCARTAR_CLI = new Set(['Guarniciones', 'Plato Central - Guarniciones', 'Mesa de Dulces'].map(_normStrCli));
 function limpiarCatalogoCliente(items) {
   return (items || []).filter(i => {
     const catN = _normStrCli(i.categoria);
