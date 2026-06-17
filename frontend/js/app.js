@@ -6493,11 +6493,27 @@ function imprimirPlanillaStock() {
 function imprimirPlanillaPedidoVacia() {
   const hoy = new Date().toLocaleDateString('es-AR');
 
-  // El desglose de sanguches de miga (Blancos/Negros) no va en la planilla en blanco.
-  const SKIP_CATS = new Set(['Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros']);
+  // Categorías del desglose de sanguches de miga: en la planilla en blanco no se
+  // listan los ítems uno por uno; solo van Blancos y Negros como opciones (totales).
+  const MIGA_DESGLOSE = new Set(['Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros']);
   let rows = '';
+  let migaRendered = false;
   PEDIDO_CAT_ORDER.forEach(cat => {
-    if (SKIP_CATS.has(cat)) return;
+    if (cat === 'Sanguche de Miga - Totales' || MIGA_DESGLOSE.has(cat)) {
+      if (migaRendered) return;
+      migaRendered = true;
+      const color = cocCatColor('Sanguche de Miga - Totales');
+      rows += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">🥪 Sanguche de Miga</td></tr>`;
+      ['Blancos', 'Negros'].forEach(nombre => {
+        rows += `<tr>
+          <td class="print-item-name">${nombre}</td>
+          <td style="width:90px;height:26px"></td>
+          <td style="width:60px;text-align:center;color:#888">und</td>
+          <td style="width:34%;height:26px"></td>
+        </tr>`;
+      });
+      return;
+    }
     const items = cocinaCatalogo.filter(c => c.categoria === cat);
     if (!items.length) return;
     const color = cocCatColor(cat);
