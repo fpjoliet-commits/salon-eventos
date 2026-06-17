@@ -758,7 +758,8 @@
 
         <!-- ─── TAB: PEDIDO DE SEMANA ─── -->
         <div id="cocina-tab-pedido" class="cocina-tab-pane hidden">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+            <button id="cocina-imprimir-pedido-vacio-btn" class="btn btn-secondary">🖨️ Imprimir planilla en blanco</button>
             <button id="cocina-nuevo-btn" class="btn btn-primary">+ Nuevo pedido</button>
           </div>
 
@@ -862,6 +863,9 @@
         <!-- ─── TAB: CATÁLOGO ─── -->
         <div id="cocina-tab-catalogo" class="cocina-tab-pane hidden">
           <div class="cocina-hint">💡 El catálogo es la lista de todos los ítems disponibles para armar pedidos. Podés agregar ítems nuevos o desactivar los que ya no se usan. Los cambios se ven en la próxima vez que armés un pedido.</div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            <button id="cocina-limpiar-duplicados-btn" class="btn btn-secondary btn-sm">🧹 Limpiar duplicados</button>
+          </div>
           <div id="cocina-catalogo-panel" class="cocina-catalogo-panel"></div>
         </div>
 

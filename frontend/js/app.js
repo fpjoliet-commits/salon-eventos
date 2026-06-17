@@ -5547,6 +5547,29 @@ function catDisplayName(cat) {
 
 function cocCatColor(cat) { return COCINA_CAT_COLORS[cat] || '#F5F5F5'; }
 
+// Salvaguarda en el cliente: fusiona categorías "Gourmet" con su base y descarta variantes
+// viejas de Ave/Carne (relleno:, con "·", etc.) aunque el catálogo en Sheets aún no se haya
+// limpiado. catalogo-items/sync hace lo mismo en el origen de datos.
+function _normStrCli(s) {
+  return (s || '').replace(/[–—·]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+const _CANON_NAMES_AVE_CARNE = {
+  [_normStrCli('Plato Central - Ave')]: new Set(['Pechuga tradición', 'Pechuga caprese', 'Pechuga doble puerro'].map(_normStrCli)),
+  [_normStrCli('Plato Central - Carne')]: new Set(['Lomo Reserva', 'Bife del bosque', 'Lomo Dijon'].map(_normStrCli)),
+};
+// Categorías viejas renombradas: ya no deben aparecer, sus ítems viven en la categoría canónica
+const _CATS_DESCARTAR_CLI = new Set(['Guarniciones', 'Plato Central - Guarniciones'].map(_normStrCli));
+function limpiarCatalogoCliente(items) {
+  return (items || []).filter(i => {
+    const catN = _normStrCli(i.categoria);
+    if (catN.includes('gourmet')) return false;
+    if (_CATS_DESCARTAR_CLI.has(catN)) return false;
+    const allowSet = _CANON_NAMES_AVE_CARNE[catN];
+    if (allowSet && !allowSet.has(_normStrCli(i.nombre))) return false;
+    return true;
+  });
+}
+
 async function loadCocina() {
   if (!isSuperAdmin()) return;
   const loadingEl = $('cocina-loading');
@@ -5560,6 +5583,8 @@ async function loadCocina() {
       apiFetch('/pedidos-cocina'),
       apiFetch('/stock-actual'),
     ]);
+    cocinaCatalogo = limpiarCatalogoCliente(cocinaCatalogo);
+    cocinaStockActual = limpiarCatalogoCliente(cocinaStockActual);
     if (loadingEl) loadingEl.style.display = 'none';
     renderStockDashboard();
     renderPedidosList();
@@ -6408,49 +6433,94 @@ const _PRINT_CAT_COLORS = {
   'Básicos':'#F3F3F3','Verduras':'#E8F5E9','Aceites y Sales':'#FFF3E0',
 };
 
+// Ítems que SÍ se cuentan en la planilla de stock (catálogo completo, no solo lo que ya tiene stock cargado),
+// para que la hoja en blanco sirva para arrancar de cero contando todo a mano.
 function imprimirPlanillaStock() {
-  const STOCKABLE_CATS = ['Recepción - Fríos','Recepción - Brochettes','Recepción - Empanaditas',
-    'Recepción - Calientes','Islas','Primer Plato - Pastas','Primer Plato - Pastas Gourmet',
-    'Primer Plato - Salsas','Primer Plato - Salsas Gourmet','Plato Central - Ave',
-    'Plato Central - Carne','Plato Central - Guarniciones'];
-  const ING_CATS = ['Bruschetta - Toppings','Fiambres','Condimentos','Básicos','Verduras','Aceites y Sales'];
+  const ING_START = STOCK_CAT_ORDER.indexOf('Bruschetta - Toppings');
+  const PROD_CATS = STOCK_CAT_ORDER.slice(0, ING_START);
+  const ING_CATS = STOCK_CAT_ORDER.slice(ING_START);
   const hoy = new Date().toLocaleDateString('es-AR');
 
-  function buildCol(items) {
+  function buildRows(cats) {
     let html = '';
-    const bycat = {}, order = [];
-    items.forEach(i => { if (!bycat[i.categoria]) { bycat[i.categoria] = []; order.push(i.categoria); } bycat[i.categoria].push(i); });
-    order.forEach(cat => {
-      const c = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
-      html += `<tr><td colspan="3" style="background:${c};padding:3px 6px;font-size:8pt;font-weight:700;color:#5d4037">${cat}</td></tr>`;
-      bycat[cat].forEach(i => {
-        html += `<tr><td style="padding:2px 6px 2px 12px;font-size:8pt">${esc(i.nombre)}</td><td style="font-size:8pt;color:#888;width:28px">${esc(i.unidad||'und')}</td><td style="border:1px solid #bbb;width:50px;padding:2px">&nbsp;</td></tr>`;
+    cats.forEach(cat => {
+      const items = cocinaCatalogo.filter(c => c.categoria === cat);
+      if (!items.length) return;
+      const color = cocCatColor(cat);
+      html += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
+      items.forEach(i => {
+        html += `<tr>
+          <td class="print-item-name">${esc(i.nombre)}</td>
+          <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
+          <td style="width:110px"><div class="print-blank-box"></div></td>
+          <td style="width:34%"><div class="print-obs-box"></div></td>
+        </tr>`;
       });
     });
     return html;
   }
 
-  const stockProdItems = cocinaStockActual.filter(s => STOCKABLE_CATS.includes(s.categoria));
-  const stockIngItems = cocinaStockActual.filter(s => ING_CATS.includes(s.categoria));
+  function buildSection(titulo, hoja, cats) {
+    return `<table class="print-table">
+      <thead>
+        <tr><td colspan="4" class="print-doc-header">
+          <div class="ph-title">JOLIET — PLANILLA DE STOCK (EN BLANCO)</div>
+          <div class="ph-meta">
+            <span><b>Sección:</b> ${esc(titulo)}</span>
+            <span><b>Fecha:</b> ___/___/______</span>
+            <span><b>Hoja ${hoja} de 2</b></span>
+          </div>
+          <div class="ph-fill">Completado por: _____________________________________</div>
+        </td></tr>
+        <tr><th>Ítem</th><th style="text-align:center">Unid.</th><th>Cantidad</th><th>Observaciones</th></tr>
+      </thead>
+      <tbody>${buildRows(cats) || `<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems</td></tr>`}</tbody>
+    </table>`;
+  }
 
   const html = `
-    <div style="border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-end">
-      <h2 style="font-size:13pt;margin:0">JOLIET — PLANILLA DE STOCK</h2>
-      <span style="font-size:9pt">Fecha: _______________</span>
-    </div>
-    <table style="width:100%;border-collapse:collapse">
-      <tr>
-        <td style="width:50%;vertical-align:top;padding-right:10px">
-          <div style="font-size:8.5pt;font-weight:700;background:#e8e8e8;padding:3px 6px;margin-bottom:4px">PRODUCCIÓN</div>
-          <table style="width:100%;border-collapse:collapse">${buildCol(stockProdItems)}</table>
-        </td>
-        <td style="width:50%;vertical-align:top;padding-left:10px;border-left:1px solid #ddd">
-          <div style="font-size:8.5pt;font-weight:700;background:#e8e8e8;padding:3px 6px;margin-bottom:4px">INGREDIENTES Y MATERIAS PRIMAS</div>
-          <table style="width:100%;border-collapse:collapse">${buildCol(stockIngItems)}</table>
-        </td>
-      </tr>
-    </table>
-    <p style="margin-top:10px;font-size:8pt;color:#666;border-top:1px solid #ddd;padding-top:4px">Impreso el ${hoy}</p>`;
+    ${buildSection('Producción', 1, PROD_CATS)}
+    <div class="print-page-break"></div>
+    ${buildSection('Ingredientes y materias primas', 2, ING_CATS)}
+    <p style="margin-top:10px;font-size:9pt;color:#666;border-top:1px solid #ddd;padding-top:4px">Impreso el ${hoy}</p>`;
+  abrirVentanaImpresion(html);
+}
+
+// Planilla de pedido de la semana en blanco, para completar a mano y cargar después en el sistema.
+function imprimirPlanillaPedidoVacia() {
+  const hoy = new Date().toLocaleDateString('es-AR');
+
+  let rows = '';
+  PEDIDO_CAT_ORDER.forEach(cat => {
+    const items = cocinaCatalogo.filter(c => c.categoria === cat);
+    if (!items.length) return;
+    const color = cocCatColor(cat);
+    rows += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
+    items.forEach(i => {
+      rows += `<tr>
+        <td class="print-item-name">${esc(i.nombre)}</td>
+        <td style="width:90px"><div class="print-blank-box"></div></td>
+        <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
+        <td style="width:34%"><div class="print-obs-box"></div></td>
+      </tr>`;
+    });
+  });
+
+  const html = `<table class="print-table">
+    <thead>
+      <tr><td colspan="4" class="print-doc-header">
+        <div class="ph-title">JOLIET — PEDIDO DE PRODUCCIÓN (PLANILLA EN BLANCO)</div>
+        <div class="ph-meta">
+          <span><b>Evento:</b> _____________________________</span>
+          <span><b>Fecha del evento:</b> ___/___/______</span>
+          <span><b>Generado:</b> ${hoy}</span>
+        </div>
+        <div class="ph-fill">Completado por: _____________________________________</div>
+      </td></tr>
+      <tr><th style="width:36%">Ítem</th><th style="width:90px">Cant.</th><th style="width:60px">Unid.</th><th>Observaciones</th></tr>
+    </thead>
+    <tbody>${rows || `<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems en el catálogo</td></tr>`}</tbody>
+  </table>`;
   abrirVentanaImpresion(html);
 }
 
@@ -6483,7 +6553,7 @@ function buildPrintPedidoHTML(pedido) {
         </div>
         <div class="ph-fill">Completado por: _____________________ &nbsp;&nbsp; Fecha: ___/___/______</div>
       </td></tr>
-      <tr><th>Ítem</th><th style="width:60px">Cant.</th><th style="width:50px">Unid.</th><th style="width:28%">Observaciones</th></tr>
+      <tr><th style="width:36%">Ítem</th><th style="width:70px">Cant.</th><th style="width:60px">Unid.</th><th>Observaciones</th></tr>
     </thead>
     <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems con cantidad asignada</td></tr>'}</tbody>
   </table>`;
@@ -6542,17 +6612,22 @@ function abrirVentanaImpresion(htmlContent) {
   const win = window.open('', '_blank', 'width=900,height=700');
   if (!win) { alert('Habilitá las ventanas emergentes para este sitio e intentá nuevamente.'); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-  body{font-family:Arial,sans-serif;font-size:8.5pt;color:#000;margin:0;padding:10px;background:#fff}
+  body{font-family:Arial,sans-serif;font-size:12.5pt;color:#000;margin:0;padding:10px;background:#fff}
   thead{display:table-header-group}
-  .print-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-top:0}
-  .print-table th{background:#e0e0e0;padding:4px 7px;border:1px solid #999;text-align:left;font-size:8pt}
-  .print-table td{border:1px solid #ccc;padding:3px 6px;vertical-align:top}
-  .print-doc-header{border:none!important;border-bottom:2px solid #333!important;padding:4px 0 8px 0!important}
-  .ph-title{font-size:12.5pt;font-weight:700;margin:0 0 5px 0}
-  .ph-meta{font-size:8pt;color:#333;display:flex;gap:20px;flex-wrap:wrap;margin-bottom:3px}
-  .ph-fill{font-size:7.5pt;color:#555;margin-top:5px;padding-top:5px;border-top:1px dashed #bbb}
-  @page{size:A4 portrait;margin:12mm 15mm 18mm 15mm;@bottom-right{content:"Hoja " counter(page) " / " counter(pages);font-size:7.5pt;color:#888}}
-  @media print{body{padding:0;margin:0}}
+  .print-table{width:100%;border-collapse:collapse;font-size:12.5pt;margin-top:0}
+  .print-table th{background:#e0e0e0;padding:7px 9px;border:1px solid #999;text-align:left;font-size:12pt}
+  .print-table td{border:1px solid #ccc;padding:7px 9px;vertical-align:top}
+  .print-doc-header{border:none!important;border-bottom:2px solid #333!important;padding:6px 0 10px 0!important}
+  .ph-title{font-size:18pt;font-weight:700;margin:0 0 6px 0}
+  .ph-meta{font-size:11.5pt;color:#333;display:flex;gap:24px;flex-wrap:wrap;margin-bottom:4px}
+  .ph-fill{font-size:11pt;color:#555;margin-top:6px;padding-top:6px;border-top:1px dashed #bbb}
+  .print-section-title{font-size:14pt;font-weight:700;background:#e8e8e8;padding:6px 10px;margin:0 0 8px 0;border:1px solid #999}
+  .print-cat-header{font-size:11.5pt;font-weight:700;padding:6px 10px;border-bottom:1px solid #ccc}
+  .print-item-name{font-size:12.5pt;padding-left:14px}
+  .print-blank-box{border:1px solid #999;min-height:20px}
+  .print-obs-box{border:1px solid #999;min-height:20px}
+  @page{size:A4 portrait;margin:14mm 15mm 18mm 15mm;@bottom-right{content:"Hoja " counter(page) " / " counter(pages);font-size:9pt;color:#888}}
+  @media print{body{padding:0;margin:0} .print-page-break{page-break-before:always}}
   </style></head><body>${htmlContent}<script>setTimeout(function(){window.print();},300);<\/script></body></html>`);
   win.document.close();
 }
@@ -6771,8 +6846,26 @@ $('cocina-actualizar-cancel-btn')?.addEventListener('click', () => $('cocina-act
 $('cocina-actualizar-stock-guardar-btn')?.addEventListener('click', guardarActualizacionStock);
 $('cocina-imprimir-planilla-btn')?.addEventListener('click', imprimirPlanillaStock);
 
+// Tab catálogo
+$('cocina-limpiar-duplicados-btn')?.addEventListener('click', async () => {
+  const btn = $('cocina-limpiar-duplicados-btn');
+  btn.disabled = true;
+  try {
+    const r = await apiFetch('/catalogo-items/sync', { method: 'POST' });
+    toast(`Catálogo limpio: ${r.desactivados} duplicados desactivados, ${r.agregados} ítems nuevos agregados`);
+    cocinaCatalogo = limpiarCatalogoCliente(await apiFetch('/catalogo-items'));
+    renderCatalogoPanel();
+    renderStockDashboard();
+  } catch (e) {
+    alert('Error al limpiar catálogo: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // Tab pedido
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
+$('cocina-imprimir-pedido-vacio-btn')?.addEventListener('click', imprimirPlanillaPedidoVacia);
 $('cocina-toggle-stock-col-btn')?.addEventListener('click', toggleStockCol);
 $('cocina-descontar-stock-btn')?.addEventListener('click', descontarStockDelPedido);
 $('cocina-form-cancel-btn')?.addEventListener('click', () => {

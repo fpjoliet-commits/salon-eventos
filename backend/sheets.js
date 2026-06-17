@@ -1393,8 +1393,15 @@ async function actualizarStockActual(actualizaciones) {
 
 // Normaliza strings para comparación tolerante: minúsculas, guiones unificados, espacios comprimidos
 function _normStr(s) {
-  return (s || '').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+  return (s || '').replace(/[–—·]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
 }
+
+// Categorías con lista cerrada de nombres canónicos: cualquier otra variante (vieja, con
+// "relleno:", con "·", con guion, etc.) se desactiva sin necesidad de listar cada caso a mano.
+const CANONICAL_NAMES_BY_CAT_NORM = {
+  [_normStr('Plato Central - Ave')]: new Set(['Pechuga tradición', 'Pechuga caprese', 'Pechuga doble puerro'].map(_normStr)),
+  [_normStr('Plato Central - Carne')]: new Set(['Lomo Reserva', 'Bife del bosque', 'Lomo Dijon'].map(_normStr)),
+};
 
 async function sincronizarCatalogoConInicial() {
   // Sets normalizados para lookup rápido
@@ -1407,6 +1414,8 @@ async function sincronizarCatalogoConInicial() {
 
   const shouldDeactivateItem = (cat, nombre) => {
     const catN = _normStr(cat), nomN = _normStr(nombre);
+    const allowSet = CANONICAL_NAMES_BY_CAT_NORM[catN];
+    if (allowSet && !allowSet.has(nomN)) return true;
     return DEACT_KEYS_NORM.has(`${catN}||${nomN}`) ||
       DEACT_CATS_NORM.has(catN) ||
       catN.includes('gourmet') ||
