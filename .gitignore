@@ -5,3 +5,4 @@ backend/.env
 *.log
 .DS_Store
 Thumbs.db
+_archivo/
