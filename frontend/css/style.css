@@ -1296,16 +1296,91 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .btn-pago-rapido:hover { background: #d1fae5; }
 
+/* ===================== BOTÓN MENÚ + DRAWER (tablet / móvil) ===================== */
+.menu-toggle {
+  display: none;                     /* visible sólo en <=1024px (ver más abajo) */
+  position: fixed;
+  top: 14px; left: 14px;
+  z-index: 150;
+  width: 46px; height: 46px;
+  align-items: center; justify-content: center;
+  background: var(--sidebar-bg);
+  border: 1px solid rgba(196,153,62,.25);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(8,6,3,.28);
+  transition: background .15s, transform .15s;
+}
+.menu-toggle:active { transform: scale(.94); }
+.menu-toggle-bars { position: relative; width: 20px; height: 15px; }
+.menu-toggle-bars span {
+  position: absolute; left: 0;
+  width: 100%; height: 2px;
+  background: var(--gold-bright);
+  border-radius: 2px;
+  transition: transform .22s cubic-bezier(.4,0,.2,1), opacity .18s;
+}
+.menu-toggle-bars span:nth-child(1) { top: 0; }
+.menu-toggle-bars span:nth-child(2) { top: 6.5px; }
+.menu-toggle-bars span:nth-child(3) { top: 13px; }
+/* Estado abierto: transforma en "X" */
+.sidebar-open .menu-toggle-bars span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.sidebar-open .menu-toggle-bars span:nth-child(2) { opacity: 0; }
+.sidebar-open .menu-toggle-bars span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(8,6,3,.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 140;
+  opacity: 0;
+  transition: opacity .25s;
+}
+.sidebar-open .sidebar-backdrop { opacity: 1; }
+
 /* ===================== RESPONSIVE ===================== */
+
+/* — Tablet y móvil (<=1024px): sidebar off-canvas con hamburguesa — */
+@media (max-width: 1024px) {
+  .menu-toggle { display: flex; }
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 0 0 40px rgba(8,6,3,.35);
+  }
+  .sidebar-open .sidebar { transform: translateX(0); }
+  .sidebar-open .sidebar-backdrop { display: block; }
+  .main-content { margin-left: 0; padding: 30px 34px; padding-top: 74px; }
+  .demo-banner ~ #app .main-content { padding-top: 92px; }
+  .search-input { width: 240px; }
+}
+
+/* — Tablet portrait / móvil (<=768px) — */
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
-  .main-content { margin-left: 0; padding: 20px 18px; }
+  .main-content { padding: 24px 18px; padding-top: 70px; }
   .form-grid { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: 1fr; }
   .header-actions { flex-wrap: wrap; }
   .search-input, .filter-select { width: 100%; }
   .view-header h2 { font-size: 28px; }
+  .modal-overlay { padding: 12px; }
+  .modal { max-height: 94vh; }
+  .modal-header { padding: 18px 20px; }
+  .modal-body { padding: 20px 20px; }
+  .tab-btn { padding: 9px 14px; }
+  .stats-row .stat-card { min-width: calc(50% - 6px); }
 }
+
+/* — Tabs de modal: scroll horizontal si no entran — */
+.modal-tabs {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.modal-tabs::-webkit-scrollbar { display: none; }
+.tab-btn { flex-shrink: 0; }
 
 /* ===================== NOMBRE — EDICIÓN / SUGERENCIA ===================== */
 .modal-nombre-wrap {
@@ -1873,6 +1948,47 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   align-items: center;
   z-index: 1001;
   overflow: hidden;
+  transition: background .6s ease;
+}
+
+/* ---- Modo diurno: cálido, media tarde ---- */
+/* Se activa al elegir turno Almuerzo o Tarde. No busca ser brillante ni
+   abrumador: solo un ambiente más cálido, con la luz de un sol de media tarde. */
+.propuesta-kiosco.diurno {
+  background: linear-gradient(165deg, #241a0d 0%, #3d2a13 45%, #59391a 100%);
+}
+/* Halo de sol suave, entrando desde arriba a la derecha */
+.propuesta-kiosco.diurno::before {
+  content: '';
+  position: absolute;
+  top: -18%;
+  right: -8%;
+  width: 70vw;
+  height: 70vw;
+  max-width: 900px;
+  max-height: 900px;
+  background: radial-gradient(circle at center,
+    rgba(255, 214, 150, .30) 0%,
+    rgba(255, 190, 110, .14) 34%,
+    rgba(255, 176, 92, 0) 68%);
+  pointer-events: none;
+  z-index: 0;
+  animation: diurnoSunIn 1s ease both;
+}
+@keyframes diurnoSunIn {
+  from { opacity: 0; transform: scale(.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+/* Barra de progreso y detalles cálidos en diurno */
+.propuesta-kiosco.diurno .propuesta-progress-bar {
+  background: linear-gradient(90deg, #f2b45c, #ffd98a);
+}
+/* Portada: overlay cálido en vez del velo casi negro nocturno */
+.propuesta-kiosco.diurno .portada-overlay {
+  background: linear-gradient(to top, rgba(44, 26, 8, .88) 22%, rgba(90, 52, 18, .18) 100%);
+}
+.propuesta-kiosco.diurno .portada-photo {
+  filter: brightness(.6) saturate(1.15) sepia(.12);
 }
 
 /* ---- Top bar ---- */
@@ -2069,19 +2185,49 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   flex-wrap: wrap;
 }
 
+/* Cards de turno con subtítulo (día / noche) */
+.turno-card {
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 24px;
+  min-width: 122px;
+  text-align: center;
+}
+.turno-card .turno-emoji { font-size: 22px; line-height: 1; }
+.turno-card .turno-main { font-size: 14px; }
+.turno-card .turno-sub {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: .55;
+  letter-spacing: .02em;
+}
+/* Línea que confirma el momento elegido (diurno / nocturno) */
+.momento-hint {
+  margin-top: 18px;
+  min-height: 18px;
+  font-size: 12px;
+  letter-spacing: .03em;
+  color: rgba(255,255,255,.45);
+  transition: color .5s ease;
+}
+.propuesta-kiosco.diurno .momento-hint { color: #f2c078; }
+
 /* ---- Portada (slide 1) ---- */
 .propuesta-slide-portada {
   position: relative !important;
   overflow: hidden;
   border-radius: 16px;
-  min-height: 400px;
+  width: 100%;
+  max-width: 1240px;
+  min-height: min(76vh, 660px);
+  justify-content: flex-end !important;
 }
 .portada-photo {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center 35%;
-  filter: brightness(.38) saturate(1.2);
+  filter: brightness(.42) saturate(1.2);
   border-radius: inherit;
 }
 .portada-overlay {
@@ -2096,7 +2242,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 40px 32px 32px;
+  padding: 52px 32px 48px;
 }
 
 /* ---- Fork cards: Formal / Americano (slide 2) ---- */
@@ -2116,7 +2262,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   border: 2px solid rgba(255,255,255,.08);
   transition: border-color .25s, transform .2s;
   user-select: none;
-  min-height: 310px;
+  min-height: 366px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -2226,7 +2372,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   padding: 0 !important;
   gap: 0 !important;
   overflow: hidden;
-  min-height: 200px;
+  min-height: 268px;
   justify-content: flex-end !important;
   white-space: normal !important;
   align-items: flex-start !important;

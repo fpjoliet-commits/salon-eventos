@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20260827diurno3">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#8f2e4d">
@@ -51,8 +51,15 @@
 
   <div id="app" class="hidden">
 
+    <!-- BOTÓN MENÚ (tablet / móvil) -->
+    <button id="menu-toggle" class="menu-toggle" aria-label="Abrir menú" aria-expanded="false">
+      <span class="menu-toggle-bars"><span></span><span></span><span></span></span>
+    </button>
+    <!-- FONDO OSCURO DEL DRAWER -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-logo">
         <img src="img/logo.png" alt="Joliet" class="sidebar-logo-img" onerror="this.style.display='none'">
         <span class="logo-text">Joliet Eventos</span>
@@ -1251,7 +1258,7 @@
         <div class="preform-overlay"></div>
         <div class="preform-content">
           <div class="preform-brand">Joliet Eventos</div>
-          <h2 class="preform-title">¿Para quién armamos<br>la noche perfecta?</h2>
+          <h2 class="preform-title">¿Para quién armamos<br>la celebración perfecta?</h2>
           <div class="preform-rule"></div>
           <div class="preform-card">
             <div class="preform-fields">
@@ -1277,7 +1284,7 @@
           <div class="portada-overlay"></div>
           <div class="portada-content">
             <img src="img/logo.png" alt="Joliet Eventos" class="propuesta-logo-img" onerror="this.style.display='none'">
-            <h1 class="propuesta-main-title">La noche que<br>van a recordar siempre</h1>
+            <h1 class="propuesta-main-title" id="prop-portada-title">El evento que<br>van a recordar siempre</h1>
             <p class="propuesta-subtitle">Contanos cómo la imaginás</p>
             <button class="btn-propuesta-primary" id="btn-prop-comenzar">Comenzar →</button>
           </div>
@@ -1293,7 +1300,7 @@
               <div class="fork-content">
                 <div class="fork-tag">La experiencia completa</div>
                 <div class="fork-title">Formal</div>
-                <div class="fork-desc">Servicio a la mesa, cada momento en su lugar, una noche que se siente diferente</div>
+                <div class="fork-desc" id="fork-formal-desc">Servicio a la mesa, cada momento en su lugar, una noche que se siente diferente</div>
                 <div class="fork-steps">8 pasos</div>
               </div>
               <div class="fork-check">✓</div>
@@ -1341,10 +1348,11 @@
             <div class="propuesta-field-big">
               <label>El turno</label>
               <div class="propuesta-cards-row" id="turno-cards">
-                <div class="propuesta-card" data-value="Almuerzo">🌞 Almuerzo</div>
-                <div class="propuesta-card" data-value="Tarde">🌅 Tarde</div>
-                <div class="propuesta-card" data-value="Noche">🌙 Noche</div>
+                <div class="propuesta-card turno-card" data-value="Almuerzo"><span class="turno-emoji">🌞</span><span class="turno-main">Almuerzo</span><span class="turno-sub">Brunch · mediodía</span></div>
+                <div class="propuesta-card turno-card" data-value="Tarde"><span class="turno-emoji">🌇</span><span class="turno-main">Tarde</span><span class="turno-sub">Merienda · media tarde</span></div>
+                <div class="propuesta-card turno-card" data-value="Noche"><span class="turno-emoji">🌙</span><span class="turno-main">Noche</span><span class="turno-sub">Cena · velada</span></div>
               </div>
+              <div class="momento-hint" id="momento-hint"></div>
             </div>
           </div>
         </div>
@@ -1383,7 +1391,7 @@
             <div class="propuesta-card espacio-card" data-value="Jardín">
               <div class="espacio-photo" style="background-image:url('img/propuesta/jardin.jpeg')"></div>
               <span class="espacio-label">Jardín</span>
-              <span class="espacio-sub">Al aire libre, noche estrellada</span>
+              <span class="espacio-sub" id="espacio-jardin-sub">Al aire libre, noche estrellada</span>
             </div>
             <div class="propuesta-card espacio-card" data-value="Combinado">
               <div class="espacio-photo" style="background-image:url('img/propuesta/portada.jpeg');background-position:center 60%"></div>
@@ -1395,7 +1403,7 @@
 
         <!-- Slide 7: El recorrido de tu noche -->
         <div class="propuesta-slide" data-slide="7">
-          <h2 class="propuesta-slide-title">Así va a vivirse esa noche</h2>
+          <h2 class="propuesta-slide-title" id="prop-s7-title">Así va a vivirse esa noche</h2>
           <div class="incluido-section">
             <div class="incluido-section-title">La experiencia Joliet</div>
             <div class="incluido-grid">
@@ -1416,8 +1424,8 @@
               </div>
               <div class="incluido-item">
                 <span class="inc-ico">🍷</span>
-                <span class="inc-name">Bebidas de cena</span>
-                <span class="inc-detail">Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne</span>
+                <span class="inc-name" id="prop-bebidas-name">Bebidas de cena</span>
+                <span class="inc-detail" id="prop-bebidas-detail">Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne</span>
               </div>
               <div class="incluido-item">
                 <span class="inc-ico">🍸</span>
@@ -1430,7 +1438,7 @@
                 <span class="inc-detail">Iluminación de diseño · Cristalería · Provisiones · Nada falta</span>
               </div>
             </div>
-            <div class="incluido-disclaimer">* Los licores durante la cena no están incluidos en el precio base</div>
+            <div class="incluido-disclaimer" id="prop-bebidas-disclaimer">* Los licores durante la cena no están incluidos en el precio base</div>
           </div>
           <div id="recorrido-container" class="recorrido-grid"></div>
         </div>
@@ -1528,7 +1536,7 @@
 
         <!-- Slide 9: El banquete de tu noche — contenido dinámico por buildGastroSlide() -->
         <div class="propuesta-slide" data-slide="9">
-          <h2 class="propuesta-slide-title">El banquete de tu noche</h2>
+          <h2 class="propuesta-slide-title" id="prop-s9-title">El banquete de tu noche</h2>
           <p class="propuesta-slide-sub">Una experiencia gastronómica completa · de la bienvenida al último brindis</p>
           <div id="gastro-slide-content"></div>
         </div>
@@ -1568,6 +1576,6 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260617d"></script>
+  <script src="js/app.js?v=20260827diurno3"></script>
 </body>
 </html>

@@ -243,8 +243,26 @@ document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', e => {
     e.preventDefault();
     navigateTo(item.dataset.view);
+    closeSidebar();               // en tablet/móvil, navegar cierra el drawer
   });
 });
+
+/* ===================== DRAWER (sidebar en tablet / móvil) ===================== */
+function openSidebar() {
+  document.body.classList.add('sidebar-open');
+  document.getElementById('menu-toggle')?.setAttribute('aria-expanded', 'true');
+}
+function closeSidebar() {
+  document.body.classList.remove('sidebar-open');
+  document.getElementById('menu-toggle')?.setAttribute('aria-expanded', 'false');
+}
+function toggleSidebar() {
+  document.body.classList.contains('sidebar-open') ? closeSidebar() : openSidebar();
+}
+document.getElementById('menu-toggle')?.addEventListener('click', toggleSidebar);
+document.getElementById('sidebar-backdrop')?.addEventListener('click', closeSidebar);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
+window.addEventListener('resize', () => { if (window.innerWidth > 1024) closeSidebar(); });
 
 $('btn-nuevo-cliente')?.addEventListener('click', () => navigateTo('nuevo-cliente'));
 
@@ -3306,6 +3324,45 @@ function loadPropuestaLocal(key) {
   try { return JSON.parse(localStorage.getItem(`prop_${key}`)) || null; } catch { return null; }
 }
 
+// --- Momento del evento: diurno (Almuerzo / Tarde) vs nocturno (Noche) ---
+// Un evento diurno ilumina el creador con una paleta cálida de media tarde
+// y adapta toda la redacción ("tu noche" → "tu día", etc.).
+function esDiurno(d) {
+  const t = (d || propuestaState.data || {}).turno;
+  return t === 'Almuerzo' || t === 'Tarde';
+}
+
+// Aplica el tema (cálido diurno / nocturno) y reescribe la redacción tiempo-dependiente
+function applyMomentoTheme() {
+  const diurno = esDiurno();
+  const kiosco = document.querySelector('.propuesta-kiosco');
+  if (kiosco) kiosco.classList.toggle('diurno', diurno);
+
+  const turnoSel = (propuestaState.data || {}).turno;
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  set('prop-portada-title', !turnoSel ? 'El evento que<br>van a recordar siempre'
+                                      : diurno ? 'El día que<br>van a recordar siempre'
+                                               : 'La noche que<br>van a recordar siempre');
+  set('fork-formal-desc', diurno ? 'Servicio a la mesa, cada momento en su lugar, un día que se siente diferente'
+                                  : 'Servicio a la mesa, cada momento en su lugar, una noche que se siente diferente');
+  set('espacio-jardin-sub', diurno ? 'Al aire libre, bajo el sol' : 'Al aire libre, noche estrellada');
+  set('prop-s7-title', diurno ? 'Así va a vivirse ese día' : 'Así va a vivirse esa noche');
+  set('prop-bebidas-name', diurno ? 'Bebidas de la mesa' : 'Bebidas de cena');
+  set('prop-bebidas-detail', diurno ? 'Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne'
+                                     : 'Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne');
+  set('prop-bebidas-disclaimer', diurno ? '* Los licores durante el evento no están incluidos en el precio base'
+                                         : '* Los licores durante la cena no están incluidos en el precio base');
+  set('prop-s9-title', diurno ? 'El banquete de tu día' : 'El banquete de tu noche');
+
+  // Línea de confirmación del momento (bajo las cards de turno)
+  const hint = document.getElementById('momento-hint');
+  if (hint) {
+    hint.textContent = !turnoSel ? ''
+      : diurno ? '☀️ Evento diurno — el creador toma la luz cálida de la media tarde'
+      : '🌙 Evento de noche — ambiente nocturno';
+  }
+}
+
 const propuestaState = {
   current: 1,
   total: 11,
@@ -3336,6 +3393,7 @@ function initPropuesta() {
   document.querySelectorAll('#view-propuesta .propuesta-card').forEach(c => c.classList.remove('selected'));
   document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(c => c.classList.remove('selected'));
   document.querySelectorAll('.adicionales-grid input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+  applyMomentoTheme();
 
   const set = (id, val) => { const el = $(id); if (el) el.value = val; };
   set('prop-agasajado', ''); set('prop-fecha', ''); set('prop-infantil-cant', ''); set('prop-pedidos', '');
@@ -3735,6 +3793,7 @@ function goToPropuestaSlide(n) {
   const container = document.querySelector('.propuesta-slides-container');
   if (container) container.scrollTop = 0;
   updatePropuestaNav();
+  applyMomentoTheme();
   if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
   if (n === 9) buildGastroSlide();
@@ -4031,7 +4090,7 @@ function buildGastroSlide() {
     const sub = md.upgrade
       ? 'Pastelería artesanal de elaboración propia · upgrade premium disponible'
       : md.locked
-        ? 'Pastelería artesanal · elegí el postre de la noche'
+        ? `Pastelería artesanal · elegí el postre ${esDiurno() ? 'del evento' : 'de la noche'}`
         : 'Pastelería artesanal de elaboración propia';
     const torta = !md.locked ? '<p class="gastro-torta-homenaje-note">Torta Homenaje · se realiza a pedido del agasajado · colores y decoración a convenir · se sirve después de los postres</p>' : '';
     return `
@@ -4365,7 +4424,7 @@ function buildPropuestaResumen() {
 
   const gastroSection = (pillarsHtml || islasHtml || premiumHtml || formalPlatos) ? `
     <div class="res-section">
-      <div class="res-section-label">Gastronomía de tu noche</div>
+      <div class="res-section-label">Gastronomía de tu ${esDiurno(d) ? 'día' : 'noche'}</div>
       ${pillarsHtml ? `<div class="res-pillars">${pillarsHtml}</div>` : ''}
       ${islasHtml}${premiumHtml}${formalPlatos}
     </div>` : '';
@@ -4405,6 +4464,9 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
     }
   }
   const d = data || propuestaState.data;
+  const diurno = esDiurno(d);
+  const momento = diurno ? 'día' : 'noche';       // "el recorrido de su {día|noche}"
+  const esteMomento = diurno ? 'este día' : 'esta noche';
   const hoy = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
   const anio = new Date().getFullYear();
   const fechaFmt = d.fecha ? formatDate(d.fecha) : '—';
@@ -4764,12 +4826,12 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
   <div class="salut">Estimado/a${d.nombre ? ' ' + esc(d.nombre) + ',' : ','}</div>
   <div class="bcopy">
     <p>Ponemos a su consideración la presente propuesta${d.tipoEvento ? ' para el evento de <strong>' + esc(d.tipoEvento) + '</strong>' : ' para su celebración'}${d.fecha ? ', a realizarse el <strong>' + esc(fechaFmt) + '</strong>' : ''}${d.espacio ? ' en nuestro espacio <strong>' + esc(d.espacio) + '</strong>' : ' en nuestro salón'}${d.invitados ? ', con una asistencia de <strong>' + d.invitados + ' invitados</strong>' : ''}.</p>
-    <p>A continuación encontrará el recorrido de su noche, el detalle de la propuesta gastronómica y los adicionales seleccionados.</p>
+    <p>A continuación encontrará el recorrido de su ${momento}, el detalle de la propuesta gastronómica y los adicionales seleccionados.</p>
   </div>
 
   <div class="stitle" style="margin-top:9mm">
     <span class="snum">I.</span>
-    <span class="sname">El recorrido de su noche</span>
+    <span class="sname">El recorrido de su ${momento}</span>
     <span class="srule"></span>
   </div>
   <div class="tl">${timelineHTML}</div>
@@ -4808,7 +4870,7 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Mantelería a elección y centros de mesa incluidos</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Cristalería y cubertería completa</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Agua, gaseosas, cerveza, vino, sidra y champagne</span></div>
-    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Bar de tragos para la recepción o toda la noche</span></div>
+    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Bar de tragos para la recepción o ${diurno ? 'todo el evento' : 'toda la noche'}</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Iluminación de diseño y provisiones completas</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Coordinación integral y seguimiento personalizado</span></div>
   </div>
@@ -4905,7 +4967,7 @@ ${tipo === 'contrato' ? (() => {
   <div class="ph"><div class="ph-logo"></div><div class="ph-folio">Propuesta · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div></div>
   <div class="closing" style="margin-top:30mm">
     <div class="cl-line"></div>
-    <div class="cl-text">Sin otro particular, y expresando nuestro sincero agradecimiento por habernos elegido, quedamos a su entera disposición para coordinar cada detalle y hacer de esta noche un momento que todos van a recordar.</div>
+    <div class="cl-text">Sin otro particular, y expresando nuestro sincero agradecimiento por habernos elegido, quedamos a su entera disposición para coordinar cada detalle y hacer de ${esteMomento} un momento que todos van a recordar.</div>
     <div class="cl-sig">Mariana Labarta<small>Coordinadora de Eventos · Joliet</small></div>
   </div>
   <div class="pfoot"><span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span><span>Joliet Eventos · ${anio}</span></div>
@@ -4972,6 +5034,7 @@ ${tipo === 'contrato' ? (() => {
       document.querySelectorAll('#turno-cards .propuesta-card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       propuestaState.data.turno = card.dataset.value;
+      applyMomentoTheme();
     });
   });
 
