@@ -6813,7 +6813,7 @@ const _PRINT_CAT_COLORS = {
 // Antes de imprimir, deja elegir qué grupos e ítems entran en la hoja.
 // La selección queda guardada (por planilla) para no rehacerla cada vez;
 // se guardan los DESmarcados, así los ítems nuevos del catálogo entran por defecto.
-function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm }) {
+function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm, columnasOpcion = false }) {
   let excluidos = new Set();
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
@@ -6823,9 +6823,34 @@ function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm }) {
   const gruposConItems = grupos.filter(g => g.items.length);
   if (!gruposConItems.length) { alert('No hay ítems en el catálogo para imprimir.'); return; }
 
+  // Los grupos se muestran como tarjetas en columnas (tipo tablero), agrupadas
+  // por sección cuando la planilla las tiene (ej: Producción / Ingredientes).
+  gruposConItems.forEach((g, i) => { g._gi = i; });
+  const secciones = [];
+  gruposConItems.forEach(g => {
+    const nombre = g.seccion || '';
+    let sec = secciones.find(x => x.nombre === nombre);
+    if (!sec) { sec = { nombre, grupos: [] }; secciones.push(sec); }
+    sec.grupos.push(g);
+  });
+  const tarjetaGrupo = g => `
+    <div class="sp-group" data-sp-group="${g._gi}">
+      <label class="sp-group-head" style="background:${g.color || '#eee'}">
+        <input type="checkbox" data-sp-groupcheck="${g._gi}">
+        <span>${esc(g.label)}</span>
+        <em data-sp-gcount="${g._gi}"></em>
+      </label>
+      ${g.items.map(it => `
+        <label class="sp-item" data-sp-txt="${esc((it.nombre + ' ' + g.label).toLowerCase())}">
+          <input type="checkbox" data-sp-item="${esc(it.key)}" data-sp-g="${g._gi}">
+          <span>${esc(it.nombre)}</span>
+          <em>${esc(it.unidad || '')}</em>
+        </label>`).join('')}
+    </div>`;
+
   const ov = document.createElement('div');
   ov.className = 'modal-overlay';
-  ov.innerHTML = `<div class="modal" style="max-width:720px">
+  ov.innerHTML = `<div class="modal sp-modal">
     <div class="modal-header">
       <div class="modal-nombre-wrap"><h3>🖨️ ${esc(titulo)}</h3></div>
       <button class="modal-close" data-sp-close>✕</button>
@@ -6838,23 +6863,12 @@ function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm }) {
         <button type="button" class="btn btn-secondary btn-sm" data-sp-none>Desmarcar todo</button>
         <span class="sp-count" data-sp-count></span>
       </div>
-      <div class="sp-grid">
-        ${gruposConItems.map((g, gi) => `
-          <div class="sp-group" data-sp-group="${gi}">
-            <label class="sp-group-head" style="background:${g.color || '#eee'}">
-              <input type="checkbox" data-sp-groupcheck="${gi}">
-              <span>${esc(g.label)}</span>
-            </label>
-            ${g.items.map(it => `
-              <label class="sp-item">
-                <input type="checkbox" data-sp-item="${esc(it.key)}" data-sp-g="${gi}">
-                <span>${esc(it.nombre)}</span>
-                <em>${esc(it.unidad || '')}</em>
-              </label>`).join('')}
-          </div>`).join('')}
-      </div>
+      ${secciones.map(sec => `
+        ${sec.nombre ? `<h4 class="sp-seccion">${esc(sec.nombre)}</h4>` : ''}
+        <div class="sp-grid">${sec.grupos.map(g => tarjetaGrupo(g)).join('')}</div>`).join('')}
     </div>
-    <div class="modal-actions">
+    <div class="modal-actions sp-actions">
+      ${columnasOpcion ? `<label class="sp-cols"><input type="checkbox" data-sp-cols> Compactar en 2 columnas por hoja (entra el doble, sin “Observaciones”)</label>` : ''}
       <button class="btn btn-secondary" data-sp-close>Cancelar</button>
       <button class="btn btn-primary" data-sp-print>🖨️ Imprimir</button>
     </div>
@@ -6870,6 +6884,8 @@ function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm }) {
       const marcados = hijos.filter(c => c.checked).length;
       gc.checked = marcados === hijos.length;
       gc.indeterminate = marcados > 0 && marcados < hijos.length;
+      const badge = ov.querySelector(`[data-sp-gcount="${gc.dataset.spGroupcheck}"]`);
+      if (badge) badge.textContent = `${marcados}/${hijos.length}`;
     });
     const n = itemChecks.filter(c => c.checked).length;
     ov.querySelector('[data-sp-count]').textContent = `${n} de ${itemChecks.length} ítems seleccionados`;
@@ -6887,19 +6903,40 @@ function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm }) {
   const cerrar = () => ov.remove();
   ov.querySelectorAll('[data-sp-close]').forEach(b => b.addEventListener('click', cerrar));
   ov.addEventListener('click', e => { if (e.target === ov) cerrar(); });
+  const buscador = ov.querySelector('[data-sp-buscar]');
+  buscador?.addEventListener('input', () => {
+    const q = buscador.value.trim().toLowerCase();
+    ov.querySelectorAll('.sp-group').forEach(g => {
+      let visibles = 0;
+      g.querySelectorAll('.sp-item').forEach(it => {
+        const match = !q || it.dataset.spTxt.includes(q);
+        it.classList.toggle('sp-oculto', !match);
+        if (match) visibles++;
+      });
+      g.classList.toggle('sp-oculto', visibles === 0);
+    });
+    ov.querySelectorAll('.sp-seccion').forEach(h => {
+      const grid = h.nextElementSibling;
+      const hayAlguno = grid && [...grid.querySelectorAll('.sp-group')].some(g => !g.classList.contains('sp-oculto'));
+      h.classList.toggle('sp-oculto', !hayAlguno);
+    });
+  });
+  // "Marcar/Desmarcar todo" aplica solo a lo que se está viendo (respeta el filtro)
+  const visiblesAhora = () => itemChecks.filter(c => !c.closest('.sp-item').classList.contains('sp-oculto'));
   ov.querySelector('[data-sp-all]').addEventListener('click', () => {
-    itemChecks.forEach(c => { c.checked = true; }); sincronizarGrupos();
+    visiblesAhora().forEach(c => { c.checked = true; }); sincronizarGrupos();
   });
   ov.querySelector('[data-sp-none]').addEventListener('click', () => {
-    itemChecks.forEach(c => { c.checked = false; }); sincronizarGrupos();
+    visiblesAhora().forEach(c => { c.checked = false; }); sincronizarGrupos();
   });
   ov.querySelector('[data-sp-print]').addEventListener('click', () => {
     const seleccionados = new Set(itemChecks.filter(c => c.checked).map(c => c.dataset.spItem));
     if (!seleccionados.size) { alert('Elegí al menos un ítem para imprimir.'); return; }
     const fuera = itemChecks.filter(c => !c.checked).map(c => c.dataset.spItem);
     try { localStorage.setItem(storageKey, JSON.stringify(fuera)); } catch {}
+    const dosColumnas = !!ov.querySelector('[data-sp-cols]')?.checked;
     cerrar();
-    onConfirm(seleccionados);
+    onConfirm(seleccionados, { dosColumnas });
   });
 }
 
@@ -6918,7 +6955,8 @@ function imprimirPlanillaStock() {
   const hoy = new Date().toLocaleDateString('es-AR');
 
   // Selector previo: qué grupos/ítems entran en la hoja
-  const gruposSel = [...PROD_CATS, ...ING_CATS_FULL].map(cat => ({
+  const armarGrupos = (cats, seccion) => cats.map(cat => ({
+    seccion,
     label: catDisplayName(cat),
     color: cocCatColor(cat),
     items: cocinaCatalogo.filter(c => c.categoria === cat)
@@ -6928,57 +6966,63 @@ function imprimirPlanillaStock() {
   abrirSelectorPlanilla({
     titulo: 'Planilla de stock en blanco — ¿qué imprimimos?',
     storageKey: 'cocina-planilla-stock-excluidos',
-    grupos: gruposSel,
-    onConfirm: sel => _imprimirPlanillaStockHTML(PROD_CATS, ING_CATS_FULL, sel, hoy),
+    columnasOpcion: true,
+    grupos: [
+      ...armarGrupos(PROD_CATS, 'Producción'),
+      ...armarGrupos(ING_CATS_FULL, 'Ingredientes y materias primas'),
+    ],
+    onConfirm: (sel, opts) => _imprimirPlanillaStockHTML(PROD_CATS, ING_CATS_FULL, sel, hoy, opts),
   });
 }
 
-function _imprimirPlanillaStockHTML(PROD_CATS, ING_CATS_FULL, sel, hoy) {
-  function buildRows(cats) {
+function _imprimirPlanillaStockHTML(PROD_CATS, ING_CATS_FULL, sel, hoy, opts = {}) {
+  const dosCols = !!opts.dosColumnas;
+
+  // Cada grupo es un bloque independiente con su propia tablita: así el título del
+  // grupo nunca queda solo al pie de una hoja separado de sus ítems.
+  function buildBloques(cats) {
     let html = '';
     cats.forEach(cat => {
       const items = cocinaCatalogo.filter(c => c.categoria === cat && sel.has(`${cat}||${c.nombre}`));
       if (!items.length) return;
       const color = cocCatColor(cat);
-      html += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
-      items.forEach(i => {
-        html += `<tr>
-          <td class="print-item-name">${esc(i.nombre)}</td>
-          <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
-          <td style="width:110px;height:26px"></td>
-          <td style="width:34%;height:26px"></td>
-        </tr>`;
-      });
+      html += `<div class="print-cat-block">
+        <table class="print-table">
+          <tr><td colspan="${dosCols ? 3 : 4}" class="print-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>
+          ${items.map(i => `<tr>
+            <td class="print-item-name">${esc(i.nombre)}</td>
+            <td class="print-unidad">${esc(i.unidad||'und')}</td>
+            <td class="print-cant-box"></td>
+            ${dosCols ? '' : '<td class="print-obs-col"></td>'}
+          </tr>`).join('')}
+        </table>
+      </div>`;
     });
     return html;
   }
 
-  function buildSection(titulo, rowsHtml) {
-    return `<table class="print-table">
-      <thead>
-        <tr><td colspan="4" class="print-doc-header">
-          <div class="ph-title">JOLIET — PLANILLA DE STOCK (EN BLANCO)</div>
-          <div class="ph-meta">
-            <span><b>Sección:</b> ${esc(titulo)}</span>
-            <span><b>Fecha:</b> ___/___/______</span>
-          </div>
-          <div class="ph-fill">Completado por: _____________________________________</div>
-        </td></tr>
-        <tr><th>Ítem</th><th style="text-align:center">Unid.</th><th>Cantidad</th><th>Observaciones</th></tr>
-      </thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>`;
+  function buildSection(titulo, bloques) {
+    return `<div class="print-doc-header">
+        <div class="ph-title">JOLIET — PLANILLA DE STOCK (EN BLANCO)</div>
+        <div class="ph-meta">
+          <span><b>Sección:</b> ${esc(titulo)}</span>
+          <span><b>Fecha:</b> ___/___/______</span>
+        </div>
+        <div class="ph-fill">Completado por: _____________________________________</div>
+      </div>
+      <div class="print-leyenda">Ítem · unidad · <b>cantidad contada</b>${dosCols ? '' : ' · observaciones'}</div>
+      <div class="${dosCols ? 'print-cols-2' : 'print-cols-1'}">${bloques}</div>`;
   }
 
-  // Solo se incluyen las secciones que tienen ítems cargados en el catálogo;
-  // si "Ingredientes y materias primas" está vacía, no se imprime esa hoja.
+  // Solo se incluyen las secciones que tienen ítems seleccionados;
+  // si "Ingredientes y materias primas" queda vacía, no se imprime esa hoja.
   const secciones = [
-    { titulo: 'Producción', rows: buildRows(PROD_CATS) },
-    { titulo: 'Ingredientes y materias primas', rows: buildRows(ING_CATS_FULL) },
-  ].filter(s => s.rows);
+    { titulo: 'Producción', bloques: buildBloques(PROD_CATS) },
+    { titulo: 'Ingredientes y materias primas', bloques: buildBloques(ING_CATS_FULL) },
+  ].filter(s => s.bloques);
 
   const html = `
-    ${secciones.map((s, i) => `${i > 0 ? '<div class="print-page-break"></div>' : ''}${buildSection(s.titulo, s.rows)}`).join('')}
+    ${secciones.map((s, i) => `${i > 0 ? '<div class="print-page-break"></div>' : ''}${buildSection(s.titulo, s.bloques)}`).join('')}
     <p style="margin-top:10px;font-size:9pt;color:#666;border-top:1px solid #ddd;padding-top:4px">Impreso el ${hoy}</p>`;
   abrirVentanaImpresion(html);
 }
@@ -7187,6 +7231,21 @@ function abrirVentanaImpresion(htmlContent) {
   .print-obs-box{border:1px solid #999;min-height:20px}
   .print-table tr{page-break-inside:avoid;break-inside:avoid}
   .print-cat-header{page-break-after:avoid;break-after:avoid}
+  /* Cada grupo es un bloque que no se parte entre hojas (si un grupo solo es mas
+     largo que una hoja, el navegador lo parte igual, pero nunca queda el titulo suelto) */
+  .print-cat-block{break-inside:avoid;page-break-inside:avoid;margin:0 0 8px 0}
+  .print-cat-block .print-table{margin:0;table-layout:fixed}
+  .print-item-name{word-wrap:break-word;overflow-wrap:break-word}
+  .print-cols-1 .print-cat-block{width:100%}
+  .print-cols-2{column-count:2;column-gap:8mm}
+  .print-cols-2 .print-table{font-size:11.5pt}
+  .print-cols-2 .print-item-name{font-size:11.5pt;padding-left:8px}
+  .print-cols-2 .print-cat-header{font-size:11pt}
+  .print-unidad{width:52px;text-align:center;color:#888}
+  .print-cant-box{width:90px;height:26px}
+  .print-obs-col{width:34%;height:26px}
+  .print-leyenda{font-size:10pt;color:#666;margin:6px 0 8px 0}
+  .print-doc-header{break-after:avoid;page-break-after:avoid}
   @page{size:A4 portrait;margin:14mm 15mm 20mm 15mm;@bottom-right{content:"Hoja " counter(page) " de " counter(pages);font-size:14pt;font-weight:700;color:#333}}
   @media print{body{padding:0;margin:0} .print-page-break{page-break-before:always}}
   </style></head><body>${htmlContent}<script>setTimeout(function(){window.print();},300);<\/script></body></html>`);
