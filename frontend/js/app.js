@@ -1316,7 +1316,7 @@ function renderSeguimientosPanel() {
     const visitasD = segs.filter(c => c.estado === 'Visita agendada');
     const llamadasSeg = segs.filter(c => !esCobro(c) && c.estado !== 'Visita agendada');
     const dcols = [];
-    const dcol = (l, items) => dcols.push(`<div class="seg-col"><div class="seg-section-label ${l.cls}">${l.txt}</div>${items}</div>`);
+    const dcol = (l, items) => dcols.push(`<div class="seg-col"><div class="seg-section-label ${l.cls}">${l.txt}</div><div class="seg-items">${items}</div></div>`);
     if (evs.length)      dcol({ cls: 'seg-label-evento', txt: `🎉 Eventos (${evs.length})` },  evs.map(c => itemEvento(c)).join(''));
     if (cobrosD.length)  dcol({ cls: 'seg-label-cobro',  txt: `💰 Cobros (${cobrosD.length})` }, cobrosD.map(c => item(c, 'cobro')).join(''));
     if (visitasD.length) dcol({ cls: 'seg-label-visita', txt: `🤝 Visitas (${visitasD.length})` }, visitasD.map(c => item(c, 'visita')).join(''));
@@ -1334,7 +1334,7 @@ function renderSeguimientosPanel() {
 
   // Cada sección es una columna que fluye horizontalmente en la barra de tareas
   const cols = [];
-  const col = (labelHtml, itemsHtml) => cols.push(`<div class="seg-col"><div class="seg-section-label ${labelHtml.cls}">${labelHtml.txt}</div>${itemsHtml}</div>`);
+  const col = (labelHtml, itemsHtml) => cols.push(`<div class="seg-col"><div class="seg-section-label ${labelHtml.cls}">${labelHtml.txt}</div><div class="seg-items">${itemsHtml}</div></div>`);
 
   if (eventosProximos.length > 0) col({ cls: 'seg-label-evento',   txt: '🎉 Eventos esta semana' },      eventosProximos.map(c => itemEvento(c)).join(''));
   if (vencidos.length > 0)        col({ cls: 'seg-label-urgente',  txt: `⚠ Vencidos (${vencidos.length})` }, vencidos.map(c => item(c, 'urgente')).join(''));
