@@ -5484,3 +5484,231 @@ tr.coc-row-hidden { display: none; }
   transition: none;
   animation: none;
 }
+
+/* ============================================================
+   PROPUESTA — ESCENOGRAFÍA (animaciones)
+   Todo vive detrás del contenido, no recibe clicks y se apaga
+   con prefers-reduced-motion. Los colores salen de currentColor,
+   así cada escena toma la temperatura del salón (noche / diurno).
+   ============================================================ */
+.kiosco-scenery {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity .26s ease;
+}
+.kiosco-scenery.fading { opacity: 0; }
+.kiosco-scenery svg { width: 100%; height: 100%; display: block; }
+
+/* ---------- Partículas ---------- */
+.sc-item {
+  position: absolute;
+  top: -12%;
+  display: block;
+  color: rgba(255, 226, 168, .75);
+  animation-name: scFall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+.sc-item.sc-rise {
+  top: auto;
+  bottom: -14%;
+  animation-name: scRise;
+}
+@keyframes scFall {
+  from { transform: translate3d(0, -14vh, 0) rotate(0) }
+  to   { transform: translate3d(var(--sway), 112vh, 0) rotate(var(--spin)) }
+}
+@keyframes scRise {
+  from { transform: translate3d(0, 14vh, 0) rotate(0) }
+  to   { transform: translate3d(var(--sway), -112vh, 0) rotate(var(--spin)) }
+}
+
+/* Paletas por tipo de evento: el clima cambia, la elegancia no */
+.sc-rosa    { color: rgba(240, 196, 190, .62); }
+.sc-oro     { color: rgba(255, 219, 150, .78); }
+.sc-fiesta  { color: rgba(226, 168, 200, .5); }
+.sc-nube    { color: rgba(238, 236, 226, .5); }
+.sc-confeti { color: rgba(255, 214, 138, .7); }
+.sc-sobrio  { color: rgba(198, 206, 220, .38); }
+.sc-item:nth-child(3n)   { color: rgba(212, 171, 82, .6); }
+.sc-item.sc-fiesta:nth-child(2n) { color: rgba(150, 198, 226, .45); }
+.sc-item.sc-fiesta:nth-child(3n) { color: rgba(240, 206, 140, .5); }
+.sc-item.sc-confeti:nth-child(2n){ color: rgba(232, 234, 240, .55); }
+
+/* ---------- Sol y luna (paso de la fecha) ---------- */
+.sc-astro {
+  position: absolute;
+  width: min(46vw, 420px);
+  aspect-ratio: 1;
+  opacity: .5;
+  animation: scAstroIn 1.6s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes scAstroIn {
+  from { opacity: 0; transform: translateY(26px) scale(.9); }
+  to   { opacity: .5; transform: none; }
+}
+.sc-sol  { top: -8%; right: -6%; color: rgba(255, 206, 128, .85); }
+.sc-luna { top: -4%; right: -2%; width: min(34vw, 300px); color: rgba(228, 232, 245, .7); }
+.sc-rays { transform-origin: 100px 100px; animation: scSpin 90s linear infinite; }
+.sc-disc { animation: scPulse 7s ease-in-out infinite alternate; transform-origin: center; }
+@keyframes scSpin  { to { transform: rotate(360deg); } }
+@keyframes scPulse { from { opacity: .38 } to { opacity: .62 } }
+
+.sc-stars { position: absolute; inset: 0; }
+.sc-stars i {
+  position: absolute;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 250, 235, .95);
+  box-shadow: 0 0 7px rgba(255, 245, 220, .8);
+  animation: scTwinkle 4s ease-in-out infinite;
+}
+@keyframes scTwinkle {
+  0%, 100% { opacity: .12; }
+  50%      { opacity: .95; }
+}
+
+/* ---------- Bola de espejo (salón interior) ---------- */
+.sc-bola {
+  position: absolute;
+  top: -2%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(20vw, 190px);
+  color: rgba(214, 226, 244, .8);
+  opacity: .5;
+  aspect-ratio: 120 / 140;
+  animation: scHang 6.5s ease-in-out infinite alternate;
+}
+.sc-bola svg { height: auto; }
+@keyframes scHang {
+  from { transform: translateX(-50%) rotate(-2.2deg); }
+  to   { transform: translateX(-50%) rotate(2.2deg); }
+}
+.sc-bola-spin { transform-origin: 60px 70px; animation: scSpin 26s linear infinite; }
+.sc-glints { position: absolute; inset: 0; }
+.sc-glints i {
+  position: absolute;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(214, 232, 255, .9);
+  box-shadow: 0 0 16px rgba(180, 210, 255, .7);
+  animation: scGlint 3.4s ease-in-out infinite;
+}
+@keyframes scGlint {
+  0%, 100% { opacity: 0; transform: scale(.5); }
+  45%      { opacity: .85; transform: scale(1.2); }
+}
+
+/* ---------- Follaje y luciérnagas (jardín) ---------- */
+.sc-fronda {
+  position: absolute;
+  bottom: -6%;
+  width: min(34vw, 340px);
+  color: rgba(126, 170, 118, .5);
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  transform-origin: bottom center;
+}
+.sc-fronda svg { width: 100%; height: auto; }
+.sc-fronda-izq { left: -6%; animation: scSway 9s ease-in-out infinite alternate; }
+.sc-fronda-der { right: -6%; transform: scaleX(-1); animation: scSwayR 11s ease-in-out infinite alternate; }
+@keyframes scSway  { from { transform: rotate(-2.5deg); } to { transform: rotate(3deg); } }
+@keyframes scSwayR { from { transform: scaleX(-1) rotate(-3deg); } to { transform: scaleX(-1) rotate(2.5deg); } }
+
+.sc-fireflies { position: absolute; inset: 0; }
+.sc-fireflies i {
+  position: absolute;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 228, 140, .95);
+  box-shadow: 0 0 14px rgba(255, 214, 110, .9);
+  animation: scFly 10s ease-in-out infinite;
+}
+@keyframes scFly {
+  0%   { opacity: 0;  transform: translate(0, 0) scale(.7); }
+  20%  { opacity: .9; }
+  50%  { opacity: .35; transform: translate(var(--fx), var(--fy)) scale(1.15); }
+  80%  { opacity: .85; }
+  100% { opacity: 0;  transform: translate(0, 0) scale(.7); }
+}
+
+/* ---------- Vapor (el banquete) ---------- */
+.sc-steam { position: absolute; inset: 0; }
+.sc-steam svg {
+  position: absolute;
+  bottom: -6%;
+  width: min(13vw, 130px);
+  height: auto;
+  color: rgba(255, 240, 214, .3);
+  animation: scSteam 12s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+@keyframes scSteam {
+  0%   { opacity: 0;   transform: translateY(10%) scaleY(.6) scaleX(.9); }
+  25%  { opacity: .55; }
+  70%  { opacity: .25; }
+  100% { opacity: 0;   transform: translateY(-72%) scaleY(1.3) scaleX(1.25); }
+}
+
+/* ---------- El hilo del recorrido ---------- */
+.sc-hilo {
+  position: absolute;
+  inset: auto 0 12% 0;
+  height: 40%;
+  color: rgba(212, 171, 82, .5);
+  opacity: .55;
+}
+.sc-hilo svg { height: 100%; }
+.sc-hilo path {
+  stroke-dasharray: 2600;
+  stroke-dashoffset: 2600;
+  animation: scDraw 3.4s cubic-bezier(.22,1,.36,1) .3s forwards,
+             scThread 9s ease-in-out 3.7s infinite alternate;
+}
+@keyframes scDraw   { to { stroke-dashoffset: 0; } }
+@keyframes scThread { from { opacity: .5; } to { opacity: 1; } }
+
+/* ---------- El brindis final ---------- */
+.sc-brindis {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  width: min(52vw, 520px);
+  transform: translateX(-50%);
+  color: rgba(255, 222, 158, .75);
+  opacity: .5;
+}
+.sc-brindis svg { height: auto; }
+.sc-copa-izq { transform-origin: 73px 92px; animation: scClinkL 4.6s ease-in-out infinite; }
+.sc-copa-der { transform-origin: 127px 92px; animation: scClinkR 4.6s ease-in-out infinite; }
+@keyframes scClinkL {
+  0%, 60%, 100% { transform: rotate(0); }
+  22%           { transform: rotate(9deg) translateX(6px); }
+  30%           { transform: rotate(6deg) translateX(3px); }
+}
+@keyframes scClinkR {
+  0%, 60%, 100% { transform: rotate(0); }
+  22%           { transform: rotate(-9deg) translateX(-6px); }
+  30%           { transform: rotate(-6deg) translateX(-3px); }
+}
+
+/* ---------- Modo diurno: la escenografía toma la luz cálida ---------- */
+.propuesta-kiosco.diurno .sc-oro     { color: rgba(255, 210, 140, .8); }
+.propuesta-kiosco.diurno .sc-stars i { background: rgba(255, 240, 205, .9); }
+.propuesta-kiosco.diurno .sc-fronda  { color: rgba(150, 190, 110, .55); }
+.propuesta-kiosco.diurno .sc-bola    { color: rgba(240, 228, 200, .8); }
+
+/* ---------- Nunca por delante del contenido ---------- */
+.propuesta-preform,
+.propuesta-slides-container { position: relative; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kiosco-scenery { display: none; }
+}

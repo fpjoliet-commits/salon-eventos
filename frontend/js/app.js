@@ -3923,6 +3923,7 @@ function goToPropuestaSlide(n) {
   updatePropuestaNav();
   applyMomentoTheme();
   window.syncPropuestaGrupos?.();
+  window.updatePropuestaScenery?.();
   if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
   if (n === 9) buildGastroSlide();
@@ -7630,7 +7631,7 @@ $('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamie
       setTimeout(() => target.classList.remove('prop-pop'), 480);
     }
     // El estado .selected lo escriben los handlers propios: sincronizamos después
-    setTimeout(syncGrupos, 0);
+    setTimeout(() => { syncGrupos(); window.updatePropuestaScenery?.(); }, 0);
   });
 
   // Navegación por teclado: flechas y Enter mueven la propuesta
@@ -7701,4 +7702,228 @@ $('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamie
   // Al reconstruir slides dinámicos, mantener los grupos en sincronía
   document.addEventListener('DOMContentLoaded', syncGrupos);
   syncGrupos();
+})();
+
+/* ============================================================
+   PROPUESTA — ESCENOGRAFÍA
+   El fondo no es decorativo porque sí: cuenta en qué momento del
+   camino estamos y qué se eligió. Elegís Boda y empiezan a caer
+   pétalos; elegís Noche y sale la luna; llegás al banquete y sube
+   el vapor. Todo SVG + CSS (nada de GIFs: pesan y no se adaptan
+   al color del salón), decorativo y sin capturar clicks.
+   ============================================================ */
+(function initPropuestaScenery() {
+  const host = document.getElementById('kiosco-scenery');
+  if (!host) return;
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  // En tablet bajamos la cantidad de partículas: mismo clima, menos GPU
+  const dens = coarse ? .55 : 1;
+
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  // Lluvia / ascenso de partículas: n piezas con ritmos distintos para que
+  // el patrón nunca se lea como un bucle
+  function field(n, cls, svg, opt = {}) {
+    const { dur = [9, 16], delay = [0, 12], size = [14, 30], drift = true } = opt;
+    let out = '';
+    for (let i = 0; i < Math.round(n * dens); i++) {
+      const s = rnd(size[0], size[1]);
+      out += `<span class="sc-item ${cls}" style="
+        left:${rnd(-4, 100)}%;
+        width:${s}px;height:${s}px;
+        animation-duration:${rnd(dur[0], dur[1]).toFixed(1)}s;
+        animation-delay:${(-rnd(delay[0], delay[1])).toFixed(1)}s;
+        --sway:${drift ? rnd(-70, 70).toFixed(0) : 0}px;
+        --spin:${rnd(-320, 320).toFixed(0)}deg;
+        opacity:${rnd(.25, .7).toFixed(2)};
+      ">${svg}</span>`;
+    }
+    return out;
+  }
+
+  // ---- Piezas ----
+  const PETALO = `<svg viewBox="0 0 24 24"><path d="M12 2C7 7 4 12 6 17c2 4 8 6 12 3 4-3 4-9 1-13-2-3-5-4-7-5z" fill="currentColor"/></svg>`;
+  const DESTELLO = `<svg viewBox="0 0 24 24"><path d="M12 0l2.4 8.2L22 12l-7.6 3.8L12 24l-2.4-8.2L2 12l7.6-3.8z" fill="currentColor"/></svg>`;
+  const GLOBO = `<svg viewBox="0 0 24 32"><ellipse cx="12" cy="11" rx="9" ry="11" fill="currentColor"/><path d="M12 22l-2 3h4z" fill="currentColor" opacity=".8"/><path d="M12 25c2 3-2 4 0 7" stroke="currentColor" stroke-width="1" fill="none" opacity=".5"/></svg>`;
+  const CONFETI = `<svg viewBox="0 0 12 20"><rect width="12" height="20" rx="2" fill="currentColor"/></svg>`;
+  const HOJA = `<svg viewBox="0 0 24 24"><path d="M22 2C10 3 3 9 3 17c0 2 1 4 2 5 1-8 7-14 15-16-6 4-10 8-12 15 8 1 14-6 14-19z" fill="currentColor"/></svg>`;
+  const BURBUJA = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8.5" cy="8.5" r="2.4" fill="currentColor" opacity=".5"/></svg>`;
+  const PLUMA = `<svg viewBox="0 0 24 24"><path d="M20 3c-7 0-13 5-14 12l-2 6 6-2c7-1 12-7 12-14zM8 17c1-5 5-9 10-10-3 4-6 8-10 10z" fill="currentColor"/></svg>`;
+  const NOTA = `<svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="6.5" cy="18" r="2.8" fill="currentColor"/><circle cx="16.5" cy="16" r="2.8" fill="currentColor"/></svg>`;
+
+  // ---- Escenas fijas (piezas grandes, no partículas) ----
+  const SOL = `
+    <div class="sc-astro sc-sol">
+      <svg viewBox="0 0 200 200">
+        <g class="sc-rays">
+          ${Array.from({ length: 12 }, (_, i) =>
+            `<rect x="98.5" y="6" width="3" height="34" rx="1.5" fill="currentColor" opacity=".5"
+              transform="rotate(${i * 30} 100 100)"/>`).join('')}
+        </g>
+        <circle class="sc-disc" cx="100" cy="100" r="46" fill="currentColor" opacity=".55"/>
+        <circle cx="100" cy="100" r="62" fill="none" stroke="currentColor" stroke-width="1" opacity=".28"/>
+      </svg>
+    </div>`;
+
+  const LUNA = `
+    <div class="sc-astro sc-luna">
+      <svg viewBox="0 0 200 200">
+        <path class="sc-disc" d="M126 30a72 72 0 1 0 44 118A78 78 0 0 1 126 30z" fill="currentColor" opacity=".5"/>
+      </svg>
+    </div>
+    <div class="sc-stars">
+      ${Array.from({ length: Math.round(26 * dens) }, () =>
+        `<i style="left:${rnd(2, 98).toFixed(1)}%;top:${rnd(3, 78).toFixed(1)}%;
+           animation-delay:${rnd(0, 5).toFixed(1)}s;
+           animation-duration:${rnd(2.4, 6).toFixed(1)}s;
+           transform:scale(${rnd(.6, 1.5).toFixed(2)})"></i>`).join('')}
+    </div>`;
+
+  // Bola de espejo: gira y tira destellos sobre las paredes
+  const BOLA = `
+    <div class="sc-bola">
+      <svg viewBox="0 0 120 140">
+        <line x1="60" y1="0" x2="60" y2="22" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
+        <g class="sc-bola-spin">
+          <circle cx="60" cy="70" r="46" fill="currentColor" opacity=".22"/>
+          ${Array.from({ length: 6 }, (_, r) =>
+            Array.from({ length: 9 }, (_, c) =>
+              `<rect x="${16 + c * 10}" y="${30 + r * 15}" width="8" height="12" fill="currentColor"
+                 opacity="${(.18 + ((r + c) % 3) * .2).toFixed(2)}"/>`).join('')).join('')}
+          <circle cx="60" cy="70" r="46" fill="none" stroke="currentColor" stroke-width="1" opacity=".45"/>
+        </g>
+      </svg>
+    </div>
+    <div class="sc-glints">
+      ${Array.from({ length: Math.round(20 * dens) }, () =>
+        `<i style="left:${rnd(0, 100).toFixed(1)}%;top:${rnd(10, 92).toFixed(1)}%;
+           animation-delay:${rnd(0, 4).toFixed(1)}s;
+           animation-duration:${rnd(2.2, 5).toFixed(1)}s"></i>`).join('')}
+    </div>`;
+
+  // Follaje que se mece en los dos bordes + luciérnagas
+  const FOLLAJE = `
+    <div class="sc-fronda sc-fronda-izq">${HOJA}${HOJA}${HOJA}</div>
+    <div class="sc-fronda sc-fronda-der">${HOJA}${HOJA}${HOJA}</div>
+    <div class="sc-fireflies">
+      ${Array.from({ length: Math.round(14 * dens) }, () =>
+        `<i style="left:${rnd(4, 96).toFixed(1)}%;top:${rnd(20, 88).toFixed(1)}%;
+           animation-delay:${rnd(0, 8).toFixed(1)}s;
+           animation-duration:${rnd(7, 14).toFixed(1)}s;
+           --fx:${rnd(-90, 90).toFixed(0)}px;--fy:${rnd(-70, 40).toFixed(0)}px"></i>`).join('')}
+    </div>`;
+
+  // Vapor: el banquete que sale de la cocina
+  const VAPOR = `
+    <div class="sc-steam">
+      ${Array.from({ length: Math.round(7 * dens) }, (_, i) =>
+        `<svg viewBox="0 0 40 120" style="left:${8 + i * 13}%;
+           animation-delay:${(-rnd(0, 9)).toFixed(1)}s;
+           animation-duration:${rnd(9, 15).toFixed(1)}s">
+           <path d="M20 120C6 96 34 88 20 64 6 40 34 30 20 4" stroke="currentColor"
+             stroke-width="3" fill="none" stroke-linecap="round"/>
+         </svg>`).join('')}
+    </div>`;
+
+  // Copas que brindan al final
+  const BRINDIS = `
+    <div class="sc-brindis">
+      <svg viewBox="0 0 200 120">
+        <g class="sc-copa sc-copa-izq">
+          <path d="M56 18h34l-6 26a11 11 0 0 1-22 0z" fill="currentColor" opacity=".35"/>
+          <path d="M73 55v34" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
+          <path d="M60 92h26" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
+        </g>
+        <g class="sc-copa sc-copa-der">
+          <path d="M110 18h34l-6 26a11 11 0 0 1-22 0z" fill="currentColor" opacity=".35"/>
+          <path d="M127 55v34" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
+          <path d="M114 92h26" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
+        </g>
+      </svg>
+    </div>`;
+
+  // El recorrido: una línea de oro que se dibuja sola, como el hilo de la noche
+  const HILO = `
+    <div class="sc-hilo">
+      <svg viewBox="0 0 1200 300" preserveAspectRatio="none">
+        <path d="M-20 210C180 210 200 70 400 70s230 160 430 160 210-130 410-130"
+          stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>`;
+
+  // ---- Qué se muestra en cada momento del camino ----
+  function sceneFor(n, d) {
+    const diurno = d.turno === 'Almuerzo' || d.turno === 'Tarde';
+
+    // Lo elegido manda por sobre el paso: si ya hay tipo de evento, el clima
+    // del evento acompaña el resto del camino
+    const porEvento = {
+      'Boda':        () => field(13, 'sc-fall sc-rosa', PETALO, { size: [16, 34] }),
+      'XV años':     () => field(16, 'sc-fall sc-oro',  DESTELLO, { size: [10, 24], dur: [7, 14] }),
+      'Cumpleaños':  () => field(9,  'sc-rise sc-fiesta', GLOBO, { size: [22, 46], dur: [14, 24] }),
+      'Bautismo':    () => field(11, 'sc-fall sc-nube', PLUMA, { size: [16, 30], dur: [12, 20] }),
+      'Comunión':    () => field(11, 'sc-fall sc-nube', HOJA, { size: [14, 26], dur: [12, 20] }),
+      'Egresados':   () => field(16, 'sc-fall sc-confeti', CONFETI, { size: [8, 16], dur: [6, 12] }),
+      'Corporativo': () => field(8,  'sc-rise sc-sobrio', BURBUJA, { size: [12, 26], dur: [14, 22] }),
+    };
+    const clima = porEvento[d.tipoEvento] ? porEvento[d.tipoEvento]() : '';
+
+    switch (n) {
+      case 1:  // Portada
+        return clima || field(10, 'sc-rise sc-oro', DESTELLO, { size: [8, 18], dur: [12, 20] });
+      case 2:  // Cómo lo imaginás
+        return clima;
+      case 3:  // Qué festejamos — acá se ve el efecto de elegir
+        return clima;
+      case 4:  // Cuándo es — sale el sol o la luna
+        return (!d.turno ? '' : diurno ? SOL : LUNA) + clima;
+      case 5:  // Cuántos van a ser
+        return clima || field(10, 'sc-rise sc-oro', BURBUJA, { size: [10, 22], dur: [12, 20] });
+      case 6:  // Dónde los recibimos
+        return (d.espacio === 'Interior'  ? BOLA
+             :  d.espacio === 'Jardín'    ? FOLLAJE
+             :  d.espacio === 'Combinado' ? BOLA + FOLLAJE
+             :  '') + clima;
+      case 7:  // El recorrido
+        return HILO + clima;
+      case 8:  // Hacelo único
+        return field(14, 'sc-fall sc-confeti', CONFETI, { size: [8, 16], dur: [6, 12] })
+             + field(6, 'sc-rise sc-oro', NOTA, { size: [16, 28], dur: [13, 20] });
+      case 9:  // El banquete
+        return VAPOR;
+      case 10: // Algo más
+        return clima;
+      case 11: // Tu propuesta está lista
+        return BRINDIS
+             + field(18, 'sc-fall sc-oro', CONFETI, { size: [8, 18], dur: [7, 13] })
+             + field(8, 'sc-rise sc-oro', DESTELLO, { size: [10, 22], dur: [11, 18] });
+      default:
+        return clima;
+    }
+  }
+
+  let firma = '';
+  function update() {
+    if (typeof propuestaState === 'undefined') return;
+    const d = propuestaState.data || {};
+    const n = propuestaState.current;
+    // Solo redibujamos cuando cambia de verdad: si no, las partículas
+    // reinician su recorrido en cada click y se nota
+    const nueva = `${n}|${d.tipoEvento}|${d.turno}|${d.espacio}`;
+    if (nueva === firma) return;
+    firma = nueva;
+
+    if (reduce) { host.innerHTML = ''; return; }
+
+    host.classList.add('fading');
+    setTimeout(() => {
+      host.innerHTML = sceneFor(n, d);
+      host.classList.remove('fading');
+    }, 260);
+  }
+
+  window.updatePropuestaScenery = update;
+  update();
 })();
