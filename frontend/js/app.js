@@ -5781,7 +5781,7 @@ function renderStockDashboard() {
     <select id="stock-add-unidad" class="stock-add-sel">${UNITS_SD.map(u => `<option>${u}</option>`).join('')}</select>
     <button id="stock-add-btn" class="btn btn-primary btn-sm">Agregar</button>
   </div>
-  <p class="stock-dash-hint">💡 Con <b>◀ ▶</b> movés el grupo de lugar. Con <b>⇄ Mover</b> en cada ítem lo pasás a otro grupo. (En computadora también podés arrastrar.)</p>`;
+  <p class="stock-dash-hint">💡 Con <b>◀ ▶</b> movés el grupo de lugar. Tocá el <b>⇄</b> de un ítem para pasarlo a otro grupo.</p>`;
   html += '<div class="stock-dash-grid" id="stock-dash-grid">';
   catOrder.forEach((cat, ci) => {
     const color = cocCatColor(cat);
@@ -5797,12 +5797,11 @@ function renderStockDashboard() {
     byCategory[cat].forEach(item => {
       const level = item.cantidad === 0 ? 'sin-stock' : item.cantidad < 5 ? 'bajo' : 'ok';
       html += `<div class="stock-dash-item-row" draggable="true" data-id="${esc(item.id)}" data-cat="${esc(cat)}" data-nombre="${esc(item.nombre)}">
-        <span class="stock-dash-drag" title="Arrastrar (en computadora)">⠿</span>
         <span class="stock-dash-nombre">${esc(item.nombre)}</span>
         <span class="stock-dash-cant stock-${level}">${item.cantidad}</span>
         <span class="stock-dash-unidad">${esc(item.unidad||'und')}</span>
         <select class="stock-move-sel" data-id="${esc(item.id)}" data-cat="${esc(cat)}" title="Mover este ítem a otro grupo">
-          <option value="">⇄ Mover…</option>
+          <option value="">⇄</option>
           ${moveOpts}
         </select>
       </div>`;

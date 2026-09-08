@@ -3989,14 +3989,22 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .stock-cat-move:disabled { opacity: 0.25; cursor: default; }
 .stock-move-sel {
   flex-shrink: 0;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 2px 4px;
-  background: #fff;
-  color: var(--text-secondary);
+  width: 30px;
+  height: 26px;
+  font-size: 1rem;
+  text-align: center;
+  text-align-last: center;
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.5;
   cursor: pointer;
 }
+.stock-move-sel:hover, .stock-move-sel:focus { opacity: 1; background: rgba(0,0,0,0.06); }
 .stock-dash-item-row {
   display: flex;
   align-items: center;
@@ -4006,8 +4014,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .stock-dash-item-row { cursor: grab; }
 .stock-dash-item-row.stock-item-dragging { opacity: 0.4; cursor: grabbing; }
-.stock-dash-drag { color: #bbb; font-size: 0.9rem; cursor: grab; user-select: none; }
-.stock-dash-nombre { flex: 1; font-size: 0.95rem; }
+.stock-dash-nombre { flex: 1; font-size: 0.95rem; min-width: 0; }
 .stock-dash-cant { font-weight: 700; font-size: 1rem; min-width: 34px; text-align: right; }
 .stock-dash-unidad { font-size: 0.8rem; color: var(--text-muted); min-width: 30px; }
 .stock-sin-stock { color: #d32f2f; }
