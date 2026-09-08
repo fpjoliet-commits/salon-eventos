@@ -4914,7 +4914,10 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
         return f ? mkCard(f.name, f.cat || '', f.desc || '') : mkCard(v);
       }).join('');
       const extraCount = selectedIslas.length + selectedPremium.length;
-      const sub = `Base incluida · ${extraCount} adicional${extraCount !== 1 ? 'es' : ''} elegida${extraCount !== 1 ? 's' : ''}`;
+      // Sin extras, "0 adicionales elegidas" solo señala una ausencia: mejor no decirlo
+      const sub = extraCount
+        ? `Base incluida · ${extraCount} adicional${extraCount !== 1 ? 'es' : ''} elegida${extraCount !== 1 ? 's' : ''}`
+        : 'Base incluida';
       return `<div class="mb"><div class="mb-head"><span class="mb-roman">ii</span><span class="mb-name">Islas en vivo — el plato central</span><span class="mb-line"></span></div>
         <div class="mb-sub">${esc(sub)}</div>
         <div class="i-cards">${cards}</div></div>`;
@@ -5098,6 +5101,18 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 .closing .cl-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--ink);max-width:130mm;margin:0 auto;line-height:1.55}
 .closing .cl-sig{font-family:'Cormorant Garamond',serif;font-size:19px;margin-top:16px}
 .closing .cl-sig small{display:block;font-family:'Inter',sans-serif;font-size:8.5px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase;margin-top:3px}
+/* Como sigue: el PDF se lee casi siempre en el telefono y sin nadie al lado
+   que lo explique, asi que el paso siguiente tiene que estar escrito. */
+.nxt{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin:14mm 0 0;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
+.nxt-item{padding:11px 14px;text-align:left;break-inside:avoid;page-break-inside:avoid}
+.nxt-item+.nxt-item{border-left:1px solid var(--hairline-soft)}
+.nxt-n{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--gold);display:block}
+.nxt-t{display:block;font-size:10.5px;font-weight:500;color:var(--ink);margin:3px 0 4px;letter-spacing:.01em}
+.nxt-d{display:block;font-size:9.5px;line-height:1.55;color:var(--ink-dim)}
+.cta{margin-top:11mm;text-align:center;background:var(--warm);border:1px solid var(--hairline);padding:9mm 10mm}
+.cta-k{font-size:8.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted)}
+.cta-v{font-family:'Cormorant Garamond',serif;font-size:23px;color:var(--ink);margin-top:7px;line-height:1.35}
+.cta-v small{display:block;font-family:'Inter',sans-serif;font-size:10.5px;color:var(--ink-dim);letter-spacing:.02em;margin-top:5px}
 .pfoot{margin-top:auto;padding-top:9px;display:flex;justify-content:space-between;align-items:center;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.15em;border-top:1px solid var(--hairline);break-inside:avoid}
 .ped-box{background:var(--warm);border:1px solid var(--hairline);padding:11px 14px;font-size:11.5px;line-height:1.7;color:var(--ink-soft);margin-top:5px;font-style:italic}
 /* DIETARY TAGS */
@@ -5352,10 +5367,33 @@ ${tipo === 'contrato' ? (() => {
 <!-- CIERRE (solo propuesta experiencial) -->
 <div class="page">
   <div class="ph"><div class="ph-logo"></div><div class="ph-folio">Propuesta · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div></div>
-  <div class="closing" style="margin-top:30mm">
+  <div class="closing" style="margin-top:34mm">
     <div class="cl-line"></div>
-    <div class="cl-text">Sin otro particular, y expresando nuestro sincero agradecimiento por habernos elegido, quedamos a su entera disposición para coordinar cada detalle y hacer de ${esteMomento} un momento que todos van a recordar.</div>
+    <div class="cl-text">Quedamos a disposición para revisar lo que haga falta y coordinar cada detalle de ${esteMomento}.</div>
     <div class="cl-sig">Mariana Labarta<small>Coordinadora de Eventos · Joliet</small></div>
+  </div>
+
+  <div class="nxt">
+    <div class="nxt-item">
+      <span class="nxt-n">01</span>
+      <span class="nxt-t">Lo revisan con calma</span>
+      <span class="nxt-d">Cualquier duda sobre lo que leyeron acá la respondemos por WhatsApp o por teléfono.</span>
+    </div>
+    <div class="nxt-item">
+      <span class="nxt-n">02</span>
+      <span class="nxt-t">Ajustamos lo que quieran</span>
+      <span class="nxt-d">Menú, adicionales, horarios: se cambia todo lo que necesiten antes de cerrar.</span>
+    </div>
+    <div class="nxt-item">
+      <span class="nxt-n">03</span>
+      <span class="nxt-t">Se reserva la fecha</span>
+      <span class="nxt-d">${d.fecha ? 'El ' + esc(fechaFmt) + ' queda tomado' : 'La fecha queda tomada'} con la seña. Hasta ese momento sigue disponible.</span>
+    </div>
+  </div>
+
+  <div class="cta">
+    <div class="cta-k">Escribinos cuando quieras</div>
+    <div class="cta-v">11 5424 0870<small>labartam@gmail.com · Juana Azurduy 531, Ciudad Tesei</small></div>
   </div>
   <div class="pfoot"><span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span><span>Joliet Eventos · ${anio}</span></div>
 </div>`}
@@ -5470,8 +5508,20 @@ ${tipo === 'contrato' ? (() => {
     var tope = new Promise(function (res) { setTimeout(res, 1500); });
     Promise.race([Promise.all([cargado, fuentes]), tope]).then(fn, fn);
   }
+  // El total de hojas solo se conoce despues de repartir el contenido.
+  // Con el PDF abierto en el telefono, saber "3 de 5" evita creer que falta algo.
+  function numerar() {
+    var hojas = document.querySelectorAll('.page');
+    var total = hojas.length;
+    for (var i = 0; i < total; i++) {
+      var pie = hojas[i].querySelector('.pfoot');
+      if (!pie || !pie.lastElementChild) continue;
+      pie.lastElementChild.textContent += ' · ' + (i + 1) + '/' + total;
+    }
+  }
+
   listo(function () {
-    try { paginar(); } catch (e) { console.warn('paginador:', e); }
+    try { paginar(); numerar(); } catch (e) { console.warn('paginador:', e); }
     window.__propuestaPaginada = true;
   });
 })();
