@@ -3946,7 +3946,7 @@ function goToPropuestaSlide(n) {
   window.updatePropuestaScenery?.();
   readPropuestaData();
   savePropuestaDraft();
-  if (n === 4) checkFechaDisponible();
+  if (n === 5) checkFechaDisponible();
   if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
   if (n === 9) buildGastroSlide();
@@ -4105,7 +4105,7 @@ function preloadPropuestaImgs() {
   if (propuestaImgsPrecargadas) return;
   propuestaImgsPrecargadas = true;
   ['salon.jpg.jpeg', 'jardin-espacio.webp', 'mesa-elegante.jpeg', 'fiesta.jpeg',
-   'estilo-formal.jpg', 'estilo-americano.jpg', 'portada.jpeg', 'torta.jpg',
+   'portada.jpeg',
    'shows.jpg', 'cotilon-personalizado.jpg',
    'bola-espejo.webp', 'luna.webp'].forEach(f => {
     const img = new Image();

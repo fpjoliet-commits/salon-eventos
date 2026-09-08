@@ -280,19 +280,19 @@
     switch (n) {
       case 1:  // Portada
         return clima || field(10, 'sc-rise sc-oro', DESTELLO, { size: [8, 18], dur: [12, 20] });
-      case 2:  // Cómo lo imaginás
+      case 2:  // Qué festejamos — acá se ve el efecto de elegir
         return clima;
-      case 3:  // Qué festejamos — acá se ve el efecto de elegir
-        return clima;
-      case 4:  // Cuándo es — sale el sol o la luna
-        return (!d.turno ? '' : diurno ? SOL : LUNA) + clima;
-      case 5:  // Cuántos van a ser
-        return clima || field(10, 'sc-rise sc-oro', BURBUJA, { size: [10, 22], dur: [12, 20] });
-      case 6:  // Dónde los recibimos
+      case 3:  // Dónde los recibimos
         return (d.espacio === 'Interior'  ? ESPEJOS
              :  d.espacio === 'Jardín'    ? FOLLAJE
              :  d.espacio === 'Combinado' ? ESPEJOS + FOLLAJE
              :  '') + clima;
+      case 4:  // Cómo lo imaginás
+        return clima;
+      case 5:  // Cuándo es — sale el sol o la luna
+        return (!d.turno ? '' : diurno ? SOL : LUNA) + clima;
+      case 6:  // Cuántos van a ser
+        return clima || field(10, 'sc-rise sc-oro', BURBUJA, { size: [10, 22], dur: [12, 20] });
       case 7:  // El recorrido
         return HILO + clima;
       case 8:  // Hacelo único
