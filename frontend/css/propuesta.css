@@ -1714,9 +1714,7 @@
 .amb-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(60px);
   opacity: .5;
-  will-change: transform;
 }
 .amb-orb-1 {
   width: 56vw; height: 56vw; max-width: 780px; max-height: 780px;
@@ -2201,7 +2199,7 @@
 
 /* ---------- 12. Pantallas chicas: el movimiento se modera ---------- */
 @media (max-width: 720px) {
-  .amb-orb { filter: blur(44px); opacity: .38; }
+  .amb-orb { opacity: .34; }
   .amb-sheen { display: none; }
   .propuesta-slide.active { animation-duration: 420ms; }
 }
@@ -2231,7 +2229,7 @@
   background-repeat: no-repeat;
   background-size: cover;
   background-color: #0d0b07;
-  filter: blur(26px) brightness(.55) saturate(1.15);
+  filter: blur(22px) brightness(.55) saturate(1.15);
   transform: scale(1.14);
   transform-origin: center;
   animation: none;
@@ -2326,8 +2324,11 @@
   .btn-propuesta-nav:active:not(:disabled),
   .counter-btn:active { transform: scale(.94); transition-duration: .06s; }
 
-  /* Blancos de toque: mínimo cómodo para el dedo */
-  .propuesta-card { padding: 16px 22px; min-height: 52px; }
+  /* Blancos de toque: mínimo cómodo para el dedo.
+     Ojo: las tarjetas con foto (espacio) tienen su propia altura; si les
+     aplicamos este mínimo, la foto se estruja detrás del texto. */
+  .propuesta-card:not(.espacio-card) { padding: 16px 22px; min-height: 52px; }
+  .espacio-card { min-height: 200px; }
   .turno-card { min-width: 138px; padding: 16px 24px; }
   .counter-btn { width: 72px; height: 72px; font-size: 34px; }
   .btn-propuesta-primary { padding: 17px 38px; font-size: 14px; }
@@ -2356,10 +2357,18 @@
   }
 
   /* El fondo se aliviana: las tablets no regalan GPU */
-  .amb-orb { filter: blur(50px); }
+  .amb-orb { opacity: .34; }
 
   /* Pista de que se puede deslizar */
   .propuesta-slides-container { touch-action: pan-y; }
+}
+
+/* En tablet vertical la pantalla es muy alta: centrar deja el contenido
+   flotando en el medio con aire de sobra arriba y abajo. */
+@media (pointer: coarse) and (orientation: portrait) {
+  .propuesta-slide { justify-content: flex-start; }
+  .propuesta-slides-container { padding-top: 78px; }
+  .propuesta-slide-title { margin-bottom: 18px; }
 }
 
 /* Tablet en vertical: las grillas de dos y tres columnas ahogan el contenido */
@@ -2370,8 +2379,13 @@
   .propuesta-slides-container { padding: 66px 22px 96px; }
   .propuesta-nav { padding: 0 18px 18px; }
 }
-@media (max-width: 780px) {
+@media (max-width: 900px) {
   .espacio-fork-grid { grid-template-columns: 1fr; }
+  .espacio-card { min-height: 168px; }
+  .espacio-label { font-size: 19px; padding: 0 18px 6px; }
+  .espacio-sub { font-size: 12.5px; padding: 0 18px 18px; }
+}
+@media (max-width: 780px) {
   .propuesta-slide-portada { aspect-ratio: 4 / 3; height: auto; max-height: 62vh; }
   .counter-display { font-size: 74px; min-width: 150px; }
 }
@@ -2409,7 +2423,6 @@
   animation-name: scFall;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
-  will-change: transform;
 }
 .sc-item.sc-rise {
   top: auto;
@@ -2435,23 +2448,87 @@
 .sc-item.sc-confeti:nth-child(2n){ color: rgba(232, 234, 240, .55); }
 
 /* ---------- Sol y luna (paso de la fecha) ---------- */
-.sc-astro {
+/* Hechos con degradados, no con formas dibujadas: la luz no tiene bordes
+   duros y cualquier polígono que le dibujes encima se nota. */
+.sc-sol {
   position: absolute;
-  width: min(46vw, 420px);
+  top: -14%; right: -8%;
+  width: min(52vw, 520px);
   aspect-ratio: 1;
-  opacity: .5;
-  animation: scAstroIn 1.6s cubic-bezier(.22,1,.36,1) both;
+  animation: scAstroIn 1.8s cubic-bezier(.22,1,.36,1) both;
+}
+.sc-sol span { position: absolute; inset: 0; border-radius: 50%; }
+.sc-sol-halo {
+  background: radial-gradient(circle at 50% 50%,
+    rgba(255,214,148,.42) 0%,
+    rgba(255,196,116,.20) 26%,
+    rgba(255,178,86,.07) 48%,
+    rgba(255,170,80,0) 72%);
+  animation: scBreathe 9s ease-in-out infinite alternate;
+}
+.sc-sol-disco {
+  inset: 30% !important;
+  background: radial-gradient(circle at 42% 38%,
+    rgba(255,246,225,.92) 0%,
+    rgba(255,226,164,.72) 38%,
+    rgba(255,198,110,.30) 68%,
+    rgba(255,190,100,0) 100%);
+  filter: blur(2px);
+  animation: scBreathe 7s ease-in-out infinite alternate;
+}
+/* Corona: rayos suavísimos que giran, sin contorno */
+.sc-sol-corona {
+  inset: 8% !important;
+  background: conic-gradient(from 0deg,
+    rgba(255,214,150,.16) 0deg,  rgba(255,214,150,0) 14deg,
+    rgba(255,214,150,.13) 30deg, rgba(255,214,150,0) 46deg,
+    rgba(255,214,150,.16) 62deg, rgba(255,214,150,0) 78deg,
+    rgba(255,214,150,.11) 96deg, rgba(255,214,150,0) 114deg,
+    rgba(255,214,150,.15) 132deg,rgba(255,214,150,0) 150deg,
+    rgba(255,214,150,.12) 172deg,rgba(255,214,150,0) 192deg,
+    rgba(255,214,150,.16) 214deg,rgba(255,214,150,0) 232deg,
+    rgba(255,214,150,.11) 252deg,rgba(255,214,150,0) 272deg,
+    rgba(255,214,150,.14) 292deg,rgba(255,214,150,0) 312deg,
+    rgba(255,214,150,.13) 334deg,rgba(255,214,150,0) 360deg);
+  -webkit-mask-image: radial-gradient(circle, #000 22%, rgba(0,0,0,.5) 55%, transparent 78%);
+          mask-image: radial-gradient(circle, #000 22%, rgba(0,0,0,.5) 55%, transparent 78%);
+  filter: blur(6px);
+  animation: scSpin 120s linear infinite;
+}
+
+.sc-luna {
+  position: absolute;
+  top: -2%; right: 2%;
+  width: min(30vw, 260px);
+  aspect-ratio: 1;
+  animation: scAstroIn 1.8s cubic-bezier(.22,1,.36,1) both;
+}
+.sc-luna span { position: absolute; inset: 0; border-radius: 50%; }
+.sc-luna-halo {
+  inset: -35% !important;
+  background: radial-gradient(circle,
+    rgba(214,226,255,.20) 0%,
+    rgba(198,214,250,.08) 38%,
+    rgba(190,208,248,0) 68%);
+  animation: scBreathe 11s ease-in-out infinite alternate;
+}
+/* Foto real de la luna (NASA vía Wikimedia Commons, dominio público),
+   recortada con transparencia y entonada en marfil cálido para que
+   conviva con el dorado del salón. */
+.sc-luna-img {
+  position: absolute;
+  inset: 12%;
+  width: 76%;
+  height: auto;
+  filter: drop-shadow(0 0 34px rgba(226, 232, 250, .28));
+  animation: scBreathe 14s ease-in-out infinite alternate;
 }
 @keyframes scAstroIn {
-  from { opacity: 0; transform: translateY(26px) scale(.9); }
-  to   { opacity: .5; transform: none; }
+  from { opacity: 0; transform: translateY(30px) scale(.92); }
+  to   { opacity: .85; transform: none; }
 }
-.sc-sol  { top: -8%; right: -6%; color: rgba(255, 206, 128, .85); }
-.sc-luna { top: -4%; right: -2%; width: min(34vw, 300px); color: rgba(228, 232, 245, .7); }
-.sc-rays { transform-origin: 100px 100px; animation: scSpin 90s linear infinite; }
-.sc-disc { animation: scPulse 7s ease-in-out infinite alternate; transform-origin: center; }
-@keyframes scSpin  { to { transform: rotate(360deg); } }
-@keyframes scPulse { from { opacity: .38 } to { opacity: .62 } }
+@keyframes scBreathe { from { opacity: .55; transform: scale(.97); } to { opacity: 1; transform: scale(1.04); } }
+@keyframes scSpin { to { transform: rotate(360deg); } }
 
 .sc-stars { position: absolute; inset: 0; }
 .sc-stars i {
@@ -2467,36 +2544,76 @@
   50%      { opacity: .95; }
 }
 
-/* ---------- Bola de espejo (salón interior) ---------- */
+/* ---------- Salón interior: la bola del propio salón + sus reflejos ---------- */
 .sc-bola {
   position: absolute;
-  top: -2%;
+  top: 0;
   left: 50%;
+  width: min(19vw, 180px);
   transform: translateX(-50%);
-  width: min(20vw, 190px);
-  color: rgba(214, 226, 244, .8);
-  opacity: .5;
-  aspect-ratio: 120 / 140;
-  animation: scHang 6.5s ease-in-out infinite alternate;
+  transform-origin: 50% -40px;
+  animation: scColgar 7.5s ease-in-out infinite alternate, scAstroIn 1.4s cubic-bezier(.22,1,.36,1) both;
+  opacity: .78;
 }
-.sc-bola svg { height: auto; }
-@keyframes scHang {
-  from { transform: translateX(-50%) rotate(-2.2deg); }
-  to   { transform: translateX(-50%) rotate(2.2deg); }
+/* El hilo del que cuelga: la foto arranca en la esfera, el hilo lo ponemos acá */
+.sc-bola-hilo {
+  position: absolute;
+  left: 50%;
+  top: -46px;
+  width: 1px;
+  height: 52px;
+  background: linear-gradient(to bottom, rgba(255,240,205,0), rgba(255,240,205,.35));
 }
-.sc-bola-spin { transform-origin: 60px 70px; animation: scSpin 26s linear infinite; }
+.sc-bola-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 12px 34px rgba(0,0,0,.5));
+  animation: scDestellar 5.5s ease-in-out infinite alternate;
+}
+@keyframes scColgar {
+  from { transform: translateX(-50%) rotate(-1.6deg); }
+  to   { transform: translateX(-50%) rotate(1.6deg); }
+}
+@keyframes scDestellar {
+  from { opacity: .82; }
+  to   { opacity: 1; }
+}
+
+.sc-haces { position: absolute; inset: 0; overflow: hidden; }
+.sc-haz {
+  position: absolute;
+  top: -40%;
+  left: 50%;
+  width: 42vw;
+  height: 190%;
+  transform-origin: 50% 21%;
+  background: linear-gradient(to bottom,
+    rgba(228,238,255,.13) 0%,
+    rgba(214,228,255,.05) 45%,
+    rgba(200,220,255,0) 82%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+}
+.sc-haz-1 { animation: scHaz 26s linear infinite; }
+.sc-haz-2 { animation: scHaz 26s linear infinite -8.6s; opacity: .8; }
+.sc-haz-3 { animation: scHaz 26s linear infinite -17.3s; opacity: .6; }
+@keyframes scHaz {
+  from { transform: translateX(-50%) rotate(-42deg); }
+  to   { transform: translateX(-50%) rotate(318deg); }
+}
 .sc-glints { position: absolute; inset: 0; }
 .sc-glints i {
   position: absolute;
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: rgba(214, 232, 255, .9);
-  box-shadow: 0 0 16px rgba(180, 210, 255, .7);
+  background: rgba(226, 238, 255, .95);
+  box-shadow: 0 0 16px rgba(190, 216, 255, .8);
   animation: scGlint 3.4s ease-in-out infinite;
 }
 @keyframes scGlint {
   0%, 100% { opacity: 0; transform: scale(.5); }
-  45%      { opacity: .85; transform: scale(1.2); }
+  45%      { opacity: .9; transform: scale(1.25); }
 }
 
 /* ---------- Follaje y luciérnagas (jardín) ---------- */
@@ -2685,4 +2802,38 @@
 .pd-descartar:hover { color: rgba(255,255,255,.75); }
 @media (hover: none), (pointer: coarse) {
   .pd-descartar { padding: 12px 8px; font-size: 14px; }
+}
+
+/* ---------- Campo "¿qué cumpleaños?" ---------- */
+.cumple-anios-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cumple-anios-wrap .propuesta-input {
+  width: 116px;
+  text-align: center;
+  font-family: 'Cormorant Garamond', Georgia, serif !important;
+  font-size: 30px !important;
+  letter-spacing: -.01em;
+}
+.cumple-anios-sufijo {
+  font-size: 12px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.32);
+}
+@media (hover: none), (pointer: coarse) {
+  .cumple-anios-wrap .propuesta-input { width: 140px; font-size: 34px !important; }
+}
+
+/* ---------- Tablet de trabajo: 11\" 2.5K con GPU modesta ----------
+   Muchísimos píxeles y poca GPU: lo que se paga por píxel (desenfoques,
+   sombras animadas, transparencias apiladas) es lo primero que se recorta. */
+@media (pointer: coarse) {
+  .preform-card { backdrop-filter: none; background: rgba(28, 22, 14, .82); }
+  .amb-sheen { display: none; }
+  .estilo-fork-card:hover { box-shadow: none; }
+  .propuesta-card::after { display: none; }
+  .btn-propuesta-primary::after { display: none; }
 }

@@ -170,52 +170,44 @@
 
   // ---- Escenas fijas (piezas grandes, no partículas) ----
   const SOL = `
-    <div class="sc-astro sc-sol">
-      <svg viewBox="0 0 200 200">
-        <g class="sc-rays">
-          ${Array.from({ length: 12 }, (_, i) =>
-            `<rect x="98.5" y="6" width="3" height="34" rx="1.5" fill="currentColor" opacity=".5"
-              transform="rotate(${i * 30} 100 100)"/>`).join('')}
-        </g>
-        <circle class="sc-disc" cx="100" cy="100" r="46" fill="currentColor" opacity=".55"/>
-        <circle cx="100" cy="100" r="62" fill="none" stroke="currentColor" stroke-width="1" opacity=".28"/>
-      </svg>
+    <div class="sc-sol">
+      <span class="sc-sol-corona"></span>
+      <span class="sc-sol-disco"></span>
+      <span class="sc-sol-halo"></span>
     </div>`;
 
   const LUNA = `
-    <div class="sc-astro sc-luna">
-      <svg viewBox="0 0 200 200">
-        <path class="sc-disc" d="M126 30a72 72 0 1 0 44 118A78 78 0 0 1 126 30z" fill="currentColor" opacity=".5"/>
-      </svg>
+    <div class="sc-luna">
+      <span class="sc-luna-halo"></span>
+      <img class="sc-luna-img" src="img/propuesta/luna.webp" alt="" loading="lazy">
     </div>
     <div class="sc-stars">
-      ${Array.from({ length: Math.round(26 * dens) }, () =>
+      ${Array.from({ length: Math.round(30 * dens) }, () =>
         `<i style="left:${rnd(2, 98).toFixed(1)}%;top:${rnd(3, 78).toFixed(1)}%;
            animation-delay:${rnd(0, 5).toFixed(1)}s;
            animation-duration:${rnd(2.4, 6).toFixed(1)}s;
            transform:scale(${rnd(.6, 1.5).toFixed(2)})"></i>`).join('')}
     </div>`;
 
-  // Bola de espejo: gira y tira destellos sobre las paredes
-  const BOLA = `
+  // Salón interior: la bola es la del propio salón, recortada de la foto de
+  // la fiesta. Dibujarla quedaba a caricatura. No gira (una foto girando se
+  // nota falsa): lo que se mueve son sus reflejos, que es lo que uno ve.
+  const ESPEJOS = `
     <div class="sc-bola">
-      <svg viewBox="0 0 120 140">
-        <line x1="60" y1="0" x2="60" y2="22" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
-        <g class="sc-bola-spin">
-          <circle cx="60" cy="70" r="46" fill="currentColor" opacity=".22"/>
-          ${Array.from({ length: 6 }, (_, r) =>
-            Array.from({ length: 9 }, (_, c) =>
-              `<rect x="${16 + c * 10}" y="${30 + r * 15}" width="8" height="12" fill="currentColor"
-                 opacity="${(.18 + ((r + c) % 3) * .2).toFixed(2)}"/>`).join('')).join('')}
-          <circle cx="60" cy="70" r="46" fill="none" stroke="currentColor" stroke-width="1" opacity=".45"/>
-        </g>
-      </svg>
+      <span class="sc-bola-hilo"></span>
+      <img class="sc-bola-img" src="img/propuesta/bola-espejo.webp" alt="" loading="lazy">
+    </div>
+    <div class="sc-haces">
+      <span class="sc-haz sc-haz-1"></span>
+      <span class="sc-haz sc-haz-2"></span>
+      <span class="sc-haz sc-haz-3"></span>
     </div>
     <div class="sc-glints">
-      ${Array.from({ length: Math.round(20 * dens) }, () =>
-        `<i style="left:${rnd(0, 100).toFixed(1)}%;top:${rnd(10, 92).toFixed(1)}%;
-           animation-delay:${rnd(0, 4).toFixed(1)}s;
-           animation-duration:${rnd(2.2, 5).toFixed(1)}s"></i>`).join('')}
+      ${Array.from({ length: Math.round(34 * dens) }, () =>
+        `<i style="left:${rnd(0, 100).toFixed(1)}%;top:${rnd(4, 94).toFixed(1)}%;
+           animation-delay:${rnd(0, 5).toFixed(1)}s;
+           animation-duration:${rnd(2.4, 5.5).toFixed(1)}s;
+           transform:scale(${rnd(.7, 1.6).toFixed(2)})"></i>`).join('')}
     </div>`;
 
   // Follaje que se mece en los dos bordes + luciérnagas
@@ -297,9 +289,9 @@
       case 5:  // Cuántos van a ser
         return clima || field(10, 'sc-rise sc-oro', BURBUJA, { size: [10, 22], dur: [12, 20] });
       case 6:  // Dónde los recibimos
-        return (d.espacio === 'Interior'  ? BOLA
+        return (d.espacio === 'Interior'  ? ESPEJOS
              :  d.espacio === 'Jardín'    ? FOLLAJE
-             :  d.espacio === 'Combinado' ? BOLA + FOLLAJE
+             :  d.espacio === 'Combinado' ? ESPEJOS + FOLLAJE
              :  '') + clima;
       case 7:  // El recorrido
         return HILO + clima;

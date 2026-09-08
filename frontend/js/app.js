@@ -3142,28 +3142,6 @@ function imprimirTimming(cliente, items) {
       </div>
     </div>`).join('');
 
-  // ---- Paleta del entregable ----
-  // El PDF casi siempre se envía, no se imprime: en vez de un blanco de
-  // oficina toma el clima del evento que se acaba de armar. Noche: papel
-  // noir con oro. Día: marfil cálido, la luz de la media tarde.
-  const pdfVars = diurno ? `
-    --shell:#E6DCCB;--paper:#FBF7EF;--warm:#F3EDE0;
-    --ink:#1A1712;--ink-soft:#2A2620;--ink-dim:#5A5040;--muted:#8B8074;
-    --gold:#9D7E3C;--gold-soft:#C9B27C;--hairline:#DCD3C3;--hairline-soft:rgba(216,207,192,.55);
-    --stamp-bg:#14110B;--stamp-fg:#FBF7EF;--glow:rgba(196,153,62,.10);
-    --dt-v-bg:rgba(88,160,88,.13);--dt-v-fg:#2a6b2a;--dt-v-bd:rgba(88,160,88,.28);
-    --dt-vg-bg:rgba(60,130,180,.10);--dt-vg-fg:#1e5f80;--dt-vg-bd:rgba(60,130,180,.22);
-    --dt-sc-bg:rgba(190,120,40,.10);--dt-sc-fg:#7a4510;--dt-sc-bd:rgba(190,120,40,.22);
-  ` : `
-    --shell:#0A0806;--paper:#15120C;--warm:#1D1911;
-    --ink:#F2EBDD;--ink-soft:#DED5C3;--ink-dim:#B3A88F;--muted:#948872;
-    --gold:#D3AC5B;--gold-soft:#8E7539;--hairline:#332C1F;--hairline-soft:rgba(120,102,68,.32);
-    --stamp-bg:#F2EBDD;--stamp-fg:#15120C;--glow:rgba(211,172,91,.14);
-    --dt-v-bg:rgba(120,190,120,.12);--dt-v-fg:#96c996;--dt-v-bd:rgba(120,190,120,.3);
-    --dt-vg-bg:rgba(110,170,215,.12);--dt-vg-fg:#8fc0e0;--dt-vg-bd:rgba(110,170,215,.28);
-    --dt-sc-bg:rgba(220,160,80,.12);--dt-sc-fg:#e0b271;--dt-sc-bd:rgba(220,160,80,.28);
-  `;
-
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3409,6 +3387,22 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;backgroun
 <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
 
 <script>window.onload = () => { window.print(); }<\/script>
+<script>
+/* La ventana de vista previa casi nunca mide 210mm de ancho: sin esto la hoja
+   se sale por la izquierda y parece que el PDF tuviera los márgenes cortados.
+   Al imprimir se vuelve a escala 1, así que el PDF sale exacto. */
+(function () {
+  var A4 = 210 * 96 / 25.4;
+  function ajustar() {
+    var k = Math.min(1, (document.documentElement.clientWidth - 28) / A4);
+    document.body.style.zoom = k;
+  }
+  window.addEventListener('resize', ajustar);
+  window.addEventListener('beforeprint', function () { document.body.style.zoom = 1; });
+  window.addEventListener('afterprint', ajustar);
+  ajustar();
+})();
+</script>
 </body></html>`;
 
   const win = window.open('', '_blank');
@@ -3492,7 +3486,7 @@ const propuestaState = {
   total: 11,
   data: {
     nombre: '', telefono: '', gmail: '', clienteId: null,
-    estilo: '', tipoEvento: '', agasajado: '', fecha: '', turno: '',
+    estilo: '', tipoEvento: '', agasajado: '', cumpleAnios: '', fecha: '', turno: '',
     invitados: 100, menuInfantil: false, infantilCant: '',
     espacio: '', adicionales: [], gastroAdicionales: [],
     pastasSeleccionadas: [], pastasGourmetSeleccionadas: [],
@@ -3506,7 +3500,7 @@ function initPropuesta() {
   const d = propuestaState.data;
   propuestaState.current = 1;
   d.nombre = ''; d.telefono = ''; d.gmail = ''; d.clienteId = null;
-  d.estilo = ''; d.tipoEvento = ''; d.agasajado = ''; d.fecha = ''; d.turno = '';
+  d.estilo = ''; d.tipoEvento = ''; d.agasajado = ''; d.cumpleAnios = ''; d.fecha = ''; d.turno = '';
   d.invitados = 100; d.menuInfantil = false; d.infantilCant = '';
   d.espacio = ''; d.adicionales = []; d.gastroAdicionales = [];
   d.pastasSeleccionadas = []; d.pastasGourmetSeleccionadas = [];
@@ -3520,7 +3514,7 @@ function initPropuesta() {
   applyMomentoTheme();
 
   const set = (id, val) => { const el = $(id); if (el) el.value = val; };
-  set('prop-agasajado', ''); set('prop-fecha', ''); set('prop-infantil-cant', ''); set('prop-pedidos', '');
+  set('prop-agasajado', ''); set('prop-cumple-anios', ''); set('prop-fecha', ''); set('prop-infantil-cant', ''); set('prop-pedidos', '');
   set('prop-contacto-nombre', ''); set('prop-contacto-telefono', ''); set('prop-contacto-gmail', '');
   const clSel = $('prop-cliente-existente'); if (clSel) clSel.value = '';
   const invDisplay = $('prop-invitados-display'); if (invDisplay) invDisplay.textContent = '100';
@@ -3820,6 +3814,7 @@ function startPropuestaWithSavedState(cliente, saved, opt = {}) {
   set('prop-fecha', saved.fecha || '');
   set('prop-invitados', saved.invitados || 100);
   set('prop-agasajado', saved.agasajado || '');
+  set('prop-cumple-anios', saved.cumpleAnios || '');
   set('prop-infantil-cant', saved.infantilCant || '');
   set('prop-pedidos', saved.pedidos || '');
   const idDisp = document.getElementById('prop-invitados-display');
@@ -3831,6 +3826,8 @@ function startPropuestaWithSavedState(cliente, saved, opt = {}) {
   const sinAgasajado = ['Corporativo', 'Otro'];
   const agRow = document.getElementById('agasajado-row');
   if (agRow) agRow.style.display = sinAgasajado.includes(saved.tipoEvento) ? 'none' : '';
+  const cumpleRow = document.getElementById('cumple-anios-row');
+  if (cumpleRow) cumpleRow.style.display = saved.tipoEvento === 'Cumpleaños' ? '' : 'none';
   document.querySelectorAll('#view-propuesta .adicionales-grid input[type="checkbox"]').forEach(cb => {
     cb.checked = (saved.adicionales || []).includes(cb.value);
   });
@@ -3943,11 +3940,24 @@ function goToPropuestaSlide(n) {
 
 // Una sola fuente de verdad para la foto del evento: la que se ve en pantalla
 // es la misma que después aparece en la portada del PDF.
+// Cómo se nombra el evento en todos lados (pantalla y PDF): un cumpleaños
+// con el número puesto dice mucho más que "Cumpleaños" a secas.
+function tipoEventoLabel(d) {
+  if (!d || !d.tipoEvento) return '';
+  if (d.tipoEvento === 'Cumpleaños' && d.cumpleAnios) return `Cumpleaños de ${d.cumpleAnios}`;
+  return d.tipoEvento;
+}
+
 function portadaImgFor(tipo) {
+  // REGLA: las fotos con quinceañera (portada.jpeg, torta.jpg, jardin.jpeg)
+  // van SOLO en XV años. Mostrarle una quinceañera a alguien que viene por un
+  // bautismo o un corporativo arruina la propuesta antes de empezar.
   const map = {
-    'Boda':        'img/propuesta/mesa-elegante.jpeg',
     'XV años':     'img/propuesta/portada.jpeg',
-    'Cumpleaños':  'img/propuesta/torta.jpg',
+    'Boda':        'img/propuesta/mesa-elegante.jpeg',
+    'Cumpleaños':  'img/propuesta/fiesta.jpeg',
+    'Bautismo':    'img/propuesta/mesa-elegante.jpeg',
+    'Comunión':    'img/propuesta/mesa-elegante.jpeg',
     'Egresados':   'img/propuesta/fiesta.jpeg',
     'Corporativo': 'img/propuesta/mesa-elegante.jpeg',
   };
@@ -4079,9 +4089,10 @@ let propuestaImgsPrecargadas = false;
 function preloadPropuestaImgs() {
   if (propuestaImgsPrecargadas) return;
   propuestaImgsPrecargadas = true;
-  ['salon.jpg.jpeg', 'jardin.jpeg', 'mesa-elegante.jpeg', 'fiesta.jpeg',
+  ['salon.jpg.jpeg', 'jardin-espacio.webp', 'mesa-elegante.jpeg', 'fiesta.jpeg',
    'estilo-formal.jpg', 'estilo-americano.jpg', 'portada.jpeg', 'torta.jpg',
-   'shows.jpg', 'cotilon-personalizado.jpg'].forEach(f => {
+   'shows.jpg', 'cotilon-personalizado.jpg',
+   'bola-espejo.webp', 'luna.webp'].forEach(f => {
     const img = new Image();
     img.src = 'img/propuesta/' + f;
   });
@@ -4095,6 +4106,7 @@ function readPropuestaData() {
   const eventoCard = document.querySelector('#evento-cards .propuesta-card.selected');
   d.tipoEvento = eventoCard ? eventoCard.dataset.value : d.tipoEvento;
   d.agasajado = g('prop-agasajado');
+  d.cumpleAnios = g('prop-cumple-anios');
   d.fecha = g('prop-fecha');
   const turnoCard = document.querySelector('#turno-cards .propuesta-card.selected');
   d.turno = turnoCard ? turnoCard.dataset.value : d.turno;
@@ -4657,7 +4669,7 @@ function buildPropuestaResumen() {
   const heroName = d.agasajado || d.tipoEvento || 'Tu evento';
 
   const metaParts = [
-    d.tipoEvento && d.agasajado ? d.tipoEvento : null,
+    d.tipoEvento && d.agasajado ? tipoEventoLabel(d) : null,
     fechaFmt,
     d.turno,
     d.invitados ? `${d.invitados} personas` : null,
@@ -4751,6 +4763,39 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   const estilo = d.estilo || 'Formal';
   const pasos = RECORRIDO[estilo] || RECORRIDO.Formal;
   const base = window.location.origin;
+  // Cada foto tiene su punto de mira: con un recorte tan apaisado, el centro
+  // geométrico corta cabezas
+  const encuadrePortada = {
+    'img/propuesta/mesa-elegante.jpeg': 'center 22%',
+    'img/propuesta/fiesta.jpeg':        'center 42%',
+    'img/propuesta/portada.jpeg':       'center 30%',
+    'img/propuesta/salon.jpg.jpeg':     'center 52%',
+  };
+  const imgPortada = portadaImgFor(d.tipoEvento);
+  const posPortada = encuadrePortada[imgPortada] || 'center 40%';
+
+  // ---- Paleta del entregable ----
+  // El PDF casi siempre se envía, no se imprime: en vez de un blanco de
+  // oficina toma el clima del evento que se acaba de armar. Noche: papel
+  // noir con oro. Día: marfil cálido, la luz de la media tarde.
+  const pdfVars = diurno ? `
+    --shell:#E6DCCB;--paper:#FBF7EF;--warm:#F3EDE0;
+    --ink:#1A1712;--ink-soft:#2A2620;--ink-dim:#5A5040;--muted:#8B8074;
+    --gold:#9D7E3C;--gold-soft:#C9B27C;--hairline:#DCD3C3;--hairline-soft:rgba(216,207,192,.55);
+    --stamp-bg:#14110B;--stamp-fg:#FBF7EF;--glow:rgba(196,153,62,.10);
+    --dt-v-bg:rgba(88,160,88,.13);--dt-v-fg:#2a6b2a;--dt-v-bd:rgba(88,160,88,.28);
+    --dt-vg-bg:rgba(60,130,180,.10);--dt-vg-fg:#1e5f80;--dt-vg-bd:rgba(60,130,180,.22);
+    --dt-sc-bg:rgba(190,120,40,.10);--dt-sc-fg:#7a4510;--dt-sc-bd:rgba(190,120,40,.22);
+  ` : `
+    --shell:#0A0806;--paper:#15120C;--warm:#1D1911;
+    --ink:#F2EBDD;--ink-soft:#DED5C3;--ink-dim:#B3A88F;--muted:#948872;
+    --gold:#D3AC5B;--gold-soft:#8E7539;--hairline:#332C1F;--hairline-soft:rgba(120,102,68,.32);
+    --stamp-bg:#F2EBDD;--stamp-fg:#15120C;--glow:rgba(211,172,91,.14);
+    --dt-v-bg:rgba(120,190,120,.12);--dt-v-fg:#96c996;--dt-v-bd:rgba(120,190,120,.3);
+    --dt-vg-bg:rgba(110,170,215,.12);--dt-vg-fg:#8fc0e0;--dt-vg-bd:rgba(110,170,215,.28);
+    --dt-sc-bg:rgba(220,160,80,.12);--dt-sc-fg:#e0b271;--dt-sc-bd:rgba(220,160,80,.28);
+  `;
+
 
   const timelineHTML = pasos.map((p, i) => `
     <div class="tl-row">
@@ -4918,7 +4963,7 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   const tcSecNum   = hasAdicionales ? 'V'   : 'IV';
 
   const metaHTML = [
-    d.tipoEvento ? { k: 'Evento',    v: esc(d.tipoEvento) + (d.agasajado ? ' · ' + esc(d.agasajado) : '') } : null,
+    d.tipoEvento ? { k: 'Evento',    v: esc(tipoEventoLabel(d)) + (d.agasajado ? ' · ' + esc(d.agasajado) : '') } : null,
     d.fecha      ? { k: 'Fecha',     v: esc(fechaFmt) }   : null,
     d.turno      ? { k: 'Turno',     v: esc(d.turno) }    : null,
     { k: 'Invitados', v: d.invitados + ' personas' + (infantilStr ? ' · Infantil: ' + infantilStr : '') },
@@ -4941,10 +4986,14 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-font-smoothing:antialiased}
 :root{${pdfVars}}
-body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);padding:24px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.page{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto 24px;padding:18mm 18mm 16mm;position:relative;page-break-after:always;display:flex;flex-direction:column}
-.page::before{content:'';position:absolute;top:0;left:0;right:0;height:60mm;background:radial-gradient(90% 100% at 50% 0%,var(--glow),transparent 70%);pointer-events:none}
-@page{size:A4;margin:0}
+body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);padding:14mm 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto 14mm;padding:18mm 18mm 18mm;position:relative;page-break-after:always;display:flex;flex-direction:column;box-shadow:0 10px 34px rgba(0,0,0,.22)}
+.page:not(.cover)::before{content:'';position:absolute;top:0;left:0;right:0;height:60mm;background:radial-gradient(90% 100% at 50% 0%,var(--glow),transparent 70%);pointer-events:none}
+/* Márgenes de impresión reales: si una sección se pasa de largo y el navegador
+   la parte, la continuación igual entra con margen. Antes el @page tenía margen
+   cero y el sobrante quedaba pegado al borde de la hoja siguiente. */
+@page{size:A4;margin:18mm 18mm 16mm}
+@page portada{margin:0}
 /* PORTADA */
 .cover{padding:0;display:flex;flex-direction:column}
 .cover::before{content:'';position:absolute;top:9mm;right:9mm;bottom:9mm;left:9mm;border:.5px solid rgba(157,126,60,.38);pointer-events:none;z-index:1}
@@ -4953,7 +5002,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 .cov-tag{font-size:9px;letter-spacing:.4em;color:var(--gold);text-transform:uppercase;margin-bottom:16px}
 .cov-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:26px;color:var(--ink);margin-top:14px;display:block}
 .cov-num{font-size:9px;letter-spacing:.26em;color:var(--muted);text-transform:uppercase;margin-top:6px}
-.cov-photo{margin:12mm 20mm 0;height:72mm;background-size:cover;background-position:center;background-color:var(--warm);position:relative;overflow:hidden}
+.cov-photo{margin:11mm 20mm 0;height:88mm;background-size:cover;background-position:center 38%;background-color:var(--warm);position:relative;overflow:hidden}
 .cov-photo::after{content:'';position:absolute;inset:6px;border:1px solid rgba(255,240,205,.32)}
 .cov-client{margin:10mm 20mm 0;text-align:center;padding-bottom:4mm}
 .cov-label{font-size:9px;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
@@ -5079,7 +5128,16 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
    así lo que se ve en la vista previa es exactamente lo que se envía. */
 @media print{
   body{background:var(--paper);padding:0;margin:0}
-  .page{margin:0;box-shadow:none}
+  /* En papel las hojas dejan de tener geometría propia: manda el @page.
+     Así una sección larga fluye a la hoja siguiente con sus márgenes y sin
+     que se corte nada, en vez de desbordar una caja de 297mm fija. */
+  .page{width:auto;min-height:0;height:auto;padding:0;margin:0;box-shadow:none;display:block;break-after:page;page-break-after:always}
+  .page:last-child{break-after:auto;page-break-after:avoid}
+  .page:not(.cover)::before{display:none}
+  .pfoot{margin-top:10mm}
+  .stitle:first-of-type{margin-top:0}
+  /* La portada sí conserva la hoja completa a sangre */
+  .cover{page:portada;width:210mm;height:297mm;padding:0;margin:0;display:flex}
 }
 </style>
 </head>
@@ -5099,7 +5157,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
     <div class="cov-num">Emitida: ${esc(hoy)}</div>
   </div>
 
-  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.38),rgba(26,26,26,.06)),url('${base}/${portadaImgFor(d.tipoEvento)}'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
+  <div class="cov-photo" style="background-position:${posPortada};background-image:linear-gradient(0deg,rgba(26,26,26,.30),rgba(26,26,26,.04)),url('${base}/${imgPortada}')"></div>
 
   <div class="cov-client">
     <div class="cov-label">Preparada para</div>
@@ -5122,7 +5180,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 
   <div class="salut">Estimado/a${d.nombre ? ' ' + esc(d.nombre) + ',' : ','}</div>
   <div class="bcopy">
-    <p>Ponemos a su consideración la presente propuesta${d.tipoEvento ? ' para el evento de <strong>' + esc(d.tipoEvento) + '</strong>' : ' para su celebración'}${d.fecha ? ', a realizarse el <strong>' + esc(fechaFmt) + '</strong>' : ''}${d.espacio ? ' en nuestro espacio <strong>' + esc(d.espacio) + '</strong>' : ' en nuestro salón'}${d.invitados ? ', con una asistencia de <strong>' + d.invitados + ' invitados</strong>' : ''}.</p>
+    <p>Ponemos a su consideración la presente propuesta${d.tipoEvento ? ' para el evento de <strong>' + esc(tipoEventoLabel(d)) + '</strong>' : ' para su celebración'}${d.fecha ? ', a realizarse el <strong>' + esc(fechaFmt) + '</strong>' : ''}${d.espacio ? ' en nuestro espacio <strong>' + esc(d.espacio) + '</strong>' : ' en nuestro salón'}${d.invitados ? ', con una asistencia de <strong>' + d.invitados + ' invitados</strong>' : ''}.</p>
     <p>A continuación encontrará el recorrido de su ${momento}, el detalle de la propuesta gastronómica y los adicionales seleccionados.</p>
   </div>
 
@@ -5323,6 +5381,8 @@ ${tipo === 'contrato' ? (() => {
       const sinAgasajado = ['Corporativo', 'Otro'];
       const agRow = $('agasajado-row');
       if (agRow) agRow.style.display = sinAgasajado.includes(card.dataset.value) ? 'none' : '';
+      const cumpleRow = $('cumple-anios-row');
+      if (cumpleRow) cumpleRow.style.display = card.dataset.value === 'Cumpleaños' ? '' : 'none';
     });
   });
 

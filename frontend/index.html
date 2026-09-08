@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260908prop7">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260908prop7">
+  <link rel="stylesheet" href="css/style.css?v=20260908prop11">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260908prop11">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#8f2e4d">
@@ -1272,7 +1272,7 @@
       <div id="propuesta-preform" class="propuesta-preform hidden">
         <div class="preform-stage" aria-hidden="true">
           <div class="preform-photo" style="background-image:url('img/propuesta/salon.jpg.jpeg')"></div>
-          <div class="preform-photo" style="background-image:url('img/propuesta/jardin.jpeg')"></div>
+          <div class="preform-photo" style="background-image:url('img/propuesta/jardin-espacio.webp')"></div>
           <div class="preform-photo" style="background-image:url('img/propuesta/mesa-elegante.jpeg')"></div>
           <div class="preform-photo" style="background-image:url('img/propuesta/fiesta.jpeg')"></div>
         </div>
@@ -1367,6 +1367,13 @@
             <label>¿A quién festejamos?</label>
             <input type="text" id="prop-agasajado" placeholder="Nombre..." class="propuesta-input">
           </div>
+          <div class="propuesta-field-row" id="cumple-anios-row" style="display:none">
+            <label>¿Qué cumpleaños es?</label>
+            <div class="cumple-anios-wrap">
+              <input type="number" id="prop-cumple-anios" min="1" max="120" placeholder="50" class="propuesta-input">
+              <span class="cumple-anios-sufijo">años</span>
+            </div>
+          </div>
         </div>
 
         <!-- Slide 4: La fecha -->
@@ -1422,12 +1429,12 @@
               <span class="espacio-sub">Luces, bolas de espejo, ambiente único</span>
             </div>
             <div class="propuesta-card espacio-card" data-value="Jardín">
-              <div class="espacio-photo" style="background-image:url('img/propuesta/jardin.jpeg')"></div>
+              <div class="espacio-photo" style="background-image:url('img/propuesta/jardin-espacio.webp')"></div>
               <span class="espacio-label">Jardín</span>
               <span class="espacio-sub" id="espacio-jardin-sub">Al aire libre, entre el verde y las luces</span>
             </div>
             <div class="propuesta-card espacio-card" data-value="Combinado">
-              <div class="espacio-photo" style="background-image:url('img/propuesta/portada.jpeg');background-position:center 60%"></div>
+              <div class="espacio-photo" style="background-image:url('img/propuesta/salon.jpg.jpeg');background-position:center 45%"></div>
               <span class="espacio-label">Combinado</span>
               <span class="espacio-sub">Interior y jardín, lo mejor de los dos</span>
             </div>
@@ -1609,7 +1616,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260908prop7"></script>
-  <script src="js/propuesta-ui.js?v=20260908prop7"></script>
+  <script src="js/app.js?v=20260908prop11"></script>
+  <script src="js/propuesta-ui.js?v=20260908prop11"></script>
 </body>
 </html>
