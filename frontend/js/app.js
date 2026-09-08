@@ -3396,25 +3396,56 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;backgroun
 
 /* ===================== PROPUESTA COMERCIAL ===================== */
 
+// `relato` acompaña a cada paso en el entregable: cuenta qué pasa en ese rato
+// del evento, mientras que `desc` dice qué se sirve. No repetir uno en el otro
+// y no prometer detalles de servicio que después haya que sostener.
 const RECORRIDO = {
   Formal: [
-    { nombre: 'Recepción',               desc: 'Bienvenida con canapés fríos, bocados calientes y bruschettas en el jardín' },
-    { nombre: 'Estaciones de bienvenida',desc: 'Estaciones temáticas en vivo a mediados de la recepción, mientras todos ingresan al salón' },
-    { nombre: 'Primer plato',            desc: 'Pastas artesanales con salsas de elaboración propia, servidas a la mesa' },
-    { nombre: 'Plato central',           desc: 'Ave o carne a elección del anfitrión · acompañada de guarnición' },
-    { nombre: 'Torta homenaje',          desc: 'El momento del brindis y el agasajo' },
-    { nombre: 'Mesa de dulces',          desc: 'Pastelería fina y postres individuales sobre mesa principal iluminada' },
-    { nombre: 'Cafetería',               desc: 'Café, té e infusiones para acompañar el cierre dulce' },
-    { nombre: 'Fin de fiesta',           desc: 'Café, pizza, mate — el cierre a su gusto' },
+    { nombre: 'Recepción',               desc: 'Bienvenida con canapés fríos, bocados calientes y bruschettas en el jardín',
+      relato: 'El rato en que los invitados llegan, se saludan y se acomodan.' },
+    { nombre: 'Estaciones de bienvenida',desc: 'Estaciones temáticas en vivo a mediados de la recepción, mientras todos ingresan al salón',
+      relato: 'Se cocina a la vista, con la recepción ya empezada.' },
+    { nombre: 'Primer plato',            desc: 'Pastas artesanales con salsas de elaboración propia, servidas a la mesa',
+      relato: 'Acá todos pasan a la mesa.' },
+    { nombre: 'Plato central',           desc: 'Ave o carne a elección del anfitrión · acompañada de guarnición',
+      relato: 'La opción la definen ustedes antes del evento.' },
+    { nombre: 'Torta homenaje',          desc: 'El momento del brindis y el agasajo',
+      relato: 'El brindis y el saludo al agasajado.' },
+    { nombre: 'Mesa de dulces',          desc: 'Pastelería fina y postres individuales sobre mesa principal iluminada',
+      relato: 'Se abre la mesa principal y la fiesta cambia de ritmo.' },
+    { nombre: 'Cafetería',               desc: 'Café, té e infusiones para acompañar el cierre dulce',
+      relato: 'Infusiones para acompañar el tramo final.' },
+    { nombre: 'Fin de fiesta',           desc: 'Café, pizza, mate — el cierre a su gusto',
+      relato: 'Algo caliente para los que se quedan hasta el final.' },
   ],
   Americano: [
-    { nombre: 'Recepción',               desc: 'Bienvenida con canapés fríos, bocados calientes y bruschettas en el jardín' },
-    { nombre: 'Islas en vivo',           desc: 'El plato central: dos estaciones temáticas en vivo, abundantes y contundentes, a elección del anfitrión' },
-    { nombre: 'Torta homenaje',          desc: 'El momento del brindis y el agasajo' },
-    { nombre: 'Postres',                 desc: 'Dulces de elaboración propia para seguir disfrutando' },
-    { nombre: 'Cafetería',               desc: 'Café, té e infusiones para cerrar con calma' },
-    { nombre: 'Fin de fiesta',           desc: 'Café, pizza, mate — el cierre a su gusto' },
+    { nombre: 'Recepción',               desc: 'Bienvenida con canapés fríos, bocados calientes y bruschettas en el jardín',
+      relato: 'El rato en que los invitados llegan, se saludan y se acomodan.' },
+    { nombre: 'Islas en vivo',           desc: 'El plato central: dos estaciones temáticas en vivo, abundantes y contundentes, a elección del anfitrión',
+      relato: 'Cada invitado se sirve cuando quiere, sin horario de mesa.' },
+    { nombre: 'Torta homenaje',          desc: 'El momento del brindis y el agasajo',
+      relato: 'El brindis y el saludo al agasajado.' },
+    { nombre: 'Postres',                 desc: 'Dulces de elaboración propia para seguir disfrutando',
+      relato: 'Lo dulce llega sin interrumpir la pista.' },
+    { nombre: 'Cafetería',               desc: 'Café, té e infusiones para cerrar con calma',
+      relato: 'Infusiones para acompañar el tramo final.' },
+    { nombre: 'Fin de fiesta',           desc: 'Café, pizza, mate — el cierre a su gusto',
+      relato: 'Algo caliente para los que se quedan hasta el final.' },
   ]
+};
+
+// Cada adicional elegido se presenta con una línea: qué es, sin sumarle
+// detalles de servicio inventados.
+const ADICIONALES_RELATO = {
+  'Candy Bar':                      'Mesa de golosinas para picar durante la fiesta.',
+  'Diversos Shows':                 'Magia, danza, acróbatas o humor. El número se define según la temática.',
+  'Cabina de Instagram':            'Un sector ambientado para las fotos de los invitados.',
+  'Cabina de Glitter':              'Brillos para quien quiera sumarse.',
+  'Cabina de Fotos':                'Cabina de fotos a disposición de los invitados.',
+  'Robot de Luces':                 'Un personaje luminoso que recorre el salón y la pista.',
+  'Música & Entretenimiento':       'DJ, bandas en vivo o cuarteto, según lo que prefieran.',
+  'Cotillón Premium':               'Gorros, antifaces, serpentinas y accesorios para la pista.',
+  'Cotillón Premium Personalizado': 'Lo anterior, con temática a medida. Se coordina con nuestra decoradora.',
 };
 
 function savePropuestaLocal(key, data) {
@@ -4789,6 +4820,7 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
       </div>
       <div class="tl-body">
         <div class="tl-name">${esc(p.nombre)}</div>
+        ${p.relato ? `<div class="tl-relato">${esc(p.relato)}</div>` : ''}
         <div class="tl-desc">${esc(p.desc)}</div>
       </div>
     </div>`).join('');
@@ -4938,7 +4970,12 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   ];
   const adicGrupos = ADIC_GRUPOS.map(g => {
     const found = (d.adicionales||[]).filter(a => g.items.includes(a));
-    return found.length ? `<div class="add-group-label">${esc(g.label)}</div><div class="tags-wrap">${found.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div>` : '';
+    if (!found.length) return '';
+    const filas = found.map(a => {
+      const linea = ADICIONALES_RELATO[a];
+      return `<div class="add-item"><span class="add-name">${esc(a)}</span>${linea ? `<span class="add-desc">${esc(linea)}</span>` : ''}</div>`;
+    }).join('');
+    return `<div class="add-group-label">${esc(g.label)}</div><div class="add-list">${filas}</div>`;
   }).join('');
   const hasAdicionales = !!(d.adicionales||[]).length;
 
@@ -5006,6 +5043,15 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 .ph-logo::after{content:'EVENTOS';font-family:'Inter',sans-serif;font-size:3px;color:var(--stamp-fg);opacity:.72;letter-spacing:.35em;margin-top:2px}
 .ph-folio{font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
 .salut{font-family:'Cormorant Garamond',serif;font-size:19px;font-style:italic;margin-bottom:10px}
+/* Bajada de sección: una línea, en itálica, apenas más clara que el cuerpo */
+.sintro{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13px;line-height:1.5;color:var(--ink-dim);margin:-4px 0 9px;max-width:150mm;break-after:avoid;page-break-after:avoid}
+/* Lo que se vive en cada paso, arriba de lo que se sirve */
+.tl-relato{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:12px;line-height:1.4;color:var(--ink-soft);margin-top:1px}
+/* Cada adicional elegido, con su línea */
+.add-list{display:grid;grid-template-columns:1fr 1fr;gap:5px 14px;margin-top:4px}
+.add-item{background:var(--warm);border:1px solid var(--hairline);border-left:2px solid var(--gold);padding:6px 10px;break-inside:avoid;page-break-inside:avoid}
+.add-name{display:block;font-family:'Cormorant Garamond',serif;font-size:13.5px;line-height:1.25;color:var(--ink)}
+.add-desc{display:block;font-family:'Inter',sans-serif;font-size:8.5px;font-style:italic;color:var(--muted);line-height:1.4;margin-top:1px}
 .bcopy{font-size:11.5px;line-height:1.7;color:var(--ink-soft);max-width:155mm}
 .bcopy p+p{margin-top:7px}
 .pbody>.stitle:first-child{margin-top:0}
@@ -5159,10 +5205,11 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
     <div class="ph-folio">Propuesta · ${esc(d.nombre || d.tipoEvento || 'evento')} · ${esc(fechaFmt)}</div>
   </div>
 
-  <div class="salut">Estimado/a${d.nombre ? ' ' + esc(d.nombre) + ',' : ','}</div>
+  <div class="salut">${d.nombre ? esc(d.nombre) + ',' : 'Ante todo, gracias.'}</div>
   <div class="bcopy">
-    <p>Ponemos a su consideración la presente propuesta${d.tipoEvento ? ' para el evento de <strong>' + esc(tipoEventoLabel(d)) + '</strong>' : ' para su celebración'}${d.fecha ? ', a realizarse el <strong>' + esc(fechaFmt) + '</strong>' : ''}${d.espacio ? ' en nuestro espacio <strong>' + esc(d.espacio) + '</strong>' : ' en nuestro salón'}${d.invitados ? ', con una asistencia de <strong>' + d.invitados + ' invitados</strong>' : ''}.</p>
-    <p>A continuación encontrará el recorrido de su ${momento}, el detalle de la propuesta gastronómica y los adicionales seleccionados.</p>
+    <p>Gracias por acercarse a Joliet. Hace más de treinta años que recibimos casamientos, fiestas de quince, cumpleaños, bautismos y comuniones en Ciudad Tesei. En ese tiempo aprendimos que cada familia llega con una idea propia, y que el trabajo empieza por entenderla.</p>
+    <p>Lo que sigue es el detalle de ${esteMomento} que armó junto a nosotros${d.tipoEvento ? ': <strong>' + esc(tipoEventoLabel(d)) + '</strong>' : ''}${d.fecha ? ', el <strong>' + esc(fechaFmt) + '</strong>' : ''}${d.espacio ? ' en <strong>' + esc(d.espacio) + '</strong>' : ''}${d.invitados ? ', para <strong>' + d.invitados + ' invitados</strong>' : ''}. Encontrará el recorrido del evento, la propuesta gastronómica y los adicionales que eligió.</p>
+    <p>Es un punto de partida: se ajusta todo lo que haga falta hasta que sea lo que tienen en mente. Esperamos que sea de su agrado.</p>
   </div>
 
   <div class="stitle" style="margin-top:9mm">
@@ -5170,6 +5217,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
     <span class="sname">El recorrido de su ${momento}</span>
     <span class="srule"></span>
   </div>
+  <p class="sintro">Cómo se ordena el evento, de la bienvenida al cierre.</p>
   <div class="tl">${timelineHTML}</div>
 
   <div class="stitle">
@@ -5177,6 +5225,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
     <span class="sname">La propuesta gastronómica</span>
     <span class="srule"></span>
   </div>
+  <p class="sintro">Todo lo que se sirve, en el orden en que llega a la mesa.</p>
   <div class="dt-legend"><span><span class="dt-v">V</span>&nbsp;Vegetariano</span><span><span class="dt-vg">Vg</span>&nbsp;Vegano</span><span><span class="dt-sc">SC</span>&nbsp;Sin TACC</span></div>
   <div class="mb"><div class="mb-head"><span class="mb-roman">i</span><span class="mb-name">Recepción</span><span class="mb-line"></span></div>
     <div class="mb-sub">Canapés fríos, bruschettas, bocados calientes y mini empanaditas</div>
@@ -5192,6 +5241,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
     <span class="sname">Adicionales elegidos</span>
     <span class="srule"></span>
   </div>
+  <p class="sintro">Lo que sumó por fuera de la base, para que la fiesta se parezca a ustedes.</p>
   ${adicGrupos}` : ''}
 
   <div class="stitle">
@@ -5199,6 +5249,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
     <span class="sname">La experiencia Joliet</span>
     <span class="srule"></span>
   </div>
+  <p class="sintro">Va incluido en todos los eventos, sin que haga falta pedirlo.</p>
   <div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.04em">Cada evento Joliet incluye, sin excepción</div>
   <div class="svc-grid">
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Vajilla de porcelana y plato de sitio</span></div>
