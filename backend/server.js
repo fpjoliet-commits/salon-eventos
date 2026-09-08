@@ -536,6 +536,28 @@ app.post('/api/stock-actual/mover', auth, superAdminOnly, async (req, res) => {
   }
 });
 
+// Editar un ítem por id (nombre / unidad / grupo) desde stock o desde el pedido.
+// Va por id y no por rowIndex porque el frontend no siempre tiene la fila a mano.
+app.put('/api/catalogo-items/por-id/:id', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { nombre, unidad, categoria } = req.body;
+    await sheets.editarItemCatalogo(req.params.id, { nombre, unidad, categoria });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Baja definitiva de un ítem (sale del catálogo y del stock).
+app.delete('/api/catalogo-items/por-id/:id', auth, superAdminOnly, async (req, res) => {
+  try {
+    await sheets.eliminarItemCatalogo(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.delete('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, res) => {
   try {
     await sheets.deleteCatalogoItem(parseInt(req.params.rowIndex));

@@ -1786,21 +1786,6 @@
   to   { transform: translate3d(-2.5vw,-4vh,0); opacity: .95; }
 }
 
-/* Grano finísimo: le saca el plástico al degradado */
-.amb-grain {
-  position: absolute;
-  inset: -50%;
-  opacity: .045;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: ambGrain 1.1s steps(3) infinite;
-}
-@keyframes ambGrain {
-  0%   { transform: translate3d(0,0,0); }
-  33%  { transform: translate3d(-2%,1%,0); }
-  66%  { transform: translate3d(1%,-2%,0); }
-  100% { transform: translate3d(0,0,0); }
-}
-
 .amb-vignette {
   position: absolute;
   inset: 0;
@@ -2217,7 +2202,7 @@
 /* ---------- 12. Pantallas chicas: el movimiento se modera ---------- */
 @media (max-width: 720px) {
   .amb-orb { filter: blur(44px); opacity: .38; }
-  .amb-grain, .amb-sheen { display: none; }
+  .amb-sheen { display: none; }
   .propuesta-slide.active { animation-duration: 420ms; }
 }
 
@@ -2371,7 +2356,6 @@
   }
 
   /* El fondo se aliviana: las tablets no regalan GPU */
-  .amb-grain { display: none; }
   .amb-orb { filter: blur(50px); }
 
   /* Pista de que se puede deslizar */
@@ -2444,13 +2428,10 @@
 /* Paletas por tipo de evento: el clima cambia, la elegancia no */
 .sc-rosa    { color: rgba(240, 196, 190, .62); }
 .sc-oro     { color: rgba(255, 219, 150, .78); }
-.sc-fiesta  { color: rgba(226, 168, 200, .5); }
 .sc-nube    { color: rgba(238, 236, 226, .5); }
 .sc-confeti { color: rgba(255, 214, 138, .7); }
 .sc-sobrio  { color: rgba(198, 206, 220, .38); }
 .sc-item:nth-child(3n)   { color: rgba(212, 171, 82, .6); }
-.sc-item.sc-fiesta:nth-child(2n) { color: rgba(150, 198, 226, .45); }
-.sc-item.sc-fiesta:nth-child(3n) { color: rgba(240, 206, 140, .5); }
 .sc-item.sc-confeti:nth-child(2n){ color: rgba(232, 234, 240, .55); }
 
 /* ---------- Sol y luna (paso de la fecha) ---------- */
@@ -2624,4 +2605,84 @@
 
 @media (prefers-reduced-motion: reduce) {
   .kiosco-scenery { display: none; }
+}
+
+/* ===================== ESTADO DE LA FECHA ===================== */
+/* Se lee de reojo mientras se habla con el cliente: color + una línea. */
+.fecha-estado {
+  margin-top: 10px;
+  min-height: 18px;
+  font-size: 12.5px;
+  letter-spacing: .02em;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .3s, transform .3s var(--ease-out-soft), color .3s;
+}
+.fecha-estado.libre,
+.fecha-estado.aviso,
+.fecha-estado.ocupada { opacity: 1; transform: none; }
+.fecha-estado::before {
+  content: '';
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.fecha-estado.libre   { color: #8fca9a; }
+.fecha-estado.libre::before   { background: #6fbf85; box-shadow: 0 0 10px rgba(111,191,133,.7); }
+.fecha-estado.aviso   { color: var(--gold-bright); }
+.fecha-estado.aviso::before   { background: var(--gold); box-shadow: 0 0 10px rgba(196,153,62,.7); }
+.fecha-estado.ocupada { color: #e8977f; }
+.fecha-estado.ocupada::before { background: #d9694a; box-shadow: 0 0 10px rgba(217,105,74,.75); }
+.fecha-estado.ocupada { animation: fechaOcupada .5s var(--ease-spring); }
+@keyframes fechaOcupada {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  60%      { transform: translateX(3px); }
+}
+
+/* ===================== BORRADOR A MEDIO ARMAR ===================== */
+.preform-draft {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: rgba(196,153,62,.1);
+  border: 1px solid rgba(196,153,62,.32);
+  border-radius: 12px;
+  padding: 13px 16px;
+  text-align: left;
+}
+.preform-draft .pd-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: rgba(255,255,255,.62);
+}
+.preform-draft .pd-text strong {
+  color: var(--gold-bright);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.preform-draft .pd-acciones { display: flex; align-items: center; gap: 10px; }
+.preform-draft .btn-propuesta-secondary { padding: 9px 18px; font-size: 13px; }
+.pd-descartar {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.38);
+  font-family: 'DM Sans', inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 8px 4px;
+  transition: color .2s;
+}
+.pd-descartar:hover { color: rgba(255,255,255,.75); }
+@media (hover: none), (pointer: coarse) {
+  .pd-descartar { padding: 12px 8px; font-size: 14px; }
 }

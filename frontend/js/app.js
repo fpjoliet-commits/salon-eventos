@@ -3553,6 +3553,8 @@ function openPropuestaPreForm() {
   const navEl = document.querySelector('.propuesta-nav');
   if (slidesEl) slidesEl.style.display = 'none';
   if (navEl) navEl.style.display = 'none';
+  mostrarBorradorPendiente();
+  preloadPropuestaImgs();
 }
 
 function startPropuestaSlides() {
@@ -3565,6 +3567,7 @@ function startPropuestaSlides() {
   propuestaState.data.nombre = $('prop-contacto-nombre')?.value?.trim() || '';
   propuestaState.data.telefono = $('prop-contacto-telefono')?.value?.trim() || '';
   propuestaState.data.gmail = $('prop-contacto-gmail')?.value?.trim() || '';
+  clearPropuestaDraft();
   hideEl($('propuesta-preform'));
   const slidesEl = document.querySelector('.propuesta-slides-container');
   const navEl = document.querySelector('.propuesta-nav');
@@ -3800,7 +3803,8 @@ function renderPropuestaTab(cliente) {
   }
 }
 
-function startPropuestaWithSavedState(cliente, saved) {
+function startPropuestaWithSavedState(cliente, saved, opt = {}) {
+  const { navegar = true, slide = 1 } = opt;
   Object.assign(propuestaState.data, saved);
 
   document.querySelectorAll('#estilo-cards .estilo-fork-card').forEach(c =>
@@ -3831,19 +3835,23 @@ function startPropuestaWithSavedState(cliente, saved) {
     cb.checked = (saved.adicionales || []).includes(cb.value);
   });
 
-  hideEl($('modal-overlay'));
-  navigateTo('propuesta');
-  setTimeout(() => {
+  const arrancar = () => {
     hideEl($('propuesta-preform'));
     const slidesEl = document.querySelector('.propuesta-slides-container');
     const navEl = document.querySelector('.propuesta-nav');
     if (slidesEl) slidesEl.style.display = '';
     if (navEl) navEl.style.display = '';
     buildPropuestaDots();
-    goToPropuestaSlide(1);
+    goToPropuestaSlide(slide);
     actualizarBtnGuardar();
     updatePortadaImage();
-  }, 60);
+  };
+
+  if (!navegar) { arrancar(); return; }
+
+  hideEl($('modal-overlay'));
+  navigateTo('propuesta');
+  setTimeout(arrancar, 60);
 }
 
 function buildRecorrido() {
@@ -3924,6 +3932,9 @@ function goToPropuestaSlide(n) {
   applyMomentoTheme();
   window.syncPropuestaGrupos?.();
   window.updatePropuestaScenery?.();
+  readPropuestaData();
+  savePropuestaDraft();
+  if (n === 4) checkFechaDisponible();
   if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
   if (n === 9) buildGastroSlide();
@@ -3961,6 +3972,121 @@ function updatePortadaImage() {
   });
 }
 
+/* ===== ¿Esa fecha está libre? =====
+   Se consulta con el cliente sentado enfrente: prometer una fecha que ya
+   está tomada es el peor error posible. Nunca se muestran nombres de otros
+   clientes en pantalla — el cliente está mirando. */
+function checkFechaDisponible() {
+  const el = $('fecha-estado');
+  if (!el) return;
+  const fecha = $('prop-fecha')?.value;
+  if (!fecha) { el.textContent = ''; el.className = 'fecha-estado'; return; }
+
+  // Si todavía no se cargaron los clientes, no afirmamos nada:
+  // decir "disponible" sin haber mirado la agenda sería peor que callarse
+  if (!Array.isArray(allClientes) || !allClientes.length) {
+    el.textContent = ''; el.className = 'fecha-estado'; return;
+  }
+
+  const turno = propuestaState.data.turno;
+  const propioId = propuestaState.data.clienteId;
+  const mismoDia = (allClientes || []).filter(c =>
+    c.fechaEvento === fecha &&
+    c.estado !== 'Cancelado' &&
+    !(propioId && c.id === propioId));
+
+  const firmes   = mismoDia.filter(c => c.estado === 'Confirmado' || c.estado === 'Realizado');
+  const abiertas = mismoDia.filter(c => !firmes.includes(c));
+  const mismoTurno = arr => !turno ? arr : arr.filter(c => c.turno === turno);
+
+  let clase = 'libre', texto = 'Fecha disponible';
+
+  if (mismoTurno(firmes).length) {
+    clase = 'ocupada';
+    texto = turno ? `Esa fecha ya está reservada en el turno ${turno.toLowerCase()}`
+                  : 'Esa fecha ya tiene un evento reservado';
+  } else if (firmes.length) {
+    clase = 'aviso';
+    texto = 'Ese día ya hay un evento reservado en otro turno';
+  } else if (mismoTurno(abiertas).length) {
+    clase = 'aviso';
+    texto = abiertas.length > 1
+      ? 'Hay otras consultas abiertas para esa misma fecha'
+      : 'Hay otra consulta abierta para esa misma fecha';
+  } else if (abiertas.length) {
+    clase = 'aviso';
+    texto = 'Hay una consulta abierta para ese día en otro turno';
+  }
+
+  el.className = 'fecha-estado ' + clase;
+  el.textContent = texto;
+}
+
+/* ===== Borrador: que no se pierda lo armado =====
+   La propuesta se arma en vivo y lleva su tiempo. Si se cierra sin querer,
+   se recarga la página o se corta la luz, todo eso se perdía salvo que el
+   cliente ya existiera en el sistema. */
+const PROP_DRAFT_KEY = 'prop_draft';
+
+function savePropuestaDraft() {
+  const d = propuestaState.data;
+  // Un borrador vacío no es un borrador
+  if (!d.tipoEvento && !d.fecha && !d.estilo && !d.nombre) return;
+  try {
+    localStorage.setItem(PROP_DRAFT_KEY, JSON.stringify({
+      ts: Date.now(),
+      slide: propuestaState.current,
+      data: { ...d }
+    }));
+  } catch {}
+}
+
+function readPropuestaDraft() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PROP_DRAFT_KEY));
+    if (!raw || !raw.data) return null;
+    // Después de dos días ya no es "lo que estábamos armando"
+    if (Date.now() - (raw.ts || 0) > 48 * 3600 * 1000) return null;
+    return raw;
+  } catch { return null; }
+}
+
+function clearPropuestaDraft() {
+  try { localStorage.removeItem(PROP_DRAFT_KEY); } catch {}
+}
+
+function mostrarBorradorPendiente() {
+  const box = $('preform-draft');
+  if (!box) return;
+  const draft = readPropuestaDraft();
+  if (!draft) { box.classList.add('hidden'); return; }
+
+  const d = draft.data;
+  const partes = [
+    d.nombre || null,
+    d.tipoEvento || null,
+    d.fecha ? formatDate(d.fecha) : null,
+  ].filter(Boolean);
+  const det = $('preform-draft-detalle');
+  if (det) det.textContent = partes.length ? partes.join(' · ') : 'Sin datos cargados';
+  box.classList.remove('hidden');
+}
+
+/* ===== Precarga de fotos =====
+   Las fotos son de fondo: sin precargar, la primera vez que se llega a un
+   paso la imagen aparece medio segundo después. Delante del cliente se nota. */
+let propuestaImgsPrecargadas = false;
+function preloadPropuestaImgs() {
+  if (propuestaImgsPrecargadas) return;
+  propuestaImgsPrecargadas = true;
+  ['salon.jpg.jpeg', 'jardin.jpeg', 'mesa-elegante.jpeg', 'fiesta.jpeg',
+   'estilo-formal.jpg', 'estilo-americano.jpg', 'portada.jpeg', 'torta.jpg',
+   'shows.jpg', 'cotilon-personalizado.jpg'].forEach(f => {
+    const img = new Image();
+    img.src = 'img/propuesta/' + f;
+  });
+}
+
 function readPropuestaData() {
   const d = propuestaState.data;
   const g = id => $(id)?.value?.trim() || '';
@@ -3981,10 +4107,14 @@ function readPropuestaData() {
   document.querySelectorAll('#view-propuesta .adicionales-grid input[type="checkbox"]:checked').forEach(cb => {
     d.adicionales.push(cb.value);
   });
-  d.gastroAdicionales = [];
-  document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
-    d.gastroAdicionales.push(cb.value);
-  });
+  // Solo si el paso de gastronomía está construido: si no, estaríamos
+  // borrando lo elegido antes de que exista el HTML donde leerlo
+  if (document.querySelector('#gastro-slide-content input')) {
+    d.gastroAdicionales = [];
+    document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
+      d.gastroAdicionales.push(cb.value);
+    });
+  }
   const pp = (sel) => { const a = []; document.querySelectorAll(sel + ' input:checked:not([disabled])').forEach(cb => a.push(cb.value)); return a; };
   if ($('gastro-plato-central')) { d.pastasSeleccionadas = pp('#gastro-pasta-list'); d.pastasGourmetSeleccionadas = pp('#gastro-pasta-gourmet-list'); d.salsasSeleccionadas = pp('#gastro-salsa-list'); d.salsasGourmetSeleccionadas = pp('#gastro-salsa-gourmet-list'); d.platoCentral = document.querySelector('#gastro-plato-central input:checked')?.value || ''; d.platoCentralCarne = []; }
   d.pedidos = $('prop-pedidos')?.value?.trim() || '';
@@ -5167,6 +5297,7 @@ ${tipo === 'contrato' ? (() => {
     if (propuestaState.data.clienteId) {
       savePropuestaLocal(propuestaState.data.clienteId, { ...propuestaState.data });
     }
+    savePropuestaDraft();
     navigateTo('clientes');
   });
 
@@ -5202,6 +5333,7 @@ ${tipo === 'contrato' ? (() => {
       card.classList.add('selected');
       propuestaState.data.turno = card.dataset.value;
       applyMomentoTheme();
+      checkFechaDisponible();
     });
   });
 
@@ -5236,6 +5368,20 @@ ${tipo === 'contrato' ? (() => {
   $('prop-menu-infantil')?.addEventListener('change', e => {
     propuestaState.data.menuInfantil = e.target.checked;
     const row = $('infantil-count-row'); if (row) row.style.display = e.target.checked ? '' : 'none';
+  });
+
+  $('prop-fecha')?.addEventListener('change', checkFechaDisponible);
+  $('prop-fecha')?.addEventListener('input', checkFechaDisponible);
+
+  // Borrador a medio armar: retomar o descartar
+  $('btn-draft-retomar')?.addEventListener('click', () => {
+    const draft = readPropuestaDraft();
+    if (!draft) { $('preform-draft')?.classList.add('hidden'); return; }
+    startPropuestaWithSavedState(null, draft.data, { navegar: false, slide: draft.slide || 1 });
+  });
+  $('btn-draft-descartar')?.addEventListener('click', () => {
+    clearPropuestaDraft();
+    $('preform-draft')?.classList.add('hidden');
   });
 
   $('btn-descargar-pdf')?.addEventListener('click', generatePropuestaPDF);

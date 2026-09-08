@@ -10,24 +10,6 @@ Sistema de gestión de clientes y eventos para un salón de fiestas. App web ful
 - **Deploy:** Render — start command: `node backend/server.js`
 - **Dev local:** `start.bat` o `node backend/server.js` desde la raíz
 
-## Estructura
-
-```
-salon-eventos/
-  backend/
-    server.js          — Express, rutas API, auth JWT
-    sheets.js          — CRUD contra Google Sheets (y modo memoria)
-    verificar-conexion.js
-    .env               — variables locales (no comitear)
-    .env.example       — referencia de variables
-  frontend/
-    index.html         — SPA completa
-    js/app.js          — toda la lógica del cliente
-    css/style.css
-  railway.json
-  start.bat
-```
-
 ## Usuarios del sistema
 
 | Usuario | Rol      | Notas                        |
@@ -36,45 +18,17 @@ salon-eventos/
 | Mariana | operador | Ve calendario también        |
 | Anita   | operador | Sin contraseña en el login   |
 
-## Variables de entorno requeridas
+## Variables de entorno
 
-```
-SPREADSHEET_ID=         — ID de la Google Sheet
-GOOGLE_CREDENTIALS_JSON= — JSON del service account (en Render como var de entorno)
-JWT_SECRET=             — secreto para firmar tokens
-PORT=3001
-PASSWORD_ANITA=
-PASSWORD_MARIANA=
-PASSWORD_FABIO=
-```
-
-En desarrollo local: `backend/credentials.json` (archivo, no variable).
+Ver `backend/.env.example`. En desarrollo local las credenciales de Google van en
+`backend/credentials.json` (archivo, no variable de entorno).
 
 ## Modelo de datos — Google Sheets
 
-### Hoja "Clientes" (columnas A–X)
-`id, estado, cargadoPor, fechaCarga, apellidoNombre, telefono, gmail, redSocial, tipoEvento, formato, fechaEvento, estadoFecha, cantidadInvitados, turno, tipoCliente, exclienteReferencia, exclienteNota, origen, presupuesto, montoPresupuesto, menuInfantil, otrosPedidos, observaciones, proximoSeguimiento`
+Hojas: **Clientes** (columnas A–X), **Ingresos** (A–G), **Restricciones** (A–D).
+El orden exacto de columnas está en `backend/sheets.js`.
 
-Estados posibles: `Consulta | Visita agendada | Por cerrar | Confirmado | Realizado | Cancelado`
-
-### Hoja "Ingresos" (columnas A–G)
-`id, idCliente, tipoIngreso, monto, fecha, formaPago, notas`
-
-### Hoja "Restricciones" (columnas A–D)
-`id, idCliente, tipoRestriccion, cantidad`
-
-## API endpoints
-
-| Método | Ruta | Auth |
-|--------|------|------|
-| POST | `/api/login` | — |
-| GET | `/api/status` | — |
-| GET/POST | `/api/clientes` | auth |
-| PUT | `/api/clientes/:rowIndex` | auth |
-| GET/POST | `/api/ingresos` | auth / admin |
-| GET | `/api/ingresos/totales/:idCliente` | admin |
-| GET/POST | `/api/restricciones` | auth |
-| DELETE | `/api/restricciones/:rowIndex` | auth |
+Estados posibles de un cliente: `Consulta | Visita agendada | Por cerrar | Confirmado | Realizado | Cancelado`
 
 ## Deploy — subir cambios al CRM
 

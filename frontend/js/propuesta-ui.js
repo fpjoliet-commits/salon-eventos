@@ -87,23 +87,6 @@
     if (n !== propuestaState.current) goToPropuestaSlide(n);
   });
 
-  // El fondo sigue apenas al puntero: solo con mouse (en tablet no hay hover
-  // y el efecto costaría GPU sin que nadie lo vea)
-  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  if (!reduce && finePointer) {
-    let raf = null, tx = 0, ty = 0;
-    view.addEventListener('pointermove', e => {
-      tx = (e.clientX / window.innerWidth - .5) * 26;
-      ty = (e.clientY / window.innerHeight - .5) * 18;
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = null;
-        const amb = view.querySelector('.kiosco-ambient');
-        if (amb) amb.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
-      });
-    });
-  }
-
   // ---- Deslizar entre pasos (tablet) ----
   // La presentación se hace muchas veces en tablet: pasar de paso tiene que
   // poder hacerse con el pulgar, no solo con los botones de abajo.
@@ -179,7 +162,6 @@
   // ---- Piezas ----
   const PETALO = `<svg viewBox="0 0 24 24"><path d="M12 2C7 7 4 12 6 17c2 4 8 6 12 3 4-3 4-9 1-13-2-3-5-4-7-5z" fill="currentColor"/></svg>`;
   const DESTELLO = `<svg viewBox="0 0 24 24"><path d="M12 0l2.4 8.2L22 12l-7.6 3.8L12 24l-2.4-8.2L2 12l7.6-3.8z" fill="currentColor"/></svg>`;
-  const GLOBO = `<svg viewBox="0 0 24 32"><ellipse cx="12" cy="11" rx="9" ry="11" fill="currentColor"/><path d="M12 22l-2 3h4z" fill="currentColor" opacity=".8"/><path d="M12 25c2 3-2 4 0 7" stroke="currentColor" stroke-width="1" fill="none" opacity=".5"/></svg>`;
   const CONFETI = `<svg viewBox="0 0 12 20"><rect width="12" height="20" rx="2" fill="currentColor"/></svg>`;
   const HOJA = `<svg viewBox="0 0 24 24"><path d="M22 2C10 3 3 9 3 17c0 2 1 4 2 5 1-8 7-14 15-16-6 4-10 8-12 15 8 1 14-6 14-19z" fill="currentColor"/></svg>`;
   const BURBUJA = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8.5" cy="8.5" r="2.4" fill="currentColor" opacity=".5"/></svg>`;
@@ -295,7 +277,7 @@
     const porEvento = {
       'Boda':        () => field(13, 'sc-fall sc-rosa', PETALO, { size: [16, 34] }),
       'XV años':     () => field(16, 'sc-fall sc-oro',  DESTELLO, { size: [10, 24], dur: [7, 14] }),
-      'Cumpleaños':  () => field(9,  'sc-rise sc-fiesta', GLOBO, { size: [22, 46], dur: [14, 24] }),
+      'Cumpleaños':  () => field(14, 'sc-fall sc-confeti', CONFETI, { size: [9, 18], dur: [7, 13] }),
       'Bautismo':    () => field(11, 'sc-fall sc-nube', PLUMA, { size: [16, 30], dur: [12, 20] }),
       'Comunión':    () => field(11, 'sc-fall sc-nube', HOJA, { size: [14, 26], dur: [12, 20] }),
       'Egresados':   () => field(16, 'sc-fall sc-confeti', CONFETI, { size: [8, 16], dur: [6, 12] }),

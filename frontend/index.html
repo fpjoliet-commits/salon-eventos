@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260908prop6">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260908prop6">
+  <link rel="stylesheet" href="css/style.css?v=20260908prop7">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260908prop7">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#8f2e4d">
@@ -1254,7 +1254,6 @@
         <span class="amb-orb amb-orb-3"></span>
         <span class="amb-sheen"></span>
         <span class="amb-motes"></span>
-        <span class="amb-grain"></span>
         <span class="amb-vignette"></span>
       </div>
 
@@ -1282,6 +1281,16 @@
           <div class="preform-brand">Joliet Eventos</div>
           <h2 class="preform-title">¿Para quién armamos<br>la celebración perfecta?</h2>
           <div class="preform-rule"></div>
+          <div class="preform-draft hidden" id="preform-draft">
+            <div class="pd-text">
+              <strong>Quedó una propuesta a medio armar</strong>
+              <span id="preform-draft-detalle"></span>
+            </div>
+            <div class="pd-acciones">
+              <button type="button" class="btn-propuesta-secondary" id="btn-draft-retomar">Retomar</button>
+              <button type="button" class="pd-descartar" id="btn-draft-descartar">Descartar</button>
+            </div>
+          </div>
           <div class="preform-card">
             <div class="preform-fields">
               <input type="text" id="prop-contacto-nombre" placeholder="Nombre" class="propuesta-input preform-input">
@@ -1367,6 +1376,7 @@
             <div class="propuesta-field-big">
               <label>La fecha</label>
               <input type="date" id="prop-fecha" class="propuesta-input propuesta-input-big">
+              <div class="fecha-estado" id="fecha-estado"></div>
             </div>
             <div class="propuesta-field-big">
               <label>El turno</label>
@@ -1599,7 +1609,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260908prop6"></script>
-  <script src="js/propuesta-ui.js?v=20260908prop6"></script>
+  <script src="js/app.js?v=20260908prop7"></script>
+  <script src="js/propuesta-ui.js?v=20260908prop7"></script>
 </body>
 </html>

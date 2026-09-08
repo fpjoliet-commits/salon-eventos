@@ -1033,7 +1033,13 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
 
 function detectarUnidad(categoria, nombre) {
   const cat = (categoria || '').toLowerCase();
+  const nom = (nombre || '').toLowerCase();
   if (cat.includes('salsas') || cat.includes('salsa')) return 'lt';
+  // Proteínas: la carne se compra por peso (bondiola, picada, bife...); el pollo
+  // relleno ya viene por porción, así que sigue en unidades.
+  if (cat.includes('proteína') || cat.includes('proteina')) {
+    return (nom.includes('pechuga') || nom.includes('pollo')) ? 'und' : 'kg';
+  }
   return 'und';
 }
 
@@ -1090,6 +1096,10 @@ const CATS_DEACTIVATE_ALL = new Set([
   'Salsas Gourmet', 'Primer Plato - Salsas Gourmet',
   // Guarniciones — renombrado a "Guarnición plato central"
   'Guarniciones', 'Plato Central - Guarniciones',
+  // Ave + Carne — fusionadas en una sola categoría "Proteínas"
+  'Plato Central - Ave', 'Plato Central - Carne',
+  // Salsas del plato — renombrada a "Salsa plato", con las opciones del armador
+  'Plato Central - Salsas',
   // Mesa de Dulces — se contrata a un proveedor externo, no se pide en el pedido semanal de cocina
   'Mesa de Dulces',
 ]);
@@ -1181,16 +1191,19 @@ const CATALOGO_INICIAL = [
   { categoria: 'Primer Plato - Salsas', nombre: 'Salsa blanca', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Portobellos y ciboulette', unidad: 'lt' },
   { categoria: 'Primer Plato - Salsas', nombre: 'Queso azul y nuez', unidad: 'lt' },
-  // Plato Central - Ave
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga tradición', unidad: 'und' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga caprese', unidad: 'und' },
-  { categoria: 'Plato Central - Ave', nombre: 'Pechuga doble puerro', unidad: 'und' },
-  // Plato Central - Carne
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Reserva', unidad: 'und' },
-  { categoria: 'Plato Central - Carne', nombre: 'Bife del bosque', unidad: 'und' },
-  { categoria: 'Plato Central - Carne', nombre: 'Lomo Dijon', unidad: 'und' },
-  // Plato Central - Salsas (aparece junto al plato central)
-  { categoria: 'Plato Central - Salsas', nombre: 'Salsa del plato', unidad: 'lt' },
+  // Proteínas (antes separadas en "Plato Central - Ave" y "Plato Central - Carne").
+  // La carne se compra por peso; el pollo ya viene armado por porción, así que va en unidades.
+  { categoria: 'Proteínas', nombre: 'Bife', unidad: 'kg' },
+  { categoria: 'Proteínas', nombre: 'Lomo', unidad: 'kg' },
+  { categoria: 'Proteínas', nombre: 'Pechuga - JyQ', unidad: 'und' },
+  { categoria: 'Proteínas', nombre: 'Pechuga - caprese', unidad: 'und' },
+  { categoria: 'Proteínas', nombre: 'Pechuga - puerro', unidad: 'und' },
+  // Salsa plato (antes "Plato Central - Salsas"): las que ofrece el armador de propuestas
+  { categoria: 'Salsa plato', nombre: 'Cuatro quesos', unidad: 'lt' },
+  { categoria: 'Salsa plato', nombre: 'Crema de almendras', unidad: 'lt' },
+  { categoria: 'Salsa plato', nombre: 'Reducción de Malbec', unidad: 'lt' },
+  { categoria: 'Salsa plato', nombre: 'Hongos de pino', unidad: 'lt' },
+  { categoria: 'Salsa plato', nombre: 'Crema de mostaza Dijon', unidad: 'lt' },
   // Guarnición plato central (antes "Plato Central - Guarniciones")
   { categoria: 'Guarnición plato central', nombre: 'Rosti de papa', unidad: 'und' },
   { categoria: 'Guarnición plato central', nombre: 'Papas a la suiza gratinadas', unidad: 'und' },
@@ -1416,6 +1429,85 @@ async function cambiarCategoriaItem(id, categoria) {
   return { ok: true };
 }
 
+// Editar un ítem del catálogo por id (nombre / unidad / categoría), manteniendo
+// sincronizada la fila equivalente de StockActual para que no queden nombres viejos.
+async function editarItemCatalogo(id, data) {
+  if (!id) throw new Error('id requerido');
+  const campos = {};
+  ['nombre', 'categoria', 'unidad'].forEach(k => {
+    if (data[k] !== undefined && String(data[k]).trim() !== '') campos[k] = String(data[k]).trim();
+  });
+  if (!Object.keys(campos).length) throw new Error('nada para actualizar');
+
+  if (!tieneCredenciales) {
+    const c = memCatalogoItems.find(i => i.id === id);
+    if (c) Object.assign(c, campos);
+    const s = memStockActual.find(x => x.id === id);
+    if (s) Object.assign(s, campos);
+    return { ok: true };
+  }
+  const sheets = getSheets();
+  const [catRes, stkRes] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:A' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:A' }),
+  ]);
+  const catIdx = (catRes.data.values || []).findIndex(r => r[0] === id);
+  const stkIdx = (stkRes.data.values || []).findIndex(r => r[0] === id);
+  const updates = [];
+  if (catIdx !== -1) {
+    const row = catIdx + 2;
+    // CatalogoItems: B categoria, C nombre, E unidad
+    if (campos.categoria !== undefined) updates.push({ range: `CatalogoItems!B${row}`, values: [[campos.categoria]] });
+    if (campos.nombre !== undefined) updates.push({ range: `CatalogoItems!C${row}`, values: [[campos.nombre]] });
+    if (campos.unidad !== undefined) updates.push({ range: `CatalogoItems!E${row}`, values: [[campos.unidad]] });
+  }
+  if (stkIdx !== -1) {
+    const row = stkIdx + 2;
+    // StockActual: B categoria, C nombre, D unidad
+    if (campos.categoria !== undefined) updates.push({ range: `StockActual!B${row}`, values: [[campos.categoria]] });
+    if (campos.nombre !== undefined) updates.push({ range: `StockActual!C${row}`, values: [[campos.nombre]] });
+    if (campos.unidad !== undefined) updates.push({ range: `StockActual!D${row}`, values: [[campos.unidad]] });
+  }
+  if (updates.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { valueInputOption: 'USER_ENTERED', data: updates },
+    });
+  }
+  return { ok: true };
+}
+
+// Baja de un ítem por id: se desactiva en el catálogo y se limpia su fila de stock,
+// para que deje de aparecer tanto en pedidos como en el stock y sus planillas.
+async function eliminarItemCatalogo(id) {
+  if (!id) throw new Error('id requerido');
+  if (!tieneCredenciales) {
+    const c = memCatalogoItems.find(i => i.id === id);
+    if (c) { c.activo = false; c.bajaManual = true; }
+    memStockActual = memStockActual.filter(x => x.id !== id);
+    return { ok: true };
+  }
+  const sheets = getSheets();
+  const [catRes, stkRes] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:A' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:A' }),
+  ]);
+  const catIdx = (catRes.data.values || []).findIndex(r => r[0] === id);
+  const stkIdx = (stkRes.data.values || []).findIndex(r => r[0] === id);
+  const updates = [];
+  // Col D = activo, col F = motivo de la baja. La marca "manual" evita que
+  // sincronizarCatalogoConInicial lo reviva por figurar en el catálogo inicial.
+  if (catIdx !== -1) updates.push({ range: `CatalogoItems!D${catIdx + 2}:F${catIdx + 2}`, values: [['false', '', 'manual']] });
+  if (stkIdx !== -1) updates.push({ range: `StockActual!A${stkIdx + 2}:F${stkIdx + 2}`, values: [['', '', '', '', '', '']] });
+  if (updates.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { valueInputOption: 'USER_ENTERED', data: updates },
+    });
+  }
+  return { ok: true };
+}
+
 // Normaliza strings para comparación tolerante: minúsculas, guiones unificados, espacios comprimidos
 function _normStr(s) {
   return (s || '').replace(/[–—·]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -1424,8 +1516,6 @@ function _normStr(s) {
 // Categorías con lista cerrada de nombres canónicos: cualquier otra variante (vieja, con
 // "relleno:", con "·", con guion, etc.) se desactiva sin necesidad de listar cada caso a mano.
 const CANONICAL_NAMES_BY_CAT_NORM = {
-  [_normStr('Plato Central - Ave')]: new Set(['Pechuga tradición', 'Pechuga caprese', 'Pechuga doble puerro'].map(_normStr)),
-  [_normStr('Plato Central - Carne')]: new Set(['Lomo Reserva', 'Bife del bosque', 'Lomo Dijon'].map(_normStr)),
 };
 
 async function sincronizarCatalogoConInicial() {
@@ -1452,14 +1542,15 @@ async function sincronizarCatalogoConInicial() {
       if (shouldDeactivateItem(item.categoria, item.nombre)) item.activo = false;
     });
     const existingKeys = new Set(memCatalogoItems.map(i => `${i.categoria}||${i.nombre}`));
-    const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`));
+    const bajasManuales = new Set(memCatalogoItems.filter(i => i.bajaManual).map(i => `${i.categoria}||${i.nombre}`));
+    const faltantes = CATALOGO_INICIAL.filter(item => !existingKeys.has(`${item.categoria}||${item.nombre}`) && !bajasManuales.has(`${item.categoria}||${item.nombre}`));
     faltantes.forEach(item => {
       memCatalogoItems.push({ ...item, id: generateId('CAT'), activo: true, rowIndex: memCatalogoItems.length + 2 });
     });
     return { desactivados: 0, agregados: faltantes.length };
   }
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:E' });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:F' });
   const rows = res.data.values || [];
 
   // Desactivar ítems obsoletos (comparación normalizada)
@@ -1479,7 +1570,8 @@ async function sincronizarCatalogoConInicial() {
   const inicialKeys = new Set(CATALOGO_INICIAL.map(item => `${item.categoria}||${item.nombre}`));
   const toReactivate = rows
     .map((r, i) => ({ r, rowIndex: i + 2 }))
-    .filter(({ r }) => r[0] && !_isActivoCell(r[3]) && inicialKeys.has(`${r[1]}||${r[2]}`) && !shouldDeactivateItem(r[1], r[2]));
+    .filter(({ r }) => r[0] && !_isActivoCell(r[3]) && inicialKeys.has(`${r[1]}||${r[2]}`) &&
+      String(r[5] || '').toLowerCase() !== 'manual' && !shouldDeactivateItem(r[1], r[2]));
   if (toReactivate.length) {
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
@@ -1868,6 +1960,7 @@ module.exports = {
   getEmpleados, addEmpleado,
   getEgresos, addEgreso, updateEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,
+  editarItemCatalogo, eliminarItemCatalogo,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
   getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial, sincronizarIngredientesStock,
   initSheets,
