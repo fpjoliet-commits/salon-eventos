@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260827diurno3">
+  <link rel="stylesheet" href="css/style.css?v=20260827diurno4">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#8f2e4d">
@@ -807,8 +807,9 @@
               <input type="text" id="cocina-item-search" class="cocina-item-search" placeholder="🔍 Buscar ítem o categoría (ej: carne, postre, empanada...)">
               <button type="button" id="cocina-colapsar-btn" class="btn btn-secondary btn-sm">⊟ Colapsar todo</button>
               <div id="cocina-duplicar-wrap" class="cocina-duplicar-wrap hidden">
+                <button type="button" id="cocina-repetir-ultimo-btn" class="btn btn-secondary btn-sm">🔁 Repetir último</button>
                 <select id="cocina-duplicar-select" class="cocina-duplicar-select">
-                  <option value="">📋 Duplicar de un pedido anterior…</option>
+                  <option value="">🔁 Repetir otro pedido (por nombre, fecha o invitados)…</option>
                 </select>
               </div>
             </div>
@@ -834,6 +835,7 @@
               <button id="cocina-toggle-stock-col-btn" class="btn btn-secondary btn-sm" type="button">👁 Stock</button>
               <button id="cocina-descontar-stock-btn" class="btn btn-secondary btn-sm" type="button">📦 Descontar stock</button>
               <div style="flex:1"></div>
+              <button id="cocina-imprimir-pedido-btn" class="btn btn-secondary" type="button">🖨️ Imprimir</button>
               <button id="cocina-guardar-btn" class="btn btn-primary">Guardar pedido</button>
             </div>
           </div>

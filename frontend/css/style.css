@@ -220,7 +220,7 @@ body {
   flex-direction: column;
   position: fixed;
   top: 0; left: 0; height: 100vh;
-  z-index: 100;
+  z-index: 145;   /* por encima del backdrop (140) para que los items sean clickeables */
   transition: transform .25s cubic-bezier(.4,0,.2,1);
   border-right: 1px solid rgba(255,255,255,.025);
 }
@@ -929,7 +929,7 @@ textarea { resize: vertical; min-height: 70px; }
 #calendario-container {
   background: var(--surface);
   border-radius: var(--radius);
-  padding: 28px;
+  padding: 20px;
   box-shadow: var(--shadow-xs);
   border: 1px solid var(--border-light);
 }
@@ -963,8 +963,8 @@ textarea { resize: vertical; min-height: 70px; }
 .cal-cell {
   border-right: 1px solid var(--border-light);
   border-bottom: 1px solid var(--border-light);
-  min-height: 140px;
-  padding: 6px;
+  min-height: 104px;
+  padding: 5px;
   background: #fff;
   overflow: hidden;
 }
@@ -1006,30 +1006,92 @@ textarea { resize: vertical; min-height: 70px; }
 .cal-pill-seg-visita     { background: var(--gold-light); color: #854d0e; border-color: var(--gold-border); }
 .cal-pill-seg-llamada    { background: #eff6ff; color: #1e40af; border-color: #93c5fd; }
 .cal-pill-sin-actividad  { background: #fff7ed; color: #9a3412; border-color: #fb923c; }
+
+/* Pastilla-resumen: agrupa muchas tareas del mismo tipo en un contador */
+.cal-pill-sum {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-weight: 700;
+  font-style: normal;
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+.cal-pill-sum .cal-sum-count {
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(0,0,0,.14);
+  border-radius: 10px;
+  padding: 0 6px;
+  min-width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.cal-pill-sum:hover { opacity: .9; transform: translateX(1px); }
+.cal-pill-sum-evento { background: #eef2ff; color: #3730a3; border-left-color: #a5b4fc; }
+
+/* Modal de detalle de día (desde pastilla-resumen) */
+.dia-cal-body { padding-top: 8px; }
+.dia-cal-sec {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 14px 0 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border-light);
+}
+.dia-cal-sec:first-child { margin-top: 0; }
+.dia-cal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .12s;
+  border-left: 3px solid var(--border);
+}
+.dia-cal-item:hover { background: var(--cream); }
+.dia-cal-nombre { font-weight: 600; font-size: 13.5px; color: var(--text-primary); }
+.dia-cal-meta { font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
 .seg-tipo-select { font-size: 12px; padding: 3px 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); cursor: pointer; }
 
 /* ===================== CALENDARIO LAYOUT ===================== */
+/* Calendario arriba (entero, sin cortar) + barra de tareas horizontal debajo */
 .calendario-layout {
   display: flex;
+  flex-direction: column;
   gap: 20px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 .calendario-main {
-  flex: 3;
+  width: 100%;
   min-width: 0;
 }
 .calendario-aside {
-  flex: 1;
-  min-width: 220px;
+  width: 100%;
   background: var(--surface);
   border-radius: var(--radius);
-  padding: 20px 16px;
+  padding: 18px 18px;
   box-shadow: var(--shadow-xs);
   border: 1px solid var(--border-light);
-  max-height: 80vh;
-  overflow-y: auto;
-  position: sticky;
-  top: 20px;
+  border-top: 2px solid var(--gold);
+}
+/* Barra de tareas: secciones en columnas que fluyen horizontalmente */
+.seg-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  align-items: flex-start;
+}
+.seg-col {
+  flex: 1 1 240px;
+  min-width: 220px;
+  max-width: 360px;
 }
 
 /* Panel seguimientos */
@@ -1042,6 +1104,33 @@ textarea { resize: vertical; min-height: 70px; }
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-light);
 }
+/* Header de la barra en modo "día seleccionado": botón volver + título */
+.seg-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
+  flex-wrap: wrap;
+}
+.seg-panel-head .seg-panel-title {
+  margin: 0; padding: 0; border: none;
+}
+.seg-volver-btn {
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'DM Sans', inherit;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all .14s;
+  white-space: nowrap;
+}
+.seg-volver-btn:hover { background: var(--gold-light); color: var(--text-primary); border-color: var(--gold-border); }
 .seg-section-label {
   font-size: 9.5px;
   font-weight: 700;
@@ -1727,6 +1816,9 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .coc-section { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
 .coc-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .coc-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold); }
+.coc-print-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
+.coc-print-toggle input { cursor: pointer; }
+.coc-print-toggle input:not(:checked) + .coc-section-title { opacity: .4; text-decoration: line-through; }
 .coc-section-header .tim-pick-h,
 .coc-section-header .tim-pick-m { font-size: 15px; font-weight: 700; color: var(--primary); }
 .coc-group { margin-bottom: 10px; }
@@ -3878,12 +3970,37 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   border-top: 1px solid #f0f0f0;
   gap: 6px;
 }
-.stock-dash-nombre { flex: 1; font-size: 0.82rem; }
-.stock-dash-cant { font-weight: 700; font-size: 0.88rem; min-width: 32px; text-align: right; }
-.stock-dash-unidad { font-size: 0.72rem; color: var(--text-muted); min-width: 28px; }
+.stock-dash-item-row { cursor: grab; }
+.stock-dash-item-row.stock-item-dragging { opacity: 0.4; cursor: grabbing; }
+.stock-dash-drag { color: #bbb; font-size: 0.9rem; cursor: grab; user-select: none; }
+.stock-dash-nombre { flex: 1; font-size: 0.95rem; }
+.stock-dash-cant { font-weight: 700; font-size: 1rem; min-width: 34px; text-align: right; }
+.stock-dash-unidad { font-size: 0.8rem; color: var(--text-muted); min-width: 30px; }
 .stock-sin-stock { color: #d32f2f; }
 .stock-bajo      { color: #f57c00; }
 .stock-ok        { color: #388e3c; }
+/* Barra de alta rápida de ítems/grupos en la vista de stock */
+.stock-add-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #faf8f3;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.stock-add-titulo { font-weight: 700; font-size: 0.95rem; color: #5d4037; }
+.stock-add-input, .stock-add-sel {
+  padding: 7px 10px;
+  font-size: 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 90px;
+}
+.stock-add-input { flex: 1; }
+.stock-dash-hint { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 10px; }
 
 /* ===================== COCINA — PEDIDOS DE PRODUCCIÓN ===================== */
 
@@ -3994,7 +4111,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   min-width: 240px;
   font-size: 14.5px;
 }
-.cocina-duplicar-wrap { flex-shrink: 0; }
+.cocina-duplicar-wrap { flex-shrink: 0; display: flex; gap: 8px; align-items: center; }
 .cocina-duplicar-select { min-width: 240px; }
 .cocina-items-noresults {
   padding: 22px;
@@ -4021,6 +4138,27 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   margin-left: 6px;
 }
 .coc-cat-count.coc-cat-has { color: var(--success); font-weight: 700; }
+/* Total por categoría en el encabezado (ej: 150 empanaditas sin desglosar) */
+.coc-cat-total {
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+.coc-cat-total label { font-size: 0.9rem; color: #5d4037; text-transform: none; letter-spacing: 0; }
+.coc-cat-total input {
+  width: 68px;
+  padding: 4px 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  border: 2px solid #b58a5e;
+  border-radius: 6px;
+  background: #fff;
+}
+.coc-cat-total input:focus { outline: none; border-color: var(--gold, #c4993e); }
+.coc-cat-total input.auto { background: #f0efe8; border-style: dashed; color: #5d4037; }
 tr.coc-row-hidden { display: none; }
 .cocina-items-table {
   width: 100%;

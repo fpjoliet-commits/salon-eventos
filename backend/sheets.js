@@ -1384,6 +1384,38 @@ async function actualizarStockActual(actualizaciones) {
   }
 }
 
+// Mueve un ítem de categoría (grupo), actualizando CatalogoItems y StockActual a la vez,
+// para que el dashboard de stock y los pedidos queden consistentes.
+async function cambiarCategoriaItem(id, categoria) {
+  if (!id || !categoria) throw new Error('id y categoria requeridos');
+  if (!tieneCredenciales) {
+    const c = memCatalogoItems.find(i => i.id === id);
+    if (c) c.categoria = categoria;
+    const s = memStockActual.find(x => x.id === id);
+    if (s) s.categoria = categoria;
+    return { ok: true };
+  }
+  const sheets = getSheets();
+  // CatalogoItems (col B)
+  const catRes = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'CatalogoItems!A2:A' });
+  const catRows = catRes.data.values || [];
+  const catIdx = catRows.findIndex(r => r[0] === id);
+  // StockActual (col B)
+  const stkRes = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:A' });
+  const stkRows = stkRes.data.values || [];
+  const stkIdx = stkRows.findIndex(r => r[0] === id);
+  const updates = [];
+  if (catIdx !== -1) updates.push({ range: `CatalogoItems!B${catIdx + 2}`, values: [[categoria]] });
+  if (stkIdx !== -1) updates.push({ range: `StockActual!B${stkIdx + 2}`, values: [[categoria]] });
+  if (updates.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { valueInputOption: 'USER_ENTERED', data: updates },
+    });
+  }
+  return { ok: true };
+}
+
 // Normaliza strings para comparación tolerante: minúsculas, guiones unificados, espacios comprimidos
 function _normStr(s) {
   return (s || '').replace(/[–—·]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -1835,7 +1867,7 @@ module.exports = {
   getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado,
   getEgresos, addEgreso, updateEgreso,
-  getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem,
+  getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
   getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial, sincronizarIngredientesStock,
   initSheets,

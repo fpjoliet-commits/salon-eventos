@@ -511,9 +511,25 @@ app.post('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
 
 app.put('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, res) => {
   try {
-    const { unidad } = req.body;
-    if (!unidad) return res.status(400).json({ error: 'unidad requerida' });
-    await sheets.updateCatalogoItem(parseInt(req.params.rowIndex), { unidad });
+    const { unidad, nombre, categoria } = req.body;
+    const data = {};
+    if (unidad !== undefined) data.unidad = unidad;
+    if (nombre !== undefined) data.nombre = nombre;
+    if (categoria !== undefined) data.categoria = categoria;
+    if (!Object.keys(data).length) return res.status(400).json({ error: 'nada para actualizar' });
+    await sheets.updateCatalogoItem(parseInt(req.params.rowIndex), data);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Mover un ítem de grupo (categoría) desde la vista de stock (drag & drop)
+app.post('/api/stock-actual/mover', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { id, categoria } = req.body;
+    if (!id || !categoria) return res.status(400).json({ error: 'id y categoria requeridos' });
+    await sheets.cambiarCategoriaItem(id, categoria);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

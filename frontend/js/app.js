@@ -9,6 +9,7 @@ let allPersonas = [];
 let currentClienteModal = null;
 let currentRestricciones = [];
 let calYear, calMonth;
+let calDiaSel = null;   // día seleccionado en el calendario para filtrar la barra de tareas
 
 /* ===================== UTILS ===================== */
 const $ = id => document.getElementById(id);
@@ -1077,6 +1078,67 @@ function renderCalendario() {
     'Realizado': 'cal-pill-realizado',
   };
 
+  // A partir de esta cantidad, las tareas del mismo tipo se agrupan en un contador
+  const GROUP_MIN = 4;
+  const MAX_EVENTOS = 3;
+  window._calDayData = {};
+
+  const pillEvento = (c) => {
+    const sub = [c.tipoEvento, c.cantidadInvitados ? `${c.cantidadInvitados} PAX` : ''].filter(Boolean).join(' · ');
+    const tc = c.estado === 'Confirmado' ? tipoColor(c.tipoEvento) : null;
+    return `<div class="cal-pill ${tc ? '' : (pillClass[c.estado] || '')}" ${tc ? `style="background:${tc.bg};color:${tc.color};border-left:3px solid ${tc.border}"` : ''} onclick="openClienteModal(window._cmap['${c.id}'])" title="${esc(c.apellidoNombre)}${c.turno ? ' · '+c.turno : ''}">
+      <div class="cal-pill-nombre">${esc(c.apellidoNombre)}</div>
+      ${sub ? `<div class="cal-pill-sub">${sub}</div>` : ''}
+    </div>`;
+  };
+  const pillSeg = (c) => {
+    const esCobro = ESTADOS_COBRO.includes(c.estado);
+    const esVisita = c.estado === 'Visita agendada';
+    const icono = esCobro ? '💰' : (esVisita ? '🤝' : '📞');
+    const cls = esCobro ? 'cal-pill-seg-cobro' : (esVisita ? 'cal-pill-seg-visita' : 'cal-pill-seg-llamada');
+    const titulo = esCobro ? 'Cobro' : (esVisita ? 'Visita' : 'Seguimiento');
+    return `<div class="cal-pill cal-pill-seg ${cls}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${titulo}: ${esc(c.apellidoNombre)}">
+      <div class="cal-pill-nombre">${icono} ${esc(c.apellidoNombre)}</div>
+    </div>`;
+  };
+  const pillSin = (c) => {
+    const fcDate = parseFechaCarga(c.fechaCarga);
+    const dias = fcDate ? Math.round((hoyDate - fcDate) / 86400000) : '?';
+    return `<div class="cal-pill cal-pill-seg cal-pill-sin-actividad" onclick="openClienteModal(window._cmap['${c.id}'])" title="Sin actividad (${dias}d): ${esc(c.apellidoNombre)}">
+      <div class="cal-pill-nombre">📞 ${esc(c.apellidoNombre)}</div>
+      <div class="cal-pill-sub">${c.tipoEvento || '—'} · ${dias}d</div>
+    </div>`;
+  };
+  const pillSum = (ds, label, icono, cls, n) =>
+    `<div class="cal-pill cal-pill-seg cal-pill-sum ${cls}" onclick="openDiaCal('${ds}')" title="${label}: ${n} — tocá para ver la lista">
+      <div class="cal-pill-nombre">${icono} ${label}</div>
+      <span class="cal-sum-count">${n}</span>
+    </div>`;
+
+  const renderCellPills = (ds, evs, segs, sinAct) => {
+    window._calDayData[ds] = { evs, segs, sinAct };
+    let h = '';
+    // Eventos: individuales hasta el tope; si hay más, los últimos se resumen
+    if (evs.length <= MAX_EVENTOS) {
+      h += evs.map(pillEvento).join('');
+    } else {
+      h += evs.slice(0, MAX_EVENTOS - 1).map(pillEvento).join('');
+      h += pillSum(ds, 'eventos', '🎉', 'cal-pill-sum-evento', evs.length - (MAX_EVENTOS - 1));
+    }
+    // Seguimientos agrupados por tipo
+    const cobros   = segs.filter(c => ESTADOS_COBRO.includes(c.estado));
+    const visitas  = segs.filter(c => c.estado === 'Visita agendada');
+    const llamadas = segs.filter(c => !ESTADOS_COBRO.includes(c.estado) && c.estado !== 'Visita agendada').concat(sinAct);
+    if (cobros.length)  h += cobros.length  < GROUP_MIN ? cobros.map(pillSeg).join('')  : pillSum(ds, 'Cobros',  '💰', 'cal-pill-seg-cobro',  cobros.length);
+    if (visitas.length) h += visitas.length < GROUP_MIN ? visitas.map(pillSeg).join('') : pillSum(ds, 'Visitas', '🤝', 'cal-pill-seg-visita', visitas.length);
+    if (llamadas.length) {
+      h += llamadas.length < GROUP_MIN
+        ? llamadas.map(c => sinAct.includes(c) ? pillSin(c) : pillSeg(c)).join('')
+        : pillSum(ds, 'Llamar', '📞', 'cal-pill-seg-llamada', llamadas.length);
+    }
+    return h;
+  };
+
   let cells = '';
   for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-cell-empty"></div>`;
   for (let d = 1; d <= daysInMonth; d++) {
@@ -1089,32 +1151,7 @@ function renderCalendario() {
       : [];
     cells += `<div class="cal-cell${isToday ? ' cal-cell-today' : ''}">
       <span class="cal-cell-num${isToday ? ' cal-num-today' : ''}">${d}</span>
-      ${evs.map(c => {
-        const sub = [c.tipoEvento, c.cantidadInvitados ? `${c.cantidadInvitados} PAX` : ''].filter(Boolean).join(' · ');
-        const tc = c.estado === 'Confirmado' ? tipoColor(c.tipoEvento) : null;
-        return `<div class="cal-pill ${tc ? '' : (pillClass[c.estado] || '')}" ${tc ? `style="background:${tc.bg};color:${tc.color};border-left:3px solid ${tc.border}"` : ''} onclick="openClienteModal(window._cmap['${c.id}'])" title="${c.apellidoNombre}${c.turno ? ' · '+c.turno : ''}">
-          <div class="cal-pill-nombre">${c.apellidoNombre}</div>
-          ${sub ? `<div class="cal-pill-sub">${sub}</div>` : ''}
-        </div>`;
-      }).join('')}
-      ${segs.map(c => {
-        const esCobro = ESTADOS_COBRO.includes(c.estado);
-        const esVisita = c.estado === 'Visita agendada';
-        const icono = esCobro ? '💰' : (esVisita ? '🤝' : '📞');
-        const cls = esCobro ? 'cal-pill-seg-cobro' : (esVisita ? 'cal-pill-seg-visita' : 'cal-pill-seg-llamada');
-        const titulo = esCobro ? 'Cobro' : (esVisita ? 'Visita' : 'Seguimiento');
-        return `<div class="cal-pill cal-pill-seg ${cls}" onclick="openClienteModal(window._cmap['${c.id}'])" title="${titulo}: ${c.apellidoNombre}">
-          <div class="cal-pill-nombre">${icono} ${c.apellidoNombre}</div>
-        </div>`;
-      }).join('')}
-      ${sinAct.map(c => {
-        const fcDate = parseFechaCarga(c.fechaCarga);
-        const dias = fcDate ? Math.round((hoyDate - fcDate) / 86400000) : '?';
-        return `<div class="cal-pill cal-pill-seg cal-pill-sin-actividad" onclick="openClienteModal(window._cmap['${c.id}'])" title="Sin actividad (${dias}d): ${c.apellidoNombre}">
-          <div class="cal-pill-nombre">📞 ${c.apellidoNombre}</div>
-          <div class="cal-pill-sub">${c.tipoEvento || '—'} · ${dias}d</div>
-        </div>`;
-      }).join('')}
+      ${renderCellPills(ds, evs, segs, sinAct)}
     </div>`;
   }
 
@@ -1139,6 +1176,21 @@ function renderCalendario() {
 
   renderSeguimientosPanel();
 }
+
+/* Seleccionar un día del calendario → la barra de tareas de abajo muestra las tareas de ese día */
+function seleccionarDiaCal(ds) {
+  if (!(window._calDayData || {})[ds]) return;
+  calDiaSel = ds;
+  renderSeguimientosPanel();
+  const aside = document.getElementById('calendario-aside');
+  if (aside) aside.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function volverBarraBase() {
+  calDiaSel = null;
+  renderSeguimientosPanel();
+}
+// Alias usado por las pastillas-resumen del calendario
+function openDiaCal(ds) { seleccionarDiaCal(ds); }
 
 const ESTADOS_COBRO = ['Confirmado', 'Por cerrar'];
 
@@ -1256,43 +1308,47 @@ function renderSeguimientosPanel() {
     </div>`;
   };
 
-  let html = `<div class="seg-panel-title">Pendientes</div>`;
+  // ── Modo día seleccionado: la barra muestra las tareas de ese día ──
+  if (calDiaSel && (window._calDayData || {})[calDiaSel]) {
+    const dd = window._calDayData[calDiaSel];
+    const evs = dd.evs || [], segs = dd.segs || [], sinAct = dd.sinAct || [];
+    const cobrosD  = segs.filter(esCobro);
+    const visitasD = segs.filter(c => c.estado === 'Visita agendada');
+    const llamadasSeg = segs.filter(c => !esCobro(c) && c.estado !== 'Visita agendada');
+    const dcols = [];
+    const dcol = (l, items) => dcols.push(`<div class="seg-col"><div class="seg-section-label ${l.cls}">${l.txt}</div>${items}</div>`);
+    if (evs.length)      dcol({ cls: 'seg-label-evento', txt: `🎉 Eventos (${evs.length})` },  evs.map(c => itemEvento(c)).join(''));
+    if (cobrosD.length)  dcol({ cls: 'seg-label-cobro',  txt: `💰 Cobros (${cobrosD.length})` }, cobrosD.map(c => item(c, 'cobro')).join(''));
+    if (visitasD.length) dcol({ cls: 'seg-label-visita', txt: `🤝 Visitas (${visitasD.length})` }, visitasD.map(c => item(c, 'visita')).join(''));
+    const llamadasTot = llamadasSeg.length + sinAct.length;
+    if (llamadasTot)     dcol({ cls: 'seg-label-prox',   txt: `📞 Llamar (${llamadasTot})` }, llamadasSeg.map(c => item(c, 'prox')).join('') + sinAct.map(c => itemContactar(c)).join(''));
+    const dbody = dcols.length ? `<div class="seg-cols">${dcols.join('')}</div>` : `<p class="seg-empty">Sin tareas este día</p>`;
+    aside.innerHTML = `<div class="seg-panel-head">
+        <button class="seg-volver-btn" onclick="volverBarraBase()">← Volver a pendientes</button>
+        <div class="seg-panel-title">Tareas del ${formatDate(calDiaSel)}</div>
+      </div>${dbody}`;
+    return;
+  }
 
   const hayAlgo = vencidos.length || paraHoy.length || proximos.length || cobros.length || visitas.length || eventosProximos.length || sinActividad.length;
-  if (!hayAlgo) {
-    html += `<p class="seg-empty">Sin tareas para los próximos días ✓</p>`;
-  }
 
-  if (eventosProximos.length > 0) {
-    html += `<div class="seg-section-label seg-label-evento">🎉 Eventos esta semana</div>`;
-    html += eventosProximos.map(c => itemEvento(c)).join('');
-  }
-  if (vencidos.length > 0) {
-    html += `<div class="seg-section-label seg-label-urgente">⚠ Vencidos (${vencidos.length})</div>`;
-    html += vencidos.map(c => item(c, 'urgente')).join('');
-  }
-  if (paraHoy.length > 0) {
-    html += `<div class="seg-section-label seg-label-hoy">Hoy</div>`;
-    html += paraHoy.map(c => item(c, 'hoy')).join('');
-  }
-  if (proximos.length > 0) {
-    html += `<div class="seg-section-label seg-label-prox">Próximos 7 días</div>`;
-    html += proximos.map(c => item(c, 'prox')).join('');
-  }
-  if (cobros.length > 0) {
-    html += `<div class="seg-section-label seg-label-cobro">Cobros programados</div>`;
-    html += cobros.map(c => item(c, 'cobro')).join('');
-  }
-  if (visitas.length > 0) {
-    html += `<div class="seg-section-label seg-label-visita">Visitas agendadas</div>`;
-    html += visitas.map(c => item(c, 'visita')).join('');
-  }
-  if (sinActividad.length > 0) {
-    html += `<div class="seg-section-label seg-label-contactar">📱 Sin actividad +14d</div>`;
-    html += sinActividad.map(c => itemContactar(c)).join('');
-  }
+  // Cada sección es una columna que fluye horizontalmente en la barra de tareas
+  const cols = [];
+  const col = (labelHtml, itemsHtml) => cols.push(`<div class="seg-col"><div class="seg-section-label ${labelHtml.cls}">${labelHtml.txt}</div>${itemsHtml}</div>`);
 
-  aside.innerHTML = html;
+  if (eventosProximos.length > 0) col({ cls: 'seg-label-evento',   txt: '🎉 Eventos esta semana' },      eventosProximos.map(c => itemEvento(c)).join(''));
+  if (vencidos.length > 0)        col({ cls: 'seg-label-urgente',  txt: `⚠ Vencidos (${vencidos.length})` }, vencidos.map(c => item(c, 'urgente')).join(''));
+  if (paraHoy.length > 0)         col({ cls: 'seg-label-hoy',      txt: 'Hoy' },                          paraHoy.map(c => item(c, 'hoy')).join(''));
+  if (proximos.length > 0)        col({ cls: 'seg-label-prox',     txt: 'Próximos 7 días' },              proximos.map(c => item(c, 'prox')).join(''));
+  if (cobros.length > 0)          col({ cls: 'seg-label-cobro',    txt: 'Cobros programados' },           cobros.map(c => item(c, 'cobro')).join(''));
+  if (visitas.length > 0)         col({ cls: 'seg-label-visita',   txt: 'Visitas agendadas' },            visitas.map(c => item(c, 'visita')).join(''));
+  if (sinActividad.length > 0)    col({ cls: 'seg-label-contactar', txt: '📱 Sin actividad +14d' },       sinActividad.map(c => itemContactar(c)).join(''));
+
+  const body = hayAlgo
+    ? `<div class="seg-cols">${cols.join('')}</div>`
+    : `<p class="seg-empty">Sin tareas para los próximos días ✓</p>`;
+
+  aside.innerHTML = `<div class="seg-panel-title">Tareas pendientes</div>${body}`;
 }
 
 /* ===================== SEGUIMIENTOS ===================== */
@@ -2395,6 +2451,7 @@ const MENU_COCINA = {
 };
 const PASTAS_OPT = [
   'Tagliatelle', 'Sorrentinos de jamón y queso', 'Canelones de verdura y ricota',
+  'Canelones de carne', 'Lasaña',
   'Ravioloni de espinaca y parmesano', 'Agnolotis de pollo', 'Ñoquis de papa',
 ];
 const PASTAS_GOURMET_OPT = [
@@ -2749,8 +2806,10 @@ function getCocinaModo() {
 function getCocinaFormData() {
   const getChecked = cls => [...document.querySelectorAll(`.${cls}-check:checked`)].map(el => el.value);
   const modo = getCocinaModo();
+  const seccionesOcultas = [...document.querySelectorAll('.coc-sec-print:not(:checked)')].map(el => el.value);
   const base = {
     modo,
+    seccionesOcultas,
     horaRecepcion: $('coc-hora-recepcion')?.value || '',
     canapes: getChecked('coc-canape'),
     bruschettas: getChecked('coc-bruschetta'),
@@ -2783,10 +2842,14 @@ function getCocinaFormData() {
     salsas: getChecked('coc-salsa'),
     salsasGourmet: getChecked('coc-salsa-gourmet'),
     horaPlatoCentral: $('coc-hora-plato-central')?.value || '',
-    platoCentralAve: $('coc-plato-ave')?.value || '',
-    guarnicionAve: $('coc-guarnicion-ave')?.value || '',
-    platoCentralCarne: $('coc-plato-carne')?.value || '',
-    guarnicionCarne: $('coc-guarnicion-carne')?.value || '',
+    platoCentralAve: $('coc-plato-ave')?.value.trim() || '',
+    rellenoAve: $('coc-relleno-ave')?.value.trim() || '',
+    salsaAve: $('coc-salsa-ave')?.value.trim() || '',
+    guarnicionAve: $('coc-guarnicion-ave')?.value.trim() || '',
+    platoCentralCarne: $('coc-plato-carne')?.value.trim() || '',
+    rellenoCarne: $('coc-relleno-carne')?.value.trim() || '',
+    salsaCarne: $('coc-salsa-carne')?.value.trim() || '',
+    guarnicionCarne: $('coc-guarnicion-carne')?.value.trim() || '',
     horaMesaDulces: $('coc-hora-mesa-dulces')?.value || '',
     mesaDulces: getChecked('coc-dulce'),
     postre: $('coc-postre')?.value.trim() || '',
@@ -2810,10 +2873,14 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
   const modo = cocinaData.modo === 'informal' ? 'informal' : 'formal';
 
   const chk = (cls, items, sel) => checkboxListHTML(items, sel, cls);
-  const secHeader = (titulo, horaId, horaVal) => `
+  const ocultas = cocinaData.seccionesOcultas || [];
+  const secHeader = (titulo, horaId, horaVal, key) => `
     <div class="coc-section-header">
-      <div class="coc-section-title">${titulo}</div>
-      ${timePicker(horaId, horaVal || '')}
+      <label class="coc-print-toggle" title="Destildá para NO imprimir este bloque (título incluido)">
+        <input type="checkbox" class="coc-sec-print" value="${key}" ${ocultas.includes(key) ? '' : 'checked'}>
+        <span class="coc-section-title">${titulo}</span>
+      </label>
+      ${horaId ? timePicker(horaId, horaVal || '') : ''}
     </div>`;
 
   // islas guardadas que no figuran en las opciones predefinidas (texto libre)
@@ -2824,13 +2891,13 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
 
   const cuerpoFormal = `
       <div class="coc-section">
-        ${secHeader('ISLAS', 'coc-hora-islas', cocinaData.horaIslas)}
+        ${secHeader('ISLAS', 'coc-hora-islas', cocinaData.horaIslas, 'islas')}
         <div class="coc-checks">${chk('coc-isla', [...ISLAS_OPT, ...islasCustom], cocinaData.islas)}</div>
         <input type="text" id="coc-isla-extra" class="coc-input" placeholder="Otra isla..." style="margin-top:8px">
       </div>
 
       <div class="coc-section">
-        ${secHeader('PRIMER PLATO — Mesa Italiana', 'coc-hora-primer-plato', cocinaData.horaPrimerPlato)}
+        ${secHeader('PRIMER PLATO — Mesa Italiana', 'coc-hora-primer-plato', cocinaData.horaPrimerPlato, 'primerPlato')}
         <div class="coc-group">
           <div class="coc-group-label">Pastas</div>
           <div class="coc-checks">${chk('coc-pasta', PASTAS_OPT, cocinaData.pastas)}</div>
@@ -2854,37 +2921,36 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
       </div>
 
       <div class="coc-section">
-        ${secHeader('PLATO CENTRAL', 'coc-hora-plato-central', cocinaData.horaPlatoCentral)}
+        ${secHeader('PLATO CENTRAL', 'coc-hora-plato-central', cocinaData.horaPlatoCentral, 'platoCentral')}
         <div class="coc-row" style="gap:12px;align-items:flex-start">
           <div style="flex:1">
             <div class="coc-group-label" style="margin-bottom:6px">Base Ave</div>
-            <select id="coc-plato-ave" class="coc-select" style="width:100%">
-              <option value="">-- Ninguna --</option>
-              ${PLATO_CENTRAL_AVE_OPT.map(p => `<option${cocinaData.platoCentralAve === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
-            </select>
+            <input type="text" id="coc-plato-ave" class="coc-input" style="width:100%" list="dl-plato-ave" placeholder="Ej: Pechuga" value="${esc(cocinaData.platoCentralAve || '')}">
+            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Relleno / preparación</div>
+            <input type="text" id="coc-relleno-ave" class="coc-input" style="width:100%" placeholder="Ej: rellena de jamón y queso" value="${esc(cocinaData.rellenoAve || '')}">
+            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Salsa</div>
+            <input type="text" id="coc-salsa-ave" class="coc-input" style="width:100%" placeholder="Ej: suprema" value="${esc(cocinaData.salsaAve || '')}">
             <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Guarnición Ave</div>
-            <select id="coc-guarnicion-ave" class="coc-select" style="width:100%">
-              <option value="">-- Guarnición --</option>
-              ${GUARNICION_OPT.map(g => `<option${cocinaData.guarnicionAve === g ? ' selected' : ''}>${esc(g)}</option>`).join('')}
-            </select>
+            <input type="text" id="coc-guarnicion-ave" class="coc-input" style="width:100%" list="dl-guarnicion" placeholder="Ej: Rosti de papa" value="${esc(cocinaData.guarnicionAve || '')}">
           </div>
           <div style="flex:1">
             <div class="coc-group-label" style="margin-bottom:6px">Base Carne</div>
-            <select id="coc-plato-carne" class="coc-select" style="width:100%">
-              <option value="">-- Ninguna --</option>
-              ${PLATO_CENTRAL_CARNE_OPT.map(p => `<option${cocinaData.platoCentralCarne === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}
-            </select>
+            <input type="text" id="coc-plato-carne" class="coc-input" style="width:100%" list="dl-plato-carne" placeholder="Ej: Lomo" value="${esc(cocinaData.platoCentralCarne || '')}">
+            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Relleno / preparación</div>
+            <input type="text" id="coc-relleno-carne" class="coc-input" style="width:100%" placeholder="Ej: rellena de ciruelas" value="${esc(cocinaData.rellenoCarne || '')}">
+            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Salsa</div>
+            <input type="text" id="coc-salsa-carne" class="coc-input" style="width:100%" placeholder="Ej: Dijon" value="${esc(cocinaData.salsaCarne || '')}">
             <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Guarnición Carne</div>
-            <select id="coc-guarnicion-carne" class="coc-select" style="width:100%">
-              <option value="">-- Guarnición --</option>
-              ${GUARNICION_OPT.map(g => `<option${cocinaData.guarnicionCarne === g ? ' selected' : ''}>${esc(g)}</option>`).join('')}
-            </select>
+            <input type="text" id="coc-guarnicion-carne" class="coc-input" style="width:100%" list="dl-guarnicion" placeholder="Ej: Papas a la suiza" value="${esc(cocinaData.guarnicionCarne || '')}">
           </div>
         </div>
+        <datalist id="dl-plato-ave">${PLATO_CENTRAL_AVE_OPT.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+        <datalist id="dl-plato-carne">${PLATO_CENTRAL_CARNE_OPT.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+        <datalist id="dl-guarnicion">${GUARNICION_OPT.map(g => `<option value="${esc(g)}">`).join('')}</datalist>
       </div>
 
       <div class="coc-section">
-        ${secHeader('MESA DE DULCES', 'coc-hora-mesa-dulces', cocinaData.horaMesaDulces)}
+        ${secHeader('MESA DE DULCES', 'coc-hora-mesa-dulces', cocinaData.horaMesaDulces, 'mesaDulces')}
         <div class="coc-checks">${chk('coc-dulce', MESA_DULCES_OPT, cocinaData.mesaDulces)}</div>
         <div class="coc-group" style="margin-top:12px">
           <div class="coc-group-label">Postre / Torta</div>
@@ -2895,7 +2961,7 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
 
   const cuerpoInformal = `
       <div class="coc-section">
-        ${secHeader('ISLAS EN VIVO — PLATO CENTRAL', 'coc-hora-islas', cocinaData.horaIslas)}
+        ${secHeader('ISLAS EN VIVO — PLATO CENTRAL', 'coc-hora-islas', cocinaData.horaIslas, 'islas')}
         <div class="coc-group">
           <div class="coc-group-label">Isla base (siempre incluida)</div>
           <div class="coc-checks">${chk('coc-isla', [ISLA_AMERICANO_BASE], cocinaData.islas)}</div>
@@ -2917,7 +2983,7 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
       </div>
 
       <div class="coc-section">
-        ${secHeader('TORTA HOMENAJE & POSTRES', 'coc-hora-postres', cocinaData.horaPostres)}
+        ${secHeader('TORTA HOMENAJE & POSTRES', 'coc-hora-postres', cocinaData.horaPostres, 'postres')}
         <div class="coc-group">
           <div class="coc-group-label">Postres</div>
           <div class="coc-checks">${chk('coc-postre-am', POSTRES_AMERICANO_OPT, cocinaData.postres)}</div>
@@ -2946,7 +3012,7 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
       </div>
 
       <div class="coc-section">
-        ${secHeader('RECEPCIÓN', 'coc-hora-recepcion', cocinaData.horaRecepcion)}
+        ${secHeader('RECEPCIÓN', 'coc-hora-recepcion', cocinaData.horaRecepcion, 'recepcion')}
         <div class="coc-group">
           <div class="coc-group-label">Bocados fríos — Canapés</div>
           <div class="coc-checks">${chk('coc-canape', MENU_COCINA.canapes, cocinaData.canapes)}</div>
@@ -2976,7 +3042,7 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
       ${modo === 'informal' ? cuerpoInformal : cuerpoFormal}
 
       <div class="coc-section">
-        ${secHeader('CAFETERÍA / FIN DE FIESTA', 'coc-hora-cafeteria', cocinaData.horaCafeteria)}
+        ${secHeader('CAFETERÍA / FIN DE FIESTA', 'coc-hora-cafeteria', cocinaData.horaCafeteria, 'finFiesta')}
         <div class="coc-checks">${chk('coc-fin-fiesta', FIN_FIESTA_OPT, cocinaData.finFiesta)}</div>
       </div>
 
@@ -3119,56 +3185,69 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const todasSalsas = [...(d.salsas || []), ...(d.salsasGourmet || [])];
   const esInformal = d.modo === 'informal';
 
+  const oculta = k => (d.seccionesOcultas || []).includes(k);
+
+  // Plato central: base + relleno + salsa + guarnición, todo en UN mismo ítem
+  const platoCentralItem = (tipo, base, relleno, salsa, guar) => {
+    if (!base) return '';
+    const comps = [];
+    if (relleno) comps.push(esc(relleno));
+    if (salsa) comps.push(/^salsa/i.test(salsa) ? esc(salsa) : 'Salsa ' + esc(salsa));
+    if (guar) comps.push(esc(guar));
+    return `<div class="pc-item">
+      <div class="pc-tipo">${tipo}</div>
+      <div class="pc-nombre">${esc(base)}</div>
+      ${comps.map(c => `<div class="pc-comp">${c}</div>`).join('')}
+    </div>`;
+  };
+  const hayPlatoCentral = d.platoCentralAve || d.platoCentralCarne;
+  const hayPrimerPlato = todasPastas.length;
+  const hayIslas = (d.islas || []).length;
+  const hayMesaDulces = (d.mesaDulces || []).length || d.postre;
+  const hayPostresAm = (d.postres || []).length || d.tortaHomenaje;
+
+  const secPrimerPlato = (!oculta('primerPlato') && hayPrimerPlato) ? `
+    <div class="sec">
+      ${sHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
+      ${subGrp('Pastas', todasPastas)}
+      ${todasSalsas.length ? `<div class="sg">
+        <span class="sl">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</span>
+        ${boxGrid(todasSalsas)}
+      </div>` : ''}
+    </div>` : '';
+  const secPlatoCentral = (!oculta('platoCentral') && hayPlatoCentral) ? `
+    <div class="sec">
+      ${sHead('Plato Central', d.horaPlatoCentral)}
+      ${platoCentralItem('Ave', d.platoCentralAve, d.rellenoAve, d.salsaAve, d.guarnicionAve)}
+      ${platoCentralItem('Carne', d.platoCentralCarne, d.rellenoCarne, d.salsaCarne, d.guarnicionCarne)}
+    </div>` : '';
+  const filaPrincipal = (secPrimerPlato && secPlatoCentral)
+    ? `<div class="r2">${secPrimerPlato}${secPlatoCentral}</div>`
+    : (secPrimerPlato + secPlatoCentral);
+
   const cuerpoMedio = esInformal ? `
-  <div class="sec">
+  ${(!oculta('islas') && hayIslas) ? `<div class="sec">
     ${sHead('Islas en vivo — Plato Central', d.horaIslas)}
     ${boxGrid(d.islas, 1)}
-  </div>
+  </div>` : ''}
 
-  <div class="sec">
+  ${(!oculta('postres') && hayPostresAm) ? `<div class="sec">
     ${sHead('Torta Homenaje & Postres', d.horaPostres)}
     ${boxGrid(d.postres, 2)}
     ${d.tortaHomenaje ? `<div class="postre-note">Torta homenaje: <strong>${esc(d.tortaHomenaje)}</strong></div>` : ''}
-  </div>` : `
-  <div class="sec">
+  </div>` : ''}` : `
+  ${(!oculta('islas') && hayIslas) ? `<div class="sec">
     ${sHead('Islas', d.horaIslas)}
     ${boxGrid(d.islas, 1)}
-  </div>
+  </div>` : ''}
 
-  <div class="r2">
-    <div class="sec">
-      ${sHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
-      ${todasPastas.length ? `
-        ${subGrp('Pastas', todasPastas)}
-        <div class="sg">
-          <span class="sl">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</span>
-          ${boxGrid(todasSalsas)}
-        </div>
-      ` : '<span class="empty">Sin primer plato</span>'}
-    </div>
-    <div class="sec">
-      ${sHead('Plato Central', d.horaPlatoCentral)}
-      ${d.platoCentralAve ? `
-        <div class="pc-row">
-          <div class="pc-tipo">Ave</div>
-          <div class="pc-val">${esc(d.platoCentralAve)}</div>
-          ${d.guarnicionAve ? `<div class="pc-guar">${esc(d.guarnicionAve)}</div>` : ''}
-        </div>` : ''}
-      ${d.platoCentralCarne ? `
-        <div class="pc-row">
-          <div class="pc-tipo">Carne</div>
-          <div class="pc-val">${esc(d.platoCentralCarne)}</div>
-          ${d.guarnicionCarne ? `<div class="pc-guar">${esc(d.guarnicionCarne)}</div>` : ''}
-        </div>` : ''}
-      ${!d.platoCentralAve && !d.platoCentralCarne ? '<span class="empty">—</span>' : ''}
-    </div>
-  </div>
+  ${filaPrincipal}
 
-  <div class="sec">
+  ${(!oculta('mesaDulces') && hayMesaDulces) ? `<div class="sec">
     ${sHead('Mesa de Dulces', d.horaMesaDulces)}
     ${boxGrid(d.mesaDulces, 4)}
     ${d.postre ? `<div class="postre-note">Postre / Torta: <strong>${esc(d.postre)}</strong></div>` : ''}
-  </div>`;
+  </div>` : ''}`;
 
   const restHtml = (restricciones || []).length
     ? `<div class="rg">${restricciones.map(r =>
@@ -3184,13 +3263,13 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
 @page{size:A4 portrait;margin:11mm 13mm}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;background:#fff;display:flex;flex-direction:column}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;background:#fff;display:flex;flex-direction:column}
 .cab{flex-shrink:0;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #8f2e4d;padding-bottom:6px;margin-bottom:8px}
-.marca{font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:#8f2e4d;font-weight:700}
-.nombre{font-size:19px;font-weight:800;line-height:1.1}
+.marca{font-size:9.5px;text-transform:uppercase;letter-spacing:1.5px;color:#8f2e4d;font-weight:700}
+.nombre{font-size:23px;font-weight:800;line-height:1.1}
 .cr{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}
-.dato{text-align:center}.dato label{font-size:7.5px;color:#888;text-transform:uppercase;display:block}
-.dato span{font-size:12px;font-weight:700}.dato .big{font-size:21px;color:#8f2e4d}
+.dato{text-align:center}.dato label{font-size:9px;color:#888;text-transform:uppercase;display:block}
+.dato span{font-size:14px;font-weight:700}.dato .big{font-size:24px;color:#8f2e4d}
 /* body principal ocupa todo el espacio entre header y footer */
 .body{flex:1;display:flex;flex-direction:column;gap:6px}
 /* grid externo: secciones lado a lado */
@@ -3198,36 +3277,38 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
 /* sección */
 .sec{border:1.5px solid #ddd;border-radius:5px;padding:7px 10px}
 .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid #eee}
-.st{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d}
-.hora{font-size:15px;font-weight:900;color:#8f2e4d}
+.st{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d}
+.hora{font-size:18px;font-weight:900;color:#8f2e4d}
 /* columnas internas dentro de una sección */
 .inner2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;align-items:start}
 /* subgrupos */
 .sg{margin-bottom:6px}.sg:last-child{margin-bottom:0}
-.sl{font-size:8px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
+.sl{font-size:10px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
 /* grillas de checkboxes — columnas fijas, alineación limpia */
 .g1{display:flex;flex-direction:column;gap:4px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px 8px}
 .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:3px 6px}
-.cb{display:flex;align-items:center;gap:5px;font-size:11px;line-height:1.6;min-width:0;word-break:break-word}
-.cb::before{content:'';display:inline-block;width:12px;height:12px;border:1.5px solid #555;border-radius:2px;flex-shrink:0}
+.cb{display:flex;align-items:center;gap:6px;font-size:13px;line-height:1.55;min-width:0;word-break:break-word}
+.cb::before{content:'';display:inline-block;width:14px;height:14px;border:1.5px solid #555;border-radius:2px;flex-shrink:0}
 /* restricciones */
 .rg{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
-.rr{font-size:11px;line-height:1.7}.rc{font-size:9.5px;color:#666}
-/* plato central */
-.pc-row{margin-bottom:7px}.pc-row:last-child{margin-bottom:0}
-.pc-tipo{font-size:8px;font-weight:700;color:#555;text-transform:uppercase}
-.pc-val{font-size:12.5px;font-weight:700}
-.pc-guar{font-size:10.5px;color:#555;font-style:italic}
+.rr{font-size:13px;line-height:1.6}.rc{font-size:11px;color:#666}
+/* plato central — cada plato es UN ítem: base + relleno + salsa + guarnición apilados */
+.pc-item{border:1px solid #e2c9d2;border-left:3px solid #8f2e4d;border-radius:4px;padding:5px 8px;margin-bottom:6px}
+.pc-item:last-child{margin-bottom:0}
+.pc-tipo{font-size:10px;font-weight:700;color:#8f2e4d;text-transform:uppercase;letter-spacing:.5px}
+.pc-nombre{font-size:15px;font-weight:800;line-height:1.25}
+.pc-comp{font-size:12.5px;color:#444;line-height:1.35;padding-left:9px;position:relative}
+.pc-comp::before{content:'·';position:absolute;left:0;color:#8f2e4d;font-weight:700}
 /* notas: flex:1 → ocupa todo el espacio sobrante de la hoja */
 .notas{flex:1;border:1.5px solid #ddd;border-radius:5px;padding:7px 10px;display:flex;flex-direction:column}
-.nt{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d;margin-bottom:8px;flex-shrink:0}
+.nt{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d;margin-bottom:8px;flex-shrink:0}
 .notas-lines{flex:1;display:flex;flex-direction:column;justify-content:space-around}
 .nl{border-bottom:1px dashed #ccc}
-.empty{font-size:10.5px;color:#aaa;font-style:italic}
-.postre-note{margin-top:5px;font-size:11px;font-style:italic;color:#444}
-.footer{flex-shrink:0;margin-top:5px;font-size:7.5px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:3px}
+.empty{font-size:12.5px;color:#aaa;font-style:italic}
+.postre-note{margin-top:5px;font-size:13px;font-style:italic;color:#444}
+.footer{flex-shrink:0;margin-top:5px;font-size:9px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:3px}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 
@@ -3252,7 +3333,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
     ${restHtml}
   </div>
 
-  <div class="sec">
+  ${(!oculta('recepcion') && ((d.canapes||[]).length || (d.bruschettas||[]).length || (d.recepcionOtros||[]).length || (d.brochettes||[]).length || (d.empanaditas||[]).length || (d.calientesOtros||[]).length)) ? `<div class="sec">
     ${sHead('Recepción', d.horaRecepcion)}
     <div class="inner2">
       <div>
@@ -3266,14 +3347,14 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#111;backgroun
         ${subGrp('Bocados calientes', d.calientesOtros)}
       </div>
     </div>
-  </div>
+  </div>` : ''}
 
   ${cuerpoMedio}
 
-  <div class="sec">
+  ${(!oculta('finFiesta') && (d.finFiesta||[]).length) ? `<div class="sec">
     ${sHead('Fin de Fiesta', d.horaCafeteria)}
-    ${boxGrid(d.finFiesta && d.finFiesta.length ? d.finFiesta : [], 3)}
-  </div>
+    ${boxGrid(d.finFiesta, 3)}
+  </div>` : ''}
 
   <div class="notas">
     <div class="nt">Notas</div>
@@ -5689,14 +5770,27 @@ function renderStockDashboard() {
   if (!catOrder) {
     catOrder = [...STOCK_CAT_ORDER.filter(c => seenCats.has(c)), ...[...seenCats].filter(c => !STOCK_CAT_ORDER.includes(c))];
   }
-  let html = '<div class="stock-dash-grid" id="stock-dash-grid">';
+  // Barra para agregar ítems y grupos nuevos directo desde el stock
+  const UNITS_SD = ['und', 'lt', 'kg', 'gr'];
+  const catOptsSD = catOrder.map(c => `<option value="${esc(c)}">${esc(catDisplayName(c))}</option>`).join('');
+  let html = `<div class="stock-add-bar">
+    <span class="stock-add-titulo">＋ Agregar al stock:</span>
+    <select id="stock-add-cat" class="stock-add-sel">${catOptsSD}<option value="__nueva">+ Grupo nuevo…</option></select>
+    <input id="stock-add-cat-nueva" class="stock-add-input hidden" placeholder="Nombre del grupo nuevo">
+    <input id="stock-add-nombre" class="stock-add-input" placeholder="Nombre del ítem" style="flex:2">
+    <select id="stock-add-unidad" class="stock-add-sel">${UNITS_SD.map(u => `<option>${u}</option>`).join('')}</select>
+    <button id="stock-add-btn" class="btn btn-primary btn-sm">Agregar</button>
+  </div>
+  <p class="stock-dash-hint">💡 Arrastrá un ítem a otro grupo para moverlo. Arrastrá el título de un grupo para reordenar.</p>`;
+  html += '<div class="stock-dash-grid" id="stock-dash-grid">';
   catOrder.forEach(cat => {
     const color = cocCatColor(cat);
     html += `<div class="stock-dash-section" draggable="true" data-cat="${esc(cat)}">
       <div class="stock-dash-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</div>`;
     byCategory[cat].forEach(item => {
       const level = item.cantidad === 0 ? 'sin-stock' : item.cantidad < 5 ? 'bajo' : 'ok';
-      html += `<div class="stock-dash-item-row">
+      html += `<div class="stock-dash-item-row" draggable="true" data-id="${esc(item.id)}" data-cat="${esc(cat)}" data-nombre="${esc(item.nombre)}" title="Arrastrá para mover de grupo">
+        <span class="stock-dash-drag">⠿</span>
         <span class="stock-dash-nombre">${esc(item.nombre)}</span>
         <span class="stock-dash-cant stock-${level}">${item.cantidad}</span>
         <span class="stock-dash-unidad">${esc(item.unidad||'und')}</span>
@@ -5706,38 +5800,122 @@ function renderStockDashboard() {
   });
   html += '</div>';
   el.innerHTML = html;
+  _wireStockAddBar();
   initStockDashDnD();
+}
+
+function _wireStockAddBar() {
+  const sel = $('stock-add-cat');
+  sel?.addEventListener('change', () => {
+    $('stock-add-cat-nueva')?.classList.toggle('hidden', sel.value !== '__nueva');
+    if (sel.value === '__nueva') $('stock-add-cat-nueva')?.focus();
+  });
+  $('stock-add-btn')?.addEventListener('click', async () => {
+    const cat = sel?.value === '__nueva'
+      ? ($('stock-add-cat-nueva')?.value.trim() || '')
+      : (sel?.value || '');
+    const nombre = $('stock-add-nombre')?.value.trim() || '';
+    const unidad = $('stock-add-unidad')?.value || 'und';
+    if (!cat || !nombre) { alert('Completá el grupo y el nombre del ítem.'); return; }
+    const btn = $('stock-add-btn');
+    btn.disabled = true;
+    try {
+      const nuevo = await apiFetch('/catalogo-items', { method: 'POST', body: { categoria: cat, nombre, unidad } });
+      cocinaCatalogo.push(nuevo);
+      // El backend crea la fila de stock en 0; reflejarla localmente sin recargar
+      if (!cocinaStockActual.some(s => s.id === nuevo.id)) {
+        cocinaStockActual.push({ id: nuevo.id, categoria: cat, nombre, unidad, cantidad: 0, actualizado: '' });
+      }
+      renderStockDashboard();
+      toast(`"${nombre}" agregado a ${catDisplayName(cat)}`);
+    } catch (e) {
+      alert('Error al agregar: ' + e.message);
+      btn.disabled = false;
+    }
+  });
 }
 
 function initStockDashDnD() {
   const grid = document.getElementById('stock-dash-grid');
   if (!grid) return;
-  let dragEl = null;
+  let mode = null;        // 'section' | 'item'
+  let dragEl = null;      // sección que se reordena
+  let dragItem = null;    // fila de ítem que se mueve de grupo
+
   grid.addEventListener('dragstart', e => {
+    const itemEl = e.target.closest('.stock-dash-item-row');
+    if (itemEl) {
+      mode = 'item';
+      dragItem = itemEl;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => itemEl.classList.add('stock-item-dragging'), 0);
+      return;
+    }
     dragEl = e.target.closest('.stock-dash-section');
     if (!dragEl) return;
+    mode = 'section';
     e.dataTransfer.effectAllowed = 'move';
     setTimeout(() => dragEl && dragEl.classList.add('stock-dragging'), 0);
   });
-  grid.addEventListener('dragend', () => {
-    if (dragEl) dragEl.classList.remove('stock-dragging');
-    grid.querySelectorAll('.stock-drag-over').forEach(el => el.classList.remove('stock-drag-over'));
-    const order = [...grid.querySelectorAll('.stock-dash-section')].map(el => el.dataset.cat);
-    try { localStorage.setItem('cocina-stock-cat-order', JSON.stringify(order)); } catch {}
-    dragEl = null;
-  });
+
   grid.addEventListener('dragover', e => {
     e.preventDefault();
-    if (!dragEl) return;
-    const target = e.target.closest('.stock-dash-section');
-    if (!target || target === dragEl) return;
-    grid.querySelectorAll('.stock-drag-over').forEach(el => el.classList.remove('stock-drag-over'));
-    target.classList.add('stock-drag-over');
-    const sections = [...grid.querySelectorAll('.stock-dash-section')];
-    if (sections.indexOf(dragEl) < sections.indexOf(target)) grid.insertBefore(dragEl, target.nextSibling);
-    else grid.insertBefore(dragEl, target);
+    if (mode === 'section' && dragEl) {
+      const target = e.target.closest('.stock-dash-section');
+      if (!target || target === dragEl) return;
+      grid.querySelectorAll('.stock-drag-over').forEach(el => el.classList.remove('stock-drag-over'));
+      target.classList.add('stock-drag-over');
+      const sections = [...grid.querySelectorAll('.stock-dash-section')];
+      if (sections.indexOf(dragEl) < sections.indexOf(target)) grid.insertBefore(dragEl, target.nextSibling);
+      else grid.insertBefore(dragEl, target);
+    } else if (mode === 'item') {
+      const target = e.target.closest('.stock-dash-section');
+      grid.querySelectorAll('.stock-drag-over').forEach(el => el.classList.remove('stock-drag-over'));
+      if (target) target.classList.add('stock-drag-over');
+    }
   });
-  grid.addEventListener('drop', e => e.preventDefault());
+
+  grid.addEventListener('drop', async e => {
+    e.preventDefault();
+    if (mode === 'item' && dragItem) {
+      const target = e.target.closest('.stock-dash-section');
+      const nuevaCat = target?.dataset.cat;
+      const id = dragItem.dataset.id;
+      const catActual = dragItem.dataset.cat;
+      if (nuevaCat && id && nuevaCat !== catActual) {
+        await moverItemDeGrupo(id, nuevaCat, catActual);
+      }
+    }
+  });
+
+  grid.addEventListener('dragend', () => {
+    grid.querySelectorAll('.stock-drag-over').forEach(el => el.classList.remove('stock-drag-over'));
+    if (mode === 'section' && dragEl) {
+      dragEl.classList.remove('stock-dragging');
+      const order = [...grid.querySelectorAll('.stock-dash-section')].map(el => el.dataset.cat);
+      try { localStorage.setItem('cocina-stock-cat-order', JSON.stringify(order)); } catch {}
+    }
+    if (dragItem) dragItem.classList.remove('stock-item-dragging');
+    mode = null; dragEl = null; dragItem = null;
+  });
+}
+
+async function moverItemDeGrupo(id, nuevaCat, catAnterior) {
+  // Optimista: actualizo local y re-renderizo; si falla, revierto.
+  const stk = cocinaStockActual.find(s => s.id === id);
+  const cat = cocinaCatalogo.find(c => c.id === id);
+  if (stk) stk.categoria = nuevaCat;
+  if (cat) cat.categoria = nuevaCat;
+  renderStockDashboard();
+  try {
+    await apiFetch('/stock-actual/mover', { method: 'POST', body: { id, categoria: nuevaCat } });
+    toast(`Movido a ${catDisplayName(nuevaCat)}`);
+  } catch (e) {
+    if (stk) stk.categoria = catAnterior;
+    if (cat) cat.categoria = catAnterior;
+    renderStockDashboard();
+    alert('No se pudo mover el ítem: ' + e.message);
+  }
 }
 
 function openActualizarStockForm() {
@@ -5946,8 +6124,12 @@ function renderItemsTableEditable(existingItems) {
   const tbody = $('cocina-items-tbody');
   if (!tbody) return;
 
+  // Totales por categoría guardados (ej: "Empanaditas: 150" sin desglosar por tipo).
+  // Se persisten como un registro especial dentro del mismo JSON de items.
+  const catTotales = (existingItems || []).find(i => i && i.catTotalesMarker)?.totales || {};
+
   const baseItems = existingItems?.length
-    ? existingItems.map(i => ({
+    ? existingItems.filter(i => !i.catTotalesMarker).map(i => ({
         ...i,
         unidad: i.unidad || cocinaCatalogo.find(c => c.id === i.id)?.unidad || 'und',
       }))
@@ -6020,7 +6202,8 @@ function renderItemsTableEditable(existingItems) {
     const countLabel = conCant > 0
       ? `<span class="coc-cat-count coc-cat-has">${conCant}/${catItemsArr.length} cargados</span>`
       : `<span class="coc-cat-count">${catItemsArr.length} ítems</span>`;
-    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" data-collapsible style="background:${color}"><span class="coc-cat-toggle">▾</span> ${esc(catLabel)} ${countLabel}</td></tr>`;
+    const totalInput = isMiga ? '' : `<span class="coc-cat-total" title="Total de la categoría, sin desglosar por tipo (ej: 150 empanaditas)"><label>Total:</label><input type="number" min="0" class="cocina-cat-total-input" data-cat="${esc(cat)}" value="${esc(catTotales[cat] || '')}" placeholder="—"></span>`;
+    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" data-collapsible style="background:${color}"><span class="coc-cat-toggle">▾</span> ${esc(catLabel)} ${countLabel}${totalInput}</td></tr>`;
     byCategory[cat].forEach(item => {
       const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
       const stockCant = cocinaStockActual.find(s => s.id === item.id)?.cantidad;
@@ -6038,7 +6221,18 @@ function renderItemsTableEditable(existingItems) {
   tbody.innerHTML = html;
   _wirePMButtons(tbody);
   _wireCategoryCollapse(tbody);
-  tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => btn.closest('tr').remove()));
+  tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => { btn.closest('tr').remove(); _recalcAllCatTotales(); }));
+  // El input de total vive dentro del encabezado plegable: que interactuar con él no colapse la categoría.
+  tbody.querySelectorAll('.coc-cat-total').forEach(sp => {
+    ['click', 'mousedown'].forEach(ev => sp.addEventListener(ev, e => e.stopPropagation()));
+  });
+  // Bidireccional: al cargar el desglose, el total de esa categoría se suma solo.
+  tbody.addEventListener('input', e => {
+    if (e.target.classList.contains('cocina-cant-input')) {
+      _recalcCatTotal(e.target.closest('tr')?.dataset.cat);
+    }
+  });
+  _recalcAllCatTotales();
   tbody.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.classList.contains('cocina-cant-input')) {
       e.preventDefault();
@@ -6050,7 +6244,7 @@ function renderItemsTableEditable(existingItems) {
 }
 
 function getItemsFromTable() {
-  return [...document.querySelectorAll('#cocina-items-tbody tr[data-idx]')].map(tr => ({
+  const items = [...document.querySelectorAll('#cocina-items-tbody tr[data-idx]')].map(tr => ({
     id: tr.dataset.id || '',
     categoria: tr.dataset.cat || '',
     nombre: tr.dataset.nombre || '',
@@ -6059,6 +6253,48 @@ function getItemsFromTable() {
     observaciones: tr.querySelector('.cocina-obs-input')?.value.trim() || '',
     stock: null,
   })).filter(i => i.nombre);
+
+  // Totales por categoría cargados a mano (sin desglose). Los auto-calculados
+  // (readOnly) no se guardan: se derivan solos del desglose al imprimir.
+  const totales = {};
+  document.querySelectorAll('#cocina-items-tbody .cocina-cat-total-input').forEach(inp => {
+    const v = inp.value.trim();
+    if (v !== '' && !inp.readOnly) totales[inp.dataset.cat] = v;
+  });
+  if (Object.keys(totales).length) items.push({ catTotalesMarker: true, totales });
+
+  return items;
+}
+
+// Total por categoría bidireccional:
+//  · Si la categoría tiene desglose (algún ítem con cantidad) → el total se calcula
+//    solo (suma) y queda de solo-lectura, para no pisarlo a mano.
+//  · Si no hay desglose → el total es editable a mano (total global sin desglosar).
+function _recalcCatTotal(cat) {
+  if (!cat) return;
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  const totalInput = [...tbody.querySelectorAll('.cocina-cat-total-input')].find(i => i.dataset.cat === cat);
+  if (!totalInput) return;
+  const rows = [...tbody.querySelectorAll('tr[data-idx]')].filter(tr => tr.dataset.cat === cat);
+  const sum = rows.reduce((a, tr) => a + (parseFloat(tr.querySelector('.cocina-cant-input')?.value) || 0), 0);
+  if (sum > 0) {
+    totalInput.value = sum;
+    totalInput.readOnly = true;
+    totalInput.classList.add('auto');
+    totalInput.title = 'Se calcula solo desde el desglose';
+  } else {
+    totalInput.readOnly = false;
+    totalInput.classList.remove('auto');
+    totalInput.title = 'Total de la categoría, sin desglosar por tipo (ej: 150 empanaditas)';
+  }
+}
+
+function _recalcAllCatTotales() {
+  const tbody = $('cocina-items-tbody');
+  if (!tbody) return;
+  const cats = new Set([...tbody.querySelectorAll('.cocina-cat-total-input')].map(i => i.dataset.cat));
+  cats.forEach(_recalcCatTotal);
 }
 
 /* ── Plegado de categorías + buscador del pedido ── */
@@ -6147,15 +6383,32 @@ function _resetColapsarBtn() {
 }
 
 /* ── Duplicar pedido anterior (reusar cantidades reales, sin predecir) ── */
+function _pedidoPax(p) {
+  if (p.cantidadInvitados) return p.cantidadInvitados;
+  const c = p.idCliente ? (allClientes || []).find(x => x.id === p.idCliente) : null;
+  return c?.cantidadInvitados || null;
+}
+
 function populateDuplicarSelect() {
   const sel = $('cocina-duplicar-select');
   const wrap = $('cocina-duplicar-wrap');
+  const btnUltimo = $('cocina-repetir-ultimo-btn');
   if (!sel || !wrap) return;
   const pedidos = [...cocinaPedidos].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
   if (!pedidos.length) { wrap.classList.add('hidden'); return; }
   wrap.classList.remove('hidden');
-  sel.innerHTML = '<option value="">📋 Duplicar de un pedido anterior…</option>' +
-    pedidos.map(p => `<option value="${p.rowIndex}">${esc(p.nombreEvento || '—')}${p.fecha ? ' · ' + formatDate(p.fecha) : ''}</option>`).join('');
+  sel.innerHTML = '<option value="">🔁 Repetir otro pedido (por nombre, fecha o invitados)…</option>' +
+    pedidos.map(p => {
+      const pax = _pedidoPax(p);
+      const meta = [p.fecha ? formatDate(p.fecha) : null, pax ? `${pax} inv.` : null].filter(Boolean).join(' · ');
+      return `<option value="${p.rowIndex}">${esc(p.nombreEvento || '—')}${meta ? ' · ' + meta : ''}</option>`;
+    }).join('');
+  // Botón "Repetir último": el más reciente por fecha
+  if (btnUltimo) {
+    const ultimo = pedidos[0];
+    btnUltimo.title = ultimo ? `Repetir "${ultimo.nombreEvento || 'último pedido'}"` : '';
+    btnUltimo.onclick = () => ultimo && duplicarPedidoAnterior(ultimo.rowIndex);
+  }
 }
 
 function duplicarPedidoAnterior(rowIndex) {
@@ -6169,7 +6422,7 @@ function duplicarPedidoAnterior(rowIndex) {
   // sea cómodo: ves la lista corta y abrís solo lo que querés cambiar.
   _collapseAllCats(true);
   _applyPedidoVisibility();
-  toast(`Cantidades copiadas de "${p.nombreEvento || 'pedido anterior'}". Abrí la categoría que quieras cambiar.`);
+  toast(`Pedido repetido de "${p.nombreEvento || 'pedido anterior'}". Editá lo que necesites; abrí la categoría que quieras cambiar.`);
   const sel = $('cocina-duplicar-select'); if (sel) sel.value = '';
 }
 
@@ -6206,6 +6459,29 @@ async function guardarPedido() {
   } finally {
     $('cocina-guardar-btn').disabled = false;
   }
+}
+
+// Arma un objeto pedido con lo que hay AHORA en el formulario, sin guardar ni
+// exigir vincularlo a un evento. Sirve para imprimir la planilla directamente.
+function pedidoDesdeFormulario() {
+  return {
+    idCliente: $('cocina-evento-select')?.value || '',
+    nombreEvento: $('cocina-nombre-evento')?.value.trim() || '',
+    fecha: $('cocina-fecha')?.value || '',
+    items: getItemsFromTable(),
+    estado: cocinaPedidoActual?.estado || 'preparacion',
+  };
+}
+
+function imprimirPedidoActual() {
+  const pedido = pedidoDesdeFormulario();
+  const hayItems = (pedido.items || []).some(i => i.cantidad > 0);
+  const hayTotales = (pedido.items || []).some(i => i.catTotalesMarker && Object.keys(i.totales || {}).length);
+  if (!hayItems && !hayTotales) {
+    alert('Cargá al menos un ítem con cantidad (o un total por categoría) para imprimir la planilla.');
+    return;
+  }
+  imprimirPedidoCocina(pedido);
 }
 
 function toggleAgregarPanel() {
@@ -6501,6 +6777,12 @@ function imprimirPlanillaStock() {
   const ING_START = STOCK_CAT_ORDER.indexOf('Bruschetta - Toppings');
   const PROD_CATS = STOCK_CAT_ORDER.slice(0, ING_START);
   const ING_CATS = STOCK_CAT_ORDER.slice(ING_START);
+  // Cualquier categoría del catálogo que no esté en STOCK_CAT_ORDER (ni oculta)
+  // se agrega al final de Ingredientes para que NO quede ningún ítem afuera.
+  const catsConocidas = new Set(STOCK_CAT_ORDER);
+  const catsExtra = [...new Set(cocinaCatalogo.map(c => c.categoria))]
+    .filter(c => c && !catsConocidas.has(c) && !CATS_NO_STOCK_DISPLAY.has(c));
+  const ING_CATS_FULL = [...ING_CATS, ...catsExtra];
   const hoy = new Date().toLocaleDateString('es-AR');
 
   function buildRows(cats) {
@@ -6543,7 +6825,7 @@ function imprimirPlanillaStock() {
   // si "Ingredientes y materias primas" está vacía, no se imprime esa hoja.
   const secciones = [
     { titulo: 'Producción', rows: buildRows(PROD_CATS) },
-    { titulo: 'Ingredientes y materias primas', rows: buildRows(ING_CATS) },
+    { titulo: 'Ingredientes y materias primas', rows: buildRows(ING_CATS_FULL) },
   ].filter(s => s.rows);
 
   const html = `
@@ -6611,17 +6893,29 @@ function imprimirPlanillaPedidoVacia() {
 
 function buildPrintPedidoHTML(pedido) {
   const hoy = new Date().toLocaleDateString('es-AR');
+  const catTotales = (pedido.items || []).find(i => i && i.catTotalesMarker)?.totales || {};
   const byCategory = {}, catOrder = [];
-  (pedido.items || []).filter(i => i.cantidad > 0).forEach(item => {
+  (pedido.items || []).filter(i => !i.catTotalesMarker && i.cantidad > 0).forEach(item => {
     const cat = item.categoria || 'Sin categoría';
     if (!byCategory[cat]) { byCategory[cat] = []; catOrder.push(cat); }
     byCategory[cat].push(item);
   });
+  // Categorías con total manual (sin desglose) también deben imprimirse.
+  Object.keys(catTotales).forEach(cat => { if (!catOrder.includes(cat)) catOrder.push(cat); });
+  // Ordenar según el orden estándar del pedido
+  catOrder.sort((a, b) => {
+    const ia = PEDIDO_CAT_ORDER.indexOf(a), ib = PEDIDO_CAT_ORDER.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
   let rows = '';
   catOrder.forEach(cat => {
     const color = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
-    rows += `<tr><td colspan="4" style="background:${color};padding:3px 8px;font-weight:700;font-size:8pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}</td></tr>`;
-    byCategory[cat].forEach(i => {
+    // Total al lado del nombre: el manual si lo cargó, si no la suma del desglose.
+    const sum = (byCategory[cat] || []).reduce((a, i) => a + (parseFloat(i.cantidad) || 0), 0);
+    const tot = catTotales[cat] || (sum > 0 ? sum : '');
+    const totLabel = tot ? ` &nbsp;·&nbsp; TOTAL: ${esc(tot)}` : '';
+    rows += `<tr><td colspan="4" style="background:${color};padding:3px 8px;font-weight:700;font-size:9pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}${totLabel}</td></tr>`;
+    (byCategory[cat] || []).forEach(i => {
       rows += `<tr style="background:${color}40"><td style="padding-left:12px">${esc(i.nombre)}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:center">${esc(i.unidad||'und')}</td><td>${esc(i.observaciones||'')}</td></tr>`;
     });
   });
@@ -6711,7 +7005,9 @@ function abrirVentanaImpresion(htmlContent) {
   .print-item-name{font-size:12.5pt;padding-left:14px}
   .print-blank-box{border:1px solid #999;min-height:20px}
   .print-obs-box{border:1px solid #999;min-height:20px}
-  @page{size:A4 portrait;margin:14mm 15mm 18mm 15mm;@bottom-right{content:"Hoja " counter(page) " / " counter(pages);font-size:9pt;color:#888}}
+  .print-table tr{page-break-inside:avoid;break-inside:avoid}
+  .print-cat-header{page-break-after:avoid;break-after:avoid}
+  @page{size:A4 portrait;margin:14mm 15mm 20mm 15mm;@bottom-right{content:"Hoja " counter(page) " de " counter(pages);font-size:14pt;font-weight:700;color:#333}}
   @media print{body{padding:0;margin:0} .print-page-break{page-break-before:always}}
   </style></head><body>${htmlContent}<script>setTimeout(function(){window.print();},300);<\/script></body></html>`);
   win.document.close();
@@ -6960,6 +7256,7 @@ $('cocina-form-cancel-btn')?.addEventListener('click', () => {
 });
 $('cocina-agregar-item-btn')?.addEventListener('click', toggleAgregarPanel);
 $('cocina-guardar-btn')?.addEventListener('click', guardarPedido);
+$('cocina-imprimir-pedido-btn')?.addEventListener('click', imprimirPedidoActual);
 $('cocina-item-search')?.addEventListener('input', filterPedidoItems);
 $('cocina-colapsar-btn')?.addEventListener('click', toggleColapsarTodo);
 $('cocina-duplicar-select')?.addEventListener('change', e => duplicarPedidoAnterior(e.target.value));
