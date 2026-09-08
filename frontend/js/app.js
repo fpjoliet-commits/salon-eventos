@@ -5781,19 +5781,30 @@ function renderStockDashboard() {
     <select id="stock-add-unidad" class="stock-add-sel">${UNITS_SD.map(u => `<option>${u}</option>`).join('')}</select>
     <button id="stock-add-btn" class="btn btn-primary btn-sm">Agregar</button>
   </div>
-  <p class="stock-dash-hint">💡 Arrastrá un ítem a otro grupo para moverlo. Arrastrá el título de un grupo para reordenar.</p>`;
+  <p class="stock-dash-hint">💡 Con <b>◀ ▶</b> movés el grupo de lugar. Con <b>⇄ Mover</b> en cada ítem lo pasás a otro grupo. (En computadora también podés arrastrar.)</p>`;
   html += '<div class="stock-dash-grid" id="stock-dash-grid">';
-  catOrder.forEach(cat => {
+  catOrder.forEach((cat, ci) => {
     const color = cocCatColor(cat);
+    // opciones de "mover ítem a" = los demás grupos
+    const otherCats = catOrder.filter(c => c !== cat);
+    const moveOpts = otherCats.map(c => `<option value="${esc(c)}">${esc(catDisplayName(c))}</option>`).join('');
     html += `<div class="stock-dash-section" draggable="true" data-cat="${esc(cat)}">
-      <div class="stock-dash-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</div>`;
+      <div class="stock-dash-cat-header" style="background:${color}">
+        <button class="stock-cat-move" data-cat="${esc(cat)}" data-dir="-1" title="Mover grupo a la izquierda"${ci === 0 ? ' disabled' : ''}>◀</button>
+        <span class="stock-dash-cat-name">${esc(catDisplayName(cat))}</span>
+        <button class="stock-cat-move" data-cat="${esc(cat)}" data-dir="1" title="Mover grupo a la derecha"${ci === catOrder.length - 1 ? ' disabled' : ''}>▶</button>
+      </div>`;
     byCategory[cat].forEach(item => {
       const level = item.cantidad === 0 ? 'sin-stock' : item.cantidad < 5 ? 'bajo' : 'ok';
-      html += `<div class="stock-dash-item-row" draggable="true" data-id="${esc(item.id)}" data-cat="${esc(cat)}" data-nombre="${esc(item.nombre)}" title="Arrastrá para mover de grupo">
-        <span class="stock-dash-drag">⠿</span>
+      html += `<div class="stock-dash-item-row" draggable="true" data-id="${esc(item.id)}" data-cat="${esc(cat)}" data-nombre="${esc(item.nombre)}">
+        <span class="stock-dash-drag" title="Arrastrar (en computadora)">⠿</span>
         <span class="stock-dash-nombre">${esc(item.nombre)}</span>
         <span class="stock-dash-cant stock-${level}">${item.cantidad}</span>
         <span class="stock-dash-unidad">${esc(item.unidad||'und')}</span>
+        <select class="stock-move-sel" data-id="${esc(item.id)}" data-cat="${esc(cat)}" title="Mover este ítem a otro grupo">
+          <option value="">⇄ Mover…</option>
+          ${moveOpts}
+        </select>
       </div>`;
     });
     html += '</div>';
@@ -5801,7 +5812,40 @@ function renderStockDashboard() {
   html += '</div>';
   el.innerHTML = html;
   _wireStockAddBar();
+  _wireStockDashControls();
   initStockDashDnD();
+}
+
+// Botones ◀▶ para reordenar grupos y selector "⇄ Mover" por ítem (funciona en touch)
+function _wireStockDashControls() {
+  const grid = document.getElementById('stock-dash-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.stock-cat-move').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      _moverGrupoStock(btn.dataset.cat, parseInt(btn.dataset.dir));
+    });
+  });
+  grid.querySelectorAll('.stock-move-sel').forEach(sel => {
+    // que interactuar con el select no dispare el drag del ítem
+    ['click', 'mousedown', 'dragstart'].forEach(ev => sel.addEventListener(ev, e => e.stopPropagation()));
+    sel.addEventListener('change', () => {
+      const nueva = sel.value;
+      if (nueva) moverItemDeGrupo(sel.dataset.id, nueva, sel.dataset.cat);
+    });
+  });
+}
+
+function _moverGrupoStock(cat, dir) {
+  const grid = document.getElementById('stock-dash-grid');
+  if (!grid) return;
+  const order = [...grid.querySelectorAll('.stock-dash-section')].map(el => el.dataset.cat);
+  const i = order.indexOf(cat);
+  const j = i + dir;
+  if (i === -1 || j < 0 || j >= order.length) return;
+  [order[i], order[j]] = [order[j], order[i]];
+  try { localStorage.setItem('cocina-stock-cat-order', JSON.stringify(order)); } catch {}
+  renderStockDashboard();
 }
 
 function _wireStockAddBar() {

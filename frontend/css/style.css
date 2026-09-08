@@ -321,6 +321,7 @@ body {
 .main-content {
   margin-left: var(--sidebar-w);
   flex: 1;
+  min-width: 0;   /* permite que el contenido se encoja y que las tablas anchas scrolleen adentro (.table-wrap) en vez de desbordar la página */
   padding: 40px 46px;
   min-height: 100vh;
 }
@@ -3963,11 +3964,38 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .stock-dash-section.stock-dragging { opacity: 0.4; cursor: grabbing; }
 .stock-dash-section.stock-drag-over { outline: 2px dashed var(--gold); }
 .stock-dash-cat-header {
-  padding: 5px 10px;
-  font-size: 0.78rem;
+  padding: 5px 8px;
+  font-size: 0.85rem;
   font-weight: 700;
   color: #5d4037;
   letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stock-dash-cat-name { flex: 1; text-align: center; }
+.stock-cat-move {
+  border: none;
+  background: rgba(0,0,0,0.06);
+  color: #5d4037;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.stock-cat-move:hover:not(:disabled) { background: rgba(0,0,0,0.15); }
+.stock-cat-move:disabled { opacity: 0.25; cursor: default; }
+.stock-move-sel {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 4px;
+  background: #fff;
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 .stock-dash-item-row {
   display: flex;
