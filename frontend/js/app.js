@@ -5730,9 +5730,8 @@ const COCINA_CAT_COLORS = {
   'Islas':                         '#EDE7F6',
   'Primer Plato - Pastas':         '#E0F7FA',
   'Primer Plato - Salsas':         '#E0F2F1',
-  'Plato Central - Ave':           '#FFF9C4',
-  'Plato Central - Carne':         '#FFEBEE',
-  'Plato Central - Salsas':        '#FFF3E0',
+  'Proteínas':                     '#FFEBEE',
+  'Salsa plato':                   '#FFF3E0',
   'Guarnición plato central':      '#F3E5F5',
   'Cafetería / Fin de Fiesta':     '#E8EAF6',
   // Ingredientes (solo stock)
@@ -5756,7 +5755,7 @@ const STOCK_CAT_ORDER = [
   'Recepción - Brochettes', 'Recepción - Empanaditas', 'Recepción - Calientes',
   'Islas',
   'Primer Plato - Pastas', 'Primer Plato - Salsas',
-  'Plato Central - Ave', 'Plato Central - Carne', 'Plato Central - Salsas', 'Guarnición plato central',
+  'Proteínas', 'Salsa plato', 'Guarnición plato central',
   'Bruschetta - Toppings', 'Fiambres', 'Condimentos', 'Básicos', 'Verduras', 'Aceites y Sales',
 ];
 
@@ -5767,7 +5766,7 @@ const PEDIDO_CAT_ORDER = [
   'Recepción - Brochettes', 'Recepción - Empanaditas', 'Recepción - Calientes',
   'Islas',
   'Primer Plato - Pastas', 'Primer Plato - Salsas',
-  'Plato Central - Ave', 'Plato Central - Carne', 'Plato Central - Salsas', 'Guarnición plato central',
+  'Proteínas', 'Salsa plato', 'Guarnición plato central',
   'Cafetería / Fin de Fiesta',
 ];
 
@@ -5786,12 +5785,13 @@ function cocCatColor(cat) { return COCINA_CAT_COLORS[cat] || '#F5F5F5'; }
 function _normStrCli(s) {
   return (s || '').replace(/[–—·]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
 }
-const _CANON_NAMES_AVE_CARNE = {
-  [_normStrCli('Plato Central - Ave')]: new Set(['Pechuga tradición', 'Pechuga caprese', 'Pechuga doble puerro'].map(_normStrCli)),
-  [_normStrCli('Plato Central - Carne')]: new Set(['Lomo Reserva', 'Bife del bosque', 'Lomo Dijon'].map(_normStrCli)),
-};
+const _CANON_NAMES_AVE_CARNE = {};
 // Categorías viejas renombradas o que ya no se piden por este canal: nunca deben aparecer
-const _CATS_DESCARTAR_CLI = new Set(['Guarniciones', 'Plato Central - Guarniciones', 'Mesa de Dulces'].map(_normStrCli));
+const _CATS_DESCARTAR_CLI = new Set([
+  'Guarniciones', 'Plato Central - Guarniciones', 'Mesa de Dulces',
+  // Ave + Carne se fusionaron en "Proteínas"; las salsas del plato pasaron a "Salsa plato"
+  'Plato Central - Ave', 'Plato Central - Carne', 'Plato Central - Salsas',
+].map(_normStrCli));
 function limpiarCatalogoCliente(items) {
   return (items || []).filter(i => {
     const catN = _normStrCli(i.categoria);
@@ -5871,13 +5871,10 @@ function renderStockDashboard() {
     <select id="stock-add-unidad" class="stock-add-sel">${UNITS_SD.map(u => `<option>${u}</option>`).join('')}</select>
     <button id="stock-add-btn" class="btn btn-primary btn-sm">Agregar</button>
   </div>
-  <p class="stock-dash-hint">💡 Con <b>◀ ▶</b> movés el grupo de lugar. Tocá el <b>⇄</b> de un ítem para pasarlo a otro grupo.</p>`;
+  <p class="stock-dash-hint">💡 Con <b>◀ ▶</b> movés el grupo de lugar. Con el <b>✏️</b> de cada ítem podés cambiarle el nombre, la unidad, pasarlo a otro grupo o eliminarlo.</p>`;
   html += '<div class="stock-dash-grid" id="stock-dash-grid">';
   catOrder.forEach((cat, ci) => {
     const color = cocCatColor(cat);
-    // opciones de "mover ítem a" = los demás grupos
-    const otherCats = catOrder.filter(c => c !== cat);
-    const moveOpts = otherCats.map(c => `<option value="${esc(c)}">${esc(catDisplayName(c))}</option>`).join('');
     html += `<div class="stock-dash-section" draggable="true" data-cat="${esc(cat)}">
       <div class="stock-dash-cat-header" style="background:${color}">
         <button class="stock-cat-move" data-cat="${esc(cat)}" data-dir="-1" title="Mover grupo a la izquierda"${ci === 0 ? ' disabled' : ''}>◀</button>
@@ -5890,10 +5887,7 @@ function renderStockDashboard() {
         <span class="stock-dash-nombre">${esc(item.nombre)}</span>
         <span class="stock-dash-cant stock-${level}">${item.cantidad}</span>
         <span class="stock-dash-unidad">${esc(item.unidad||'und')}</span>
-        <select class="stock-move-sel" data-id="${esc(item.id)}" data-cat="${esc(cat)}" title="Mover este ítem a otro grupo">
-          <option value="">⇄</option>
-          ${moveOpts}
-        </select>
+        <button type="button" class="stock-edit-btn" data-id="${esc(item.id)}" title="Editar o eliminar este ítem">✏️</button>
       </div>`;
     });
     html += '</div>';
@@ -5915,12 +5909,12 @@ function _wireStockDashControls() {
       _moverGrupoStock(btn.dataset.cat, parseInt(btn.dataset.dir));
     });
   });
-  grid.querySelectorAll('.stock-move-sel').forEach(sel => {
-    // que interactuar con el select no dispare el drag del ítem
-    ['click', 'mousedown', 'dragstart'].forEach(ev => sel.addEventListener(ev, e => e.stopPropagation()));
-    sel.addEventListener('change', () => {
-      const nueva = sel.value;
-      if (nueva) moverItemDeGrupo(sel.dataset.id, nueva, sel.dataset.cat);
+  grid.querySelectorAll('.stock-edit-btn').forEach(btn => {
+    // que tocar el botón no dispare el drag del ítem
+    ['mousedown', 'dragstart'].forEach(ev => btn.addEventListener(ev, e => e.stopPropagation()));
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      abrirEditorItem(btn.dataset.id, { onDone: renderStockDashboard });
     });
   });
 }
@@ -6033,6 +6027,113 @@ function initStockDashDnD() {
   });
 }
 
+// Editor de un ítem del catálogo: renombrar, cambiar unidad, cambiar de grupo o
+// darlo de baja. Se usa igual desde el stock y desde el armado del pedido.
+function abrirEditorItem(id, { onDone } = {}) {
+  const item = cocinaCatalogo.find(c => c.id === id)
+    || cocinaStockActual.find(s => s.id === id);
+  if (!item) { alert('No encontré este ítem en el catálogo.'); return; }
+
+  const cats = [...new Set([
+    ...cocinaCatalogo.map(c => c.categoria).filter(Boolean),
+    item.categoria,
+  ])].sort((a, b) => catDisplayName(a).localeCompare(catDisplayName(b), 'es'));
+  const UNIDS = ['und', 'lt', 'kg', 'gr'];
+
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+  ov.innerHTML = `<div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-nombre-wrap"><h3>✏️ Editar ítem</h3></div>
+      <button class="modal-close" data-ei-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ei-campo">
+        <label for="ei-nombre">Nombre</label>
+        <input id="ei-nombre" class="ei-input" value="${esc(item.nombre)}">
+      </div>
+      <div class="ei-fila">
+        <div class="ei-campo">
+          <label for="ei-unidad">Unidad</label>
+          <select id="ei-unidad" class="ei-input">
+            ${UNIDS.map(u => `<option value="${u}"${(item.unidad || 'und') === u ? ' selected' : ''}>${u}</option>`).join('')}
+          </select>
+        </div>
+        <div class="ei-campo" style="flex:2">
+          <label for="ei-cat">Grupo</label>
+          <select id="ei-cat" class="ei-input">
+            ${cats.map(c => `<option value="${esc(c)}"${c === item.categoria ? ' selected' : ''}>${esc(catDisplayName(c))}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="ei-borrar-zona">
+        <button type="button" class="btn btn-danger btn-sm" data-ei-borrar>🗑️ Eliminar este ítem</button>
+        <div class="ei-confirm hidden" data-ei-confirm>
+          <p>¿Seguro que querés eliminar <b>${esc(item.nombre)}</b>? Desaparece del stock, de los pedidos nuevos y de las planillas.</p>
+          <div class="ei-confirm-btns">
+            <button type="button" class="btn btn-secondary btn-sm" data-ei-cancelar-borrar>No, dejarlo</button>
+            <button type="button" class="btn btn-danger btn-sm" data-ei-borrar-si>Sí, eliminar definitivamente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" data-ei-close>Cancelar</button>
+      <button class="btn btn-primary" data-ei-guardar>Guardar cambios</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+
+  const cerrar = () => ov.remove();
+  ov.querySelectorAll('[data-ei-close]').forEach(b => b.addEventListener('click', cerrar));
+  ov.addEventListener('click', e => { if (e.target === ov) cerrar(); });
+  ov.querySelector('#ei-nombre').focus();
+
+  // Borrado con doble confirmación: el botón solo despliega el bloque de confirmación
+  const zonaConfirm = ov.querySelector('[data-ei-confirm]');
+  ov.querySelector('[data-ei-borrar]').addEventListener('click', () => zonaConfirm.classList.remove('hidden'));
+  ov.querySelector('[data-ei-cancelar-borrar]').addEventListener('click', () => zonaConfirm.classList.add('hidden'));
+
+  ov.querySelector('[data-ei-borrar-si]').addEventListener('click', async e => {
+    e.target.disabled = true;
+    try {
+      await apiFetch(`/catalogo-items/por-id/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      cocinaCatalogo = cocinaCatalogo.filter(c => c.id !== id);
+      cocinaStockActual = cocinaStockActual.filter(s => s.id !== id);
+      cerrar();
+      toast(`"${item.nombre}" eliminado`);
+      onDone?.();
+    } catch (err) {
+      e.target.disabled = false;
+      alert('No se pudo eliminar: ' + err.message);
+    }
+  });
+
+  ov.querySelector('[data-ei-guardar]').addEventListener('click', async e => {
+    const nombre = ov.querySelector('#ei-nombre').value.trim();
+    const unidad = ov.querySelector('#ei-unidad').value;
+    const categoria = ov.querySelector('#ei-cat').value;
+    if (!nombre) { alert('El nombre no puede quedar vacío.'); return; }
+    if (nombre === item.nombre && unidad === (item.unidad || 'und') && categoria === item.categoria) { cerrar(); return; }
+    e.target.disabled = true;
+    try {
+      await apiFetch(`/catalogo-items/por-id/${encodeURIComponent(id)}`, {
+        method: 'PUT', body: { nombre, unidad, categoria },
+      });
+      [cocinaCatalogo, cocinaStockActual].forEach(lista => {
+        const reg = lista.find(x => x.id === id);
+        if (reg) Object.assign(reg, { nombre, unidad, categoria });
+      });
+      cerrar();
+      toast('Ítem actualizado');
+      onDone?.();
+    } catch (err) {
+      e.target.disabled = false;
+      alert('No se pudo guardar: ' + err.message);
+    }
+  });
+}
+
 async function moverItemDeGrupo(id, nuevaCat, catAnterior) {
   // Optimista: actualizo local y re-renderizo; si falla, revierto.
   const stk = cocinaStockActual.find(s => s.id === id);
@@ -6067,7 +6168,7 @@ function openActualizarStockForm() {
     byCategory[cat].forEach(item => {
       const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
       html += `<tr style="background:${color}22">
-        <td style="padding-left:16px;font-size:13px">${esc(item.nombre)}</td>
+        <td style="padding-left:16px;font-size:13px">${esc(item.nombre)}<button type="button" class="coc-edit-item" data-id="${esc(item.id)}" title="Editar o eliminar este ítem del catálogo">✏️</button></td>
         <td>${_cantWrap(item.cantidad || 0, step, 'cocina-stock-update-input', `data-item-id="${esc(item.id)}"`)}</td>
         <td class="cocina-unidad-cell">${esc(item.unidad||'und')}</td>
       </tr>`;
@@ -6075,6 +6176,9 @@ function openActualizarStockForm() {
   });
   tbody.innerHTML = html;
   _wirePMButtons(tbody);
+  tbody.querySelectorAll('.coc-edit-item').forEach(btn => {
+    btn.addEventListener('click', () => abrirEditorItem(btn.dataset.id, { onDone: openActualizarStockForm }));
+  });
   form.classList.remove('hidden');
   form.scrollIntoView({ behavior: 'smooth' });
 }
@@ -6342,7 +6446,7 @@ function renderItemsTableEditable(existingItems) {
       const stockCant = cocinaStockActual.find(s => s.id === item.id)?.cantidad;
       const stockDisplay = (stockCant != null && stockCant > 0) ? `${stockCant} ${esc(item.unidad||'und')}` : '—';
       html += `<tr data-idx="${globalIdx++}" data-id="${esc(item.id||'')}" data-cat="${esc(item.categoria)}" data-nombre="${esc(item.nombre)}" data-unidad="${esc(item.unidad||'und')}" style="background:${color}22">
-        <td style="padding-left:16px" class="cocina-item-nombre-cell">${esc(item.nombre)}</td>
+        <td style="padding-left:16px" class="cocina-item-nombre-cell">${esc(item.nombre)}${item.id ? `<button type="button" class="coc-edit-item" data-id="${esc(item.id)}" title="Editar o eliminar este ítem del catálogo">✏️</button>` : ''}</td>
         <td>${_cantWrap(item.cantidad||'', step, 'cocina-cant-input', 'data-field="cantidad"')}</td>
         <td class="cocina-unidad-cell">${esc(item.unidad||'und')}</td>
         <td class="cocina-stock-col cocina-stock-val">${stockDisplay}</td>
@@ -6355,6 +6459,25 @@ function renderItemsTableEditable(existingItems) {
   _wirePMButtons(tbody);
   _wireCategoryCollapse(tbody);
   tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => btn.closest('tr').remove()));
+  // Editar/eliminar el ítem en el catálogo (afecta a todos los pedidos, no solo a este)
+  tbody.querySelectorAll('.coc-edit-item').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const tr = btn.closest('tr');
+      abrirEditorItem(btn.dataset.id, {
+        onDone: () => {
+          const reg = cocinaCatalogo.find(c => c.id === btn.dataset.id);
+          if (!reg) { tr.remove(); return; }
+          tr.dataset.nombre = reg.nombre;
+          tr.dataset.cat = reg.categoria;
+          tr.dataset.unidad = reg.unidad || 'und';
+          btn.previousSibling.textContent = reg.nombre;
+          const uc = tr.querySelector('.cocina-unidad-cell');
+          if (uc) uc.textContent = reg.unidad || 'und';
+        },
+      });
+    });
+  });
   // El input de total vive dentro del encabezado plegable: que interactuar con él no colapse la categoría.
   tbody.querySelectorAll('.coc-cat-total').forEach(sp => {
     ['click', 'mousedown'].forEach(ev => sp.addEventListener(ev, e => e.stopPropagation()));
@@ -6862,7 +6985,7 @@ const _PRINT_CAT_COLORS = {
   'Recepción - Brochettes':'#FCE4EC','Recepción - Empanaditas':'#E8F5E9','Recepción - Calientes':'#FBE9E7',
   'Islas':'#EDE7F6','Primer Plato - Pastas':'#E0F7FA','Primer Plato - Pastas Gourmet':'#B2EBF2',
   'Primer Plato - Salsas':'#E0F2F1','Primer Plato - Salsas Gourmet':'#B2DFDB',
-  'Plato Central - Ave':'#FFF9C4','Plato Central - Carne':'#FFEBEE','Plato Central - Guarniciones':'#F3E5F5',
+  'Proteínas':'#FFEBEE','Salsa plato':'#FFF3E0','Guarnición plato central':'#F3E5F5',
   'Bruschetta - Toppings':'#FFF8E1','Fiambres':'#FAFAFA','Condimentos':'#F9FBE7',
   'Básicos':'#F3F3F3','Verduras':'#E8F5E9','Aceites y Sales':'#FFF3E0',
 };
@@ -7572,358 +7695,4 @@ $('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamie
     currentUser = JSON.parse(savedUser);
     initApp();
   }
-})();
-
-/* ============================================================
-   PROPUESTA — CAPA VIVA (interacción)
-   Feedback físico al elegir: ripple donde toca el dedo, pop
-   elástico, atenuado de las opciones no elegidas, navegación
-   por teclado y un fondo que sigue apenas al puntero.
-   Todo delegado: también alcanza a lo que se construye después
-   (gastronomía, recorrido, resumen).
-   ============================================================ */
-(function initPropuestaMotion() {
-  const view = document.getElementById('view-propuesta');
-  if (!view) return;
-
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  const RIPPLE_SEL = [
-    '.propuesta-card', '.estilo-fork-card', '.adicional-card', '.espacio-card',
-    '.propuesta-servicio-item', '.counter-btn', '.btn-propuesta-primary',
-    '.btn-propuesta-nav', '.propuesta-close-btn', '.btn-propuesta-secondary',
-    '.gastro-island-row', '.gastro-menu-row', '.gastro-plato-row', '.gastro-premium-row'
-  ].join(',');
-
-  // Grupos de elección única: al haber una elegida, el resto se atenúa
-  const GRUPOS = ['evento-cards', 'turno-cards', 'espacio-cards', 'estilo-cards'];
-  function syncGrupos() {
-    GRUPOS.forEach(id => {
-      const g = document.getElementById(id);
-      if (g) g.classList.toggle('has-pick', !!g.querySelector('.selected'));
-    });
-  }
-  window.syncPropuestaGrupos = syncGrupos;
-
-  view.addEventListener('pointerdown', e => {
-    const target = e.target.closest(RIPPLE_SEL);
-    if (!target || reduce) return;
-
-    // Ripple desde el punto exacto del click
-    const r = target.getBoundingClientRect();
-    const size = Math.max(r.width, r.height) * 2.2;
-    const ink = document.createElement('span');
-    ink.className = 'prop-ripple';
-    ink.style.width = ink.style.height = size + 'px';
-    ink.style.left = (e.clientX - r.left) + 'px';
-    ink.style.top = (e.clientY - r.top) + 'px';
-    if (getComputedStyle(target).position === 'static') target.style.position = 'relative';
-    target.appendChild(ink);
-    setTimeout(() => ink.remove(), 650);
-  });
-
-  view.addEventListener('click', e => {
-    const target = e.target.closest(RIPPLE_SEL);
-    if (target && !reduce) {
-      target.classList.remove('prop-pop');
-      void target.offsetWidth;
-      target.classList.add('prop-pop');
-      setTimeout(() => target.classList.remove('prop-pop'), 480);
-    }
-    // El estado .selected lo escriben los handlers propios: sincronizamos después
-    setTimeout(() => { syncGrupos(); window.updatePropuestaScenery?.(); }, 0);
-  });
-
-  // Navegación por teclado: flechas y Enter mueven la propuesta
-  document.addEventListener('keydown', e => {
-    if (!view.classList.contains('active')) return;
-    const tag = (document.activeElement?.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-    if (e.key === 'ArrowRight') { e.preventDefault(); document.getElementById('btn-prop-next')?.click(); }
-    if (e.key === 'ArrowLeft')  { e.preventDefault(); document.getElementById('btn-prop-prev')?.click(); }
-  });
-
-  // Los dots son navegables: saltar a un paso ya recorrido
-  document.getElementById('propuesta-step-dots')?.addEventListener('click', e => {
-    const dots = [...document.querySelectorAll('.propuesta-dot')];
-    const i = dots.indexOf(e.target);
-    if (i < 0 || typeof goToPropuestaSlide !== 'function') return;
-    const n = i + 1;
-    const cont = document.querySelector('.propuesta-slides-container');
-    cont?.classList.toggle('slides-going-back', n < propuestaState.current);
-    if (n !== propuestaState.current) goToPropuestaSlide(n);
-  });
-
-  // El fondo sigue apenas al puntero: solo con mouse (en tablet no hay hover
-  // y el efecto costaría GPU sin que nadie lo vea)
-  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  if (!reduce && finePointer) {
-    let raf = null, tx = 0, ty = 0;
-    view.addEventListener('pointermove', e => {
-      tx = (e.clientX / window.innerWidth - .5) * 26;
-      ty = (e.clientY / window.innerHeight - .5) * 18;
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = null;
-        const amb = view.querySelector('.kiosco-ambient');
-        if (amb) amb.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
-      });
-    });
-  }
-
-  // ---- Deslizar entre pasos (tablet) ----
-  // La presentación se hace muchas veces en tablet: pasar de paso tiene que
-  // poder hacerse con el pulgar, no solo con los botones de abajo.
-  const cont = document.querySelector('.propuesta-slides-container');
-  if (cont) {
-    let x0 = 0, y0 = 0, t0 = 0, tracking = false;
-    cont.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1) { tracking = false; return; }
-      // No robamos el gesto sobre algo que se maneja deslizando
-      if (e.target.closest('input, textarea, select, .propuesta-textarea')) { tracking = false; return; }
-      const t = e.touches[0];
-      x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); tracking = true;
-    }, { passive: true });
-
-    cont.addEventListener('touchend', e => {
-      if (!tracking) return;
-      tracking = false;
-      const t = e.changedTouches[0];
-      const dx = t.clientX - x0;
-      const dy = t.clientY - y0;
-      const dt = Date.now() - t0;
-      // Horizontal, decidido y sin ser un scroll vertical disfrazado
-      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8 || dt > 700) return;
-      if (dx < 0) document.getElementById('btn-prop-next')?.click();
-      else        document.getElementById('btn-prop-prev')?.click();
-    }, { passive: true });
-  }
-
-  // Al reconstruir slides dinámicos, mantener los grupos en sincronía
-  document.addEventListener('DOMContentLoaded', syncGrupos);
-  syncGrupos();
-})();
-
-/* ============================================================
-   PROPUESTA — ESCENOGRAFÍA
-   El fondo no es decorativo porque sí: cuenta en qué momento del
-   camino estamos y qué se eligió. Elegís Boda y empiezan a caer
-   pétalos; elegís Noche y sale la luna; llegás al banquete y sube
-   el vapor. Todo SVG + CSS (nada de GIFs: pesan y no se adaptan
-   al color del salón), decorativo y sin capturar clicks.
-   ============================================================ */
-(function initPropuestaScenery() {
-  const host = document.getElementById('kiosco-scenery');
-  if (!host) return;
-
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const coarse = window.matchMedia('(pointer: coarse)').matches;
-  // En tablet bajamos la cantidad de partículas: mismo clima, menos GPU
-  const dens = coarse ? .55 : 1;
-
-  const rnd = (a, b) => a + Math.random() * (b - a);
-
-  // Lluvia / ascenso de partículas: n piezas con ritmos distintos para que
-  // el patrón nunca se lea como un bucle
-  function field(n, cls, svg, opt = {}) {
-    const { dur = [9, 16], delay = [0, 12], size = [14, 30], drift = true } = opt;
-    let out = '';
-    for (let i = 0; i < Math.round(n * dens); i++) {
-      const s = rnd(size[0], size[1]);
-      out += `<span class="sc-item ${cls}" style="
-        left:${rnd(-4, 100)}%;
-        width:${s}px;height:${s}px;
-        animation-duration:${rnd(dur[0], dur[1]).toFixed(1)}s;
-        animation-delay:${(-rnd(delay[0], delay[1])).toFixed(1)}s;
-        --sway:${drift ? rnd(-70, 70).toFixed(0) : 0}px;
-        --spin:${rnd(-320, 320).toFixed(0)}deg;
-        opacity:${rnd(.25, .7).toFixed(2)};
-      ">${svg}</span>`;
-    }
-    return out;
-  }
-
-  // ---- Piezas ----
-  const PETALO = `<svg viewBox="0 0 24 24"><path d="M12 2C7 7 4 12 6 17c2 4 8 6 12 3 4-3 4-9 1-13-2-3-5-4-7-5z" fill="currentColor"/></svg>`;
-  const DESTELLO = `<svg viewBox="0 0 24 24"><path d="M12 0l2.4 8.2L22 12l-7.6 3.8L12 24l-2.4-8.2L2 12l7.6-3.8z" fill="currentColor"/></svg>`;
-  const GLOBO = `<svg viewBox="0 0 24 32"><ellipse cx="12" cy="11" rx="9" ry="11" fill="currentColor"/><path d="M12 22l-2 3h4z" fill="currentColor" opacity=".8"/><path d="M12 25c2 3-2 4 0 7" stroke="currentColor" stroke-width="1" fill="none" opacity=".5"/></svg>`;
-  const CONFETI = `<svg viewBox="0 0 12 20"><rect width="12" height="20" rx="2" fill="currentColor"/></svg>`;
-  const HOJA = `<svg viewBox="0 0 24 24"><path d="M22 2C10 3 3 9 3 17c0 2 1 4 2 5 1-8 7-14 15-16-6 4-10 8-12 15 8 1 14-6 14-19z" fill="currentColor"/></svg>`;
-  const BURBUJA = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8.5" cy="8.5" r="2.4" fill="currentColor" opacity=".5"/></svg>`;
-  const PLUMA = `<svg viewBox="0 0 24 24"><path d="M20 3c-7 0-13 5-14 12l-2 6 6-2c7-1 12-7 12-14zM8 17c1-5 5-9 10-10-3 4-6 8-10 10z" fill="currentColor"/></svg>`;
-  const NOTA = `<svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="6.5" cy="18" r="2.8" fill="currentColor"/><circle cx="16.5" cy="16" r="2.8" fill="currentColor"/></svg>`;
-
-  // ---- Escenas fijas (piezas grandes, no partículas) ----
-  const SOL = `
-    <div class="sc-astro sc-sol">
-      <svg viewBox="0 0 200 200">
-        <g class="sc-rays">
-          ${Array.from({ length: 12 }, (_, i) =>
-            `<rect x="98.5" y="6" width="3" height="34" rx="1.5" fill="currentColor" opacity=".5"
-              transform="rotate(${i * 30} 100 100)"/>`).join('')}
-        </g>
-        <circle class="sc-disc" cx="100" cy="100" r="46" fill="currentColor" opacity=".55"/>
-        <circle cx="100" cy="100" r="62" fill="none" stroke="currentColor" stroke-width="1" opacity=".28"/>
-      </svg>
-    </div>`;
-
-  const LUNA = `
-    <div class="sc-astro sc-luna">
-      <svg viewBox="0 0 200 200">
-        <path class="sc-disc" d="M126 30a72 72 0 1 0 44 118A78 78 0 0 1 126 30z" fill="currentColor" opacity=".5"/>
-      </svg>
-    </div>
-    <div class="sc-stars">
-      ${Array.from({ length: Math.round(26 * dens) }, () =>
-        `<i style="left:${rnd(2, 98).toFixed(1)}%;top:${rnd(3, 78).toFixed(1)}%;
-           animation-delay:${rnd(0, 5).toFixed(1)}s;
-           animation-duration:${rnd(2.4, 6).toFixed(1)}s;
-           transform:scale(${rnd(.6, 1.5).toFixed(2)})"></i>`).join('')}
-    </div>`;
-
-  // Bola de espejo: gira y tira destellos sobre las paredes
-  const BOLA = `
-    <div class="sc-bola">
-      <svg viewBox="0 0 120 140">
-        <line x1="60" y1="0" x2="60" y2="22" stroke="currentColor" stroke-width="1.5" opacity=".5"/>
-        <g class="sc-bola-spin">
-          <circle cx="60" cy="70" r="46" fill="currentColor" opacity=".22"/>
-          ${Array.from({ length: 6 }, (_, r) =>
-            Array.from({ length: 9 }, (_, c) =>
-              `<rect x="${16 + c * 10}" y="${30 + r * 15}" width="8" height="12" fill="currentColor"
-                 opacity="${(.18 + ((r + c) % 3) * .2).toFixed(2)}"/>`).join('')).join('')}
-          <circle cx="60" cy="70" r="46" fill="none" stroke="currentColor" stroke-width="1" opacity=".45"/>
-        </g>
-      </svg>
-    </div>
-    <div class="sc-glints">
-      ${Array.from({ length: Math.round(20 * dens) }, () =>
-        `<i style="left:${rnd(0, 100).toFixed(1)}%;top:${rnd(10, 92).toFixed(1)}%;
-           animation-delay:${rnd(0, 4).toFixed(1)}s;
-           animation-duration:${rnd(2.2, 5).toFixed(1)}s"></i>`).join('')}
-    </div>`;
-
-  // Follaje que se mece en los dos bordes + luciérnagas
-  const FOLLAJE = `
-    <div class="sc-fronda sc-fronda-izq">${HOJA}${HOJA}${HOJA}</div>
-    <div class="sc-fronda sc-fronda-der">${HOJA}${HOJA}${HOJA}</div>
-    <div class="sc-fireflies">
-      ${Array.from({ length: Math.round(14 * dens) }, () =>
-        `<i style="left:${rnd(4, 96).toFixed(1)}%;top:${rnd(20, 88).toFixed(1)}%;
-           animation-delay:${rnd(0, 8).toFixed(1)}s;
-           animation-duration:${rnd(7, 14).toFixed(1)}s;
-           --fx:${rnd(-90, 90).toFixed(0)}px;--fy:${rnd(-70, 40).toFixed(0)}px"></i>`).join('')}
-    </div>`;
-
-  // Vapor: el banquete que sale de la cocina
-  const VAPOR = `
-    <div class="sc-steam">
-      ${Array.from({ length: Math.round(7 * dens) }, (_, i) =>
-        `<svg viewBox="0 0 40 120" style="left:${8 + i * 13}%;
-           animation-delay:${(-rnd(0, 9)).toFixed(1)}s;
-           animation-duration:${rnd(9, 15).toFixed(1)}s">
-           <path d="M20 120C6 96 34 88 20 64 6 40 34 30 20 4" stroke="currentColor"
-             stroke-width="3" fill="none" stroke-linecap="round"/>
-         </svg>`).join('')}
-    </div>`;
-
-  // Copas que brindan al final
-  const BRINDIS = `
-    <div class="sc-brindis">
-      <svg viewBox="0 0 200 120">
-        <g class="sc-copa sc-copa-izq">
-          <path d="M56 18h34l-6 26a11 11 0 0 1-22 0z" fill="currentColor" opacity=".35"/>
-          <path d="M73 55v34" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-          <path d="M60 92h26" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-        </g>
-        <g class="sc-copa sc-copa-der">
-          <path d="M110 18h34l-6 26a11 11 0 0 1-22 0z" fill="currentColor" opacity=".35"/>
-          <path d="M127 55v34" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-          <path d="M114 92h26" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-        </g>
-      </svg>
-    </div>`;
-
-  // El recorrido: una línea de oro que se dibuja sola, como el hilo de la noche
-  const HILO = `
-    <div class="sc-hilo">
-      <svg viewBox="0 0 1200 300" preserveAspectRatio="none">
-        <path d="M-20 210C180 210 200 70 400 70s230 160 430 160 210-130 410-130"
-          stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-      </svg>
-    </div>`;
-
-  // ---- Qué se muestra en cada momento del camino ----
-  function sceneFor(n, d) {
-    const diurno = d.turno === 'Almuerzo' || d.turno === 'Tarde';
-
-    // Lo elegido manda por sobre el paso: si ya hay tipo de evento, el clima
-    // del evento acompaña el resto del camino
-    const porEvento = {
-      'Boda':        () => field(13, 'sc-fall sc-rosa', PETALO, { size: [16, 34] }),
-      'XV años':     () => field(16, 'sc-fall sc-oro',  DESTELLO, { size: [10, 24], dur: [7, 14] }),
-      'Cumpleaños':  () => field(9,  'sc-rise sc-fiesta', GLOBO, { size: [22, 46], dur: [14, 24] }),
-      'Bautismo':    () => field(11, 'sc-fall sc-nube', PLUMA, { size: [16, 30], dur: [12, 20] }),
-      'Comunión':    () => field(11, 'sc-fall sc-nube', HOJA, { size: [14, 26], dur: [12, 20] }),
-      'Egresados':   () => field(16, 'sc-fall sc-confeti', CONFETI, { size: [8, 16], dur: [6, 12] }),
-      'Corporativo': () => field(8,  'sc-rise sc-sobrio', BURBUJA, { size: [12, 26], dur: [14, 22] }),
-    };
-    const clima = porEvento[d.tipoEvento] ? porEvento[d.tipoEvento]() : '';
-
-    switch (n) {
-      case 1:  // Portada
-        return clima || field(10, 'sc-rise sc-oro', DESTELLO, { size: [8, 18], dur: [12, 20] });
-      case 2:  // Cómo lo imaginás
-        return clima;
-      case 3:  // Qué festejamos — acá se ve el efecto de elegir
-        return clima;
-      case 4:  // Cuándo es — sale el sol o la luna
-        return (!d.turno ? '' : diurno ? SOL : LUNA) + clima;
-      case 5:  // Cuántos van a ser
-        return clima || field(10, 'sc-rise sc-oro', BURBUJA, { size: [10, 22], dur: [12, 20] });
-      case 6:  // Dónde los recibimos
-        return (d.espacio === 'Interior'  ? BOLA
-             :  d.espacio === 'Jardín'    ? FOLLAJE
-             :  d.espacio === 'Combinado' ? BOLA + FOLLAJE
-             :  '') + clima;
-      case 7:  // El recorrido
-        return HILO + clima;
-      case 8:  // Hacelo único
-        return field(14, 'sc-fall sc-confeti', CONFETI, { size: [8, 16], dur: [6, 12] })
-             + field(6, 'sc-rise sc-oro', NOTA, { size: [16, 28], dur: [13, 20] });
-      case 9:  // El banquete
-        return VAPOR;
-      case 10: // Algo más
-        return clima;
-      case 11: // Tu propuesta está lista
-        return BRINDIS
-             + field(18, 'sc-fall sc-oro', CONFETI, { size: [8, 18], dur: [7, 13] })
-             + field(8, 'sc-rise sc-oro', DESTELLO, { size: [10, 22], dur: [11, 18] });
-      default:
-        return clima;
-    }
-  }
-
-  let firma = '';
-  function update() {
-    if (typeof propuestaState === 'undefined') return;
-    const d = propuestaState.data || {};
-    const n = propuestaState.current;
-    // Solo redibujamos cuando cambia de verdad: si no, las partículas
-    // reinician su recorrido en cada click y se nota
-    const nueva = `${n}|${d.tipoEvento}|${d.turno}|${d.espacio}`;
-    if (nueva === firma) return;
-    firma = nueva;
-
-    if (reduce) { host.innerHTML = ''; return; }
-
-    host.classList.add('fading');
-    setTimeout(() => {
-      host.innerHTML = sceneFor(n, d);
-      host.classList.remove('fading');
-    }, 260);
-  }
-
-  window.updatePropuestaScenery = update;
-  update();
 })();
