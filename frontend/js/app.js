@@ -6221,18 +6221,11 @@ function renderItemsTableEditable(existingItems) {
   tbody.innerHTML = html;
   _wirePMButtons(tbody);
   _wireCategoryCollapse(tbody);
-  tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => { btn.closest('tr').remove(); _recalcAllCatTotales(); }));
+  tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => btn.closest('tr').remove()));
   // El input de total vive dentro del encabezado plegable: que interactuar con él no colapse la categoría.
   tbody.querySelectorAll('.coc-cat-total').forEach(sp => {
     ['click', 'mousedown'].forEach(ev => sp.addEventListener(ev, e => e.stopPropagation()));
   });
-  // Bidireccional: al cargar el desglose, el total de esa categoría se suma solo.
-  tbody.addEventListener('input', e => {
-    if (e.target.classList.contains('cocina-cant-input')) {
-      _recalcCatTotal(e.target.closest('tr')?.dataset.cat);
-    }
-  });
-  _recalcAllCatTotales();
   tbody.addEventListener('keydown', e => {
     if (e.key === 'Enter' && e.target.classList.contains('cocina-cant-input')) {
       e.preventDefault();
@@ -6254,47 +6247,17 @@ function getItemsFromTable() {
     stock: null,
   })).filter(i => i.nombre);
 
-  // Totales por categoría cargados a mano (sin desglose). Los auto-calculados
-  // (readOnly) no se guardan: se derivan solos del desglose al imprimir.
+  // Total por categoría cargado a mano (sin desglose, ej: 150 empanaditas).
+  // Es 100% manual: nunca se autocalcula (sumar cantidades confunde en casos
+  // como Islas en kg, donde "4" parecería "4 islas").
   const totales = {};
   document.querySelectorAll('#cocina-items-tbody .cocina-cat-total-input').forEach(inp => {
     const v = inp.value.trim();
-    if (v !== '' && !inp.readOnly) totales[inp.dataset.cat] = v;
+    if (v !== '') totales[inp.dataset.cat] = v;
   });
   if (Object.keys(totales).length) items.push({ catTotalesMarker: true, totales });
 
   return items;
-}
-
-// Total por categoría bidireccional:
-//  · Si la categoría tiene desglose (algún ítem con cantidad) → el total se calcula
-//    solo (suma) y queda de solo-lectura, para no pisarlo a mano.
-//  · Si no hay desglose → el total es editable a mano (total global sin desglosar).
-function _recalcCatTotal(cat) {
-  if (!cat) return;
-  const tbody = $('cocina-items-tbody');
-  if (!tbody) return;
-  const totalInput = [...tbody.querySelectorAll('.cocina-cat-total-input')].find(i => i.dataset.cat === cat);
-  if (!totalInput) return;
-  const rows = [...tbody.querySelectorAll('tr[data-idx]')].filter(tr => tr.dataset.cat === cat);
-  const sum = rows.reduce((a, tr) => a + (parseFloat(tr.querySelector('.cocina-cant-input')?.value) || 0), 0);
-  if (sum > 0) {
-    totalInput.value = sum;
-    totalInput.readOnly = true;
-    totalInput.classList.add('auto');
-    totalInput.title = 'Se calcula solo desde el desglose';
-  } else {
-    totalInput.readOnly = false;
-    totalInput.classList.remove('auto');
-    totalInput.title = 'Total de la categoría, sin desglosar por tipo (ej: 150 empanaditas)';
-  }
-}
-
-function _recalcAllCatTotales() {
-  const tbody = $('cocina-items-tbody');
-  if (!tbody) return;
-  const cats = new Set([...tbody.querySelectorAll('.cocina-cat-total-input')].map(i => i.dataset.cat));
-  cats.forEach(_recalcCatTotal);
 }
 
 /* ── Plegado de categorías + buscador del pedido ── */
@@ -6910,10 +6873,8 @@ function buildPrintPedidoHTML(pedido) {
   let rows = '';
   catOrder.forEach(cat => {
     const color = _PRINT_CAT_COLORS[cat] || '#f5f5f5';
-    // Total al lado del nombre: el manual si lo cargó, si no la suma del desglose.
-    const sum = (byCategory[cat] || []).reduce((a, i) => a + (parseFloat(i.cantidad) || 0), 0);
-    const tot = catTotales[cat] || (sum > 0 ? sum : '');
-    const totLabel = tot ? ` &nbsp;·&nbsp; TOTAL: ${esc(tot)}` : '';
+    // Total al lado del nombre: SOLO si se cargó a mano (no se autocalcula).
+    const totLabel = catTotales[cat] ? ` &nbsp;·&nbsp; TOTAL: ${esc(catTotales[cat])}` : '';
     rows += `<tr><td colspan="4" style="background:${color};padding:3px 8px;font-weight:700;font-size:9pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}${totLabel}</td></tr>`;
     (byCategory[cat] || []).forEach(i => {
       rows += `<tr style="background:${color}40"><td style="padding-left:12px">${esc(i.nombre)}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:center">${esc(i.unidad||'und')}</td><td>${esc(i.observaciones||'')}</td></tr>`;
