@@ -3387,22 +3387,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;backgroun
 <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
 
 <script>window.onload = () => { window.print(); }<\/script>
-<script>
-/* La ventana de vista previa casi nunca mide 210mm de ancho: sin esto la hoja
-   se sale por la izquierda y parece que el PDF tuviera los márgenes cortados.
-   Al imprimir se vuelve a escala 1, así que el PDF sale exacto. */
-(function () {
-  var A4 = 210 * 96 / 25.4;
-  function ajustar() {
-    var k = Math.min(1, (document.documentElement.clientWidth - 28) / A4);
-    document.body.style.zoom = k;
-  }
-  window.addEventListener('resize', ajustar);
-  window.addEventListener('beforeprint', function () { document.body.style.zoom = 1; });
-  window.addEventListener('afterprint', ajustar);
-  ajustar();
-})();
-</script>
 </body></html>`;
 
   const win = window.open('', '_blank');
@@ -4984,16 +4968,16 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-font-smoothing:antialiased}
+html{-webkit-font-smoothing:antialiased;background:var(--shell);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 :root{${pdfVars}}
 body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);padding:14mm 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.page{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto 14mm;padding:18mm 18mm 18mm;position:relative;page-break-after:always;display:flex;flex-direction:column;box-shadow:0 10px 34px rgba(0,0,0,.22)}
+.page{width:210mm;height:297mm;background:var(--paper);margin:0 auto 14mm;padding:18mm;position:relative;page-break-after:always;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 34px rgba(0,0,0,.22)}
+.pbody{flex:1;min-height:0;display:block}
 .page:not(.cover)::before{content:'';position:absolute;top:0;left:0;right:0;height:60mm;background:radial-gradient(90% 100% at 50% 0%,var(--glow),transparent 70%);pointer-events:none}
 /* Márgenes de impresión reales: si una sección se pasa de largo y el navegador
    la parte, la continuación igual entra con margen. Antes el @page tenía margen
    cero y el sobrante quedaba pegado al borde de la hoja siguiente. */
-@page{size:A4;margin:18mm 18mm 16mm}
-@page portada{margin:0}
+@page{size:A4;margin:0}
 /* PORTADA */
 .cover{padding:0;display:flex;flex-direction:column}
 .cover::before{content:'';position:absolute;top:9mm;right:9mm;bottom:9mm;left:9mm;border:.5px solid rgba(157,126,60,.38);pointer-events:none;z-index:1}
@@ -5024,6 +5008,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 .salut{font-family:'Cormorant Garamond',serif;font-size:19px;font-style:italic;margin-bottom:10px}
 .bcopy{font-size:11.5px;line-height:1.7;color:var(--ink-soft);max-width:155mm}
 .bcopy p+p{margin-top:7px}
+.pbody>.stitle:first-child{margin-top:0}
 .stitle{margin-top:11mm;margin-bottom:12px;display:flex;align-items:baseline;gap:12px}
 .snum{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13px;color:var(--paper);background:var(--gold);padding:3px 9px 2px;letter-spacing:.08em}
 .sname{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:500;letter-spacing:.02em}
@@ -5127,17 +5112,13 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 /* Al exportar a PDF la maqueta no cambia: mismo margen que en pantalla,
    así lo que se ve en la vista previa es exactamente lo que se envía. */
 @media print{
-  body{background:var(--paper);padding:0;margin:0}
-  /* En papel las hojas dejan de tener geometría propia: manda el @page.
-     Así una sección larga fluye a la hoja siguiente con sus márgenes y sin
-     que se corte nada, en vez de desbordar una caja de 297mm fija. */
-  .page{width:auto;min-height:0;height:auto;padding:0;margin:0;box-shadow:none;display:block;break-after:page;page-break-after:always}
+  html,body{background:var(--paper);padding:0;margin:0}
+  /* Márgenes cero en el @page y el aire lo pone la hoja: así el color llega
+     al borde (con márgenes de @page, Chrome deja el borde en blanco y una
+     hoja oscura queda con marco blanco). El reparto del contenido en hojas
+     lo hace el paginador de abajo, no el navegador. */
+  .page{margin:0;box-shadow:none;break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid}
   .page:last-child{break-after:auto;page-break-after:avoid}
-  .page:not(.cover)::before{display:none}
-  .pfoot{margin-top:10mm}
-  .stitle:first-of-type{margin-top:0}
-  /* La portada sí conserva la hoja completa a sangre */
-  .cover{page:portada;width:210mm;height:297mm;padding:0;margin:0;display:flex}
 }
 </style>
 </head>
@@ -5328,13 +5309,150 @@ ${tipo === 'contrato' ? (() => {
   <div class="pfoot"><span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span><span>Joliet Eventos · ${anio}</span></div>
 </div>`}
 
+<script>
+/* ============================================================
+   PAGINADOR
+   El documento se escribe por secciones (portada, carta, menú...), pero una
+   sección no entra necesariamente en una hoja: el menú de un evento con
+   muchas islas ocupa dos o tres. Antes se maquetaba a tres hojas fijas y lo
+   que sobraba lo cortaba el navegador donde caía.
+   Acá medimos en pantalla y repartimos: mientras el cuerpo de una hoja
+   desborde, el último bloque se pasa a la hoja siguiente (creándola con su
+   encabezado y su pie). Las listas largas se parten por renglón.
+   Resultado: tantas hojas como haga falta, ninguna cortada, y la vista
+   previa muestra exactamente lo que se va a enviar.
+   ============================================================ */
+(function () {
+  var PARTIBLES = 'ul.mi, .i-cards, .svc-grid, .tc-body, .plan-grid, .incluido-grid';
+
+  function cuerpo(hoja) {
+    var b = hoja.querySelector('.pbody');
+    if (b) return b;
+    b = document.createElement('div');
+    b.className = 'pbody';
+    var pie = hoja.querySelector('.pfoot');
+    var mover = [];
+    for (var i = 0; i < hoja.children.length; i++) {
+      var n = hoja.children[i];
+      if (!n.classList.contains('ph') && !n.classList.contains('pfoot')) mover.push(n);
+    }
+    mover.forEach(function (n) { b.appendChild(n); });
+    hoja.insertBefore(b, pie || null);
+    return b;
+  }
+
+  function desborda(b) { return b.scrollHeight > b.clientHeight + 1; }
+
+  function hojaNueva(modelo) {
+    var p = document.createElement('div');
+    p.className = modelo.className;
+    var enc = modelo.querySelector('.ph');
+    if (enc) p.appendChild(enc.cloneNode(true));
+    var b = document.createElement('div');
+    b.className = 'pbody';
+    p.appendChild(b);
+    var pie = modelo.querySelector('.pfoot');
+    if (pie) p.appendChild(pie.cloneNode(true));
+    modelo.parentNode.insertBefore(p, modelo.nextSibling);
+    return p;
+  }
+
+  // Una lista más alta que la hoja se parte por renglones, conservando su estilo
+  function partir(el, destino) {
+    var clon = el.cloneNode(false);
+    while (el.children.length > 1 && desborda(el.parentNode)) {
+      clon.insertBefore(el.lastElementChild, clon.firstChild);
+    }
+    if (clon.children.length) destino.insertBefore(clon, destino.firstChild);
+    return clon.children.length > 0;
+  }
+
+  function paginar() {
+    var hojas = [].slice.call(document.querySelectorAll('.page:not(.cover)'));
+    hojas.forEach(function (hoja) {
+      var b = cuerpo(hoja);
+      var actual = hoja, guarda = 0;
+
+      while (desborda(cuerpo(actual)) && guarda++ < 40) {
+        var bc = cuerpo(actual);
+        var ultimo = bc.lastElementChild;
+        if (!ultimo) break;
+
+        var siguiente = hojaNueva(actual);
+        var bs = cuerpo(siguiente);
+
+        // Pasamos bloques enteros hasta que la hoja respire
+        while (ultimo && desborda(bc)) {
+          if (bc.children.length === 1) {
+            // Un solo bloque y no entra: hay que partirlo por dentro
+            if (ultimo.matches(PARTIBLES)) { partir(ultimo, bs); }
+            else if (ultimo.querySelector(PARTIBLES)) { partir(ultimo.querySelector(PARTIBLES), bs); }
+            break;
+          }
+          bs.insertBefore(ultimo, bs.firstChild);
+          ultimo = bc.lastElementChild;
+        }
+        // Un título no puede quedar solo al pie de la hoja
+        var cola = bc.lastElementChild;
+        if (cola && (cola.classList.contains('stitle') || cola.classList.contains('mb-head') ||
+                     cola.classList.contains('mb-sub') || cola.classList.contains('mb-sublbl'))) {
+          bs.insertBefore(cola, bs.firstChild);
+        }
+        actual = siguiente;
+      }
+
+      // Si al repartir quedó una hoja sin nada, se va
+      var b2 = cuerpo(actual);
+      if (!b2.children.length && actual !== hoja) actual.parentNode.removeChild(actual);
+    });
+  }
+
+  // Medir antes de que carguen las fuentes da alturas equivocadas: la
+  // Cormorant es bastante más alta que la de reemplazo
+  function listo(fn) {
+    var cargado = new Promise(function (res) {
+      if (document.readyState === 'complete') res();
+      else window.addEventListener('load', res);
+    });
+    var fuentes = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    // Si la tipografía tarda o no llega, no nos quedamos esperando para siempre
+    var tope = new Promise(function (res) { setTimeout(res, 1500); });
+    Promise.race([Promise.all([cargado, fuentes]), tope]).then(fn, fn);
+  }
+  listo(function () {
+    try { paginar(); } catch (e) { console.warn('paginador:', e); }
+    window.__propuestaPaginada = true;
+  });
+})();
+
+/* La ventana de vista previa casi nunca mide 210mm de ancho: sin esto la hoja
+   se sale por la izquierda y parece que el PDF tuviera los márgenes cortados.
+   Al imprimir se vuelve a escala 1, así que el PDF sale exacto. */
+(function () {
+  var A4 = 210 * 96 / 25.4;
+  function ajustar() {
+    var k = Math.min(1, (document.documentElement.clientWidth - 28) / A4);
+    document.body.style.zoom = k;
+  }
+  window.addEventListener('resize', ajustar);
+  window.addEventListener('beforeprint', function () { document.body.style.zoom = 1; });
+  window.addEventListener('afterprint', ajustar);
+  ajustar();
+})();
+</script>
 </body></html>`;
 
   const win = window.open('', '_blank');
   if (!win) { alert('Permití popups en el navegador para descargar la propuesta'); return; }
   win.document.write(html);
   win.document.close();
-  setTimeout(() => win.print(), 900);
+  // Esperamos a que el documento termine de repartir el contenido en hojas
+  const esperarYImprimir = (intentos = 0) => {
+    if (win.closed) return;
+    if (win.__propuestaPaginada || intentos > 40) { win.print(); return; }
+    setTimeout(() => esperarYImprimir(intentos + 1), 100);
+  };
+  setTimeout(() => esperarYImprimir(), 400);
 }
 
 // Listeners de propuesta (se registran una vez al cargar el DOM)
