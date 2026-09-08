@@ -196,7 +196,7 @@
 }
 .propuesta-subtitle {
   font-size: 11px;
-  color: rgba(255,255,255,.3);
+  color: rgba(255,255,255,.46);
   letter-spacing: .18em;
   margin-bottom: 40px;
   text-transform: uppercase;
@@ -213,9 +213,11 @@
   margin-bottom: 10px;
   line-height: 1.1;
 }
+/* Contraste: a .28 la bajada desaparecia con la tablet a contraluz, que es
+   justo como se presenta. Sigue siendo secundaria, pero se lee. */
 .propuesta-slide-sub {
-  font-size: 10.5px;
-  color: rgba(255,255,255,.28);
+  font-size: 11px;
+  color: rgba(255,255,255,.46);
   letter-spacing: .16em;
   text-transform: uppercase;
   margin-bottom: 32px;
@@ -1788,6 +1790,23 @@
   position: absolute;
   inset: 0;
   background: radial-gradient(120% 90% at 50% 45%, transparent 42%, rgba(6,4,2,.55) 100%);
+}
+/* Grano de pelicula.
+   Dos motivos, uno estetico y uno tecnico. El estetico: un degradado oscuro
+   perfectamente liso se lee como plastico; el grano le da textura de papel
+   y es lo que hace que una pantalla oscura parezca material y no vacio.
+   El tecnico: en el IPS de la tablet, un degradado de negro a marron sin
+   ruido muestra bandas (escalones de color). El ruido las rompe.
+   Es una capa estatica -no anima nada- asi que se compone una sola vez. */
+.amb-vignette::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  mix-blend-mode: overlay;
+  opacity: .28;
+  pointer-events: none;
 }
 
 /* En modo diurno el ambiente sube de temperatura */
