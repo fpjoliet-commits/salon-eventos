@@ -1383,32 +1383,51 @@ function renderSeguimientosView() {
     return;
   }
 
+  const tramo = d => (d >= 90 ? 'critico' : d >= 30 ? 'alto' : 'medio');
+  const dias90 = [], dias30 = [], diasResto = [];
+
   const rows = stale.map(c => {
     const fc = parseFechaCarga(c.fechaCarga);
-    const dias = fc ? Math.round((hoy - fc) / 86400000) : '?';
+    const dias = fc ? Math.round((hoy - fc) / 86400000) : 0;
+    const t = tramo(dias);
+    if (t === 'critico') dias90.push(c); else if (t === 'alto') dias30.push(c); else diasResto.push(c);
     const tel = c.telefono || '';
-    const telLink = tel
-      ? `<a href="tel:${tel}" class="seg-tel-link" onclick="event.stopPropagation()">${tel}</a>`
-      : '—';
     const waNum = tel.replace(/\D/g, '');
+    const telCell = tel
+      ? `<a href="tel:${tel}" class="seg-tel-link" onclick="event.stopPropagation()">${esc(tel)}</a>`
+      : '<span class="seg-tel-vacio">sin teléfono</span>';
     const waLink = waNum
-      ? `<a href="https://wa.me/54${waNum}" target="_blank" class="btn btn-sm btn-primary seg-wa-btn" onclick="event.stopPropagation()">💬 WA</a>`
+      ? `<a href="https://wa.me/54${waNum}" target="_blank" class="seg-wa-btn" onclick="event.stopPropagation()" title="Escribir por WhatsApp">WhatsApp</a>`
       : '';
     return `<tr class="seg-fila" onclick="openClienteModal(window._cmap['${c.id}'])">
-      <td><strong>${esc(c.apellidoNombre)}</strong></td>
-      <td>${estadoBadge(c.estado)}</td>
-      <td>${c.tipoEvento || '—'}</td>
-      <td class="seg-dias-cell">${dias}d</td>
-      <td>${telLink} ${waLink}</td>
+      <td class="seg-col-nombre">${esc(c.apellidoNombre || '—')}</td>
+      <td class="seg-col-estado">${estadoBadge(c.estado)}</td>
+      <td class="seg-col-evento">${esc(c.tipoEvento || '—')}</td>
+      <td class="seg-col-dias"><span class="seg-dias-pill seg-dias-${t}">${fc ? dias + ' días' : '—'}</span></td>
+      <td class="seg-col-contacto"><div class="seg-contacto-cell">${telCell}${waLink}</div></td>
     </tr>`;
   }).join('');
 
   con.innerHTML = `
-    <p class="seg-view-info">${stale.length} cliente${stale.length > 1 ? 's' : ''} sin actividad en los últimos 14 días o más — hacé clic en una fila para abrir el perfil</p>
-    <table class="tabla">
-      <thead><tr><th>Cliente</th><th>Estado</th><th>Tipo de evento</th><th>Inactividad</th><th>Contacto</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    <div class="seg-resumen">
+      <div class="seg-chip seg-chip-critico"><span class="seg-chip-num">${dias90.length}</span><span class="seg-chip-lbl">90 días o más</span></div>
+      <div class="seg-chip seg-chip-alto"><span class="seg-chip-num">${dias30.length}</span><span class="seg-chip-lbl">entre 30 y 89 días</span></div>
+      <div class="seg-chip seg-chip-medio"><span class="seg-chip-num">${diasResto.length}</span><span class="seg-chip-lbl">entre 14 y 29 días</span></div>
+      <div class="seg-chip seg-chip-total"><span class="seg-chip-num">${stale.length}</span><span class="seg-chip-lbl">total sin actividad</span></div>
+    </div>
+    <p class="seg-view-info">Hacé clic en una fila para abrir el perfil del cliente.</p>
+    <div class="table-wrap seg-table-wrap">
+      <table class="data-table seg-table">
+        <thead><tr>
+          <th>Cliente</th>
+          <th>Estado</th>
+          <th>Tipo de evento</th>
+          <th class="seg-col-dias">Inactividad</th>
+          <th class="seg-col-contacto">Contacto</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 /* ===================== FORM CLIENTE ===================== */
@@ -3835,8 +3854,12 @@ function updatePropuestaNav() {
   const pct = ((propuestaState.current - 1) / (propuestaState.total - 1)) * 100;
   const bar = $('propuesta-progress-bar'); if (bar) bar.style.width = pct + '%';
 
+  const wrap = document.querySelector('.propuesta-progress-wrap');
+  if (wrap) { wrap.classList.remove('pulse'); void wrap.offsetWidth; wrap.classList.add('pulse'); }
+
   document.querySelectorAll('.propuesta-dot').forEach((dot, i) => {
     dot.classList.toggle('active', i + 1 === propuestaState.current);
+    dot.classList.toggle('done', i + 1 < propuestaState.current);
   });
 
   const prev = $('btn-prop-prev'); if (prev) prev.disabled = propuestaState.current === 1;
@@ -3875,6 +3898,7 @@ function goToPropuestaSlide(n) {
   if (container) container.scrollTop = 0;
   updatePropuestaNav();
   applyMomentoTheme();
+  window.syncPropuestaGrupos?.();
   if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
   if (n === 9) buildGastroSlide();
@@ -3892,7 +3916,11 @@ function updatePortadaImage() {
   };
   const img = map[tipo] || 'img/propuesta/salon.jpg.jpeg';
   const el = document.getElementById('portada-photo');
-  if (el) el.style.backgroundImage = `url('${img}')`;
+  if (!el) return;
+  const next = `url('${img}')`;
+  if (el.style.backgroundImage === next) return;
+  el.style.backgroundImage = next;
+  el.classList.remove('swapping'); void el.offsetWidth; el.classList.add('swapping');
 }
 
 function readPropuestaData() {
@@ -5129,18 +5157,22 @@ ${tipo === 'contrato' ? (() => {
   });
 
   // Counter invitados (step: 10)
-  $('counter-minus')?.addEventListener('click', () => {
+  const rollInvitados = dir => {
     const cur = parseInt($('prop-invitados')?.value || '100');
-    const next = Math.max(10, cur - 10);
+    const next = dir > 0 ? cur + 10 : Math.max(10, cur - 10);
+    if (next === cur) return;
     $('prop-invitados').value = next;
-    $('prop-invitados-display').textContent = next;
-  });
-  $('counter-plus')?.addEventListener('click', () => {
-    const cur = parseInt($('prop-invitados')?.value || '100');
-    const next = cur + 10;
-    $('prop-invitados').value = next;
-    $('prop-invitados-display').textContent = next;
-  });
+    const disp = $('prop-invitados-display');
+    if (!disp) return;
+    disp.textContent = next;
+    disp.classList.remove('rolling-up', 'rolling-down');
+    void disp.offsetWidth;
+    disp.classList.add(dir > 0 ? 'rolling-up' : 'rolling-down', 'lit');
+    clearTimeout(disp._litT);
+    disp._litT = setTimeout(() => disp.classList.remove('lit'), 700);
+  };
+  $('counter-minus')?.addEventListener('click', () => rollInvitados(-1));
+  $('counter-plus')?.addEventListener('click', () => rollInvitados(1));
 
   // Menú infantil
   $('prop-menu-infantil')?.addEventListener('change', e => {
@@ -6777,6 +6809,100 @@ const _PRINT_CAT_COLORS = {
   'Básicos':'#F3F3F3','Verduras':'#E8F5E9','Aceites y Sales':'#FFF3E0',
 };
 
+// ─── Selector de contenido para las planillas en blanco ───
+// Antes de imprimir, deja elegir qué grupos e ítems entran en la hoja.
+// La selección queda guardada (por planilla) para no rehacerla cada vez;
+// se guardan los DESmarcados, así los ítems nuevos del catálogo entran por defecto.
+function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm }) {
+  let excluidos = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    if (Array.isArray(saved)) excluidos = new Set(saved);
+  } catch {}
+
+  const gruposConItems = grupos.filter(g => g.items.length);
+  if (!gruposConItems.length) { alert('No hay ítems en el catálogo para imprimir.'); return; }
+
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+  ov.innerHTML = `<div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <div class="modal-nombre-wrap"><h3>🖨️ ${esc(titulo)}</h3></div>
+      <button class="modal-close" data-sp-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="cocina-hint">💡 Destildá lo que no quieras que aparezca en la hoja impresa. Se recuerda para la próxima vez.</p>
+      <div class="sp-toolbar">
+        <input type="search" class="sp-buscar" data-sp-buscar placeholder="🔍 Buscar ítem o grupo…">
+        <button type="button" class="btn btn-secondary btn-sm" data-sp-all>Marcar todo</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-sp-none>Desmarcar todo</button>
+        <span class="sp-count" data-sp-count></span>
+      </div>
+      <div class="sp-grid">
+        ${gruposConItems.map((g, gi) => `
+          <div class="sp-group" data-sp-group="${gi}">
+            <label class="sp-group-head" style="background:${g.color || '#eee'}">
+              <input type="checkbox" data-sp-groupcheck="${gi}">
+              <span>${esc(g.label)}</span>
+            </label>
+            ${g.items.map(it => `
+              <label class="sp-item">
+                <input type="checkbox" data-sp-item="${esc(it.key)}" data-sp-g="${gi}">
+                <span>${esc(it.nombre)}</span>
+                <em>${esc(it.unidad || '')}</em>
+              </label>`).join('')}
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" data-sp-close>Cancelar</button>
+      <button class="btn btn-primary" data-sp-print>🖨️ Imprimir</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+
+  const itemChecks = [...ov.querySelectorAll('[data-sp-item]')];
+  itemChecks.forEach(c => { c.checked = !excluidos.has(c.dataset.spItem); });
+
+  const sincronizarGrupos = () => {
+    ov.querySelectorAll('[data-sp-groupcheck]').forEach(gc => {
+      const hijos = itemChecks.filter(c => c.dataset.spG === gc.dataset.spGroupcheck);
+      const marcados = hijos.filter(c => c.checked).length;
+      gc.checked = marcados === hijos.length;
+      gc.indeterminate = marcados > 0 && marcados < hijos.length;
+    });
+    const n = itemChecks.filter(c => c.checked).length;
+    ov.querySelector('[data-sp-count]').textContent = `${n} de ${itemChecks.length} ítems seleccionados`;
+  };
+  sincronizarGrupos();
+
+  ov.addEventListener('change', e => {
+    const gc = e.target.closest('[data-sp-groupcheck]');
+    if (gc) {
+      itemChecks.filter(c => c.dataset.spG === gc.dataset.spGroupcheck).forEach(c => { c.checked = gc.checked; });
+    }
+    sincronizarGrupos();
+  });
+
+  const cerrar = () => ov.remove();
+  ov.querySelectorAll('[data-sp-close]').forEach(b => b.addEventListener('click', cerrar));
+  ov.addEventListener('click', e => { if (e.target === ov) cerrar(); });
+  ov.querySelector('[data-sp-all]').addEventListener('click', () => {
+    itemChecks.forEach(c => { c.checked = true; }); sincronizarGrupos();
+  });
+  ov.querySelector('[data-sp-none]').addEventListener('click', () => {
+    itemChecks.forEach(c => { c.checked = false; }); sincronizarGrupos();
+  });
+  ov.querySelector('[data-sp-print]').addEventListener('click', () => {
+    const seleccionados = new Set(itemChecks.filter(c => c.checked).map(c => c.dataset.spItem));
+    if (!seleccionados.size) { alert('Elegí al menos un ítem para imprimir.'); return; }
+    const fuera = itemChecks.filter(c => !c.checked).map(c => c.dataset.spItem);
+    try { localStorage.setItem(storageKey, JSON.stringify(fuera)); } catch {}
+    cerrar();
+    onConfirm(seleccionados);
+  });
+}
+
 // Ítems que SÍ se cuentan en la planilla de stock (catálogo completo, no solo lo que ya tiene stock cargado),
 // para que la hoja en blanco sirva para arrancar de cero contando todo a mano.
 function imprimirPlanillaStock() {
@@ -6791,10 +6917,27 @@ function imprimirPlanillaStock() {
   const ING_CATS_FULL = [...ING_CATS, ...catsExtra];
   const hoy = new Date().toLocaleDateString('es-AR');
 
+  // Selector previo: qué grupos/ítems entran en la hoja
+  const gruposSel = [...PROD_CATS, ...ING_CATS_FULL].map(cat => ({
+    label: catDisplayName(cat),
+    color: cocCatColor(cat),
+    items: cocinaCatalogo.filter(c => c.categoria === cat)
+      .map(i => ({ key: `${cat}||${i.nombre}`, nombre: i.nombre, unidad: i.unidad || 'und' })),
+  }));
+
+  abrirSelectorPlanilla({
+    titulo: 'Planilla de stock en blanco — ¿qué imprimimos?',
+    storageKey: 'cocina-planilla-stock-excluidos',
+    grupos: gruposSel,
+    onConfirm: sel => _imprimirPlanillaStockHTML(PROD_CATS, ING_CATS_FULL, sel, hoy),
+  });
+}
+
+function _imprimirPlanillaStockHTML(PROD_CATS, ING_CATS_FULL, sel, hoy) {
   function buildRows(cats) {
     let html = '';
     cats.forEach(cat => {
-      const items = cocinaCatalogo.filter(c => c.categoria === cat);
+      const items = cocinaCatalogo.filter(c => c.categoria === cat && sel.has(`${cat}||${c.nombre}`));
       if (!items.length) return;
       const color = cocCatColor(cat);
       html += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
@@ -6843,19 +6986,52 @@ function imprimirPlanillaStock() {
 // Planilla de pedido de la semana en blanco, para completar a mano y cargar después en el sistema.
 function imprimirPlanillaPedidoVacia() {
   const hoy = new Date().toLocaleDateString('es-AR');
-
   // Categorías del desglose de sanguches de miga: en la planilla en blanco no se
   // listan los ítems uno por uno; solo van Blancos y Negros como opciones (totales).
   const MIGA_DESGLOSE = new Set(['Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros']);
+
+  // Selector previo: qué grupos/ítems entran en la hoja
+  const gruposSel = [];
+  let migaSel = false;
+  PEDIDO_CAT_ORDER.forEach(cat => {
+    if (cat === 'Sanguche de Miga - Totales' || MIGA_DESGLOSE.has(cat)) {
+      if (migaSel) return;
+      migaSel = true;
+      gruposSel.push({
+        label: '🥪 Sanguche de Miga',
+        color: cocCatColor('Sanguche de Miga - Totales'),
+        items: ['Blancos', 'Negros'].map(n => ({ key: `__miga__||${n}`, nombre: n, unidad: 'und' })),
+      });
+      return;
+    }
+    gruposSel.push({
+      label: catDisplayName(cat),
+      color: cocCatColor(cat),
+      items: cocinaCatalogo.filter(c => c.categoria === cat)
+        .map(i => ({ key: `${cat}||${i.nombre}`, nombre: i.nombre, unidad: i.unidad || 'und' })),
+    });
+  });
+
+  abrirSelectorPlanilla({
+    titulo: 'Pedido de producción en blanco — ¿qué imprimimos?',
+    storageKey: 'cocina-planilla-pedido-excluidos',
+    grupos: gruposSel,
+    onConfirm: sel => _imprimirPlanillaPedidoHTML(MIGA_DESGLOSE, sel, hoy),
+  });
+}
+
+function _imprimirPlanillaPedidoHTML(MIGA_DESGLOSE, sel, hoy) {
   let rows = '';
   let migaRendered = false;
   PEDIDO_CAT_ORDER.forEach(cat => {
     if (cat === 'Sanguche de Miga - Totales' || MIGA_DESGLOSE.has(cat)) {
       if (migaRendered) return;
       migaRendered = true;
+      const migaSels = ['Blancos', 'Negros'].filter(n => sel.has(`__miga__||${n}`));
+      if (!migaSels.length) return;
       const color = cocCatColor('Sanguche de Miga - Totales');
       rows += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">🥪 Sanguche de Miga</td></tr>`;
-      ['Blancos', 'Negros'].forEach(nombre => {
+      migaSels.forEach(nombre => {
         rows += `<tr>
           <td class="print-item-name">${nombre}</td>
           <td style="width:90px;height:26px"></td>
@@ -6865,7 +7041,7 @@ function imprimirPlanillaPedidoVacia() {
       });
       return;
     }
-    const items = cocinaCatalogo.filter(c => c.categoria === cat);
+    const items = cocinaCatalogo.filter(c => c.categoria === cat && sel.has(`${cat}||${c.nombre}`));
     if (!items.length) return;
     const color = cocCatColor(cat);
     rows += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
@@ -7279,4 +7455,104 @@ $('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamie
     currentUser = JSON.parse(savedUser);
     initApp();
   }
+})();
+
+/* ============================================================
+   PROPUESTA — CAPA VIVA (interacción)
+   Feedback físico al elegir: ripple donde toca el dedo, pop
+   elástico, atenuado de las opciones no elegidas, navegación
+   por teclado y un fondo que sigue apenas al puntero.
+   Todo delegado: también alcanza a lo que se construye después
+   (gastronomía, recorrido, resumen).
+   ============================================================ */
+(function initPropuestaMotion() {
+  const view = document.getElementById('view-propuesta');
+  if (!view) return;
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const RIPPLE_SEL = [
+    '.propuesta-card', '.estilo-fork-card', '.adicional-card', '.espacio-card',
+    '.propuesta-servicio-item', '.counter-btn', '.btn-propuesta-primary',
+    '.btn-propuesta-nav', '.propuesta-close-btn', '.btn-propuesta-secondary',
+    '.gastro-island-row', '.gastro-menu-row', '.gastro-plato-row', '.gastro-premium-row'
+  ].join(',');
+
+  // Grupos de elección única: al haber una elegida, el resto se atenúa
+  const GRUPOS = ['evento-cards', 'turno-cards', 'espacio-cards', 'estilo-cards'];
+  function syncGrupos() {
+    GRUPOS.forEach(id => {
+      const g = document.getElementById(id);
+      if (g) g.classList.toggle('has-pick', !!g.querySelector('.selected'));
+    });
+  }
+  window.syncPropuestaGrupos = syncGrupos;
+
+  view.addEventListener('pointerdown', e => {
+    const target = e.target.closest(RIPPLE_SEL);
+    if (!target || reduce) return;
+
+    // Ripple desde el punto exacto del click
+    const r = target.getBoundingClientRect();
+    const size = Math.max(r.width, r.height) * 2.2;
+    const ink = document.createElement('span');
+    ink.className = 'prop-ripple';
+    ink.style.width = ink.style.height = size + 'px';
+    ink.style.left = (e.clientX - r.left) + 'px';
+    ink.style.top = (e.clientY - r.top) + 'px';
+    if (getComputedStyle(target).position === 'static') target.style.position = 'relative';
+    target.appendChild(ink);
+    setTimeout(() => ink.remove(), 650);
+  });
+
+  view.addEventListener('click', e => {
+    const target = e.target.closest(RIPPLE_SEL);
+    if (target && !reduce) {
+      target.classList.remove('prop-pop');
+      void target.offsetWidth;
+      target.classList.add('prop-pop');
+      setTimeout(() => target.classList.remove('prop-pop'), 480);
+    }
+    // El estado .selected lo escriben los handlers propios: sincronizamos después
+    setTimeout(syncGrupos, 0);
+  });
+
+  // Navegación por teclado: flechas y Enter mueven la propuesta
+  document.addEventListener('keydown', e => {
+    if (!view.classList.contains('active')) return;
+    const tag = (document.activeElement?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); document.getElementById('btn-prop-next')?.click(); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); document.getElementById('btn-prop-prev')?.click(); }
+  });
+
+  // Los dots son navegables: saltar a un paso ya recorrido
+  document.getElementById('propuesta-step-dots')?.addEventListener('click', e => {
+    const dots = [...document.querySelectorAll('.propuesta-dot')];
+    const i = dots.indexOf(e.target);
+    if (i < 0 || typeof goToPropuestaSlide !== 'function') return;
+    const n = i + 1;
+    const cont = document.querySelector('.propuesta-slides-container');
+    cont?.classList.toggle('slides-going-back', n < propuestaState.current);
+    if (n !== propuestaState.current) goToPropuestaSlide(n);
+  });
+
+  // El fondo sigue apenas al puntero: da sensación de profundidad, no de truco
+  if (!reduce) {
+    let raf = null, tx = 0, ty = 0;
+    view.addEventListener('pointermove', e => {
+      tx = (e.clientX / window.innerWidth - .5) * 26;
+      ty = (e.clientY / window.innerHeight - .5) * 18;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const amb = view.querySelector('.kiosco-ambient');
+        if (amb) amb.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+      });
+    });
+  }
+
+  // Al reconstruir slides dinámicos, mantener los grupos en sincronía
+  document.addEventListener('DOMContentLoaded', syncGrupos);
+  syncGrupos();
 })();
