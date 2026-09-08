@@ -3142,6 +3142,28 @@ function imprimirTimming(cliente, items) {
       </div>
     </div>`).join('');
 
+  // ---- Paleta del entregable ----
+  // El PDF casi siempre se envía, no se imprime: en vez de un blanco de
+  // oficina toma el clima del evento que se acaba de armar. Noche: papel
+  // noir con oro. Día: marfil cálido, la luz de la media tarde.
+  const pdfVars = diurno ? `
+    --shell:#E6DCCB;--paper:#FBF7EF;--warm:#F3EDE0;
+    --ink:#1A1712;--ink-soft:#2A2620;--ink-dim:#5A5040;--muted:#8B8074;
+    --gold:#9D7E3C;--gold-soft:#C9B27C;--hairline:#DCD3C3;--hairline-soft:rgba(216,207,192,.55);
+    --stamp-bg:#14110B;--stamp-fg:#FBF7EF;--glow:rgba(196,153,62,.10);
+    --dt-v-bg:rgba(88,160,88,.13);--dt-v-fg:#2a6b2a;--dt-v-bd:rgba(88,160,88,.28);
+    --dt-vg-bg:rgba(60,130,180,.10);--dt-vg-fg:#1e5f80;--dt-vg-bd:rgba(60,130,180,.22);
+    --dt-sc-bg:rgba(190,120,40,.10);--dt-sc-fg:#7a4510;--dt-sc-bd:rgba(190,120,40,.22);
+  ` : `
+    --shell:#0A0806;--paper:#15120C;--warm:#1D1911;
+    --ink:#F2EBDD;--ink-soft:#DED5C3;--ink-dim:#B3A88F;--muted:#948872;
+    --gold:#D3AC5B;--gold-soft:#8E7539;--hairline:#332C1F;--hairline-soft:rgba(120,102,68,.32);
+    --stamp-bg:#F2EBDD;--stamp-fg:#15120C;--glow:rgba(211,172,91,.14);
+    --dt-v-bg:rgba(120,190,120,.12);--dt-v-fg:#96c996;--dt-v-bd:rgba(120,190,120,.3);
+    --dt-vg-bg:rgba(110,170,215,.12);--dt-vg-fg:#8fc0e0;--dt-vg-bd:rgba(110,170,215,.28);
+    --dt-sc-bg:rgba(220,160,80,.12);--dt-sc-fg:#e0b271;--dt-sc-bd:rgba(220,160,80,.28);
+  `;
+
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3445,7 +3467,8 @@ function applyMomentoTheme() {
                                                : 'La noche que<br>van a recordar siempre');
   set('fork-formal-desc', diurno ? 'Servicio a la mesa, cada momento en su lugar, un día que se siente diferente'
                                   : 'Servicio a la mesa, cada momento en su lugar, una noche que se siente diferente');
-  set('espacio-jardin-sub', diurno ? 'Al aire libre, bajo el sol' : 'Al aire libre, noche estrellada');
+  // El jardín se muestra con una foto nocturna: la frase no promete una luz que no está
+  set('espacio-jardin-sub', 'Al aire libre, entre el verde y las luces');
   set('prop-s7-title', diurno ? 'Así va a vivirse ese día' : 'Así va a vivirse esa noche');
   set('prop-bebidas-name', diurno ? 'Bebidas de la mesa' : 'Bebidas de cena');
   set('prop-bebidas-detail', diurno ? 'Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne'
@@ -3458,8 +3481,9 @@ function applyMomentoTheme() {
   const hint = document.getElementById('momento-hint');
   if (hint) {
     hint.textContent = !turnoSel ? ''
-      : diurno ? '☀️ Evento diurno — el creador toma la luz cálida de la media tarde'
-      : '🌙 Evento de noche — ambiente nocturno';
+      : turnoSel === 'Almuerzo' ? 'Almuerzo — el salón con la luz de la mañana entrando por el jardín'
+      : turnoSel === 'Tarde'    ? 'Media tarde — la hora más cálida, cuando la luz se vuelve dorada'
+      : 'Noche — el salón encendido, las luces bajas y la pista lista';
   }
 }
 
@@ -3905,8 +3929,9 @@ function goToPropuestaSlide(n) {
   if (n === 11) buildPropuestaResumen();
 }
 
-function updatePortadaImage() {
-  const tipo = propuestaState.data.tipoEvento;
+// Una sola fuente de verdad para la foto del evento: la que se ve en pantalla
+// es la misma que después aparece en la portada del PDF.
+function portadaImgFor(tipo) {
   const map = {
     'Boda':        'img/propuesta/mesa-elegante.jpeg',
     'XV años':     'img/propuesta/portada.jpeg',
@@ -3914,13 +3939,25 @@ function updatePortadaImage() {
     'Egresados':   'img/propuesta/fiesta.jpeg',
     'Corporativo': 'img/propuesta/mesa-elegante.jpeg',
   };
-  const img = map[tipo] || 'img/propuesta/salon.jpg.jpeg';
+  return map[tipo] || 'img/propuesta/salon.jpg.jpeg';
+}
+
+function updatePortadaImage() {
+  const tipo = propuestaState.data.tipoEvento;
+  const img = portadaImgFor(tipo);
   const el = document.getElementById('portada-photo');
+  const fg = document.getElementById('portada-photo-fg');
   if (!el) return;
   const next = `url('${img}')`;
   if (el.style.backgroundImage === next) return;
   el.style.backgroundImage = next;
-  el.classList.remove('swapping'); void el.offsetWidth; el.classList.add('swapping');
+  if (fg) fg.style.backgroundImage = next;
+  [el, fg].forEach(n => {
+    if (!n) return;
+    n.classList.remove('swapping'); void n.offsetWidth; n.classList.add('swapping');
+    clearTimeout(n._swapT);
+    n._swapT = setTimeout(() => n.classList.remove('swapping'), 760);
+  });
 }
 
 function readPropuestaData() {
@@ -4772,11 +4809,11 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-font-smoothing:antialiased}
-:root{--paper:#FAF7F2;--ink:#1A1A1A;--gold:#9D7E3C;--gold-soft:#C9B27C;--muted:#8B8074;--hairline:#D8CFC0;--warm:#F2EDE3}
-body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:24px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.page{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto 24px;padding:20mm 20mm 28mm;position:relative;overflow:hidden;page-break-after:always}
+:root{${pdfVars}}
+body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);padding:24px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto 24px;padding:18mm 18mm 16mm;position:relative;page-break-after:always;display:flex;flex-direction:column}
+.page::before{content:'';position:absolute;top:0;left:0;right:0;height:60mm;background:radial-gradient(90% 100% at 50% 0%,var(--glow),transparent 70%);pointer-events:none}
 @page{size:A4;margin:0}
-@media print{body{background:white;padding:0}.page{margin:0;box-shadow:none}}
 /* PORTADA */
 .cover{padding:0;display:flex;flex-direction:column}
 .cover::before{content:'';position:absolute;top:9mm;right:9mm;bottom:9mm;left:9mm;border:.5px solid rgba(157,126,60,.38);pointer-events:none;z-index:1}
@@ -4785,8 +4822,8 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 .cov-tag{font-size:9px;letter-spacing:.4em;color:var(--gold);text-transform:uppercase;margin-bottom:16px}
 .cov-title{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:26px;color:var(--ink);margin-top:14px;display:block}
 .cov-num{font-size:9px;letter-spacing:.26em;color:var(--muted);text-transform:uppercase;margin-top:6px}
-.cov-photo{margin:12mm 20mm 0;height:72mm;background-size:cover;background-position:center;background-color:#2a3042;position:relative;overflow:hidden}
-.cov-photo::after{content:'';position:absolute;inset:6px;border:1px solid rgba(250,247,242,.3)}
+.cov-photo{margin:12mm 20mm 0;height:72mm;background-size:cover;background-position:center;background-color:var(--warm);position:relative;overflow:hidden}
+.cov-photo::after{content:'';position:absolute;inset:6px;border:1px solid rgba(255,240,205,.32)}
 .cov-client{margin:10mm 20mm 0;text-align:center;padding-bottom:4mm}
 .cov-label{font-size:9px;letter-spacing:.32em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
 .cov-name{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:400;color:var(--ink)}
@@ -4796,14 +4833,16 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 .meta-v{display:block;font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--ink)}
 .cov-foot{position:absolute;bottom:18mm;left:20mm;right:20mm;text-align:center;font-size:8.5px;color:var(--muted);letter-spacing:.22em;text-transform:uppercase}
 .cov-foot .rule{width:32px;height:1px;background:var(--gold);margin:0 auto 9px}
+.cov-svg .cs-bg{fill:var(--stamp-bg)}
+.cov-svg .cs-fg{fill:var(--stamp-fg)}
 /* INTERIOR */
 .ph{display:flex;justify-content:space-between;align-items:center;padding-bottom:11px;border-bottom:1px solid var(--hairline);margin-bottom:22px}
-.ph-logo{width:34px;height:34px;background:#0f0f0f;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
-.ph-logo::before{content:'JOLIET';font-family:'Inter',sans-serif;font-weight:900;font-size:6px;color:white;letter-spacing:.06em}
-.ph-logo::after{content:'EVENTOS';font-family:'Inter',sans-serif;font-size:3px;color:rgba(255,255,255,.7);letter-spacing:.35em;margin-top:2px}
+.ph-logo{width:34px;height:34px;background:var(--stamp-bg);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
+.ph-logo::before{content:'JOLIET';font-family:'Inter',sans-serif;font-weight:900;font-size:6px;color:var(--stamp-fg);letter-spacing:.06em}
+.ph-logo::after{content:'EVENTOS';font-family:'Inter',sans-serif;font-size:3px;color:var(--stamp-fg);opacity:.72;letter-spacing:.35em;margin-top:2px}
 .ph-folio{font-size:9px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
 .salut{font-family:'Cormorant Garamond',serif;font-size:19px;font-style:italic;margin-bottom:10px}
-.bcopy{font-size:11.5px;line-height:1.7;color:#2A2620;max-width:155mm}
+.bcopy{font-size:11.5px;line-height:1.7;color:var(--ink-soft);max-width:155mm}
 .bcopy p+p{margin-top:7px}
 .stitle{margin-top:11mm;margin-bottom:12px;display:flex;align-items:baseline;gap:12px}
 .snum{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:13px;color:var(--paper);background:var(--gold);padding:3px 9px 2px;letter-spacing:.08em}
@@ -4827,7 +4866,7 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 .mb-sub{font-size:8.5px;letter-spacing:.2em;color:var(--gold);text-transform:uppercase;margin-bottom:5px;padding-left:8px}
 .mb-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
 .mi{list-style:none;font-family:'Cormorant Garamond',serif;font-size:13px;background:var(--warm);border:1px solid var(--hairline)}
-.mi li{display:flex;flex-direction:column;padding:5px 12px;border-bottom:1px solid rgba(216,207,192,.5)}
+.mi li{display:flex;flex-direction:column;padding:5px 12px;border-bottom:1px solid var(--hairline-soft);break-inside:avoid}
 .mi li:last-child{border-bottom:none}
 .mi-info{display:flex;flex-direction:column;gap:1px}
 .mi-name{font-size:13px;line-height:1.35}
@@ -4848,13 +4887,13 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 .closing .cl-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--ink);max-width:130mm;margin:0 auto;line-height:1.55}
 .closing .cl-sig{font-family:'Cormorant Garamond',serif;font-size:19px;margin-top:16px}
 .closing .cl-sig small{display:block;font-family:'Inter',sans-serif;font-size:8.5px;letter-spacing:.24em;color:var(--muted);text-transform:uppercase;margin-top:3px}
-.pfoot{position:absolute;bottom:11mm;left:20mm;right:20mm;display:flex;justify-content:space-between;align-items:center;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.15em;padding-top:9px;border-top:1px solid var(--hairline)}
-.ped-box{background:var(--warm);border:1px solid var(--hairline);padding:11px 14px;font-size:11.5px;line-height:1.7;color:#2A2620;margin-top:5px;font-style:italic}
+.pfoot{margin-top:auto;padding-top:9px;display:flex;justify-content:space-between;align-items:center;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.15em;border-top:1px solid var(--hairline);break-inside:avoid}
+.ped-box{background:var(--warm);border:1px solid var(--hairline);padding:11px 14px;font-size:11.5px;line-height:1.7;color:var(--ink-soft);margin-top:5px;font-style:italic}
 /* DIETARY TAGS */
 .dt-v,.dt-vg,.dt-sc{font-family:'Inter',sans-serif;font-size:7.5px;font-weight:600;letter-spacing:.06em;padding:1.5px 5px;border-radius:2px;vertical-align:middle;margin-left:4px;display:inline-block;line-height:1}
-.dt-v{background:rgba(88,160,88,.13);color:#2a6b2a;border:1px solid rgba(88,160,88,.28)}
-.dt-vg{background:rgba(60,130,180,.10);color:#1e5f80;border:1px solid rgba(60,130,180,.22)}
-.dt-sc{background:rgba(190,120,40,.10);color:#7a4510;border:1px solid rgba(190,120,40,.22)}
+.dt-v{background:var(--dt-v-bg);color:var(--dt-v-fg);border:1px solid var(--dt-v-bd)}
+.dt-vg{background:var(--dt-vg-bg);color:var(--dt-vg-fg);border:1px solid var(--dt-vg-bd)}
+.dt-sc{background:var(--dt-sc-bg);color:var(--dt-sc-fg);border:1px solid var(--dt-sc-bd)}
 .dt-legend{font-size:7.5px;color:var(--muted);letter-spacing:.09em;margin-bottom:8px;padding-left:2px;display:flex;gap:14px}
 /* ISLAND CARDS */
 .i-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
@@ -4867,11 +4906,11 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 .two-col{columns:2;column-gap:14px}
 .mb-sublbl{font-family:'Inter',sans-serif;font-size:7.5px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin:8px 0 2px;padding-left:2px}
 /* LOCKED ROW */
-.mi-locked{background:rgba(157,126,60,.06)!important;border-left:2px solid var(--gold)!important}
+.mi-locked{background:var(--glow)!important;border-left:2px solid var(--gold)!important}
 .mi-badge{font-family:'Inter',sans-serif;font-size:7px;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;border:1px solid rgba(157,126,60,.5);padding:1px 5px;margin-left:6px;vertical-align:middle;display:inline-block}
 .torta-note{font-family:'Inter',sans-serif;font-size:8px;font-style:italic;color:var(--muted);padding:5px 8px;margin-top:5px;border-top:1px solid var(--hairline)}
 /* T&C */
-.tc-body{font-family:'Inter',sans-serif;font-size:7.8px;line-height:1.6;color:#5a5040;text-align:justify;columns:2;column-gap:22px;column-rule:1px solid var(--hairline);margin-top:6px}
+.tc-body{font-family:'Inter',sans-serif;font-size:7.8px;line-height:1.6;color:var(--ink-dim);text-align:justify;columns:2;column-gap:22px;column-rule:1px solid var(--hairline);margin-top:6px}
 .tc-body p+p{margin-top:5px}
 .tc-clause{font-weight:700;font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block;margin-top:8px;margin-bottom:1px}
 /* COTIZACIÓN */
@@ -4890,9 +4929,27 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 /* FIRMA */
 .firma-grid{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:14mm}
 .firma-col{text-align:center}
-.firma-line{height:1px;background:var(--ink);margin-bottom:7px}
+.firma-line{height:1px;background:var(--ink-dim);margin-bottom:7px}
 .firma-lbl{font-family:'Cormorant Garamond',serif;font-size:14px;letter-spacing:.06em}
 .firma-sub{font-family:'Inter',sans-serif;font-size:7.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:3px}
+
+/* ---- CORTES DE PÁGINA ----
+   El PDF se envía por WhatsApp o mail: nada puede quedar partido al medio.
+   Cada bloque es atómico y ningún título se queda solo al pie. */
+.mb,.i-card,.tl-row,.plan-item,.plan-grid,.firma-grid,.svc-item,.ped-box,
+.cov-client,.cov-photo,.closing,.precio-tabla tr,.tags-wrap,.dt-legend{break-inside:avoid;page-break-inside:avoid}
+.stitle,.mb-head,.mb-sub,.mb-sublbl,.add-group-label{break-after:avoid;page-break-after:avoid}
+.tc-body p{break-inside:avoid;page-break-inside:avoid;orphans:3;widows:3}
+.bcopy p{orphans:3;widows:3}
+.mi{break-inside:auto}
+.page:last-child{page-break-after:avoid;break-after:auto}
+
+/* Al exportar a PDF la maqueta no cambia: mismo margen que en pantalla,
+   así lo que se ve en la vista previa es exactamente lo que se envía. */
+@media print{
+  body{background:var(--paper);padding:0;margin:0}
+  .page{margin:0;box-shadow:none}
+}
 </style>
 </head>
 <body>
@@ -4901,17 +4958,17 @@ body{background:#DDD5C7;font-family:'Inter',sans-serif;color:var(--ink);padding:
 <div class="page cover">
   <div class="cov-logo">
     <div class="cov-tag">Salón de Eventos · Ciudad Tesei</div>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="120" height="120" style="display:block;margin:0 auto 12px">
-      <circle cx="100" cy="100" r="98" fill="#0f0f0f"/>
-      <text x="100" y="113" font-family="'Inter',sans-serif" font-weight="900" font-size="43" fill="white" text-anchor="middle" letter-spacing="2">JOLIET</text>
-      <circle cx="112" cy="74" r="3.5" fill="white"/>
-      <text x="100" y="136" font-family="'Inter',sans-serif" font-weight="500" font-size="14" fill="white" text-anchor="middle" letter-spacing="6">EVENTOS</text>
+    <svg class="cov-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="120" height="120" style="display:block;margin:0 auto 12px">
+      <circle class="cs-bg" cx="100" cy="100" r="98"/>
+      <text class="cs-fg" x="100" y="113" font-family="'Inter',sans-serif" font-weight="900" font-size="43" text-anchor="middle" letter-spacing="2">JOLIET</text>
+      <circle class="cs-fg" cx="112" cy="74" r="3.5"/>
+      <text class="cs-fg" x="100" y="136" font-family="'Inter',sans-serif" font-weight="500" font-size="14" text-anchor="middle" letter-spacing="6">EVENTOS</text>
     </svg>
     <span class="cov-title">Propuesta comercial para su evento</span>
     <div class="cov-num">Emitida: ${esc(hoy)}</div>
   </div>
 
-  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.38),rgba(26,26,26,.06)),url('${base}/${({'Boda':'img/propuesta/mesa-elegante.jpeg','XV años':'img/propuesta/portada.jpeg','Cumpleaños':'img/propuesta/torta.jpg','Egresados':'img/propuesta/fiesta.jpeg','Corporativo':'img/propuesta/mesa-elegante.jpeg'})[d.tipoEvento]||'img/propuesta/jardin.jpeg'}'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
+  <div class="cov-photo" style="background-image:linear-gradient(0deg,rgba(26,26,26,.38),rgba(26,26,26,.06)),url('${base}/${portadaImgFor(d.tipoEvento)}'),linear-gradient(135deg,#2A3548,#5A6478)"></div>
 
   <div class="cov-client">
     <div class="cov-label">Preparada para</div>
@@ -5037,7 +5094,7 @@ ${tipo === 'contrato' ? (() => {
     <span class="sname">Conformidad y firma</span>
     <span class="srule"></span>
   </div>
-  <p style="font-size:11px;line-height:1.65;color:#2A2620;margin-bottom:12mm">Las partes declaran haber leído y comprendido la totalidad de los términos y condiciones del presente documento, prestando su conformidad mediante firma a continuación.</p>
+  <p style="font-size:11px;line-height:1.65;color:var(--ink-soft);margin-bottom:12mm">Las partes declaran haber leído y comprendido la totalidad de los términos y condiciones del presente documento, prestando su conformidad mediante firma a continuación.</p>
   <div class="firma-grid">
     <div class="firma-col"><div class="firma-line"></div><div class="firma-lbl">Cliente</div><div class="firma-sub">Nombre completo y DNI</div></div>
     <div class="firma-col"><div class="firma-line"></div><div class="firma-lbl">Joliet Eventos</div><div class="firma-sub">Firma y aclaración</div></div>
@@ -7596,8 +7653,10 @@ $('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamie
     if (n !== propuestaState.current) goToPropuestaSlide(n);
   });
 
-  // El fondo sigue apenas al puntero: da sensación de profundidad, no de truco
-  if (!reduce) {
+  // El fondo sigue apenas al puntero: solo con mouse (en tablet no hay hover
+  // y el efecto costaría GPU sin que nadie lo vea)
+  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (!reduce && finePointer) {
     let raf = null, tx = 0, ty = 0;
     view.addEventListener('pointermove', e => {
       tx = (e.clientX / window.innerWidth - .5) * 26;
@@ -7609,6 +7668,34 @@ $('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamie
         if (amb) amb.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
       });
     });
+  }
+
+  // ---- Deslizar entre pasos (tablet) ----
+  // La presentación se hace muchas veces en tablet: pasar de paso tiene que
+  // poder hacerse con el pulgar, no solo con los botones de abajo.
+  const cont = document.querySelector('.propuesta-slides-container');
+  if (cont) {
+    let x0 = 0, y0 = 0, t0 = 0, tracking = false;
+    cont.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) { tracking = false; return; }
+      // No robamos el gesto sobre algo que se maneja deslizando
+      if (e.target.closest('input, textarea, select, .propuesta-textarea')) { tracking = false; return; }
+      const t = e.touches[0];
+      x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); tracking = true;
+    }, { passive: true });
+
+    cont.addEventListener('touchend', e => {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - x0;
+      const dy = t.clientY - y0;
+      const dt = Date.now() - t0;
+      // Horizontal, decidido y sin ser un scroll vertical disfrazado
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8 || dt > 700) return;
+      if (dx < 0) document.getElementById('btn-prop-next')?.click();
+      else        document.getElementById('btn-prop-prev')?.click();
+    }, { passive: true });
   }
 
   // Al reconstruir slides dinámicos, mantener los grupos en sincronía

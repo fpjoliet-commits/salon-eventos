@@ -5001,11 +5001,6 @@ tr.coc-row-hidden { display: none; }
   from { transform: scale(1); }
   to   { transform: scale(1.07); }
 }
-.portada-photo.swapping { animation: portadaSwap 700ms var(--ease-out-soft); }
-@keyframes portadaSwap {
-  0%   { opacity: .25; transform: scale(1.06); filter: brightness(.2) saturate(1.2); }
-  100% { opacity: 1;   transform: scale(1);    filter: brightness(.42) saturate(1.2); }
-}
 
 /* Las cards de una grilla aparecen una detrás de otra */
 .propuesta-slide.active .propuesta-cards-grid > *,
@@ -5311,4 +5306,181 @@ tr.coc-row-hidden { display: none; }
   .amb-orb { filter: blur(44px); opacity: .38; }
   .amb-grain, .amb-sheen { display: none; }
   .propuesta-slide.active { animation-duration: 420ms; }
+}
+
+/* ============================================================
+   PROPUESTA — PORTADA SIN RECORTES + TABLET / TÁCTIL
+   ============================================================ */
+
+/* ---------- Portada: la foto entra entera ---------- */
+/* Antes el marco era mucho más apaisado que la foto (3:2) y el
+   encuadre se comía techo y piso. Ahora el marco toma la forma de
+   la foto: se ve completa, sin cortes, en cualquier pantalla. */
+.propuesta-slide-portada {
+  flex: none !important;
+  width: auto !important;
+  max-width: min(100%, 1180px) !important;
+  height: min(72vh, 620px);
+  min-height: 0 !important;
+  aspect-ratio: 3 / 2;
+  margin: 0 auto;
+}
+/* Dos capas: atrás la misma foto desenfocada llenando el marco, adelante la
+   foto entera sin recortar. Sirve igual para una panorámica del salón que
+   para una foto vertical: nunca se corta y nunca quedan bandas negras. */
+.portada-photo {
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-color: #0d0b07;
+  filter: blur(26px) brightness(.55) saturate(1.15);
+  transform: scale(1.14);
+  transform-origin: center;
+  animation: none;
+}
+.portada-photo-fg {
+  position: absolute;
+  inset: 0;
+  background-size: contain;
+  background-position: center center;
+  background-repeat: no-repeat;
+  border-radius: inherit;
+  z-index: 1;
+  animation: portadaBreatheSoft 26s ease-in-out infinite alternate;
+}
+/* Respiración mínima: con background-size:contain, agrandar de más recortaría */
+@keyframes portadaBreatheSoft {
+  from { transform: scale(1); }
+  to   { transform: scale(1.025); }
+}
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .portada-photo-fg { animation: none; }
+}
+.portada-overlay { z-index: 2 !important; }
+.portada-content { z-index: 3 !important; }
+.portada-photo-fg.swapping { animation: portadaSwap 700ms var(--ease-out-soft); }
+/* Un solo velo continuo: sin escalón entre la parte clara y la oscura */
+.portada-overlay {
+  background: linear-gradient(to top,
+    rgba(9,7,4,.94) 0%,
+    rgba(9,7,4,.90) 26%,
+    rgba(9,7,4,.66) 48%,
+    rgba(9,7,4,.42) 68%,
+    rgba(9,7,4,.34) 100%) !important;
+}
+.propuesta-kiosco.diurno .portada-photo { filter: saturate(1.12) sepia(.06); }
+.propuesta-kiosco.diurno .portada-overlay {
+  background: linear-gradient(to top,
+    rgba(38,22,6,.92) 0%,
+    rgba(40,24,8,.86) 26%,
+    rgba(52,30,10,.58) 50%,
+    rgba(70,42,14,.30) 100%) !important;
+}
+/* El contenido se apoya abajo, sobre la parte más oscura del velo */
+.portada-content { padding: 40px 32px 42px !important; }
+.propuesta-slide-portada .propuesta-logo-img { margin-bottom: 18px; max-width: 132px; }
+.propuesta-slide-portada .propuesta-main-title { font-size: clamp(30px, 4.4vw, 56px); }
+.propuesta-slide-portada .propuesta-subtitle { margin-bottom: 26px; }
+@media (max-height: 760px) {
+  .propuesta-slide-portada { height: min(64vh, 460px); }
+  .propuesta-slide-portada .propuesta-logo-img { max-width: 104px; margin-bottom: 12px; }
+  .portada-content { padding: 26px 24px 28px !important; }
+}
+.portada-photo.swapping { animation: portadaSwap 700ms var(--ease-out-soft); }
+@keyframes portadaSwap {
+  0%   { opacity: .2; transform: scale(1.05); }
+  100% { opacity: 1;  transform: scale(1); }
+}
+
+/* ---------- Tablet y táctil ---------- */
+/* Lo presentamos en tablet tanto como en notebook: en pantallas sin
+   mouse el hover no existe, así que el peso del feedback pasa al
+   toque (:active) y los blancos crecen para el dedo. */
+@media (hover: none), (pointer: coarse) {
+  /* Nada se mueve "al pasar": se mueve al tocar */
+  .propuesta-card:hover,
+  .estilo-fork-card:hover,
+  .adicional-card:hover,
+  .incluido-item:hover,
+  .btn-propuesta-primary:hover,
+  .btn-propuesta-nav:hover:not(:disabled),
+  .counter-btn:hover,
+  #btn-prop-next:hover:not(:disabled),
+  #btn-prop-prev:hover:not(:disabled) { transform: none; }
+  .propuesta-card:hover::after { animation: none; opacity: 0; }
+  .estilo-fork-card:hover .fork-photo,
+  .adicional-card:hover .adicional-photo,
+  .espacio-card:hover .espacio-photo { transform: none; }
+  .gastro-island-row:hover, .gastro-menu-row:hover,
+  .gastro-plato-row:hover, .gastro-premium-row:hover { transform: none; }
+
+  /* El toque sí responde, y fuerte */
+  .propuesta-card:active,
+  .adicional-card:active,
+  .estilo-fork-card:active,
+  .gastro-island-row:active, .gastro-menu-row:active,
+  .gastro-plato-row:active, .gastro-premium-row:active {
+    transform: scale(.97);
+    filter: brightness(1.12);
+    transition-duration: .06s;
+  }
+  .btn-propuesta-primary:active,
+  .btn-propuesta-nav:active:not(:disabled),
+  .counter-btn:active { transform: scale(.94); transition-duration: .06s; }
+
+  /* Blancos de toque: mínimo cómodo para el dedo */
+  .propuesta-card { padding: 16px 22px; min-height: 52px; }
+  .turno-card { min-width: 138px; padding: 16px 24px; }
+  .counter-btn { width: 72px; height: 72px; font-size: 34px; }
+  .btn-propuesta-primary { padding: 17px 38px; font-size: 14px; }
+  .btn-propuesta-nav { padding: 14px 24px; font-size: 12px; }
+  .propuesta-close-btn { padding: 11px 18px; font-size: 11.5px; }
+  .propuesta-checkbox-label input[type="checkbox"] { width: 26px !important; height: 26px !important; min-width: 26px; }
+  .propuesta-input, .propuesta-textarea { font-size: 17px !important; padding: 15px 18px !important; }
+  .preform-fields { flex-direction: column; }
+
+  /* Los dots son destino de toque: área real de 26px sin cambiar el dibujo */
+  .propuesta-step-dots { gap: 2px; }
+  .propuesta-dot {
+    position: relative;
+    background-clip: content-box;
+    padding: 11px 6px;
+    width: 17px;
+    height: 27px;
+    border-radius: 0;
+  }
+  .propuesta-dot::after {
+    content: '';
+    position: absolute;
+    inset: 11px 6px;
+    border-radius: 3px;
+    background: inherit;
+  }
+
+  /* El fondo se aliviana: las tablets no regalan GPU */
+  .amb-grain { display: none; }
+  .amb-orb { filter: blur(50px); }
+
+  /* Pista de que se puede deslizar */
+  .propuesta-slides-container { touch-action: pan-y; }
+}
+
+/* Tablet en vertical: las grillas de dos y tres columnas ahogan el contenido */
+@media (max-width: 1024px) {
+  .estilo-fork-grid { grid-template-columns: 1fr; }
+  .estilo-fork-card { min-height: 240px; }
+  .espacio-fork-grid { grid-template-columns: repeat(2, 1fr); }
+  .propuesta-slides-container { padding: 66px 22px 96px; }
+  .propuesta-nav { padding: 0 18px 18px; }
+}
+@media (max-width: 780px) {
+  .espacio-fork-grid { grid-template-columns: 1fr; }
+  .propuesta-slide-portada { aspect-ratio: 4 / 3; height: auto; max-height: 62vh; }
+  .counter-display { font-size: 74px; min-width: 150px; }
+}
+
+/* Deslizar entre pasos: acompañamos el gesto con el dedo */
+.propuesta-slides-container.swiping .propuesta-slide.active {
+  transition: none;
+  animation: none;
 }
