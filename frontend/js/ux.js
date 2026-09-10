@@ -359,7 +359,9 @@
     if (!thead || thead.dataset.sortReady) return;
     thead.dataset.sortReady = '1';
 
-    [...thead.children].forEach((th, i) => {
+    // La columna de checkboxes no se ordena, así que se saca del mapeo por índice
+    const ordenables = [...thead.children].filter(th => !th.classList.contains('th-check'));
+    ordenables.forEach((th, i) => {
       const col = COLUMNAS[i];
       if (!col) return;                       // la última columna (acciones) no se ordena
       th.dataset.sortKey = col.key;
@@ -396,10 +398,13 @@
     ['Fecha de carga', 'fechaCarga'], ['Cargado por', 'cargadoPor'],
   ];
 
-  function exportarCSV() {
-    // Si se dispara desde Ctrl+K sin haber pasado por Clientes, ultimaVista está
-    // vacía: exportar todo es más útil que un error.
-    const lista = ultimaVista.length ? ultimaVista : getClientes();
+  function exportarCSV(soloEstos = null) {
+    // Sin argumento exporta lo que se está viendo. Si se dispara desde Ctrl+K sin
+    // haber pasado por Clientes, ultimaVista está vacía: exportar todo es más
+    // útil que un error.
+    const lista = soloEstos && soloEstos.length ? soloEstos
+                : ultimaVista.length ? ultimaVista
+                : getClientes();
     if (!lista.length) { window.toast?.('Todavía no hay clientes para exportar', 'error'); return; }
 
     const celda = v => {
@@ -580,6 +585,232 @@
         if (dest) { e.preventDefault(); dest.focus(); dest.click(); }
       });
     });
+  }
+
+  /* ============================================================
+     8.b SELECCIÓN MÚLTIPLE Y ACCIONES MASIVAS
+     Patrón NN/g: los checkboxes viven en la tabla, la barra de acciones
+     aparece sólo cuando hay algo seleccionado, y toda acción se puede deshacer.
+
+     A propósito NO hay borrado masivo: es la única acción de esta lista que no
+     se puede revertir con un botón, y equivocarse ahí sale muy caro.
+     ============================================================ */
+
+  const seleccion = new Set();   // ids de clientes tildados
+
+  function clientesSeleccionados() {
+    return getClientes().filter(c => seleccion.has(c.id));
+  }
+
+  /* Inyecta la columna de checkboxes. Se hace desde acá y no en el HTML para no
+     tocar renderClientes() de app.js, que arma las filas con innerHTML. */
+  function montarColumnaSeleccion() {
+    const thead = document.querySelector('#view-clientes .data-table thead tr');
+    if (!thead || thead.dataset.selReady) return;
+    thead.dataset.selReady = '1';
+
+    const th = document.createElement('th');
+    th.className = 'th-check';
+    th.innerHTML = `<input type="checkbox" id="check-todos"
+                           aria-label="Seleccionar todos los clientes de la lista">`;
+    thead.insertBefore(th, thead.firstChild);
+
+    th.querySelector('#check-todos').addEventListener('change', e => {
+      const marcar = e.target.checked;
+      ultimaVista.forEach(c => marcar ? seleccion.add(c.id) : seleccion.delete(c.id));
+      pintarChecks();
+      pintarBarraSeleccion();
+    });
+  }
+
+  /* Agrega la celda del checkbox a cada fila recién pintada */
+  function inyectarChecksEnFilas() {
+    const tbody = document.getElementById('clientes-tbody');
+    if (!tbody) return;
+    const filas = [...tbody.querySelectorAll('tr')];
+
+    filas.forEach((tr, i) => {
+      if (tr.querySelector('.td-check')) return;
+      const c = ultimaVista[i];
+      if (!c) return;
+
+      const td = document.createElement('td');
+      td.className = 'td-check';
+      td.innerHTML = `<input type="checkbox" class="check-cliente" data-id="${escHtml(c.id)}"
+                             aria-label="Seleccionar ${escHtml(c.apellidoNombre || 'cliente')}">`;
+      tr.insertBefore(td, tr.firstChild);
+
+      // Tildar no debe abrir la ficha (la fila entera es clickeable)
+      td.addEventListener('click', e => e.stopPropagation());
+      td.querySelector('input').addEventListener('change', e => {
+        e.stopPropagation();
+        e.target.checked ? seleccion.add(c.id) : seleccion.delete(c.id);
+        pintarChecks();
+        pintarBarraSeleccion();
+      });
+    });
+
+    pintarChecks();
+    pintarBarraSeleccion();
+  }
+
+  function pintarChecks() {
+    document.querySelectorAll('#clientes-tbody .check-cliente').forEach(inp => {
+      const marcado = seleccion.has(inp.dataset.id);
+      inp.checked = marcado;
+      inp.closest('tr')?.classList.toggle('tr-seleccionada', marcado);
+    });
+
+    const todos = document.getElementById('check-todos');
+    if (todos) {
+      const visibles = ultimaVista.length;
+      const marcados = ultimaVista.filter(c => seleccion.has(c.id)).length;
+      todos.checked = visibles > 0 && marcados === visibles;
+      // Estado intermedio: algunos sí, otros no
+      todos.indeterminate = marcados > 0 && marcados < visibles;
+    }
+  }
+
+  function limpiarSeleccion() {
+    seleccion.clear();
+    pintarChecks();
+    pintarBarraSeleccion();
+  }
+
+  function pintarBarraSeleccion() {
+    let barra = document.getElementById('barra-seleccion');
+    const n = seleccion.size;
+
+    // La clase le da aire al pie del contenido para que la barra no tape filas
+    document.body.classList.toggle('hay-seleccion', n > 0);
+
+    if (!n) { barra?.remove(); return; }
+
+    if (!barra) {
+      barra = document.createElement('div');
+      barra.id = 'barra-seleccion';
+      barra.className = 'barra-seleccion';
+      barra.setAttribute('role', 'region');
+      barra.setAttribute('aria-label', 'Acciones sobre los clientes seleccionados');
+      document.body.appendChild(barra);
+    }
+
+    barra.innerHTML = `
+      <span class="bsel-count">${n} seleccionado${n > 1 ? 's' : ''}</span>
+      <div class="bsel-acciones">
+        <label class="bsel-campo">
+          <span>Cambiar estado a</span>
+          <select id="bsel-estado" aria-label="Nuevo estado para los seleccionados">
+            <option value="">Elegir...</option>
+            ${ORDEN_ESTADO.map(e => `<option>${e}</option>`).join('')}
+          </select>
+        </label>
+        <label class="bsel-campo">
+          <span>Agendar para</span>
+          <input type="date" id="bsel-fecha" aria-label="Nueva fecha de seguimiento">
+        </label>
+        <button type="button" class="btn btn-secondary btn-sm" id="bsel-csv">⬇ Exportar</button>
+      </div>
+      <button type="button" class="bsel-cerrar" id="bsel-cerrar"
+              aria-label="Quitar la selección">✕</button>`;
+
+    barra.querySelector('#bsel-cerrar').addEventListener('click', limpiarSeleccion);
+    barra.querySelector('#bsel-estado').addEventListener('change', e => {
+      const nuevo = e.target.value;
+      e.target.value = '';
+      if (nuevo) aplicarMasivo({ estado: nuevo }, `estado → ${nuevo}`);
+    });
+    barra.querySelector('#bsel-fecha').addEventListener('change', e => {
+      const fecha = e.target.value;
+      e.target.value = '';
+      if (fecha) aplicarMasivo({ proximoSeguimiento: fecha },
+                               `seguimiento → ${window.formatDate?.(fecha) || fecha}`);
+    });
+    barra.querySelector('#bsel-csv').addEventListener('click', () => {
+      exportarCSV(clientesSeleccionados());
+    });
+  }
+
+  /* Aplica un cambio a todos los seleccionados, de a uno.
+
+     Van en serie a propósito: Google Sheets limita las escrituras por minuto y
+     30 PUT en paralelo devuelven 429. Con progreso visible, porque sobre Sheets
+     esto tarda de verdad. */
+  async function aplicarMasivo(cambios, etiqueta) {
+    const lista = clientesSeleccionados();
+    if (!lista.length) return;
+
+    const ok = await uiConfirm({
+      titulo: `¿Aplicar el cambio a ${lista.length} cliente${lista.length > 1 ? 's' : ''}?`,
+      mensaje: `Se va a cambiar el ${etiqueta} en:\n\n`
+             + lista.slice(0, 8).map(c => `· ${c.apellidoNombre}`).join('\n')
+             + (lista.length > 8 ? `\n· … y ${lista.length - 8} más` : ''),
+      confirmar: 'Sí, aplicar',
+      icono: '✏️',
+    });
+    if (!ok) return;
+
+    // Guardamos los valores previos para poder deshacer
+    const campos = Object.keys(cambios);
+    const previos = lista.map(c => ({
+      cliente: c,
+      antes: Object.fromEntries(campos.map(k => [k, c[k]])),
+    }));
+
+    const fallidos = await escribirEnSerie(lista, cambios, etiqueta);
+
+    allClientes = await apiFetch('/clientes');
+    window.applyFilters?.();
+    window.renderRemindersBar?.();
+    document.dispatchEvent(new CustomEvent('crm:clientes-cargados'));
+    limpiarSeleccion();
+
+    if (fallidos.length) {
+      toast(`${fallidos.length} de ${lista.length} no se pudieron guardar: ${fallidos[0].error}`, 'error');
+      return;
+    }
+
+    toastUndo(`${lista.length} cliente${lista.length > 1 ? 's' : ''} actualizado${lista.length > 1 ? 's' : ''}`,
+      async () => {
+        // Deshacer: devolver cada uno a su valor anterior
+        for (const { cliente, antes } of previos) {
+          const actual = getClientes().find(x => x.id === cliente.id) || cliente;
+          await apiFetch(`/clientes/${actual.rowIndex}`, {
+            method: 'PUT',
+            body: window.buildClienteBody(actual, antes),
+          });
+        }
+        allClientes = await apiFetch('/clientes');
+        window.applyFilters?.();
+        window.renderRemindersBar?.();
+        document.dispatchEvent(new CustomEvent('crm:clientes-cargados'));
+        toast('Cambio deshecho');
+      }, { segundos: 12 });
+  }
+
+  async function escribirEnSerie(lista, cambios, etiqueta) {
+    const fallidos = [];
+    const barra = document.getElementById('barra-seleccion');
+    const pintarProgreso = i => {
+      if (!barra) return;
+      barra.innerHTML = `<span class="bsel-count">Guardando ${i} de ${lista.length}…</span>
+        <div class="bsel-progreso"><span style="width:${(i / lista.length) * 100}%"></span></div>`;
+    };
+    pintarProgreso(0);
+
+    for (let i = 0; i < lista.length; i++) {
+      const c = lista[i];
+      try {
+        await apiFetch(`/clientes/${c.rowIndex}`, {
+          method: 'PUT',
+          body: window.buildClienteBody(c, cambios),
+        });
+      } catch (err) {
+        fallidos.push({ cliente: c, error: err.message });
+      }
+      pintarProgreso(i + 1);
+    }
+    return fallidos;
   }
 
   /* ============================================================
@@ -970,6 +1201,8 @@
         ultimaVista = listo;
         original(listo);
         pintarEstadoOrden();
+        montarColumnaSeleccion();
+        inyectarChecksEnFilas();
       };
       envuelta._uxWrapped = true;
       window.renderClientes = envuelta;
@@ -1174,6 +1407,7 @@
     montarA11yModal();
     montarA11yTabs();
     montarOrdenTabla();
+    montarColumnaSeleccion();
     montarFiltros();
     montarTecladoTabla();
     aplicarInputmodes();
@@ -1181,7 +1415,7 @@
     envolverFunciones();
 
     // Exportar CSV desde el botón de la barra de herramientas
-    document.getElementById('btn-exportar-csv')?.addEventListener('click', exportarCSV);
+    document.getElementById('btn-exportar-csv')?.addEventListener('click', () => exportarCSV());
 
     // Reponer filtros guardados en cuanto haya datos cargados
     document.addEventListener('crm:clientes-cargados', () => {

@@ -157,11 +157,33 @@ body { font-size: 16px; }
    entre filas es lo que la hace legible). */
 #view-clientes .data-table th,
 #view-clientes .data-table td {
-  padding-left: 11px;
-  padding-right: 11px;
+  padding-left: 9px;
+  padding-right: 9px;
 }
-#view-clientes .acciones-col { gap: 4px; }
-#view-clientes .acciones-col .btn { padding-left: 10px; padding-right: 10px; }
+/* Los headers van en mayúsculas con letter-spacing .12em: en 7 columnas eso son
+   varias decenas de px. Bajarlo a .05em se sigue leyendo igual y es lo que
+   termina de hacer entrar la tabla. */
+#view-clientes .data-table th { letter-spacing: .05em; }
+/* La celda de acciones venía con display:flex. Un td en flex sale del layout de
+   tabla y deja de ocupar el alto de la fila, así que el color de estado
+   (confirmado verde, por cerrar naranja, seleccionado dorado) dejaba una franja
+   blanca a la derecha en cada fila. Volviéndola table-cell llena el alto; los
+   botones son inline-flex, así que quedan uno al lado del otro igual. */
+#view-clientes .data-table td.acciones-col {
+  display: table-cell;
+  white-space: nowrap;
+  text-align: right;
+}
+#view-clientes .data-table td.acciones-col .btn {
+  padding-left: 10px;
+  padding-right: 10px;
+  vertical-align: middle;
+}
+#view-clientes .data-table td.acciones-col .btn + .btn { margin-left: 4px; }
+
+/* La columna de checkboxes suma ancho: con esto la tabla vuelve a entrar
+   completa en una tablet de 1280 sin scroll horizontal. */
+.th-check, .td-check { width: 32px; }
 
 /* Botón de orden dentro del th — accesible por teclado */
 .th-sort {
@@ -577,10 +599,149 @@ th[aria-sort="descending"] .th-sort { color: var(--text-primary); }
 .inicio-kpi-hoy .inicio-kpi-valor { color: #f0c063; }
 .inicio-kpi-ok .inicio-kpi-valor { color: #7fd6a6; }
 
+/* ===================== 8.b SELECCIÓN MÚLTIPLE =====================
+   Checkboxes en la tabla + barra de acciones contextual que aparece sólo
+   cuando hay algo seleccionado (NN/g: bulk actions). */
+
+.th-check, .td-check {
+  padding-left: 10px !important;
+  padding-right: 4px !important;
+  text-align: center;
+}
+.th-check input, .td-check input {
+  width: 19px;
+  height: 19px;
+  cursor: pointer;
+  accent-color: var(--gold);
+  margin: 0;
+  vertical-align: middle;
+}
+tr.tr-seleccionada td {
+  background: var(--gold-light) !important;
+}
+tr.tr-seleccionada td:nth-child(2) {
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+/* Centrada sobre el área de contenido (no sobre el viewport, que la corría
+   hacia la derecha por el ancho de la sidebar). left+right+margin auto con
+   width:fit-content centra sin necesidad de translate, así que la animación
+   de entrada no pelea con el centrado. */
+.barra-seleccion {
+  position: fixed;
+  bottom: 20px;
+  left: var(--sidebar-w);
+  right: 0;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 0 auto;
+  z-index: 3500;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: var(--jet);
+  color: var(--cream);
+  border: 1px solid rgba(196,153,62,.3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: 14px 18px;
+  flex-wrap: nowrap;
+  animation: bsel-entrar .2s var(--ease-out-soft);
+}
+@keyframes bsel-entrar {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* La barra flota sobre el contenido: sin este aire tapa las últimas filas de la
+   tabla, justo las que se acaban de seleccionar. */
+body.hay-seleccion .main-content { padding-bottom: 130px; }
+
+/* Los toasts viven abajo al centro, igual que la barra: sin esto el aviso
+   ("2 clientes actualizados" + Deshacer) le cae encima y tapa las acciones. */
+body.hay-seleccion #toast-container { bottom: 116px; }
+
+/* En pantallas angostas sí conviene que se apile antes que desbordar */
+@media (max-width: 900px) {
+  .barra-seleccion { flex-wrap: wrap; }
+}
+
+.bsel-count {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gold-bright);
+  white-space: nowrap;
+}
+.bsel-acciones {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.bsel-campo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: #b8ab93;
+  white-space: nowrap;
+}
+.bsel-campo select,
+.bsel-campo input {
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(196,153,62,.3);
+  color: var(--cream);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  min-height: 40px;
+}
+.bsel-campo select option { background: var(--jet); color: var(--cream); }
+.bsel-campo input[type="date"] { color-scheme: dark; }
+
+.bsel-cerrar {
+  background: none;
+  border: none;
+  color: #8a7c62;
+  font-size: 17px;
+  cursor: pointer;
+  padding: 8px 4px;
+  min-width: 34px;
+  min-height: 34px;
+  line-height: 1;
+}
+.bsel-cerrar:hover { color: var(--cream); }
+
+.bsel-progreso {
+  flex: 1;
+  min-width: 180px;
+  height: 6px;
+  background: rgba(255,255,255,.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bsel-progreso span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width .2s;
+}
+
+/* Con el drawer, la sidebar no ocupa lugar: la barra va centrada en la pantalla */
+@media (max-width: 1024px) {
+  .barra-seleccion { left: 0; }
+}
+
 /* ===================== 9. TARGETS TÁCTILES (tablet) — WCAG 2.5.8 ===================== */
 
 @media (pointer: coarse) {
   .textsize-btn { min-height: 44px; }
+  /* En tablet el checkbox tiene que ser alcanzable con el dedo */
+  .th-check input, .td-check input { width: 24px; height: 24px; }
+  .th-check, .td-check { width: 52px; }
+  .bsel-campo select, .bsel-campo input { min-height: 46px; }
+  .bsel-cerrar { min-width: 44px; min-height: 44px; }
   .th-sort { min-height: 30px; }
   .cmdk-item { min-height: 54px; }
   .cmdk-input { min-height: 44px; font-size: 18px; }
@@ -597,7 +758,8 @@ th[aria-sort="descending"] .th-sort { color: var(--text-primary); }
 
 @media print {
   .cmdk-overlay, .uic-overlay, .cmdk-hint, .textsize-control,
-  .inicio-hero, .view-toolbar, .skip-link { display: none !important; }
+  .inicio-hero, .view-toolbar, .skip-link,
+  .barra-seleccion, .th-check, .td-check { display: none !important; }
   .table-wrap { max-height: none; overflow: visible; }
   .data-table thead th { position: static; }
 }
