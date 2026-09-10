@@ -267,6 +267,8 @@ function initApp() {
     el.style.display = isAdmin() ? '' : 'none';
   });
 
+  poblarSelectRestricciones($('rest-tipo'), 'Tipo de restricción...');
+
   loadClientes();
   loadPersonas();
   navigateTo('calendario');
@@ -313,6 +315,7 @@ if (view === 'calendario') loadCalendario();
   if (view === 'nuevo-cliente' && !$('edit-row-index').value) resetNuevoClienteForm();
   if (view === 'timing-global') initTimingGlobal();
   if (view === 'propuesta') initPropuesta();
+  pantallaCompleta(view === 'propuesta');
   if (view === 'egresos') initEgresos();
   if (view === 'egresos-cocina') { navigateTo('cocina'); switchCocinaTab('compras'); return; }
   if (view === 'seguimientos') initSeguimientos();
@@ -2794,10 +2797,38 @@ function renderTimming(cliente, items, restricciones) {
   });
 }
 
+/* Lista ÚNICA de restricciones alimentarias.
+
+   Antes había dos: una acá (Timing Planner) y otra escrita a mano en el HTML
+   del modal. La misma restricción se guardaba como "Celíaco / Sin TACC" desde
+   un lado y como "Celíaco" o "Sin TACC" desde el otro, así que en cocina no se
+   podían agrupar ni contar. También arrastraba un error de tipeo
+   ("Alérgico al mariscos").
+
+   Los registros viejos conservan el texto con que se guardaron: esto sólo
+   unifica lo que se carga de acá en adelante. */
 const TIPOS_RESTRICCION = [
-  'Sin TACC', 'Celíaco', 'Vegano', 'Vegetariano', 'Diabético', 'Hipertenso',
-  'Alérgico al mariscos', 'Alérgico al maní', 'Kosher', 'Halal', 'Otro',
+  'Sin TACC / Celíaco',
+  'Vegano',
+  'Vegetariano',
+  'Sin lactosa',
+  'Diabético',
+  'Sin sal / Hipertenso',
+  'Alergia a mariscos',
+  'Alergia a frutos secos',
+  'Alergia al maní',
+  'Kosher',
+  'Halal',
 ];
+
+/* Llena los dos <select> de restricciones con la lista única. El del modal
+   tenía las opciones escritas a mano en el HTML. */
+function poblarSelectRestricciones(sel, placeholder) {
+  if (!sel) return;
+  sel.innerHTML = `<option value="">${placeholder}</option>`
+    + TIPOS_RESTRICCION.map(t => `<option>${t}</option>`).join('')
+    + '<option value="Otro">Otro…</option>';
+}
 
 function renderTimmingRestricciones(cliente, lista) {
   const panel = $('tim-rest-panel');
@@ -2819,10 +2850,7 @@ function renderTimmingRestricciones(cliente, lista) {
       </div>
       <div class="tim-rest-list">${filas}</div>
       <form id="tim-rest-form" class="tim-rest-form" style="display:none">
-        <select id="tim-rest-tipo" class="form-select form-select-sm" style="flex:1;min-width:140px">
-          <option value="">-- Tipo --</option>
-          ${TIPOS_RESTRICCION.map(t => `<option>${t}</option>`).join('')}
-        </select>
+        <select id="tim-rest-tipo" class="form-select form-select-sm" style="flex:1;min-width:140px"></select>
         <input type="text" id="tim-rest-tipo-otro" placeholder="Especificar..." style="display:none;flex:1" class="form-input">
         <input type="number" id="tim-rest-cantidad" placeholder="Cant." min="1" value="1" class="form-input" style="width:64px">
         <label style="font-size:12px;display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer">
@@ -2831,6 +2859,8 @@ function renderTimmingRestricciones(cliente, lista) {
         <button type="submit" class="btn btn-sm btn-primary">Agregar</button>
       </form>
     </div>`;
+
+  poblarSelectRestricciones($('tim-rest-tipo'), '-- Tipo --');
 
   $('btn-toggle-rest-form')?.addEventListener('click', () => {
     const form = $('tim-rest-form');
@@ -2944,7 +2974,15 @@ function bindMaitreAcciones(cliente, items) {
     });
   });
 
-  document.querySelectorAll('.btn-tim-edit').forEach(btn => {
+  /* Ojo: hay que acotar al panel del maître. La clase .btn-tim-del la usan
+     también los botones de borrar restricciones (en #tim-rest-panel), que tienen
+     su propio handler. Buscando en todo el documento les pegábamos encima este
+     otro, que hace closest('.tim-item') → null y tiraba
+     "Cannot read properties of null (reading 'dataset')" en cada borrado. */
+  const panelMaitre = $('tim-panel-maitre');
+  if (!panelMaitre) return;
+
+  panelMaitre.querySelectorAll('.btn-tim-edit').forEach(btn => {
     btn.addEventListener('click', () => {
       const row = btn.closest('.tim-item');
       const rowIndex = parseInt(row.dataset.row);
@@ -2979,9 +3017,10 @@ function bindMaitreAcciones(cliente, items) {
     });
   });
 
-  document.querySelectorAll('.btn-tim-del').forEach(btn => {
+  panelMaitre.querySelectorAll('.btn-tim-del').forEach(btn => {
     btn.addEventListener('click', async () => {
       const row = btn.closest('.tim-item');
+      if (!row) return;
       const rowIndex = parseInt(row.dataset.row);
       const ok = await uiConfirm({
         titulo: '¿Eliminar esta actividad del timing?',
@@ -3716,6 +3755,27 @@ const propuestaState = {
   }
 };
 
+/* ---------- Pantalla completa ----------
+   El creador se presenta en vivo. La barra de direcciones, las pestañas y
+   los favoritos de Chrome ocupan unos 120px de alto de la tablet y, sobre
+   todo, delatan que esto es una pagina web abierta en un navegador.
+   A pantalla completa se ve un programa.
+   Solo se puede pedir dentro de un gesto de la persona (el click que abre
+   el creador lo es). Si el navegador lo rechaza, no pasa nada: sigue
+   funcionando igual en una pestaña normal. */
+function pantallaCompleta(entrar) {
+  try {
+    if (entrar) {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })
+          ?.catch(() => {});   // rechazo silencioso: no es un error para el usuario
+      }
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen?.()?.catch(() => {});
+    }
+  } catch (e) { /* navegador viejo: se sigue usando en pestaña */ }
+}
+
 function initPropuesta() {
   const d = propuestaState.data;
   propuestaState.current = 1;
@@ -4156,6 +4216,8 @@ function goToPropuestaSlide(n) {
   if (n === 7) buildRecorrido();
   if (n === 9) buildGastroSlide();
   if (n === 11) buildPropuestaResumen();
+  // El telon del cierre se enciende al llegar y se apaga al volver atras
+  document.querySelector('.propuesta-kiosco')?.classList.toggle('en-final', n === 11);
 }
 
 // Una sola fuente de verdad para la foto del evento: la que se ve en pantalla
@@ -4359,6 +4421,7 @@ const PRIMER_PLATO_DATA = {
     { name: 'Tagliatelle cortados a cuchillo (blancos y de verdura)', locked: true },
     { name: 'Sorrentinos de jamón y queso' },
     { name: 'Canelones de verdura y ricota' },
+    { name: 'Canelones' },
     { name: 'Lasaña' },
     { name: 'Ravioloni de espinaca y parmesano' },
     { name: 'Agnolotis de pollo' },
@@ -4932,38 +4995,66 @@ function buildPropuestaResumen() {
     return parts.join('');
   })() : '';
 
-  const gastroSection = (pillarsHtml || islasHtml || premiumHtml || formalPlatos) ? `
-    <div class="res-section">
-      <div class="res-section-label">Gastronomía de tu ${esDiurno(d) ? 'día' : 'noche'}</div>
-      ${pillarsHtml ? `<div class="res-pillars">${pillarsHtml}</div>` : ''}
-      ${islasHtml}${premiumHtml}${formalPlatos}
-    </div>` : '';
+  // Una columna del cierre: un rótulo y renglones sueltos. Sin cajas ni
+  // etiquetas de colores; esta pantalla se mira, no se opera.
+  const columna = (titulo, renglones) => {
+    const ren = renglones.filter(Boolean);
+    if (!ren.length) return '';
+    return `<div class="fin-col">
+      <div class="fin-col-tit">${esc(titulo)}</div>
+      ${ren.map(r => `<div class="fin-linea">${r}</div>`).join('')}
+    </div>`;
+  };
+  // Un renglón con su bajada chiquita al costado
+  const linea = (texto, detalle) =>
+    `${esc(texto)}${detalle ? `<span class="fin-det">${esc(detalle)}</span>` : ''}`;
 
-  const adicionales = d.adicionales || [];
-  const adicionalesHtml = adicionales.length ? `
-    <div class="res-section">
-      <div class="res-section-label">Lo que la hace única</div>
-      <div class="res-adicionales-tags">${adicionales.map(a => `<span class="res-adicional-tag">${esc(a)}</span>`).join('')}</div>
-    </div>` : '';
+  const momentos = (gastroData?.pillars || []).map(p => p.label.replace('<br>', ' '));
+  const platosLineas = isFormal
+    ? [
+        (() => {
+          const ps = ['Tagliatelle cortados a cuchillo',
+            ...(d.pastasSeleccionadas || []).filter(x => x !== 'Tagliatelle cortados a cuchillo'),
+            ...(d.pastasGourmetSeleccionadas || [])];
+          return ps.length ? linea('Pastas', ps.join(' · ')) : '';
+        })(),
+        (() => {
+          const ss = ['Filetto', ...(d.salsasSeleccionadas || []).filter(x => x !== 'Filetto'),
+            ...(d.salsasGourmetSeleccionadas || [])];
+          return ss.length ? linea('Salsas', ss.join(' · ')) : '';
+        })(),
+        d.platoCentral ? linea('Plato central', d.platoCentral) : '',
+        islaNames.length ? linea('Estaciones', islaNames.join(' · ')) : '',
+        premiumNames.length ? linea('Premium', premiumNames.join(' · ')) : '',
+      ]
+    : [
+        [...islaNames, ...premiumNames].length
+          ? linea('Islas en vivo', [...islaNames, ...premiumNames].join(' · ')) : '',
+      ];
 
-  const pedidosHtml = d.pedidos ? `
-    <div class="res-section">
-      <div class="res-section-label">Pedidos especiales</div>
-      <div class="res-pedidos-text">${esc(d.pedidos)}</div>
-    </div>` : '';
+  const colMesa = columna('La mesa', [
+    momentos.length ? linea('Momentos', momentos.join(' · ')) : '',
+    ...platosLineas,
+  ]);
+  const colUnica = columna('Lo que la hace única', (d.adicionales || []).map(a => esc(a)));
+  const colPedidos = columna('Pedidos especiales', d.pedidos ? [esc(d.pedidos)] : []);
+
+  const columnas = [colMesa, colUnica, colPedidos].filter(Boolean);
 
   container.innerHTML = `
-    <div class="res-top">
-      ${d.nombre ? `<div class="res-subtitle-label">Preparada para</div>` : ''}
-      <div class="res-hero-name">${esc(heroName)}</div>
-      ${metaParts.length ? `<div class="res-meta-line">${metaParts.map(p => esc(p)).join(' · ')}</div>` : ''}
+    <div class="fin-obertura">
+      <div class="fin-kicker">${d.nombre ? 'Preparada para' : 'El evento'}</div>
+      <div class="fin-nombre">${esc(heroName)}</div>
+      <div class="fin-regla"></div>
+      ${metaParts.length ? `<div class="fin-meta">${metaParts.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
     </div>
-    <div class="res-estilo-row"><span class="res-estilo-badge">${esc(estilo)}</span></div>
-    ${gastroSection}
-    ${adicionalesHtml}
-    ${pedidosHtml}
-    <div class="res-todo-posible">Todo lo que imaginás se puede hacer · esta propuesta es un punto de partida · estamos para construirla con vos</div>
+    ${columnas.length ? `<div class="fin-cols cols-${columnas.length}">${columnas.join('')}</div>` : ''}
+    <div class="fin-cierre">Esto es un punto de partida: se ajusta todo lo que haga falta.</div>
   `;
+
+  // El telón toma la foto del tipo de evento
+  const fondo = $('final-fondo');
+  if (fondo) fondo.style.backgroundImage = `url('${portadaImgFor(d.tipoEvento)}')`;
 }
 
 function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto = 0, precioInfantil = 0, moneda = 'ARS' } = {}) {

@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260910ux7">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260910ux7">
-  <link rel="stylesheet" href="css/ux.css?v=20260910ux7">
+  <link rel="stylesheet" href="css/style.css?v=20260910ux8">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260910ux8">
+  <link rel="stylesheet" href="css/ux.css?v=20260910ux8">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#121009">
@@ -1209,20 +1209,10 @@
           <form id="restriccion-form" class="inline-form">
             <input type="hidden" id="rest-id-cliente">
             <div class="inline-form-row" style="flex-wrap:wrap;gap:8px">
-              <select id="rest-tipo" required style="flex:1;min-width:160px">
-                <option value="">Tipo de restricción...</option>
-                <option>Vegano</option>
-                <option>Vegetariano</option>
-                <option>Celíaco / Sin TACC</option>
-                <option>Alergia a mariscos</option>
-                <option>Alergia a frutos secos</option>
-                <option>Sin lactosa</option>
-                <option>Diabético</option>
-                <option>Sin sal</option>
-                <option>Halal</option>
-                <option>Kosher</option>
-                <option value="Otro">Otro...</option>
-              </select>
+              <!-- Las opciones las llena poblarSelectRestricciones() desde
+                   TIPOS_RESTRICCION en app.js, para que esta lista y la del
+                   Timing Planner sean siempre la misma -->
+              <select id="rest-tipo" required style="flex:1;min-width:160px"></select>
               <input type="text" id="rest-tipo-otro" placeholder="Especificá..." style="display:none;flex:1;min-width:120px">
               <input type="number" id="rest-cantidad" placeholder="Cant." min="1" required style="width:70px">
               <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;cursor:pointer">
@@ -1274,6 +1264,10 @@
 
       <!-- Escenografía: cambia según el paso y según lo que se va eligiendo -->
       <div class="kiosco-scenery" id="kiosco-scenery" aria-hidden="true"></div>
+
+      <!-- Telón del último paso: la foto del evento, a pantalla completa.
+           Queda puesta mientras siguen conversando. -->
+      <div class="final-fondo" id="final-fondo" aria-hidden="true"></div>
 
       <!-- Barra superior: progreso + cerrar -->
       <div class="propuesta-top">
@@ -1603,26 +1597,18 @@
           <textarea id="prop-pedidos" class="propuesta-textarea" placeholder="Escribí acá..."></textarea>
         </div>
 
-        <!-- Slide 11: Tu propuesta
-             En horizontal se abre en dos columnas: el resumen a la izquierda y
-             las acciones a la derecha, que es donde antes no entraba nada. -->
+        <!-- Slide 11: el cierre.
+             No es un formulario con botones: es la pantalla que queda puesta
+             mientras se sigue conversando. Las acciones van al pie, discretas,
+             porque el PDF casi siempre se manda despues de la reunion. -->
         <div class="propuesta-slide propuesta-slide-final" data-slide="11">
-          <h2 class="propuesta-slide-title">Así quedó su evento</h2>
-          <p class="propuesta-slide-sub">Repasemos juntos antes de cerrar</p>
-          <div class="final-grid">
-            <div class="propuesta-resumen" id="propuesta-resumen"></div>
-            <div class="final-acciones">
-              <div class="propuesta-cta">
-                <button class="btn-propuesta-primary" id="btn-descargar-pdf">Compartir el evento</button>
-                <div class="final-hint">Se arma el PDF para mandar por WhatsApp o mail</div>
-              </div>
-              <div id="prop-guardar-wrap">
-                <button class="btn-propuesta-secondary" id="btn-guardar-cliente-propuesta">Guardar</button>
-                <div class="final-hint">Queda anotado en la agenda de Joliet</div>
-                <div id="prop-guardar-status"></div>
-              </div>
-            </div>
+          <div class="propuesta-resumen" id="propuesta-resumen"></div>
+          <div id="prop-guardar-wrap" class="final-acciones">
+            <button class="btn-final" id="btn-guardar-cliente-propuesta">Guardar</button>
+            <button class="btn-final btn-final-fuerte" id="btn-descargar-pdf">Compartir el evento</button>
           </div>
+          <div class="final-hint">Guardar lo deja anotado en la agenda · Compartir arma el PDF para mandar por WhatsApp o mail</div>
+          <div id="prop-guardar-status"></div>
         </div>
 
       </div><!-- /.propuesta-slides-container -->
@@ -1640,9 +1626,9 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260910ux7"></script>
-  <script src="js/propuesta-ui.js?v=20260910ux7"></script>
+  <script src="js/app.js?v=20260910ux8"></script>
+  <script src="js/propuesta-ui.js?v=20260910ux8"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
-  <script src="js/ux.js?v=20260910ux7"></script>
+  <script src="js/ux.js?v=20260910ux8"></script>
 </body>
 </html>
