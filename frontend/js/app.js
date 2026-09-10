@@ -967,7 +967,63 @@ function renderHistorialTab(cliente) {
 
   showEl($('pagos-admin-content'));
   loadPagosCliente(cliente);
+  loadAuditoriaCliente(cliente);
 }
+
+/* Historial de cambios: quién tocó este cliente y cuándo.
+   Va colapsado por defecto para no competir con los ingresos, que es lo que se
+   viene a ver a este tab. */
+async function loadAuditoriaCliente(cliente) {
+  const box = $('auditoria-bloque');
+  if (!box) return;
+  box.innerHTML = '';
+  try {
+    const registros = await apiFetch(`/auditoria/cliente/${cliente.id}`);
+    if (!registros.length) return;
+
+    const fila = a => {
+      let detalle = a.detalle || '';
+      // El detalle de creación/edición es un JSON con la foto de los campos
+      if (detalle.startsWith('{')) {
+        try {
+          const d = JSON.parse(detalle);
+          detalle = Object.entries(d)
+            .map(([k, v]) => `${ETIQUETA_CAMPO[k] || k}: ${v}`)
+            .join(' · ');
+        } catch { /* si no parsea, se muestra tal cual */ }
+      }
+      return `<div class="aud-item">
+        <div class="aud-linea">
+          <strong>${esc(a.usuario)}</strong> ${esc(a.accion.toLowerCase())}
+          <span class="aud-fecha">${esc(a.fecha)}</span>
+        </div>
+        ${detalle ? `<div class="aud-detalle">${esc(detalle)}</div>` : ''}
+      </div>`;
+    };
+
+    box.innerHTML = `
+      <details class="aud-details">
+        <summary class="aud-summary">
+          Historial de cambios (${registros.length})
+        </summary>
+        <div class="aud-lista">${registros.map(fila).join('')}</div>
+      </details>`;
+  } catch {
+    // Si la hoja Auditoria todavía no existe, simplemente no se muestra nada
+  }
+}
+
+const ETIQUETA_CAMPO = {
+  estado: 'Estado',
+  fechaEvento: 'Fecha del evento',
+  proximoSeguimiento: 'Próximo seguimiento',
+  cantidadInvitados: 'Invitados',
+  turno: 'Turno',
+  tipoEvento: 'Tipo',
+  montoPresupuesto: 'Presupuesto',
+  apellidoNombre: 'Nombre',
+  telefono: 'Teléfono',
+};
 
 async function loadPagosCliente(cliente) {
   $('pagos-list').innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';

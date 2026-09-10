@@ -1832,6 +1832,107 @@ async function migrarClientesAPersonasEventos() {
   return { migradas: rows.length };
 }
 
+/* ===================== AUDITORÍA =====================
+   Registro de quién cambió qué y cuándo. Antes no había forma de saberlo:
+   sólo quedaba `cargadoPor`, que dice quién creó el evento, no quién lo tocó
+   después.
+
+   Guarda una FOTO de los campos que importan en cada cambio, no un diff.
+   Comparando dos filas consecutivas se ve qué cambió, y no hace falta leer la
+   planilla antes de cada escritura (que duplicaría la latencia de todo).
+
+   Las escrituras se acumulan y se mandan juntas: una acción masiva sobre 30
+   clientes son 30 escrituras, y sumarle 30 appends sueltos pasaría el límite
+   de 60 escrituras por minuto que impone la API de Sheets.
+
+   Nunca hace fallar la operación principal: si el log no se puede escribir, se
+   avisa por consola y se sigue. */
+
+const CAMPOS_AUDITADOS = [
+  'estado', 'fechaEvento', 'proximoSeguimiento', 'cantidadInvitados',
+  'turno', 'tipoEvento', 'montoPresupuesto', 'apellidoNombre', 'telefono',
+];
+
+let _colaAuditoria = [];
+let _timerAuditoria = null;
+let memAuditoria = [];              // modo sin credenciales
+
+/* Extrae sólo los campos que vale la pena registrar */
+function fotoAuditoria(data) {
+  const foto = {};
+  for (const k of CAMPOS_AUDITADOS) {
+    if (data[k] !== undefined && data[k] !== '') foto[k] = data[k];
+  }
+  return foto;
+}
+
+function registrarAuditoria({ usuario, accion, entidad, idEntidad, nombre, detalle }) {
+  const fila = [
+    new Date().toLocaleString('es-AR'),
+    usuario || '—',
+    accion || '',
+    entidad || '',
+    idEntidad || '',
+    nombre || '',
+    typeof detalle === 'string' ? detalle : JSON.stringify(detalle || {}),
+  ];
+
+  if (!tieneCredenciales) {
+    memAuditoria.push(fila);
+    return;
+  }
+
+  _colaAuditoria.push(fila);
+  if (!_timerAuditoria) {
+    _timerAuditoria = setTimeout(volcarAuditoria, 2500);
+  }
+}
+
+async function volcarAuditoria() {
+  _timerAuditoria = null;
+  const lote = _colaAuditoria;
+  _colaAuditoria = [];
+  if (!lote.length || !tieneCredenciales) return;
+
+  try {
+    const sheets = getSheets();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Auditoria!A:G',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: lote },
+    });
+  } catch (e) {
+    // El log no es motivo para romper nada, pero sí para enterarse
+    console.error('⚠️  No se pudo escribir la auditoría:', e.message);
+  }
+}
+
+async function getAuditoria(idEntidad = null) {
+  let filas;
+  if (!tieneCredenciales) {
+    filas = memAuditoria;
+  } else {
+    // Mandar lo pendiente antes de leer, así el cambio recién hecho ya aparece
+    if (_timerAuditoria) { clearTimeout(_timerAuditoria); await volcarAuditoria(); }
+    const sheets = getSheets();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Auditoria!A2:G',
+    });
+    filas = res.data.values || [];
+  }
+
+  return filas
+    .map(r => ({
+      fecha: r[0] || '', usuario: r[1] || '', accion: r[2] || '',
+      entidad: r[3] || '', idEntidad: r[4] || '', nombre: r[5] || '',
+      detalle: r[6] || '',
+    }))
+    .filter(a => !idEntidad || a.idEntidad === idEntidad)
+    .reverse();                     // lo más nuevo primero
+}
+
 /* ===================== INIT SHEETS ===================== */
 async function initSheets() {
   if (!tieneCredenciales) return;
@@ -1851,6 +1952,7 @@ async function initSheets() {
     if (!existing.includes('CatalogoItems')) toCreate.push('CatalogoItems');
     if (!existing.includes('PedidosCocina')) toCreate.push('PedidosCocina');
     if (!existing.includes('StockActual')) toCreate.push('StockActual');
+    if (!existing.includes('Auditoria')) toCreate.push('Auditoria');
 
     if (toCreate.length) {
       await sheets.spreadsheets.batchUpdate({
@@ -1889,6 +1991,9 @@ async function initSheets() {
     }
     if (!existing.includes('StockActual')) {
       headers.push({ range: 'StockActual!A1:F1', values: [['id','categoria','nombre','unidad','cantidad','actualizado']] });
+    }
+    if (!existing.includes('Auditoria')) {
+      headers.push({ range: 'Auditoria!A1:G1', values: [['fecha','usuario','accion','entidad','idEntidad','nombre','detalle']] });
     }
 
     if (headers.length) {
@@ -1965,5 +2070,6 @@ module.exports = {
   getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial, sincronizarIngredientesStock,
   initSheets,
   migrarClientesAPersonasEventos,
+  registrarAuditoria, getAuditoria, fotoAuditoria,
   tieneCredenciales,
 };

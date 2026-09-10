@@ -211,6 +211,11 @@ app.post('/api/clientes', auth, validarCliente, async (req, res) => {
   try {
     const data = { ...req.body, cargadoPor: req.user.usuario };
     const cliente = await sheets.addCliente(data);
+    sheets.registrarAuditoria({
+      usuario: req.user.usuario, accion: 'Creó', entidad: 'Evento',
+      idEntidad: cliente.id, nombre: cliente.apellidoNombre,
+      detalle: sheets.fotoAuditoria(cliente),
+    });
     res.json(cliente);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -221,6 +226,11 @@ app.put('/api/clientes/:rowIndex', auth, validarRowIndex, validarCliente, async 
   try {
     const rowIndex = parseInt(req.params.rowIndex);
     const result = await sheets.updateCliente(rowIndex, req.body);
+    sheets.registrarAuditoria({
+      usuario: req.user.usuario, accion: 'Editó', entidad: 'Evento',
+      idEntidad: req.body.id, nombre: req.body.apellidoNombre,
+      detalle: sheets.fotoAuditoria(req.body),
+    });
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -231,7 +241,21 @@ app.delete('/api/clientes/:rowIndex', auth, adminOnly, validarRowIndex, async (r
   try {
     const rowIndex = parseInt(req.params.rowIndex);
     await sheets.deleteEvento(rowIndex, req.body, req.user.usuario);
+    sheets.registrarAuditoria({
+      usuario: req.user.usuario, accion: 'Eliminó', entidad: 'Evento',
+      idEntidad: req.body.id, nombre: req.body.apellidoNombre,
+      detalle: 'Archivado en la hoja Papelera',
+    });
     res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Auditoría: historial de cambios (solo admin)
+app.get('/api/auditoria/cliente/:idCliente', auth, adminOnly, async (req, res) => {
+  try {
+    res.json(await sheets.getAuditoria(req.params.idCliente));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -384,6 +408,11 @@ app.put('/api/cuotas/ajustar', auth, async (req, res) => {
 app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
   try {
     await sheets.cancelarPlan(req.params.idCliente);
+    sheets.registrarAuditoria({
+      usuario: req.user.usuario, accion: 'Borró el plan de pagos',
+      entidad: 'Cuotas', idEntidad: req.params.idCliente,
+      detalle: 'Se eliminaron todas las cuotas del cliente',
+    });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
