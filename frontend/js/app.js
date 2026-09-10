@@ -112,6 +112,18 @@ function hoyLocal() {
   return h;
 }
 
+/* Hoy en formato AAAA-MM-DD, en hora LOCAL.
+
+   Reemplaza al viejo new Date().toISOString(), que estaba en 9 lugares como
+   valor por defecto de los campos de fecha. Ese método devuelve UTC:
+   en Argentina (UTC-3), a partir de las 21:00 ya da el día siguiente. Un salón
+   de eventos trabaja de noche, así que un cobro o un egreso cargado a las 23:00
+   quedaba fechado MAÑANA. */
+function hoyISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function seguimientoClass(dateStr) {
   if (!dateStr) return '';
   const hoy = hoyLocal();
@@ -953,7 +965,7 @@ $('restriccion-form').addEventListener('submit', async e => {
 /* ===================== PAGOS / HISTORIAL ===================== */
 function initPagoForm(cliente) {
   $('pago-id-cliente').value = cliente.id;
-  $('pago-fecha').value = new Date().toISOString().split('T')[0];
+  $('pago-fecha').value = hoyISO();
   hide('pago-error'); hide('pago-success');
   showEl($('pago-form'));
 }
@@ -1134,7 +1146,7 @@ $('pago-form').addEventListener('submit', async e => {
     show('pago-success');
     toast('Cobro registrado');
     $('pago-form').reset();
-    $('pago-fecha').value = new Date().toISOString().split('T')[0];
+    $('pago-fecha').value = hoyISO();
     hideEl($('cuotas-a-tachar'));
     if (canManagePagos()) {
       loadPagosCliente(currentClienteModal);
@@ -2001,7 +2013,7 @@ function renderCuotas(cliente, cuotas) {
     <div id="fecha-pago-row" class="hidden" style="margin:10px 0;flex-wrap:wrap;display:flex;gap:10px;align-items:flex-end">
       <div style="display:flex;flex-direction:column;gap:3px">
         <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Fecha</label>
-        <input type="date" id="fecha-pago-input" value="${new Date().toISOString().split('T')[0]}" style="width:150px">
+        <input type="date" id="fecha-pago-input" value="${hoyISO()}" style="width:150px">
       </div>
       <div style="display:flex;flex-direction:column;gap:3px">
         <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Forma de pago</label>
@@ -2088,7 +2100,7 @@ function formCrearPlan(idCliente) {
         </div>
         <div class="form-group">
           <label>Fecha 1° cuota <span class="tip" data-tip="Fecha de vencimiento de la primera cuota. Las siguientes se generan mes a mes desde esta fecha.">?</span></label>
-          <input type="date" id="plan-fecha" required value="${new Date().toISOString().split('T')[0]}">
+          <input type="date" id="plan-fecha" required value="${hoyISO()}">
         </div>
       </div>
       <p id="plan-preview" style="font-size:13px;color:#555;margin:6px 0"></p>
@@ -2111,7 +2123,7 @@ function formAgregarCuotas(idCliente, totalActual, moneda = 'ARS') {
         </div>
         <div class="form-group" style="margin:0">
           <label style="font-size:12px">Fecha 1°</label>
-          <input type="date" id="agregar-fecha" value="${new Date().toISOString().split('T')[0]}" style="width:150px">
+          <input type="date" id="agregar-fecha" value="${hoyISO()}" style="width:150px">
         </div>
         <button type="submit" class="btn btn-sm btn-secondary">+ Agregar</button>
       </div>
@@ -3732,7 +3744,7 @@ function initPropuesta() {
   const agRow = $('agasajado-row'); if (agRow) agRow.style.display = 'none';
   const guardarStatus = $('prop-guardar-status'); if (guardarStatus) guardarStatus.style.display = 'none';
   const guardarBtn = $('btn-guardar-cliente-propuesta');
-  if (guardarBtn) { guardarBtn.disabled = false; guardarBtn.textContent = '💾 Guardar como cliente'; }
+  if (guardarBtn) { guardarBtn.disabled = false; guardarBtn.textContent = 'Guardar'; }
 
   openPropuestaPreForm();
 }
@@ -3838,10 +3850,10 @@ function actualizarBtnGuardar() {
   const btn = $('btn-guardar-cliente-propuesta');
   if (!btn) return;
   if (propuestaState.data.clienteId) {
-    btn.textContent = '✓ Ya está en el sistema';
+    btn.textContent = '✓ Ya lo tenemos guardado';
     btn.disabled = true;
   } else {
-    btn.textContent = '💾 Guardar como cliente';
+    btn.textContent = 'Guardar';
     btn.disabled = false;
   }
 }
@@ -3870,11 +3882,11 @@ async function guardarClientePropuesta() {
       }
     });
     d.clienteId = nuevo.id;
-    if (btn) { btn.textContent = '✓ Guardado en el sistema'; btn.disabled = true; }
-    if (statusEl) { statusEl.textContent = '¡Listo! Ya aparece en el CRM.'; statusEl.style.display = ''; }
+    if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
+    if (statusEl) { statusEl.textContent = '¡Listo! Queda en la agenda.'; statusEl.style.display = ''; }
     loadClientes();
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar como cliente'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
     if (statusEl) { statusEl.textContent = 'Error al guardar. Intentá de nuevo.'; statusEl.style.display = ''; }
   }
 }
@@ -4347,6 +4359,7 @@ const PRIMER_PLATO_DATA = {
     { name: 'Tagliatelle cortados a cuchillo (blancos y de verdura)', locked: true },
     { name: 'Sorrentinos de jamón y queso' },
     { name: 'Canelones de verdura y ricota' },
+    { name: 'Lasaña' },
     { name: 'Ravioloni de espinaca y parmesano' },
     { name: 'Agnolotis de pollo' },
     { name: 'Ñoquis de papa' },
@@ -5912,7 +5925,7 @@ function populateEmpleadoSelect() {
 async function initEgresos() {
   const fechaInput = $('egr-fecha');
   if (fechaInput && !fechaInput.value) {
-    fechaInput.value = new Date().toISOString().slice(0, 10);
+    fechaInput.value = hoyISO();
   }
   document.querySelectorAll('#egr-categoria .superadmin-only').forEach(opt => {
     opt.style.display = isSuperAdmin() ? '' : 'none';
@@ -6100,7 +6113,7 @@ let egresosCocCargados = false;
 function initEgresosCocina() {
   if (!isSuperAdmin()) return;
   const fechaEl = $('egc-fecha');
-  if (fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
+  if (fechaEl && !fechaEl.value) fechaEl.value = hoyISO();
   if (!egresosCocCargados) {
     egresosCocCargados = true;
     setupEgresosCocinaForm();
@@ -6178,7 +6191,7 @@ async function submitEgresosCocina(e) {
     setTimeout(() => hide('egc-success'), 3000);
     toast('Compra registrada');
     e.target.reset();
-    $('egc-fecha').value = new Date().toISOString().split('T')[0];
+    $('egc-fecha').value = hoyISO();
     if ($('egc-otro-prov-row')) $('egc-otro-prov-row').style.display = 'none';
     if ($('egc-otros-tipo-row')) $('egc-otros-tipo-row').style.display = 'none';
   } catch (err) {
