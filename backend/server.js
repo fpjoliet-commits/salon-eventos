@@ -76,6 +76,82 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
+/* ===================== VALIDACIÓN DE ENTRADA =====================
+   Hasta acá el backend confiaba en lo que mandaba el front. Un pedido armado
+   a mano podía escribir cualquier cosa en la planilla (textos gigantes,
+   estados inventados, fechas basura). Esto no reemplaza la validación del
+   formulario: la duplica del lado que manda. */
+
+const ESTADOS_VALIDOS = [
+  'Consulta', 'Visita agendada', 'Por cerrar', 'Confirmado', 'Realizado', 'Cancelado',
+];
+
+const LARGO_MAX = 500;          // tope general para cualquier texto
+const LARGO_MAX_LARGO = 3000;   // observaciones y campos de texto libre
+const CAMPOS_LARGOS = ['observaciones', 'otrosPedidos', 'exclienteNota', 'notas'];
+
+const esFechaISO = v => v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/* Recorta y normaliza cada string del cuerpo. Devuelve { data, error }. */
+function limpiarCliente(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Cuerpo del pedido inválido' };
+  }
+
+  const data = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (v === null || v === undefined) { data[k] = ''; continue; }
+    if (typeof v === 'object') { data[k] = v; continue; }   // arrays/objetos anidados: se dejan pasar
+    if (typeof v === 'boolean' || typeof v === 'number') { data[k] = v; continue; }
+
+    const tope = CAMPOS_LARGOS.includes(k) ? LARGO_MAX_LARGO : LARGO_MAX;
+    const s = String(v).trim();
+    if (s.length > tope) {
+      return { error: `El campo "${k}" es demasiado largo (máximo ${tope} caracteres)` };
+    }
+    data[k] = s;
+  }
+
+  if (!data.apellidoNombre) {
+    return { error: 'Falta el nombre del cliente' };
+  }
+  if (data.estado && !ESTADOS_VALIDOS.includes(data.estado)) {
+    return { error: `Estado inválido: "${data.estado}"` };
+  }
+  for (const campo of ['fechaEvento', 'proximoSeguimiento']) {
+    if (data[campo] !== undefined && !esFechaISO(data[campo])) {
+      return { error: `La fecha de "${campo}" tiene que ser AAAA-MM-DD` };
+    }
+  }
+  if (data.cantidadInvitados !== undefined && data.cantidadInvitados !== '') {
+    const n = Number(data.cantidadInvitados);
+    if (!Number.isFinite(n) || n < 0 || n > 5000) {
+      return { error: 'La cantidad de invitados no es válida' };
+    }
+  }
+  if (data.gmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.gmail)) {
+    return { error: 'El mail no tiene un formato válido' };
+  }
+
+  return { data };
+}
+
+function validarCliente(req, res, next) {
+  const { data, error } = limpiarCliente(req.body);
+  if (error) return res.status(400).json({ error });
+  req.body = data;
+  next();
+}
+
+/* rowIndex siempre es una fila real de la planilla: entero >= 2 (la 1 es el header) */
+function validarRowIndex(req, res, next) {
+  const n = Number(req.params.rowIndex);
+  if (!Number.isInteger(n) || n < 2 || n > 100000) {
+    return res.status(400).json({ error: 'Fila inválida' });
+  }
+  next();
+}
+
 // Estado del sistema
 app.get('/api/status', (req, res) => {
   res.json({ googleSheets: sheets.tieneCredenciales });
@@ -131,7 +207,7 @@ app.get('/api/clientes', auth, async (req, res) => {
   }
 });
 
-app.post('/api/clientes', auth, async (req, res) => {
+app.post('/api/clientes', auth, validarCliente, async (req, res) => {
   try {
     const data = { ...req.body, cargadoPor: req.user.usuario };
     const cliente = await sheets.addCliente(data);
@@ -141,7 +217,7 @@ app.post('/api/clientes', auth, async (req, res) => {
   }
 });
 
-app.put('/api/clientes/:rowIndex', auth, async (req, res) => {
+app.put('/api/clientes/:rowIndex', auth, validarRowIndex, validarCliente, async (req, res) => {
   try {
     const rowIndex = parseInt(req.params.rowIndex);
     const result = await sheets.updateCliente(rowIndex, req.body);
@@ -151,7 +227,7 @@ app.put('/api/clientes/:rowIndex', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/clientes/:rowIndex', auth, adminOnly, async (req, res) => {
+app.delete('/api/clientes/:rowIndex', auth, adminOnly, validarRowIndex, async (req, res) => {
   try {
     const rowIndex = parseInt(req.params.rowIndex);
     await sheets.deleteEvento(rowIndex, req.body, req.user.usuario);
@@ -206,7 +282,7 @@ app.post('/api/restricciones', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/restricciones/:rowIndex', auth, async (req, res) => {
+app.delete('/api/restricciones/:rowIndex', auth, validarRowIndex, async (req, res) => {
   try {
     await sheets.deleteRestriccion(parseInt(req.params.rowIndex));
     res.json({ ok: true });

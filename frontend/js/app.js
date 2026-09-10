@@ -92,10 +92,31 @@ function estadoBadge(estado) {
   return `<span class="badge ${cls}">${estado || '—'}</span>`;
 }
 
+/* Convierte "AAAA-MM-DD" en una fecha LOCAL a medianoche.
+
+   new Date('2026-09-10') se interpreta como UTC, así que en Argentina (UTC-3)
+   cae el 9 de septiembre a las 21:00. Con el setHours(0,0,0,0) que venía
+   después, la fecha terminaba siendo el día ANTERIOR: una tarea agendada para
+   hoy se contaba como vencida, todos los días. */
+function fechaLocal(str) {
+  if (!str) return null;
+  const [y, m, d] = String(str).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);   // el constructor con números ya es local y a las 00:00
+}
+
+/* Medianoche de hoy, en hora local */
+function hoyLocal() {
+  const h = new Date();
+  h.setHours(0, 0, 0, 0);
+  return h;
+}
+
 function seguimientoClass(dateStr) {
   if (!dateStr) return '';
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  const hoy = hoyLocal();
+  const d = fechaLocal(dateStr);
+  if (!d) return '';
   const diff = (d - hoy) / 86400000;
   if (diff < 0) return 'seguimiento-urgente';
   if (diff === 0) return 'seguimiento-hoy';
@@ -111,8 +132,8 @@ function parseFechaCarga(str) {
     return isNaN(date.getTime()) ? null : date;
   }
   if (str.includes('-')) {
-    const date = new Date(str); date.setHours(0,0,0,0);
-    return isNaN(date.getTime()) ? null : date;
+    const date = fechaLocal(str);   // local, no UTC (ver fechaLocal)
+    return date && !isNaN(date.getTime()) ? date : null;
   }
   return null;
 }
@@ -334,14 +355,14 @@ function calcReminders() {
   const tareasVencidas = allClientes.filter(c => {
     if (c.estado === 'Cancelado' || c.estado === 'Realizado') return false;
     if (!c.proximoSeguimiento) return false;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0, 0, 0, 0);
+    const d = fechaLocal(c.proximoSeguimiento);
     return d < today;
   });
 
   const tareasSemana = allClientes.filter(c => {
     if (c.estado === 'Cancelado' || c.estado === 'Realizado') return false;
     if (!c.proximoSeguimiento) return false;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0, 0, 0, 0);
+    const d = fechaLocal(c.proximoSeguimiento);
     return d >= today && d <= en7;
   });
 
@@ -408,6 +429,8 @@ async function loadClientes() {
     renderClientes(allClientes);
     renderRemindersBar();
     renderSeguimientosPanel();
+    // Aviso para la capa de UX (ux.js): repone filtros guardados y repinta el Inicio
+    document.dispatchEvent(new CustomEvent('crm:clientes-cargados'));
     if (allClientes.length === 0 && canManagePagos()) mostrarBannerMigracion();
   } catch (err) {
     $('clientes-error').textContent = err.message;
@@ -516,7 +539,7 @@ function renderStats(clientes) {
   const confirmados = clientes.filter(c => c.estado === 'Confirmado').length;
   const seguimiento = clientes.filter(c => {
     if (!c.proximoSeguimiento) return false;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    const d = fechaLocal(c.proximoSeguimiento);
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     return d <= hoy;
   }).length;
@@ -638,15 +661,25 @@ $('btn-nuevo-evento')?.addEventListener('click', () => {
 $('btn-eliminar-cliente')?.addEventListener('click', async () => {
   if (!currentClienteModal) return;
   const c = currentClienteModal;
-  const confirmMsg = `¿Eliminar el evento "${c.apellidoNombre}"?\n\nSe archivará en la Papelera de Google Sheets. Esta acción no se puede deshacer desde el CRM.`;
-  if (!confirm(confirmMsg)) return;
+  const ok = await uiConfirm({
+    titulo: `¿Eliminar el evento de ${c.apellidoNombre}?`,
+    mensaje: 'El evento sale del CRM junto con sus cuotas e ingresos.\n\n'
+           + 'Queda una copia en la hoja "Papelera" de Google Sheets, así que se puede recuperar '
+           + 'a mano desde ahí — pero no con un botón del CRM.',
+    confirmar: 'Sí, eliminar',
+    cancelar: 'No, volver',
+    tipo: 'danger',
+  });
+  if (!ok) return;
   try {
     await apiFetch(`/clientes/${c.rowIndex}`, { method: 'DELETE', body: c });
     hideEl($('modal-overlay'));
     allClientes = await apiFetch('/clientes');
     renderClientes(allClientes);
     renderRemindersBar();
-  } catch (err) { alert('Error al eliminar: ' + err.message); }
+    document.dispatchEvent(new CustomEvent('crm:clientes-cargados'));
+    toast(`Evento de ${c.apellidoNombre} eliminado`);
+  } catch (err) { toast('No se pudo eliminar: ' + err.message, 'error'); }
 });
 
 async function _saveSegDate(fecha, nuevoEstado) {
@@ -665,7 +698,7 @@ async function _saveSegDate(fecha, nuevoEstado) {
     }
     renderClienteDetail(c);
     renderSeguimientosPanel();
-  } catch (err) { alert('Error al guardar: ' + err.message); }
+  } catch (err) { toast('Error al guardar: ' + err.message, 'error'); }
 }
 
 window.guardarProximoSeguimiento = async function() {
@@ -678,8 +711,19 @@ window.guardarProximoSeguimiento = async function() {
 };
 
 window.limpiarProximoSeguimiento = async function() {
-  if (!confirm('¿Borrar la fecha de seguimiento/cobro?')) return;
+  const anterior = currentClienteModal?.proximoSeguimiento || '';
+  const ok = await uiConfirm({
+    titulo: '¿Borrar la fecha agendada?',
+    mensaje: 'Se quita la fecha de seguimiento/cobro. El cliente y sus datos no se tocan.',
+    confirmar: 'Sí, borrar la fecha',
+  });
+  if (!ok) return;
   await _saveSegDate('');
+  if (anterior) {
+    toastUndo('Fecha borrada', () => _saveSegDate(anterior));
+  } else {
+    toast('Fecha borrada');
+  }
 };
 
 // Tabs
@@ -843,11 +887,39 @@ function renderRestriccionesList(lista) {
 }
 
 window.deleteRestriccion = async (rowIndex) => {
-  if (!confirm('¿Eliminar esta restricción?')) return;
+  // Guardamos los datos antes de borrar: las restricciones NO van a la Papelera,
+  // así que el "Deshacer" las vuelve a crear desde acá.
+  const previa = (currentRestricciones || []).find(r => r.rowIndex === rowIndex);
+  const ok = await uiConfirm({
+    titulo: '¿Eliminar esta restricción?',
+    mensaje: previa
+      ? `${previa.tipoRestriccion} — ${previa.cantidad} persona${previa.cantidad != 1 ? 's' : ''}`
+      : '',
+    confirmar: 'Sí, eliminar',
+    tipo: 'danger',
+  });
+  if (!ok) return;
   try {
     await apiFetch(`/restricciones/${rowIndex}`, { method: 'DELETE' });
     loadRestriccionesModal(currentClienteModal);
-  } catch (e) { alert(e.message); }
+    if (previa) {
+      toastUndo('Restricción eliminada', async () => {
+        await apiFetch('/restricciones', {
+          method: 'POST',
+          body: {
+            idCliente: previa.idCliente,
+            tipoRestriccion: previa.tipoRestriccion,
+            cantidad: previa.cantidad,
+            coronita: previa.coronita,
+          },
+        });
+        loadRestriccionesModal(currentClienteModal);
+        toast('Restricción restaurada');
+      });
+    } else {
+      toast('Restricción eliminada');
+    }
+  } catch (e) { toast('No se pudo eliminar: ' + e.message, 'error'); }
 };
 
 $('rest-tipo').addEventListener('change', () => {
@@ -861,7 +933,7 @@ $('restriccion-form').addEventListener('submit', async e => {
   const idCliente = $('rest-id-cliente').value;
   const tipoSelect = $('rest-tipo').value;
   const tipoRestriccion = tipoSelect === 'Otro' ? $('rest-tipo-otro').value.trim() : tipoSelect;
-  if (!tipoRestriccion) { alert('Ingresá el tipo de restricción'); return; }
+  if (!tipoRestriccion) { toast('Ingresá el tipo de restricción', 'error'); return; }
   const cantidad = $('rest-cantidad').value;
   const coronita = $('rest-coronita').checked;
   try {
@@ -873,7 +945,7 @@ $('restriccion-form').addEventListener('submit', async e => {
     $('rest-coronita').checked = false;
     loadRestriccionesModal(currentClienteModal);
     toast('Restricción agregada');
-  } catch (e) { alert(e.message); }
+  } catch (e) { toast(e.message, 'error'); }
 });
 
 /* ===================== PAGOS / HISTORIAL ===================== */
@@ -1057,7 +1129,7 @@ function renderCalendario() {
     if (!fc) return false;
     if ((hoyDate - fc) / 86400000 < 14) return false;
     if (c.proximoSeguimiento) {
-      const seg = new Date(c.proximoSeguimiento); seg.setHours(0,0,0,0);
+      const seg = fechaLocal(c.proximoSeguimiento);
       if (seg >= hoyDate) return false;
     }
     return true;
@@ -1223,19 +1295,19 @@ function renderSeguimientosPanel() {
 
   const vencidos = activos.filter(c => {
     if (!c.proximoSeguimiento) return false;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    const d = fechaLocal(c.proximoSeguimiento);
     return d < hoy;
   }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
 
   const paraHoy = activos.filter(c => {
     if (!c.proximoSeguimiento) return false;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    const d = fechaLocal(c.proximoSeguimiento);
     return d.getTime() === hoy.getTime();
   });
 
   const proximos = activos.filter(c => {
     if (!c.proximoSeguimiento) return false;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    const d = fechaLocal(c.proximoSeguimiento);
     return d > hoy && d <= en7;
   }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
 
@@ -1243,7 +1315,7 @@ function renderSeguimientosPanel() {
   const cobros = activos.filter(c => {
     if (!esCobro(c)) return false;
     if (!c.proximoSeguimiento) return false;
-    const d = new Date(c.proximoSeguimiento); d.setHours(0,0,0,0);
+    const d = fechaLocal(c.proximoSeguimiento);
     return d > en7 && d <= en14;
   }).sort((a, b) => a.proximoSeguimiento.localeCompare(b.proximoSeguimiento));
 
@@ -1256,7 +1328,7 @@ function renderSeguimientosPanel() {
   // Eventos confirmados con fechaEvento dentro de los próximos 7 días
   const eventosProximos = allClientes.filter(c => {
     if (c.estado !== 'Confirmado' || !c.fechaEvento) return false;
-    const evDate = new Date(c.fechaEvento); evDate.setHours(0,0,0,0);
+    const evDate = fechaLocal(c.fechaEvento);
     const diff = (evDate - hoy) / 86400000;
     return diff >= 0 && diff <= 7;
   }).sort((a, b) => a.fechaEvento.localeCompare(b.fechaEvento));
@@ -1268,7 +1340,7 @@ function renderSeguimientosPanel() {
     if (!fc) return false;
     if ((hoy - fc) / 86400000 < 14) return false;
     if (c.proximoSeguimiento) {
-      const seg = new Date(c.proximoSeguimiento); seg.setHours(0,0,0,0);
+      const seg = fechaLocal(c.proximoSeguimiento);
       if (seg >= hoy) return false;
     }
     return true;
@@ -1290,7 +1362,7 @@ function renderSeguimientosPanel() {
 
   const itemEvento = (c) => {
     const tc = tipoColor(c.tipoEvento);
-    const evDate = new Date(c.fechaEvento); evDate.setHours(0,0,0,0);
+    const evDate = fechaLocal(c.fechaEvento);
     const diff = Math.round((evDate - hoy) / 86400000);
     const cuando = diff === 0 ? '¡HOY!' : diff === 1 ? 'Mañana' : `en ${diff} días`;
     return `<div class="seg-item seg-item-evento" style="background:${tc.bg};border-left-color:${tc.border}" onclick="openClienteModal(window._cmap['${c.id}'])">
@@ -1368,7 +1440,7 @@ function renderSeguimientosView() {
     if (!fc) return false;
     if ((hoy - fc) / 86400000 < 14) return false;
     if (c.proximoSeguimiento) {
-      const seg = new Date(c.proximoSeguimiento); seg.setHours(0,0,0,0);
+      const seg = fechaLocal(c.proximoSeguimiento);
       if (seg >= hoy) return false;
     }
     return true;
@@ -1617,7 +1689,12 @@ $('cliente-form').addEventListener('submit', async e => {
     }
     const duplicadoGmail = gmail && allPersonas.find(p => p.gmail && p.gmail.toLowerCase() === gmail);
     if (duplicadoGmail) {
-      const ok = confirm(`"${duplicadoGmail.apellidoNombre}" ya está registrado con ese Gmail.\n¿Crear un nuevo evento para esa persona?`);
+      const ok = await uiConfirm({
+        titulo: 'Ese Gmail ya está registrado',
+        mensaje: `"${duplicadoGmail.apellidoNombre}" ya usa ese Gmail.\n\n¿Querés crear un nuevo evento para esa misma persona?`,
+        confirmar: 'Sí, nuevo evento',
+        cancelar: 'No, revisar',
+      });
       if (!ok) return;
       seleccionarPersonaExistente(duplicadoGmail.id);
     }
@@ -1629,7 +1706,16 @@ $('cliente-form').addEventListener('submit', async e => {
       if (duplicadoTel) {
         const eventosExist = allClientes.filter(c => c.personaId === duplicadoTel.id);
         const eventosStr = eventosExist.map(c => `${c.tipoEvento || '?'} (${c.estado})`).join(', ');
-        const ok = confirm(`⚠️ Ya existe un cliente con ese teléfono: "${duplicadoTel.apellidoNombre}"${eventosStr ? `\nEventos: ${eventosStr}` : ''}.\n\n¿Es un nuevo evento para la misma persona?\n→ Cancelá y buscala arriba en "¿Es un cliente que ya consultó antes?"\n\n¿Es una persona diferente con el mismo número?\n→ Aceptá para continuar.`);
+        const ok = await uiConfirm({
+          titulo: 'Ese teléfono ya está en el sistema',
+          mensaje: `Lo tiene "${duplicadoTel.apellidoNombre}"${eventosStr ? `\nEventos: ${eventosStr}` : ''}.\n\n`
+                 + 'Si es un nuevo evento de la MISMA persona:\n'
+                 + '→ Cancelá y buscala arriba, en "¿Es un cliente que ya consultó antes?"\n\n'
+                 + 'Si es OTRA persona con el mismo número:\n'
+                 + '→ Continuá.',
+          confirmar: 'Es otra persona, continuar',
+          cancelar: 'Cancelar y buscarla',
+        });
         if (!ok) return;
       }
     }
@@ -1668,7 +1754,12 @@ $('cliente-form').addEventListener('submit', async e => {
       return;
     }
     if (otrosEnFecha.length === 1) {
-      const ok = confirm(`⚠️ Ya hay un evento registrado para el ${formatDateWithDay(fechaEv)}: ${otrosEnFecha[0].apellidoNombre}.\n¿Confirmás que habrá 2 eventos ese día?`);
+      const ok = await uiConfirm({
+        titulo: 'Ya hay un evento ese día',
+        mensaje: `El ${formatDateWithDay(fechaEv)} ya está tomado por ${otrosEnFecha[0].apellidoNombre}.\n\n¿Confirmás que va a haber 2 eventos ese día?`,
+        confirmar: 'Sí, van 2 eventos',
+        cancelar: 'No, cambiar la fecha',
+      });
       if (!ok) return;
     }
   }
@@ -2003,7 +2094,7 @@ function bindFormCrearPlan(cliente) {
       }});
       loadCuotasTab(cliente);
       toast('Plan de pagos creado');
-    } catch (err) { alert(err.message); btn.disabled = false; }
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
   });
 }
 
@@ -2011,7 +2102,7 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
   // Pagar seleccionadas
   $('btn-pagar-sel')?.addEventListener('click', () => {
     const checked = [...document.querySelectorAll('.cuota-check:checked')];
-    if (!checked.length) { alert('Seleccioná al menos una cuota.'); return; }
+    if (!checked.length) { toast('Seleccioná al menos una cuota.', 'error'); return; }
     // Auto-calcular monto total de las cuotas seleccionadas
     const montoAuto = checked.reduce((s, c) => s + (parseFloat(c.dataset.valor) || 0), 0);
     const montoInput = $('monto-efectivo-input');
@@ -2032,7 +2123,7 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
     try {
       await apiFetch('/cuotas/confirmar', { method: 'PUT', body: { rowIndices: noConf.map(c => c.rowIndex) } });
       loadCuotasTab(cliente);
-    } catch (err) { alert('Error al confirmar: ' + err.message); }
+    } catch (err) { toast('Error al confirmar: ' + err.message, 'error'); }
   });
 
   $('btn-confirmar-pago')?.addEventListener('click', async () => {
@@ -2058,7 +2149,7 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
         descripcion,
       }});
       loadCuotasTab(cliente);
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast(err.message, 'error'); }
   });
 
   // IPC automático (solo para planes indexados)
@@ -2069,14 +2160,20 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
     try {
       const { porcentaje, mes } = await apiFetch('/cuotas/ipc-actual');
       const mesLabel = mes ? ` (${mes})` : '';
-      if (!confirm(`IPC del INDEC${mesLabel}: ${porcentaje}%\n\n¿Aplicar a las cuotas pendientes indexadas por IPC?`)) {
+      const ok = await uiConfirm({
+        titulo: `IPC del INDEC${mesLabel}: ${porcentaje}%`,
+        mensaje: 'Se va a aplicar ese porcentaje a todas las cuotas pendientes indexadas por IPC de este cliente.\n\nLas cuotas ya pagadas no se tocan.',
+        confirmar: `Aplicar ${porcentaje}%`,
+        icono: '📈',
+      });
+      if (!ok) {
         btn.disabled = false; btn.textContent = '📈 Aplicar IPC del mes'; return;
       }
       const r = await apiFetch('/cuotas/ipc-indexados', { method: 'PUT', body: { idCliente: cliente.id, porcentaje } });
-      alert(`IPC ${porcentaje}%${mesLabel} aplicado a ${r.updated} cuota(s).`);
+      toast(`IPC ${porcentaje}%${mesLabel} aplicado a ${r.updated} cuota${r.updated !== 1 ? 's' : ''}`);
       loadCuotasTab(cliente);
     } catch (err) {
-      alert('No se pudo obtener el IPC del INDEC.\n' + err.message);
+      toast('No se pudo obtener el IPC del INDEC: ' + err.message, 'error');
       btn.disabled = false; btn.textContent = '📈 Aplicar IPC del mes';
     }
   });
@@ -2084,34 +2181,56 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
   // IPC manual (solo para planes fijos con ajuste manual)
   $('btn-ipc')?.addEventListener('click', async () => {
     const pct = parseFloat($('ipc-pct').value);
-    if (!pct || pct <= 0) { alert('Ingresá un porcentaje válido.'); return; }
-    if (!confirm(`¿Aplicar ${pct}% a todas las cuotas pendientes?`)) return;
+    if (!pct || pct <= 0) { toast('Ingresá un porcentaje válido', 'error'); return; }
+    const ok = await uiConfirm({
+      titulo: `¿Aplicar ${pct}% a las cuotas pendientes?`,
+      mensaje: 'Afecta a todas las cuotas todavía impagas de este cliente. Las pagadas no se tocan.',
+      confirmar: `Sí, aplicar ${pct}%`,
+      icono: '📈',
+    });
+    if (!ok) return;
     try {
       const r = await apiFetch('/cuotas/ipc', { method: 'PUT', body: { idCliente: cliente.id, porcentaje: pct } });
-      alert(`Ajuste aplicado a ${r.updated} cuota(s).`);
+      toast(`Ajuste aplicado a ${r.updated} cuota${r.updated !== 1 ? 's' : ''}`);
       loadCuotasTab(cliente);
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast(err.message, 'error'); }
   });
 
   // Ajustar valor fijo
   $('btn-ajustar-val')?.addEventListener('click', async () => {
     const val = parseFloat($('nuevo-valor').value);
-    if (!val || val <= 0) { alert('Ingresá el nuevo valor de cuota.'); return; }
-    if (!confirm(`¿Fijar ${formatMoneda(val, moneda)} como valor de todas las cuotas pendientes?`)) return;
+    if (!val || val <= 0) { toast('Ingresá el nuevo valor de cuota', 'error'); return; }
+    const ok = await uiConfirm({
+      titulo: `¿Fijar las cuotas en ${formatMoneda(val, moneda)}?`,
+      mensaje: 'Todas las cuotas pendientes de este cliente pasan a ese valor. Las pagadas no se tocan.',
+      confirmar: 'Sí, fijar ese valor',
+      icono: '💵',
+    });
+    if (!ok) return;
     try {
       const r = await apiFetch('/cuotas/ajustar', { method: 'PUT', body: { idCliente: cliente.id, nuevoValor: val } });
-      alert(`Valor actualizado en ${r.updated} cuota(s).`);
+      toast(`Valor actualizado en ${r.updated} cuota${r.updated !== 1 ? 's' : ''}`);
       loadCuotasTab(cliente);
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast(err.message, 'error'); }
   });
 
   // Borrar plan (admin)
   $('btn-reset-plan')?.addEventListener('click', async () => {
-    if (!confirm('¿Borrar todo el plan de pagos? Esta acción no se puede deshacer.')) return;
+    const ok = await uiConfirm({
+      titulo: '¿Borrar todo el plan de pagos?',
+      mensaje: `Se eliminan TODAS las cuotas de ${cliente.apellidoNombre}, pagadas y pendientes.\n\n`
+             + 'Los ingresos ya registrados en el Historial no se borran, pero el plan hay que rearmarlo de cero.\n\n'
+             + 'Esto no se puede deshacer.',
+      confirmar: 'Sí, borrar el plan',
+      cancelar: 'No, dejarlo como está',
+      tipo: 'danger',
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/cuotas/plan/${cliente.id}`, { method: 'DELETE' });
       loadCuotasTab(cliente);
-    } catch (err) { alert(err.message); }
+      toast('Plan de pagos borrado');
+    } catch (err) { toast(err.message, 'error'); }
   });
 
   // Agregar cuotas extra
@@ -2120,7 +2239,7 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
     const n = parseInt($('agregar-ncuotas').value);
     const valor = parseFloat($('agregar-valor').value);
     const fecha = $('agregar-fecha').value;
-    if (!n || !valor || !fecha) { alert('Completá todos los campos.'); return; }
+    if (!n || !valor || !fecha) { toast('Completá todos los campos.', 'error'); return; }
     const btn = e.target.querySelector('button[type=submit]');
     btn.disabled = true;
     try {
@@ -2134,7 +2253,7 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
         indexacion,
       }});
       loadCuotasTab(cliente);
-    } catch (err) { alert(err.message); btn.disabled = false; }
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
   });
 }
 
@@ -2291,7 +2410,7 @@ async function saveNombreEdit(cliente, nuevoNombre) {
     renderClienteDetail(cliente);
 
   } catch (err) {
-    alert('Error al guardar: ' + err.message);
+    toast('Error al guardar: ' + err.message, 'error');
     if (btn) btn.disabled = false;
   }
 }
@@ -2354,7 +2473,7 @@ async function saveSugerenciaNombre(cliente, nombreSugerido) {
     injectNombreAcciones(cliente);
 
   } catch (err) {
-    alert('Error al guardar: ' + err.message);
+    toast('Error al guardar: ' + err.message, 'error');
     if (btn) btn.disabled = false;
   }
 }
@@ -2378,7 +2497,12 @@ function renderSugerenciaBanner(container, nombreSugerido, cliente) {
   });
 
   $('btn-descartar-sugerencia').addEventListener('click', async () => {
-    if (!confirm('¿Descartás la sugerencia del empleado?')) return;
+    const ok = await uiConfirm({
+      titulo: '¿Descartar la sugerencia?',
+      mensaje: 'El nombre sugerido por el empleado se elimina y queda el nombre actual.',
+      confirmar: 'Sí, descartar',
+    });
+    if (!ok) return;
     const obsLimpio = (cliente.observaciones || '').replace(SUGERENCIA_REGEX, '').trim();
     try {
       const body = buildClienteBody(cliente, { observaciones: obsLimpio });
@@ -2387,7 +2511,7 @@ function renderSugerenciaBanner(container, nombreSugerido, cliente) {
       const idx = allClientes.findIndex(c => c.id === cliente.id);
       if (idx !== -1) allClientes[idx].observaciones = obsLimpio;
       container.innerHTML = '';
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast(err.message, 'error'); }
   });
 }
 
@@ -2653,23 +2777,29 @@ function renderTimmingRestricciones(cliente, lista) {
     e.preventDefault();
     const tipoSelect = $('tim-rest-tipo').value;
     const tipoRestriccion = tipoSelect === 'Otro' ? $('tim-rest-tipo-otro').value.trim() : tipoSelect;
-    if (!tipoRestriccion) { alert('Ingresá el tipo'); return; }
+    if (!tipoRestriccion) { toast('Ingresá el tipo', 'error'); return; }
     const cantidad = $('tim-rest-cantidad').value;
     const coronita = $('tim-rest-coronita').checked;
     try {
       await apiFetch('/restricciones', { method: 'POST', body: { idCliente: cliente.id, tipoRestriccion, cantidad, coronita } });
       loadTimmingTab(cliente);
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast(err.message, 'error'); }
   });
 
   panel.querySelectorAll('.btn-tim-del[data-row]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const rowIndex = parseInt(btn.dataset.row);
-      if (!confirm('¿Eliminar esta restricción?')) return;
+      const ok = await uiConfirm({
+        titulo: '¿Eliminar esta restricción?',
+        mensaje: 'La restricción se borra de la planilla de cocina.',
+        confirmar: 'Sí, eliminar',
+        tipo: 'danger',
+      });
+      if (!ok) return;
       try {
         await apiFetch(`/restricciones/${rowIndex}`, { method: 'DELETE' });
         loadTimmingTab(cliente);
-      } catch (err) { alert(err.message); }
+      } catch (err) { toast(err.message, 'error'); }
     });
   });
 }
@@ -2773,7 +2903,7 @@ function bindMaitreAcciones(cliente, items) {
         try {
           await apiFetch(`/timming/${rowIndex}`, { method: 'PUT', body: { hora, actividad, tipo: 'maitre', descripcion } });
           loadTimmingTab(cliente);
-        } catch (e) { alert(e.message); }
+        } catch (e) { toast(e.message, 'error'); }
       });
       row.querySelector('.btn-tim-cancel').addEventListener('click', () => loadTimmingTab(cliente));
     });
@@ -2783,11 +2913,16 @@ function bindMaitreAcciones(cliente, items) {
     btn.addEventListener('click', async () => {
       const row = btn.closest('.tim-item');
       const rowIndex = parseInt(row.dataset.row);
-      if (!confirm('¿Eliminar esta actividad?')) return;
+      const ok = await uiConfirm({
+        titulo: '¿Eliminar esta actividad del timing?',
+        confirmar: 'Sí, eliminar',
+        tipo: 'danger',
+      });
+      if (!ok) return;
       try {
         await apiFetch(`/timming/${rowIndex}`, { method: 'DELETE' });
         loadTimmingTab(cliente);
-      } catch (e) { alert(e.message); }
+      } catch (e) { toast(e.message, 'error'); }
     });
   });
 
@@ -2802,7 +2937,7 @@ function bindMaitreAcciones(cliente, items) {
     try {
       await apiFetch('/timming', { method: 'POST', body: { idCliente: cliente.id, hora, actividad, tipo: 'maitre', descripcion } });
       loadTimmingTab(cliente);
-    } catch (err) { alert(err.message); btn.disabled = false; }
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
   });
 
   $('btn-print-timming')?.addEventListener('click', () => imprimirTimming(cliente, items));
@@ -5544,7 +5679,7 @@ ${tipo === 'contrato' ? (() => {
 </body></html>`;
 
   const win = window.open('', '_blank');
-  if (!win) { alert('Permití popups en el navegador para descargar la propuesta'); return; }
+  if (!win) { toast('Permití popups en el navegador para descargar la propuesta', 'error'); return; }
   win.document.write(html);
   win.document.close();
   // Esperamos a que el documento termine de repartir el contenido en hojas
@@ -6248,7 +6383,7 @@ async function loadCocina() {
     renderPedidosList();
   } catch (e) {
     if (loadingEl) loadingEl.style.display = 'none';
-    alert('Error cargando datos de cocina: ' + e.message);
+    toast('Error cargando datos de cocina: ' + e.message, 'error');
   }
 }
 
@@ -6368,7 +6503,7 @@ function _wireStockAddBar() {
       : (sel?.value || '');
     const nombre = $('stock-add-nombre')?.value.trim() || '';
     const unidad = $('stock-add-unidad')?.value || 'und';
-    if (!cat || !nombre) { alert('Completá el grupo y el nombre del ítem.'); return; }
+    if (!cat || !nombre) { toast('Completá el grupo y el nombre del ítem.', 'error'); return; }
     const btn = $('stock-add-btn');
     btn.disabled = true;
     try {
@@ -6381,7 +6516,7 @@ function _wireStockAddBar() {
       renderStockDashboard();
       toast(`"${nombre}" agregado a ${catDisplayName(cat)}`);
     } catch (e) {
-      alert('Error al agregar: ' + e.message);
+      toast('Error al agregar: ' + e.message, 'error');
       btn.disabled = false;
     }
   });
@@ -6457,7 +6592,7 @@ function initStockDashDnD() {
 function abrirEditorItem(id, { onDone } = {}) {
   const item = cocinaCatalogo.find(c => c.id === id)
     || cocinaStockActual.find(s => s.id === id);
-  if (!item) { alert('No encontré este ítem en el catálogo.'); return; }
+  if (!item) { toast('No encontré este ítem en el catálogo.', 'error'); return; }
 
   const cats = [...new Set([
     ...cocinaCatalogo.map(c => c.categoria).filter(Boolean),
@@ -6530,7 +6665,7 @@ function abrirEditorItem(id, { onDone } = {}) {
       onDone?.();
     } catch (err) {
       e.target.disabled = false;
-      alert('No se pudo eliminar: ' + err.message);
+      toast('No se pudo eliminar: ' + err.message, 'error');
     }
   });
 
@@ -6538,7 +6673,7 @@ function abrirEditorItem(id, { onDone } = {}) {
     const nombre = ov.querySelector('#ei-nombre').value.trim();
     const unidad = ov.querySelector('#ei-unidad').value;
     const categoria = ov.querySelector('#ei-cat').value;
-    if (!nombre) { alert('El nombre no puede quedar vacío.'); return; }
+    if (!nombre) { toast('El nombre no puede quedar vacío.', 'error'); return; }
     if (nombre === item.nombre && unidad === (item.unidad || 'und') && categoria === item.categoria) { cerrar(); return; }
     e.target.disabled = true;
     try {
@@ -6554,7 +6689,7 @@ function abrirEditorItem(id, { onDone } = {}) {
       onDone?.();
     } catch (err) {
       e.target.disabled = false;
-      alert('No se pudo guardar: ' + err.message);
+      toast('No se pudo guardar: ' + err.message, 'error');
     }
   });
 }
@@ -6573,7 +6708,7 @@ async function moverItemDeGrupo(id, nuevaCat, catAnterior) {
     if (stk) stk.categoria = catAnterior;
     if (cat) cat.categoria = catAnterior;
     renderStockDashboard();
-    alert('No se pudo mover el ítem: ' + e.message);
+    toast('No se pudo mover el ítem: ' + e.message, 'error');
   }
 }
 
@@ -6622,7 +6757,7 @@ async function guardarActualizacionStock() {
     renderStockDashboard();
     toast('Stock actualizado');
   } catch (e) {
-    alert('Error al guardar stock: ' + e.message);
+    toast('Error al guardar stock: ' + e.message, 'error');
   } finally {
     $('cocina-actualizar-stock-guardar-btn').disabled = false;
   }
@@ -6711,12 +6846,18 @@ function renderPedidosList() {
   });
   listEl.querySelectorAll('.cocina-btn-eliminar').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm('¿Eliminar este pedido?')) return;
+      const ok = await uiConfirm({
+        titulo: '¿Eliminar este pedido de cocina?',
+        mensaje: 'Se borra el pedido completo con todos sus ítems.',
+        confirmar: 'Sí, eliminar',
+        tipo: 'danger',
+      });
+      if (!ok) return;
       try {
         await apiFetch(`/pedidos-cocina/${btn.dataset.row}`, { method: 'DELETE' });
         cocinaPedidos = cocinaPedidos.filter(x => x.rowIndex !== parseInt(btn.dataset.row));
         renderPedidosList();
-      } catch (e) { alert('Error al eliminar: ' + e.message); }
+      } catch (e) { toast('Error al eliminar: ' + e.message, 'error'); }
     });
   });
 }
@@ -7072,7 +7213,7 @@ function duplicarPedidoAnterior(rowIndex) {
 
 async function guardarPedido() {
   const nombreEvento = $('cocina-nombre-evento').value.trim();
-  if (!nombreEvento) { alert('Ingresá una descripción para el pedido.'); return; }
+  if (!nombreEvento) { toast('Ingresá una descripción para el pedido.', 'error'); return; }
   const payload = {
     idCliente: $('cocina-evento-select').value,
     nombreEvento,
@@ -7099,7 +7240,7 @@ async function guardarPedido() {
     renderPedidosList();
     toast('Pedido guardado');
   } catch (e) {
-    alert('Error al guardar: ' + e.message);
+    toast('Error al guardar: ' + e.message, 'error');
   } finally {
     $('cocina-guardar-btn').disabled = false;
   }
@@ -7122,7 +7263,7 @@ function imprimirPedidoActual() {
   const hayItems = (pedido.items || []).some(i => i.cantidad > 0);
   const hayTotales = (pedido.items || []).some(i => i.catTotalesMarker && Object.keys(i.totales || {}).length);
   if (!hayItems && !hayTotales) {
-    alert('Cargá al menos un ítem con cantidad (o un total por categoría) para imprimir la planilla.');
+    toast('Cargá al menos un ítem con cantidad (o un total por categoría) para imprimir la planilla.', 'error');
     return;
   }
   imprimirPedidoCocina(pedido);
@@ -7211,14 +7352,14 @@ function renderAgregarPanel() {
     const categoria = $('agregar-nuevo-cat')?.value;
     const unidad = $('agregar-nuevo-unidad')?.value || 'und';
     const guardar = $('agregar-nuevo-guardar')?.checked;
-    if (!nombre || !categoria || categoria === '__nueva__') { alert('Completá nombre y categoría.'); return; }
+    if (!nombre || !categoria || categoria === '__nueva__') { toast('Completá nombre y categoría.', 'error'); return; }
     let id = `temp-${Date.now()}`;
     if (guardar) {
       try {
         const nuevo = await apiFetch('/catalogo-items', { method: 'POST', body: { categoria, nombre, unidad } });
         id = nuevo.id;
         cocinaCatalogo.push(nuevo);
-      } catch (e) { alert('Error al guardar en catálogo: ' + e.message); return; }
+      } catch (e) { toast('Error al guardar en catálogo: ' + e.message, 'error'); return; }
     }
     _agregarItemEnTabla(id, categoria, nombre, unidad);
     $('agregar-nuevo-nombre').value = '';
@@ -7399,7 +7540,7 @@ async function guardarRelevamiento() {
     renderPedidosList();
     toast('Sobrante guardado y stock actualizado');
   } catch (e) {
-    alert('Error al guardar stock: ' + e.message);
+    toast('Error al guardar stock: ' + e.message, 'error');
   } finally {
     $('cocina-relevamiento-guardar-btn').disabled = false;
   }
@@ -7427,7 +7568,7 @@ function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm, columnas
   } catch {}
 
   const gruposConItems = grupos.filter(g => g.items.length);
-  if (!gruposConItems.length) { alert('No hay ítems en el catálogo para imprimir.'); return; }
+  if (!gruposConItems.length) { toast('No hay ítems en el catálogo para imprimir.', 'error'); return; }
 
   // Los grupos se muestran como tarjetas en columnas (tipo tablero), agrupadas
   // por sección cuando la planilla las tiene (ej: Producción / Ingredientes).
@@ -7537,7 +7678,7 @@ function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm, columnas
   });
   ov.querySelector('[data-sp-print]').addEventListener('click', () => {
     const seleccionados = new Set(itemChecks.filter(c => c.checked).map(c => c.dataset.spItem));
-    if (!seleccionados.size) { alert('Elegí al menos un ítem para imprimir.'); return; }
+    if (!seleccionados.size) { toast('Elegí al menos un ítem para imprimir.', 'error'); return; }
     const fuera = itemChecks.filter(c => !c.checked).map(c => c.dataset.spItem);
     try { localStorage.setItem(storageKey, JSON.stringify(fuera)); } catch {}
     const dosColumnas = !!ov.querySelector('[data-sp-cols]')?.checked;
@@ -7819,7 +7960,7 @@ function buildPrintRelevamientoHTML(pedido) {
 
 function abrirVentanaImpresion(htmlContent) {
   const win = window.open('', '_blank', 'width=900,height=700');
-  if (!win) { alert('Habilitá las ventanas emergentes para este sitio e intentá nuevamente.'); return; }
+  if (!win) { toast('Habilitá las ventanas emergentes para este sitio e intentá nuevamente.', 'error'); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
   body{font-family:Arial,sans-serif;font-size:12.5pt;color:#000;margin:0;padding:10px;background:#fff}
   thead{display:table-header-group}
@@ -7973,13 +8114,13 @@ function renderCatalogoPanel() {
       : (sel?.value || '');
     const nombre = document.getElementById('cat-nuevo-nombre')?.value.trim() || '';
     const unidad = document.getElementById('cat-nuevo-unidad')?.value || 'und';
-    if (!cat || !nombre) { alert('Completá categoría y nombre.'); return; }
+    if (!cat || !nombre) { toast('Completá categoría y nombre.', 'error'); return; }
     try {
       const nuevo = await apiFetch('/catalogo-items', { method: 'POST', body: { categoria: cat, nombre, unidad } });
       cocinaCatalogo.push(nuevo);
       renderCatalogoPanel();
       toast('Ítem agregado al catálogo');
-    } catch (e) { alert('Error al agregar: ' + e.message); }
+    } catch (e) { toast('Error al agregar: ' + e.message, 'error'); }
   });
 }
 
@@ -7997,7 +8138,7 @@ document.addEventListener('change', async ev => {
     if (statusEl) { statusEl.textContent = '✓'; setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000); }
   } catch (e) {
     if (statusEl) statusEl.textContent = '✗';
-    alert('Error al guardar unidad: ' + e.message);
+    toast('Error al guardar unidad: ' + e.message, 'error');
   }
 });
 
@@ -8047,7 +8188,13 @@ document.addEventListener('click', async ev => {
   if (!btn) return;
   const rowIndex = parseInt(btn.dataset.row);
   const item = cocinaCatalogo.find(i => i.rowIndex === rowIndex);
-  if (!confirm(`¿Desactivar "${item?.nombre || 'este ítem'}"? No aparecerá más en pedidos ni stock.`)) return;
+  const ok = await uiConfirm({
+    titulo: `¿Desactivar "${item?.nombre || 'este ítem'}"?`,
+    mensaje: 'Deja de aparecer en pedidos y en stock, pero no se borra el historial de compras.',
+    confirmar: 'Sí, desactivar',
+    tipo: 'danger',
+  });
+  if (!ok) return;
   btn.disabled = true;
   try {
     await apiFetch(`/catalogo-items/${rowIndex}`, { method: 'DELETE' });
@@ -8057,7 +8204,7 @@ document.addEventListener('click', async ev => {
     if ($('cocina-tab-stock') && !$('cocina-tab-stock').classList.contains('hidden')) renderStockDashboard();
   } catch (e) {
     btn.disabled = false;
-    alert('Error al desactivar: ' + e.message);
+    toast('Error al desactivar: ' + e.message, 'error');
   }
 });
 
@@ -8083,7 +8230,7 @@ $('cocina-limpiar-duplicados-btn')?.addEventListener('click', async () => {
     renderCatalogoPanel();
     renderStockDashboard();
   } catch (e) {
-    alert('Error al limpiar catálogo: ' + e.message);
+    toast('Error al limpiar catálogo: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
   }

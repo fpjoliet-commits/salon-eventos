@@ -7,11 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260908prop16">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260908prop16">
+  <link rel="stylesheet" href="css/style.css?v=20260910ux1">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260910ux1">
+  <link rel="stylesheet" href="css/ux.css?v=20260910ux1">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#8f2e4d">
+  <meta name="theme-color" content="#121009">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="CRM Joliet">
 </head>
@@ -52,6 +53,9 @@
 
   <div id="app" class="hidden">
 
+    <!-- Salto al contenido: primer tabulador para quien navega con teclado -->
+    <a href="#main-content" class="skip-link">Saltar al contenido</a>
+
     <!-- BOTÓN MENÚ (tablet / móvil) -->
     <button id="menu-toggle" class="menu-toggle" aria-label="Abrir menú" aria-expanded="false">
       <span class="menu-toggle-bars"><span></span><span></span><span></span></span>
@@ -65,9 +69,9 @@
         <img src="img/logo.png" alt="Joliet" class="sidebar-logo-img" onerror="this.style.display='none'">
         <span class="logo-text">Joliet Eventos</span>
       </div>
-      <nav class="sidebar-nav">
+      <nav class="sidebar-nav" aria-label="Secciones del sistema">
         <a href="#" class="nav-item" data-view="calendario">
-          <span class="nav-icon">📅</span> Calendario
+          <span class="nav-icon">🏠</span> Inicio
         </a>
         <a href="#" class="nav-item" data-view="seguimientos">
           <span class="nav-icon">📱</span> Seguimientos
@@ -98,7 +102,7 @@
     </aside>
 
     <!-- MAIN -->
-    <main class="main-content">
+    <main class="main-content" id="main-content">
 
       <!-- BARRA DE RECORDATORIOS -->
       <div id="reminders-bar" class="reminders-bar hidden"></div>
@@ -109,8 +113,10 @@
           <h2>Clientes</h2>
           <div class="header-actions">
             <button id="btn-nuevo-cliente" class="btn btn-primary btn-sm">➕ Nuevo cliente</button>
-            <input type="text" id="search-input" class="search-input" placeholder="Buscar por nombre, teléfono...">
-            <select id="filter-estado" class="filter-select">
+            <input type="search" id="search-input" class="search-input" autocomplete="off"
+                   aria-label="Buscar cliente por nombre, teléfono o mail"
+                   placeholder="Buscar por nombre, teléfono...">
+            <select id="filter-estado" class="filter-select" aria-label="Filtrar por estado">
               <option value="">Todos los estados</option>
               <option>Consulta</option>
               <option>Visita agendada</option>
@@ -156,7 +162,17 @@
 
         <div id="clientes-stats" class="stats-row"></div>
 
-        <div id="clientes-loading" class="loading-msg">Cargando clientes...</div>
+        <!-- Barra de herramientas: aviso de vista filtrada + exportar -->
+        <div class="view-toolbar">
+          <div id="filtros-activos-wrap"></div>
+          <div class="view-toolbar-spacer"></div>
+          <button type="button" id="btn-exportar-csv" class="btn btn-secondary btn-sm"
+                  title="Descarga en CSV los clientes que se están mostrando, con el filtro y el orden actuales">
+            ⬇ Exportar a CSV
+          </button>
+        </div>
+
+        <div id="clientes-loading" class="loading-msg" role="status">Cargando clientes...</div>
         <div id="clientes-error" class="error-msg hidden"></div>
 
         <div id="clientes-table-wrap" class="table-wrap hidden">
@@ -422,9 +438,9 @@
 
       <!-- VISTA: CALENDARIO -->
       <section id="view-calendario" class="view hidden">
-        <div class="view-header">
-          <h2>Calendario de eventos</h2>
-        </div>
+        <!-- Resumen del día: responde "¿qué tengo que hacer hoy?" antes de la grilla.
+             Lo pinta uxRenderInicio() en js/ux.js -->
+        <section id="inicio-hero" class="inicio-hero" aria-label="Resumen del día"></section>
         <div class="calendario-layout">
           <div class="calendario-main">
             <div id="calendario-container"></div>
@@ -1080,7 +1096,7 @@
         </div>
         <div class="modal-header-actions">
           <button class="btn-vista-cliente" id="btn-vista-cliente" title="Ocultar datos internos para mostrar al cliente">Vista cliente</button>
-          <button class="modal-close" id="modal-close-btn">✕</button>
+          <button class="modal-close" id="modal-close-btn" aria-label="Cerrar ficha del cliente (Esc)">✕</button>
         </div>
       </div>
       <div class="modal-body" id="modal-body">
@@ -1616,7 +1632,9 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260908prop16"></script>
-  <script src="js/propuesta-ui.js?v=20260908prop16"></script>
+  <script src="js/app.js?v=20260910ux1"></script>
+  <script src="js/propuesta-ui.js?v=20260910ux1"></script>
+  <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
+  <script src="js/ux.js?v=20260910ux1"></script>
 </body>
 </html>
