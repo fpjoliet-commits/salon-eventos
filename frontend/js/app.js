@@ -1171,11 +1171,16 @@ $('pago-form').addEventListener('submit', async e => {
   hide('pago-error'); hide('pago-success');
   const tipo = $('pago-tipo').value;
   const moneda = $('pago-moneda').value || 'ARS';
-  const monto = $('pago-monto').value;
+  const monto = parseFloat($('pago-monto').value);
   const fecha = $('pago-fecha').value;
   const formaPago = $('pago-forma').value;
-  const notas = $('pago-notas').value;
+  const notas = $('pago-notas').value.trim();
   const idCliente = $('pago-id-cliente').value;
+
+  if (!(monto > 0)) {
+    $('pago-error').textContent = 'Ingresá un monto mayor a 0.';
+    show('pago-error'); return;
+  }
 
   const cuotasSeleccionadas = tipo === 'Cuota'
     ? [...($('cuotas-a-tachar-lista')?.querySelectorAll('.tachar-check:checked') || [])].map(c => parseInt(c.dataset.row))
@@ -3181,7 +3186,6 @@ function getCocinaFormData() {
     salsaCarne: $('coc-salsa-carne')?.value.trim() || '',
     guarnicionCarne: $('coc-guarnicion-carne')?.value.trim() || '',
     horaMesaDulces: $('coc-hora-mesa-dulces')?.value || '',
-    mesaDulces: getChecked('coc-dulce'),
     postre: $('coc-postre')?.value.trim() || '',
   };
 }
@@ -3281,10 +3285,9 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
 
       <div class="coc-section">
         ${secHeader('MESA DE DULCES', 'coc-hora-mesa-dulces', cocinaData.horaMesaDulces, 'mesaDulces')}
-        <div class="coc-checks">${chk('coc-dulce', MESA_DULCES_OPT, cocinaData.mesaDulces)}</div>
-        <div class="coc-group" style="margin-top:12px">
+        <div class="coc-group">
           <div class="coc-group-label">Postre / Torta</div>
-          <p class="coc-hint">1 opción por cada 10 invitados. Una siempre es la torta principal.</p>
+          <p class="coc-hint">1 opción por cada 10 invitados. Una siempre es la torta principal. Los dulces se anotan a mano en la hoja de cocina.</p>
           <textarea id="coc-postre" class="coc-textarea" rows="2" placeholder="Ej: Torta principal + Lemon pie">${esc(cocinaData.postre || '')}</textarea>
         </div>
       </div>`;
@@ -3494,6 +3497,19 @@ function imprimirTimming(cliente, items) {
   win.document.close();
 }
 
+// Abreviaturas de rellenos/clásicos para ganar espacio en la hoja de cocina.
+// Orden importa: las frases más largas primero.
+const ABBR_COCINA = [
+  [/jam[oó]n y queso/gi, 'JyQ'],
+  [/queso y jam[oó]n/gi, 'JyQ'],
+  [/jam[oó]n crudo/gi, 'J. crudo'],
+  [/jam[oó]n cocido/gi, 'J. cocido'],
+  [/m[uo]z+arella/gi, 'Muzza'],
+];
+function abreviarCocina(s) {
+  return ABBR_COCINA.reduce((t, [re, rep]) => (t || '').replace(re, rep), s || '');
+}
+
 function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const d = cocinaData || {};
 
@@ -3503,10 +3519,14 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const todasPastas = [...(d.pastas || []), ...(d.pastasGourmet || [])];
   const todasSalsas = [...(d.salsas || []), ...(d.salsasGourmet || [])];
 
+  // Abreviaturas para ganar espacio en la hoja (rellenos clásicos del salón).
+  // Sólo afecta la impresión, no lo que se carga. Ver ABBR_COCINA arriba.
+  const escA = s => esc(abreviarCocina(s));
+
   // Casilla para marcar la sección como completada durante el evento.
   const chk = '<span class="chk"></span>';
   // Ítems en texto compacto, separados por punto medio (sin casillas ni líneas).
-  const mini = arr => (arr && arr.length) ? arr.map(esc).join(' · ') : '';
+  const mini = arr => (arr && arr.length) ? arr.map(escA).join(' · ') : '';
   const miniGrp = (label, arr) => (arr && arr.length)
     ? `<div class="mg"><span class="mgl">${label}:</span> ${mini(arr)}</div>` : '';
   // Encabezado: casilla + título grande + hora. Todo alineado a la izquierda.
@@ -3516,12 +3536,12 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   // Plato central: una sola base en TRES renglones — proteína+relleno / guarnición / salsa
   const platoCentralItem = (tipo, base, relleno, salsa, guar, mostrarTipo) => {
     if (!base) return '';
-    const nombre = relleno ? `${esc(base)} ${esc(relleno)}` : esc(base);
-    const salsaTxt = salsa ? (/^salsa/i.test(salsa) ? esc(salsa) : 'Salsa ' + esc(salsa)) : '';
+    const nombre = relleno ? `${escA(base)} ${escA(relleno)}` : escA(base);
+    const salsaTxt = salsa ? (/^salsa/i.test(salsa) ? escA(salsa) : 'Salsa ' + escA(salsa)) : '';
     return `<div class="pc-item">
       ${mostrarTipo ? `<div class="pc-tipo">${tipo}</div>` : ''}
       <div class="pc-nombre">${nombre}</div>
-      ${guar ? `<div class="pc-comp">${esc(guar)}</div>` : ''}
+      ${guar ? `<div class="pc-comp">${escA(guar)}</div>` : ''}
       ${salsaTxt ? `<div class="pc-comp">${salsaTxt}</div>` : ''}
     </div>`;
   };
@@ -3548,15 +3568,15 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
 
   const secIslas = (!oculta('islas') && hayIslas) ? `<div class="sec">
     ${secHead(esInformal ? 'Islas en vivo — Plato Central' : 'Islas', d.horaIslas)}
-    <div class="isla">${(d.islas||[]).map(i => `<div>${esc(i)}</div>`).join('')}</div>
+    <div class="isla">${(d.islas||[]).map(i => `<div>${escA(i)}</div>`).join('')}</div>
   </div>` : '';
 
   const secPrimerPlato = (!oculta('primerPlato') && hayPrimerPlato) ? `<div class="sec">
     ${secHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
     ${todasPastas.length ? `<div class="pp-sub">Pastas</div>
-      <div class="pp-pastas">${todasPastas.map(p => `<div>${esc(p)}</div>`).join('')}</div>` : ''}
+      <div class="pp-pastas">${todasPastas.map(p => `<div>${escA(p)}</div>`).join('')}</div>` : ''}
     ${todasSalsas.length ? `<div class="pp-sub">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</div>
-      <div class="pp-salsas">${todasSalsas.map(s => `<span>${esc(s)}</span>`).join('')}</div>` : ''}
+      <div class="pp-salsas">${todasSalsas.map(s => `<span>${escA(s)}</span>`).join('')}</div>` : ''}
   </div>` : '';
 
   const dosPlatos = d.platoCentralAve && d.platoCentralCarne;
@@ -3568,17 +3588,17 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
 
   const secMesaDulces = (!oculta('mesaDulces') && hayMesaDulces) ? `<div class="sec">
     ${secHead('Mesa de Dulces', d.horaMesaDulces)}
-    ${d.postre ? `<div class="mg"><span class="mgl">Torta / Postre:</span> ${esc(d.postre)}</div>` : ''}
+    ${d.postre ? `<div class="mg"><span class="mgl">Torta / Postre:</span> ${escA(d.postre)}</div>` : ''}
     <div class="wl"></div><div class="wl"></div>
   </div>` : '';
 
   const secPostresAm = (!oculta('postres') && hayPostresAm) ? `<div class="sec">
     ${secHead('Torta Homenaje & Postres', d.horaPostres)}
     ${miniGrp('Postres', d.postres)}
-    ${d.tortaHomenaje ? `<div class="mg"><span class="mgl">Torta homenaje:</span> ${esc(d.tortaHomenaje)}</div>` : ''}
+    ${d.tortaHomenaje ? `<div class="mg"><span class="mgl">Torta homenaje:</span> ${escA(d.tortaHomenaje)}</div>` : ''}
   </div>` : '';
 
-  const finItems = (d.finFiesta || []).map(esc).join(' · ');
+  const finItems = (d.finFiesta || []).map(escA).join(' · ');
   const secFinFiesta = (!oculta('finFiesta') && (d.finFiesta||[]).length) ? `<div class="sec">
     ${secHead('Fin de Fiesta' + (finItems ? ' — ' + finItems : ''), d.horaCafeteria)}
   </div>` : '';
@@ -6142,11 +6162,17 @@ async function submitEgreso(e) {
     }
   }
 
+  const monto = parseFloat($('egr-monto').value);
+  if (!(monto > 0)) {
+    $('egr-error').textContent = 'Ingresá un monto mayor a 0.';
+    show('egr-error'); return;
+  }
+
   const body = {
     fecha: $('egr-fecha').value,
     concepto: $('egr-concepto').value,
     categoria: $('egr-categoria').value,
-    monto: parseFloat($('egr-monto').value) || 0,
+    monto,
     moneda: $('egr-moneda').value,
     idEmpleado, nombreEmpleado,
     rolPago: $('egr-rol-pago')?.value || '',
@@ -6288,9 +6314,9 @@ async function submitEgresosCocina(e) {
   const esOtros = tipoVal === '__otros__';
   const tipoOtrosDetalle = ($('egc-tipo-otros')?.value || '').trim();
 
-  if (!fecha || !tipoVal || !monto) {
+  if (!fecha || !tipoVal || !(monto > 0)) {
     show('egc-error');
-    $('egc-error').textContent = 'Fecha, tipo y monto son obligatorios';
+    $('egc-error').textContent = 'Fecha, tipo y un monto mayor a 0 son obligatorios';
     return;
   }
   if (esOtros && !tipoOtrosDetalle) {
@@ -6300,7 +6326,7 @@ async function submitEgresosCocina(e) {
   }
 
   const concepto = esOtros ? 'Otros' : tipoVal;
-  const notasExtra = esOtros ? tipoOtrosDetalle : ($('egc-notas')?.value || '');
+  const notasExtra = (esOtros ? tipoOtrosDetalle : ($('egc-notas')?.value || '')).trim();
 
   let proveedor = $('egc-proveedor')?.value || '';
   if (proveedor === '__otro__') {
@@ -6437,10 +6463,17 @@ async function submitEditarEgreso(ev) {
   const original = allEgresos.find(x => x.rowIndex === rowIndex);
   if (!original) return;
 
+  const monto = parseFloat($('ede-monto').value);
+  if (!(monto > 0)) {
+    show('ede-error');
+    $('ede-error').textContent = 'Ingresá un monto mayor a 0.';
+    return;
+  }
+
   const updated = {
     ...original,
     fecha: $('ede-fecha').value,
-    monto: parseFloat($('ede-monto').value) || 0,
+    monto,
     moneda: $('ede-moneda').value,
     concepto: $('ede-concepto').value.trim(),
     notas: $('ede-notas').value.trim(),
@@ -6650,9 +6683,14 @@ function renderStockDashboard() {
     byCategory[cat].forEach(item => {
       // Sin umbral de "stock bajo": el 0 se marca como sin-stock (dato objetivo), el resto neutro.
       const level = item.cantidad === 0 ? 'sin-stock' : 'ok';
+      const step = (item.unidad === 'lt' || item.unidad === 'kg') ? '0.5' : '1';
       html += `<div class="stock-dash-item-row" draggable="true" data-id="${esc(item.id)}" data-cat="${esc(cat)}" data-nombre="${esc(item.nombre)}">
         <span class="stock-dash-nombre">${esc(item.nombre)}</span>
-        <span class="stock-dash-cant stock-${level}">${item.cantidad}</span>
+        <div class="stock-dash-stepper" data-id="${esc(item.id)}">
+          <button type="button" class="stock-step-btn stock-step-minus" data-id="${esc(item.id)}" aria-label="Restar uno" tabindex="-1">−</button>
+          <input type="number" class="stock-dash-cant-input stock-${level}" value="${item.cantidad}" min="0" step="${step}" inputmode="decimal" data-id="${esc(item.id)}" aria-label="Cantidad de ${esc(item.nombre)}">
+          <button type="button" class="stock-step-btn stock-step-plus" data-id="${esc(item.id)}" aria-label="Sumar uno" tabindex="-1">+</button>
+        </div>
         <span class="stock-dash-unidad">${esc(item.unidad||'und')}</span>
         <button type="button" class="stock-edit-btn" data-id="${esc(item.id)}" title="Editar o eliminar este ítem">✏️</button>
       </div>`;
@@ -6684,6 +6722,55 @@ function _wireStockDashControls() {
       abrirEditorItem(btn.dataset.id, { onDone: renderStockDashboard });
     });
   });
+
+  // Stepper inline: sumar/restar/escribir la cantidad y guardar sola (debounce).
+  // Con la tablet en la cocina alcanza con 2 toques para cargar stock.
+  grid.querySelectorAll('.stock-dash-stepper').forEach(stepper => {
+    // que interactuar con el stepper no arranque el drag del ítem/columna
+    ['mousedown', 'dragstart', 'touchstart', 'click'].forEach(ev =>
+      stepper.addEventListener(ev, e => e.stopPropagation()));
+    const input = stepper.querySelector('.stock-dash-cant-input');
+    const step = parseFloat(input.step) || 1;
+    stepper.querySelector('.stock-step-minus')?.addEventListener('click', () => {
+      input.value = Math.max(0, (parseFloat(input.value) || 0) - step);
+      _onStockCantChange(input);
+    });
+    stepper.querySelector('.stock-step-plus')?.addEventListener('click', () => {
+      input.value = (parseFloat(input.value) || 0) + step;
+      _onStockCantChange(input);
+    });
+    input.addEventListener('change', () => _onStockCantChange(input));
+    input.addEventListener('focus', () => input.select());
+  });
+}
+
+// Timers de guardado por ítem (evita un POST por cada toque en el +).
+const _stockSaveTimers = {};
+function _onStockCantChange(input) {
+  const id = input.dataset.id;
+  let cantidad = parseFloat(input.value);
+  if (!Number.isFinite(cantidad) || cantidad < 0) cantidad = 0;
+  input.value = cantidad;
+  // Recolorear al toque: 0 = sin stock (rojo), >0 = neutro.
+  input.classList.toggle('stock-sin-stock', cantidad === 0);
+  input.classList.toggle('stock-ok', cantidad !== 0);
+  clearTimeout(_stockSaveTimers[id]);
+  _stockSaveTimers[id] = setTimeout(() => _saveStockCant(id, cantidad, input), 500);
+}
+
+async function _saveStockCant(id, cantidad, input) {
+  try {
+    await apiFetch('/stock-actual/actualizar', { method: 'POST', body: { actualizaciones: [{ id, cantidad }] } });
+    const idx = cocinaStockActual.findIndex(s => s.id === id);
+    if (idx !== -1) cocinaStockActual[idx].cantidad = cantidad;
+    if (input) {
+      input.classList.remove('stock-guardando');
+      input.classList.add('stock-guardado');
+      setTimeout(() => input.classList.remove('stock-guardado'), 1200);
+    }
+  } catch (e) {
+    toast('No se pudo guardar el stock: ' + e.message, 'error');
+  }
 }
 
 function _moverGrupoStock(cat, dir) {

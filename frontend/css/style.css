@@ -430,6 +430,9 @@ textarea { resize: vertical; min-height: 70px; }
   .nav-item { padding: 14px 14px; font-size: 14.5px; }
   .cocina-pm-btn { width: 40px; height: 40px; font-size: 20px; }
   .cocina-cant-input, .cocina-sobrante-input { min-height: 42px; font-size: 1rem; }
+  /* Stepper del kanban de stock: targets grandes para el dedo */
+  .stock-step-btn { width: 42px; height: 42px; font-size: 22px; }
+  .stock-dash-cant-input { width: 52px; height: 42px; min-height: 42px; }
   .modal-close { width: 44px; height: 44px; }
 }
 
@@ -2535,6 +2538,57 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .stock-dash-cant { font-weight: 700; font-size: 1rem; min-width: 34px; text-align: right; }
 .stock-dash-unidad { font-size: 0.8rem; color: var(--text-muted); min-width: 30px; }
 .stock-sin-stock { color: #d32f2f; }
+
+/* Stepper inline en el kanban de stock: sumar/restar/escribir con la tablet */
+.stock-dash-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+.stock-step-btn {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s, border-color .12s;
+}
+.stock-step-btn:hover { background: var(--gold-soft, #f3e9d2); border-color: var(--gold); }
+.stock-step-btn:active { transform: scale(.94); }
+.stock-dash-cant-input {
+  width: 46px;
+  height: 32px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+  -moz-appearance: textfield;
+  transition: border-color .2s, box-shadow .2s, background .4s;
+}
+.stock-dash-cant-input::-webkit-outer-spin-button,
+.stock-dash-cant-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stock-dash-cant-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft, #f3e9d2); }
+.stock-dash-cant-input.stock-sin-stock { color: #d32f2f; }
+.stock-dash-cant-input.stock-guardado {
+  border-color: #388e3c;
+  background: #e8f5e9;
+}
 .stock-bajo      { color: #f57c00; }
 .stock-ok        { color: #388e3c; }
 /* Barra de alta rápida de ítems/grupos en la vista de stock */
