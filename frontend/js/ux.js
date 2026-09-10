@@ -133,7 +133,11 @@
      foco en el botón seguro (no en el destructivo).
      ============================================================ */
 
+  let _uicSeq = 0;
+
   function uiConfirm(opts = {}) {
+    const idT = `uic-title-${++_uicSeq}`;
+    const idB = `uic-body-${_uicSeq}`;
     const {
       titulo = '¿Confirmás?',
       mensaje = '',
@@ -156,10 +160,10 @@
 
       overlay.innerHTML = `
         <div class="uic-dialog uic-dialog-${tipo}" role="dialog" aria-modal="true"
-             aria-labelledby="uic-title" ${mensaje ? 'aria-describedby="uic-body"' : ''}>
+             aria-labelledby="${idT}" ${mensaje ? `aria-describedby="${idB}"` : ''}>
           ${iconoFinal ? `<div class="uic-icon" aria-hidden="true">${iconoFinal}</div>` : ''}
-          <h2 class="uic-title" id="uic-title">${escHtml(titulo)}</h2>
-          ${mensaje ? `<div class="uic-body" id="uic-body">${escHtml(mensaje)}</div>` : ''}
+          <h2 class="uic-title" id="${idT}">${escHtml(titulo)}</h2>
+          ${mensaje ? `<div class="uic-body" id="${idB}">${escHtml(mensaje)}</div>` : ''}
           <div class="uic-actions">
             ${cancelar ? `<button type="button" class="btn btn-secondary" data-uic="no">${escHtml(cancelar)}</button>` : ''}
             <button type="button" class="${btnConfirmClass}" data-uic="si">${escHtml(confirmar)}</button>
@@ -393,8 +397,10 @@
   ];
 
   function exportarCSV() {
-    const lista = ultimaVista.length ? ultimaVista : [];
-    if (!lista.length) { window.toast?.('No hay clientes en la vista para exportar', 'error'); return; }
+    // Si se dispara desde Ctrl+K sin haber pasado por Clientes, ultimaVista está
+    // vacía: exportar todo es más útil que un error.
+    const lista = ultimaVista.length ? ultimaVista : getClientes();
+    if (!lista.length) { window.toast?.('Todavía no hay clientes para exportar', 'error'); return; }
 
     const celda = v => {
       const s = (v ?? '').toString();
@@ -445,7 +451,23 @@
     return alguno;
   }
 
-  function limpiarFiltros() {
+
+  /* Subconjuntos armados a mano (los KPIs del Inicio y la barra de recordatorios
+     llaman a renderClientes con una lista propia, sin pasar por los filtros).
+
+     Sin aviso esto engaña: renderStats() recalcula las tarjetas sobre la lista
+     recibida, así que al tocar "3 seguimientos vencidos" la tarjeta de arriba
+     pasa a decir "TOTAL CLIENTES 3" y parece que no hay más clientes. */
+  let subconjunto = null;   // { n, etiqueta }
+
+  function mostrarSubconjunto(clientes, etiqueta) {
+    subconjunto = { n: clientes.length, etiqueta };
+    window.renderClientes?.(clientes);
+    pintarAvisoFiltros();
+  }
+
+  function verTodos() {
+    subconjunto = null;
     FILTROS.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     guardarFiltros();
     window.applyFilters?.();
@@ -454,15 +476,25 @@
   function pintarAvisoFiltros() {
     const wrap = document.getElementById('filtros-activos-wrap');
     if (!wrap) return;
-    const activos = FILTROS
-      .map(id => document.getElementById(id))
-      .filter(el => el && el.value).length;
-    if (!activos) { wrap.innerHTML = ''; return; }
+
+    let texto = '';
+    if (subconjunto) {
+      texto = `Mostrando ${subconjunto.n} cliente${subconjunto.n !== 1 ? 's' : ''}: ${subconjunto.etiqueta}`;
+    } else {
+      const activos = FILTROS
+        .map(id => document.getElementById(id))
+        .filter(el => el && el.value).length;
+      if (activos) {
+        texto = `Mostrando una vista filtrada (${activos} filtro${activos > 1 ? 's' : ''})`;
+      }
+    }
+
+    if (!texto) { wrap.innerHTML = ''; return; }
     wrap.innerHTML = `<span class="filtros-activos">
-        <span>Mostrando una vista filtrada (${activos} filtro${activos > 1 ? 's' : ''})</span>
+        <span>${escHtml(texto)}</span>
         <button type="button" class="btn-limpiar-filtros" id="btn-limpiar-filtros">Ver todos</button>
       </span>`;
-    document.getElementById('btn-limpiar-filtros').addEventListener('click', limpiarFiltros);
+    document.getElementById('btn-limpiar-filtros').addEventListener('click', verTodos);
   }
 
   /* ============================================================
@@ -870,10 +902,7 @@
   function abrirLista(clientes, etiqueta) {
     if (!clientes.length) return;
     window.navigateTo('clientes');
-    setTimeout(() => {
-      window.renderClientes?.(clientes);
-      window.toast?.(`${clientes.length} ${etiqueta}`);
-    }, 40);
+    setTimeout(() => mostrarSubconjunto(clientes, etiqueta), 40);
   }
 
   function renderInicio() {
@@ -946,16 +975,30 @@
       window.renderClientes = envuelta;
     }
 
-    // applyFilters: guarda los filtros y actualiza el aviso de "vista filtrada"
+    // applyFilters: guarda los filtros y actualiza el aviso de "vista filtrada".
+    // Volver a filtrar deja de ser un subconjunto armado a mano.
     if (typeof window.applyFilters === 'function' && !window.applyFilters._uxWrapped) {
       const original = window.applyFilters;
       const envuelta = function () {
+        subconjunto = null;
         original();
         guardarFiltros();
         pintarAvisoFiltros();
       };
       envuelta._uxWrapped = true;
       window.applyFilters = envuelta;
+    }
+
+    // filterReminder (barra de recordatorios de app.js): también pinta una lista
+    // propia sin pasar por los filtros, así que necesita el mismo aviso.
+    if (typeof window.filterReminder === 'function' && !window.filterReminder._uxWrapped) {
+      const envuelta = function (ids) {
+        window.navigateTo('clientes');
+        const lista = getClientes().filter(c => ids.includes(c.id));
+        mostrarSubconjunto(lista, 'visitas de hoy');
+      };
+      envuelta._uxWrapped = true;
+      window.filterReminder = envuelta;
     }
 
     // renderCalendario: repinta el resumen del día junto con la grilla

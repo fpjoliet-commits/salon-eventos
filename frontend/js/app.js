@@ -698,6 +698,8 @@ async function _saveSegDate(fecha, nuevoEstado) {
     }
     renderClienteDetail(c);
     renderSeguimientosPanel();
+    // Cambiar una fecha agendada mueve los números del Inicio: hay que repintarlo
+    document.dispatchEvent(new CustomEvent('crm:clientes-cargados'));
   } catch (err) { toast('Error al guardar: ' + err.message, 'error'); }
 }
 
