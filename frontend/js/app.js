@@ -4926,9 +4926,9 @@ function buildPropuestaResumen() {
     const pastas = ['Tagliatelle cortados a cuchillo', ...(d.pastasSeleccionadas||[]).filter(p=>p!=='Tagliatelle cortados a cuchillo'), ...(d.pastasGourmetSeleccionadas||[])];
     const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto'), ...(d.salsasGourmetSeleccionadas||[])];
     const parts = [];
-    if (pastas.length) parts.push(`<div style="margin-top:8px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Pastas</span><div class="res-islas" style="margin-top:4px">${tags(pastas)}</div></div>`);
-    if (salsas.length) parts.push(`<div style="margin-top:6px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Salsas</span><div class="res-islas" style="margin-top:4px">${tags(salsas)}</div></div>`);
-    if (d.platoCentral) parts.push(`<div style="margin-top:6px"><span style="font-size:9px;letter-spacing:.12em;opacity:.5;text-transform:uppercase">Plato central</span><div class="res-islas" style="margin-top:4px"><span class="res-isla-tag">${esc(d.platoCentral)}</span></div></div>`);
+    if (pastas.length) parts.push(`<div style="margin-top:8px"><span class="res-mini-label">Pastas</span><div class="res-islas" style="margin-top:4px">${tags(pastas)}</div></div>`);
+    if (salsas.length) parts.push(`<div style="margin-top:6px"><span class="res-mini-label">Salsas</span><div class="res-islas" style="margin-top:4px">${tags(salsas)}</div></div>`);
+    if (d.platoCentral) parts.push(`<div style="margin-top:6px"><span class="res-mini-label">Plato central</span><div class="res-islas" style="margin-top:4px"><span class="res-isla-tag">${esc(d.platoCentral)}</span></div></div>`);
     return parts.join('');
   })() : '';
 

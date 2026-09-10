@@ -1250,11 +1250,19 @@
   text-align: left;
 }
 .res-section-label {
-  font-size: 8px;
-  letter-spacing: .22em;
+  font-size: 9.5px;
+  letter-spacing: .18em;
   text-transform: uppercase;
-  color: rgba(255,255,255,.26);
+  color: rgba(255,255,255,.5);
   margin-bottom: 11px;
+}
+/* Rotulo chico dentro de una seccion (Pastas, Salsas, Plato central) */
+.res-mini-label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.5);
 }
 .res-pillars {
   display: flex;
@@ -1310,8 +1318,8 @@
   font-style: italic;
 }
 .res-todo-posible {
-  font-size: 10.5px;
-  color: rgba(255,255,255,.22);
+  font-size: 12px;
+  color: rgba(255,255,255,.4);
   letter-spacing: .04em;
   text-align: center;
   line-height: 1.65;
@@ -2855,4 +2863,97 @@
   .estilo-fork-card:hover { box-shadow: none; }
   .propuesta-card::after { display: none; }
   .btn-propuesta-primary::after { display: none; }
+}
+
+/* ============================================================
+   HORIZONTAL — la tablet apoyada de costado
+   ------------------------------------------------------------
+   Presentando de parado la tablet va casi siempre horizontal, y
+   ahí sobra ancho y falta alto. Dos correcciones: que ningún
+   paso quede tapado por la barra de abajo, y que el tipo de
+   letra y los espacios se achiquen cuando la pantalla es baja.
+   ============================================================ */
+
+/* flex:1 era 1 1 0%: el paso se encogía a la altura de la ventana y el
+   contenido que sobraba se salía por abajo, encima de la navegación (se veía
+   el botón Guardar pisado por los puntitos). Con 1 0 auto el paso nunca mide
+   menos que su contenido, así que el contenedor scrollea y respeta su
+   padding inferior. */
+.propuesta-slide { flex: 1 0 auto; }
+
+@media (orientation: landscape) and (max-height: 880px) {
+  .propuesta-slides-container { padding: 52px 40px 78px; }
+  .propuesta-main-title { font-size: clamp(32px, 4.2vw, 48px); margin-bottom: 10px; }
+  .propuesta-subtitle { margin-bottom: 24px; }
+  .propuesta-slide-title { font-size: clamp(26px, 3.2vw, 38px); }
+  .propuesta-slide-sub { margin-bottom: 20px; }
+  .propuesta-cards-grid { margin-bottom: 18px; }
+  .propuesta-logo-img { max-width: 120px; margin-bottom: 18px; }
+}
+
+/* ---------- Último paso: el resumen y las acciones, lado a lado ---------- */
+.final-grid { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.final-acciones { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.final-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(255,255,255,.42);
+  margin-top: 7px;
+  max-width: 230px;
+}
+#prop-guardar-status {
+  font-size: 12.5px;
+  color: var(--gold);
+  margin-top: 8px;
+}
+#prop-guardar-status:empty { display: none; }
+
+@media (orientation: landscape) and (min-width: 1000px) {
+  .propuesta-slide-final { max-width: 1120px; }
+  .final-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+    gap: 30px;
+  }
+  .final-acciones {
+    position: sticky;
+    top: 0;
+    align-items: stretch;
+    text-align: center;
+    gap: 22px;
+    padding: 22px 20px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: var(--radius-lg);
+  }
+  .final-acciones .btn-propuesta-primary,
+  .final-acciones .btn-propuesta-secondary { width: 100%; }
+  .final-hint { max-width: none; }
+}
+
+/* ---------- La llegada al último paso ----------
+   Los diez pasos anteriores entran deslizándose de costado. Este no: es el
+   final del recorrido y se arma por partes, de arriba hacia abajo, para que
+   la persona que está mirando siga el orden en que se cuenta. */
+.propuesta-slide-final.active { animation: none; }
+.propuesta-slide-final.active > .propuesta-slide-title,
+.propuesta-slide-final.active > .propuesta-slide-sub,
+.propuesta-slide-final.active .propuesta-resumen,
+.propuesta-slide-final.active .final-acciones {
+  animation: finalSube 620ms cubic-bezier(.16,1,.3,1) both;
+}
+.propuesta-slide-final.active > .propuesta-slide-title { animation-delay: 60ms; }
+.propuesta-slide-final.active > .propuesta-slide-sub   { animation-delay: 160ms; }
+.propuesta-slide-final.active .propuesta-resumen       { animation-delay: 260ms; }
+.propuesta-slide-final.active .final-acciones          { animation-delay: 400ms; }
+@keyframes finalSube {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .propuesta-slide-final.active > .propuesta-slide-title,
+  .propuesta-slide-final.active > .propuesta-slide-sub,
+  .propuesta-slide-final.active .propuesta-resumen,
+  .propuesta-slide-final.active .final-acciones { animation: none; }
 }
