@@ -328,15 +328,31 @@ function initTimingGlobal() {
   const content = $('timing-global-content');
   if (!sel || !content) return;
 
-  // Llenar select con clientes ordenados
-  const clientes = [...allClientes].sort((a, b) =>
-    (a.apellidoNombre || '').localeCompare(b.apellidoNombre || '')
-  );
+  // Llenar select: primero los eventos próximos (por fecha ascendente),
+  // después los pasados / sin fecha (por fecha descendente). Con el estado al lado.
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const proximos = [], pasados = [];
+  [...allClientes].forEach(c => {
+    const d = c.fechaEvento ? fechaLocal(c.fechaEvento) : null;
+    (d && d >= hoy ? proximos : pasados).push(c);
+  });
+  proximos.sort((a, b) => fechaLocal(a.fechaEvento) - fechaLocal(b.fechaEvento));
+  pasados.sort((a, b) => {
+    const da = a.fechaEvento ? fechaLocal(a.fechaEvento) : new Date(0);
+    const db = b.fechaEvento ? fechaLocal(b.fechaEvento) : new Date(0);
+    return db - da;
+  });
+
+  const opt = c => {
+    const fecha = c.fechaEvento ? formatDate(c.fechaEvento) : 'sin fecha';
+    const estado = c.estado ? ` · ${c.estado}` : '';
+    return `<option value="${c.id}">${esc(c.apellidoNombre)} — ${fecha}${esc(estado)}</option>`;
+  };
+  const grupo = (label, arr) => arr.length
+    ? `<optgroup label="${label}">${arr.map(opt).join('')}</optgroup>` : '';
+
   sel.innerHTML = '<option value="">-- Seleccioná un cliente --</option>' +
-    clientes.map(c => {
-      const fecha = c.fechaEvento ? ` (${formatDate(c.fechaEvento)})` : '';
-      return `<option value="${c.id}">${esc(c.apellidoNombre)}${fecha}</option>`;
-    }).join('');
+    grupo('Próximos', proximos) + grupo('Pasados / sin fecha', pasados);
 
   content.innerHTML = '';
 
@@ -2834,6 +2850,12 @@ function renderTimmingRestricciones(cliente, lista) {
   const panel = $('tim-rest-panel');
   if (!panel) return;
 
+  const totalRest = lista.reduce((s, r) => s + (parseInt(r.cantidad) || 0), 0);
+  const invitados = parseInt(cliente.cantidadInvitados) || 0;
+  const totalLinea = lista.length
+    ? `<div class="tim-rest-total"><strong>${totalRest} pax</strong> con restricción${invitados ? ` sobre ${invitados} invitados` : ''}</div>`
+    : '';
+
   const filas = lista.length
     ? lista.map(r => `
         <div class="tim-rest-item">
@@ -2848,6 +2870,7 @@ function renderTimmingRestricciones(cliente, lista) {
         <span class="tim-rest-title">Restricciones alimentarias</span>
         <button class="btn btn-xs btn-secondary" id="btn-toggle-rest-form">+ Agregar</button>
       </div>
+      ${totalLinea}
       <div class="tim-rest-list">${filas}</div>
       <form id="tim-rest-form" class="tim-rest-form" style="display:none">
         <select id="tim-rest-tipo" class="form-select form-select-sm" style="flex:1;min-width:140px"></select>
@@ -3434,7 +3457,7 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const boxGrid = (arr, cols = 2) => {
     if (!arr || !arr.length) return '<span class="empty">—</span>';
     const cls = ['', 'g1', 'g2', 'g3', 'g4'][cols] || 'g2';
-    return `<div class="${cls}">${arr.map(i => `<span class="cb">${esc(i)}</span>`).join('')}</div>`;
+    return `<div class="${cls}">${arr.map(i => `<div class="cb"><span class="cb-t">${esc(i)}</span><span class="cb-w"></span></div>`).join('')}</div>`;
   };
 
   const subGrp = (label, arr, cols = 2) => arr && arr.length
@@ -3459,8 +3482,8 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
     if (guar) comps.push(esc(guar));
     return `<div class="pc-item">
       <div class="pc-tipo">${tipo}</div>
-      <div class="pc-nombre">${esc(base)}</div>
-      ${comps.map(c => `<div class="pc-comp">${c}</div>`).join('')}
+      <div class="pc-linea"><span class="pc-nombre">${esc(base)}</span>${comps.length ? `<span class="pc-comp"> · ${comps.join(' · ')}</span>` : ''}</div>
+      <span class="pc-w"></span>
     </div>`;
   };
   const hayPlatoCentral = d.platoCentralAve || d.platoCentralCarne;
@@ -3512,8 +3535,11 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
     ${d.postre ? `<div class="postre-note">Postre / Torta: <strong>${esc(d.postre)}</strong></div>` : ''}
   </div>` : ''}`;
 
+  const totalRest = (restricciones || []).reduce((s, r) => s + (parseInt(r.cantidad) || 0), 0);
+  const invitadosCoc = parseInt(cliente.cantidadInvitados) || 0;
   const restHtml = (restricciones || []).length
-    ? `<div class="rg">${restricciones.map(r =>
+    ? `<div class="rtot"><strong>${totalRest} pax</strong> con restricción${invitadosCoc ? ` sobre ${invitadosCoc} invitados` : ''}</div>
+       <div class="rg">${restricciones.map(r =>
         `<div class="rr">${r.coronita ? '👑 ' : ''}<strong>${esc(r.tipoRestriccion)}</strong> <span class="rc">${r.cantidad} pax</span></div>`
       ).join('')}</div>`
     : '<span class="empty">Sin restricciones</span>';
@@ -3546,31 +3572,31 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;backgroun
 .inner2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;align-items:start}
 /* subgrupos */
 .sg{margin-bottom:6px}.sg:last-child{margin-bottom:0}
-.sl{font-size:10px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
+.sl{font-size:11.5px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
 /* grillas de checkboxes — columnas fijas, alineación limpia */
 .g1{display:flex;flex-direction:column;gap:4px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px 8px}
 .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:3px 6px}
-.cb{display:flex;align-items:center;gap:6px;font-size:13px;line-height:1.55;min-width:0;word-break:break-word}
-.cb::before{content:'';display:inline-block;width:14px;height:14px;border:1.5px solid #555;border-radius:2px;flex-shrink:0}
+/* cada ítem es un título con su propio renglón para anotar una observación */
+.cb{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cb-t{display:flex;align-items:flex-start;gap:7px;font-size:16px;font-weight:700;line-height:1.25;word-break:break-word}
+.cb-t::before{content:'';display:inline-block;width:16px;height:16px;border:1.5px solid #555;border-radius:2px;flex-shrink:0;margin-top:2px}
+.cb-w{border-bottom:1px dashed #bbb;min-height:16px}
 /* restricciones */
 .rg{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
 .rr{font-size:13px;line-height:1.6}.rc{font-size:11px;color:#666}
-/* plato central — cada plato es UN ítem: base + relleno + salsa + guarnición apilados */
-.pc-item{border:1px solid #e2c9d2;border-left:3px solid #8f2e4d;border-radius:4px;padding:5px 8px;margin-bottom:6px}
+.rtot{font-size:13px;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid #ddd}
+/* plato central — cada plato es UN ítem en UNA sola línea: base · relleno · salsa · guarnición */
+.pc-item{border:1px solid #e2c9d2;border-left:3px solid #8f2e4d;border-radius:4px;padding:6px 9px;margin-bottom:6px}
 .pc-item:last-child{margin-bottom:0}
-.pc-tipo{font-size:10px;font-weight:700;color:#8f2e4d;text-transform:uppercase;letter-spacing:.5px}
-.pc-nombre{font-size:15px;font-weight:800;line-height:1.25}
-.pc-comp{font-size:12.5px;color:#444;line-height:1.35;padding-left:9px;position:relative}
-.pc-comp::before{content:'·';position:absolute;left:0;color:#8f2e4d;font-weight:700}
-/* notas: flex:1 → ocupa todo el espacio sobrante de la hoja */
-.notas{flex:1;border:1.5px solid #ddd;border-radius:5px;padding:7px 10px;display:flex;flex-direction:column}
-.nt{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d;margin-bottom:8px;flex-shrink:0}
-.notas-lines{flex:1;display:flex;flex-direction:column;justify-content:space-around}
-.nl{border-bottom:1px dashed #ccc}
+.pc-tipo{font-size:11px;font-weight:700;color:#8f2e4d;text-transform:uppercase;letter-spacing:.5px}
+.pc-linea{line-height:1.3}
+.pc-nombre{font-size:18px;font-weight:800}
+.pc-comp{font-size:16px;color:#333}
+.pc-w{display:block;border-bottom:1px dashed #bbb;min-height:16px;margin-top:6px}
 .empty{font-size:12.5px;color:#aaa;font-style:italic}
-.postre-note{margin-top:5px;font-size:13px;font-style:italic;color:#444}
+.postre-note{margin-top:5px;font-size:15px;font-style:italic;color:#444}
 .footer{flex-shrink:0;margin-top:5px;font-size:9px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:3px}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
@@ -3618,13 +3644,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;backgroun
     ${sHead('Fin de Fiesta', d.horaCafeteria)}
     ${boxGrid(d.finFiesta, 3)}
   </div>` : ''}
-
-  <div class="notas">
-    <div class="nt">Notas</div>
-    <div class="notas-lines">
-      ${Array(8).fill('<div class="nl"></div>').join('')}
-    </div>
-  </div>
 
 </div>
 
@@ -6604,7 +6623,8 @@ function renderStockDashboard() {
         <button class="stock-cat-move" data-cat="${esc(cat)}" data-dir="1" title="Mover grupo a la derecha"${ci === catOrder.length - 1 ? ' disabled' : ''}>▶</button>
       </div>`;
     byCategory[cat].forEach(item => {
-      const level = item.cantidad === 0 ? 'sin-stock' : item.cantidad < 5 ? 'bajo' : 'ok';
+      // Sin umbral de "stock bajo": el 0 se marca como sin-stock (dato objetivo), el resto neutro.
+      const level = item.cantidad === 0 ? 'sin-stock' : 'ok';
       html += `<div class="stock-dash-item-row" draggable="true" data-id="${esc(item.id)}" data-cat="${esc(cat)}" data-nombre="${esc(item.nombre)}">
         <span class="stock-dash-nombre">${esc(item.nombre)}</span>
         <span class="stock-dash-cant stock-${level}">${item.cantidad}</span>
@@ -6934,7 +6954,7 @@ async function guardarActualizacionStock() {
    Ahora es un interruptor: guarda lo pedido original en la fila, y volver a
    apretarlo deshace el descuento en vez de encimarlo. Las filas que se editaron
    a mano DESPUÉS del descuento no se tocan al deshacer. */
-const TXT_DESCONTAR = '📦 Descontar stock';
+const TXT_DESCONTAR = '📦 Restar lo que ya tengo';
 const TXT_DESHACER_DESC = '↩ Deshacer descuento';
 
 function descontarStockDelPedido() {
@@ -6983,7 +7003,7 @@ function descontarStockDelPedido() {
 
   if (!count) {
     if (btn) {
-      btn.innerHTML = '📦 Sin stock para descontar';
+      btn.innerHTML = '📦 No hay stock para restar';
       setTimeout(() => { btn.innerHTML = TXT_DESCONTAR; }, 2000);
     }
     return;
@@ -7145,6 +7165,10 @@ function renderItemsTableEditable(existingItems) {
   if (!tbody) return;
   resetDescuentoStock();
 
+  // Pedido NUEVO: catálogo entero colapsado (evita el scroll largo con todo en cero).
+  // EDITANDO: se abren solas las categorías que ya traen alguna cantidad cargada.
+  const isEdit = !!(existingItems && existingItems.length);
+
   // Totales por categoría guardados (ej: "Empanaditas: 150" sin desglosar por tipo).
   // Se persisten como un registro especial dentro del mismo JSON de items.
   const catTotales = (existingItems || []).find(i => i && i.catTotalesMarker)?.totales || {};
@@ -7224,7 +7248,8 @@ function renderItemsTableEditable(existingItems) {
       ? `<span class="coc-cat-count coc-cat-has">${conCant}/${catItemsArr.length} cargados</span>`
       : `<span class="coc-cat-count">${catItemsArr.length} ítems</span>`;
     const totalInput = isMiga ? '' : `<span class="coc-cat-total" title="Total de la categoría, sin desglosar por tipo (ej: 150 empanaditas)"><label>Total:</label><input type="number" min="0" class="cocina-cat-total-input" data-cat="${esc(cat)}" value="${esc(catTotales[cat] || '')}" placeholder="—"></span>`;
-    html += `<tr class="cocina-cat-header-row" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" data-collapsible style="background:${color}"><span class="coc-cat-toggle">▾</span> ${esc(catLabel)} ${countLabel}${totalInput}</td></tr>`;
+    const catCollapsed = isEdit ? conCant === 0 : true;
+    html += `<tr class="cocina-cat-header-row${catCollapsed ? ' coc-collapsed' : ''}" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" data-collapsible style="background:${color}"><span class="coc-cat-toggle">▾</span> ${esc(catLabel)} ${countLabel}${totalInput}</td></tr>`;
     byCategory[cat].forEach(item => {
       const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
       const stockCant = cocinaStockActual.find(s => s.id === item.id)?.cantidad;
@@ -7242,6 +7267,11 @@ function renderItemsTableEditable(existingItems) {
   tbody.innerHTML = html;
   _wirePMButtons(tbody);
   _wireCategoryCollapse(tbody);
+  // Sincronizar el botón "Colapsar/Expandir todo" con el estado inicial recién armado.
+  const _anyExpanded = [...tbody.querySelectorAll('.cocina-cat-header-cell[data-collapsible]')]
+    .some(c => !c.closest('tr').classList.contains('coc-collapsed'));
+  const _colBtn = $('cocina-colapsar-btn');
+  if (_colBtn) _colBtn.textContent = _anyExpanded ? '⊟ Colapsar todo' : '⊞ Expandir todo';
   tbody.querySelectorAll('.cocina-remove-row').forEach(btn => btn.addEventListener('click', () => btn.closest('tr').remove()));
   // Editar/eliminar el ítem en el catálogo (afecta a todos los pedidos, no solo a este)
   tbody.querySelectorAll('.coc-edit-item').forEach(btn => {
@@ -7427,6 +7457,27 @@ function duplicarPedidoAnterior(rowIndex) {
   _applyPedidoVisibility();
   toast(`Pedido repetido de "${p.nombreEvento || 'pedido anterior'}". Editá lo que necesites; abrí la categoría que quieras cambiar.`);
   const sel = $('cocina-duplicar-select'); if (sel) sel.value = '';
+}
+
+// Cancelar el formulario de pedido. Si hay cantidades cargadas pide confirmación
+// (un click perdido no debe borrar 30 cantidades repartidas en categorías). Si el
+// formulario está vacío, cierra derecho.
+async function cancelarFormularioPedido() {
+  const hayCargado = [...document.querySelectorAll('#cocina-items-tbody .cocina-cant-input')]
+    .some(inp => (parseFloat(inp.value) || 0) > 0);
+  if (hayCargado) {
+    const ok = await uiConfirm({
+      titulo: '¿Cancelar el pedido?',
+      mensaje: 'Tenés cantidades cargadas que todavía no guardaste. Si cancelás, se pierden.',
+      confirmar: 'Sí, cancelar',
+      cancelar: 'No, seguir cargando',
+      tipo: 'danger',
+    });
+    if (!ok) return;
+  }
+  $('cocina-form-wrap')?.classList.add('hidden');
+  $('cocina-agregar-panel')?.classList.add('hidden');
+  cocinaPedidoActual = null;
 }
 
 async function guardarPedido() {
@@ -7655,7 +7706,8 @@ function renderStockActualPanel() {
     byCategory[cat].forEach(item => {
       const stockItem = cocinaStockActual.find(s => s.id === item.id);
       const cant = stockItem?.cantidad ?? 0;
-      const level = cant === 0 ? 'sin-stock' : cant < 5 ? 'stock-bajo' : 'stock-ok';
+      // Sin umbral de "stock bajo": el 0 se marca como sin-stock (dato objetivo), el resto neutro.
+      const level = cant === 0 ? 'sin-stock' : 'stock-ok';
       html += `<tr>
         <td style="padding-left:12px;font-size:12px">${esc(item.nombre)}</td>
         <td style="text-align:right;font-weight:600;font-size:12px" class="stock-${level}">${cant}</td>
@@ -8459,11 +8511,7 @@ $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
 $('cocina-imprimir-pedido-vacio-btn')?.addEventListener('click', imprimirPlanillaPedidoVacia);
 $('cocina-toggle-stock-col-btn')?.addEventListener('click', toggleStockCol);
 $('cocina-descontar-stock-btn')?.addEventListener('click', descontarStockDelPedido);
-$('cocina-form-cancel-btn')?.addEventListener('click', () => {
-  $('cocina-form-wrap')?.classList.add('hidden');
-  $('cocina-agregar-panel')?.classList.add('hidden');
-  cocinaPedidoActual = null;
-});
+$('cocina-form-cancel-btn')?.addEventListener('click', cancelarFormularioPedido);
 $('cocina-agregar-item-btn')?.addEventListener('click', toggleAgregarPanel);
 $('cocina-guardar-btn')?.addEventListener('click', guardarPedido);
 $('cocina-imprimir-pedido-btn')?.addEventListener('click', imprimirPedidoActual);
