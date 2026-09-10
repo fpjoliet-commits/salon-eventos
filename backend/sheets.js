@@ -113,6 +113,7 @@ function rowToEvento(row, index) {
     menuPrincipal: row[20] || '',
     menuPostre: row[21] || '',
     nombreAgasajado: row[22] || '',
+    notaInterna: row[23] || '',
   };
 }
 
@@ -123,7 +124,7 @@ function eventoToRow(e) {
     e.cantidadInvitados, e.turno, e.presupuesto, e.montoPresupuesto,
     e.menuInfantil, e.otrosPedidos, e.observaciones, e.proximoSeguimiento,
     e.menuRecepcion, e.menuIslas, e.menuPrimerPlato, e.menuPrincipal, e.menuPostre,
-    e.nombreAgasajado,
+    e.nombreAgasajado, e.notaInterna,
   ].map(v => v || '');
 }
 
@@ -211,7 +212,7 @@ async function getClientes() {
   }
   const sheets = getSheets();
   const [evRes, perRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:W' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:X' }),
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K' }),
   ]);
   const personas = (perRes.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
@@ -271,6 +272,7 @@ async function addCliente(data) {
     menuPrincipal: data.menuPrincipal,
     menuPostre: data.menuPostre,
     nombreAgasajado: data.nombreAgasajado,
+    notaInterna: data.notaInterna,
   };
 
   if (!tieneCredenciales) {
@@ -287,7 +289,7 @@ async function addCliente(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Eventos!A${nextRow}:W${nextRow}`,
+    range: `Eventos!A${nextRow}:X${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [eventoToRow(evento)] },
   });
@@ -312,6 +314,7 @@ async function updateCliente(rowIndex, data) {
         menuRecepcion: data.menuRecepcion, menuIslas: data.menuIslas,
         menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
         menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
+        notaInterna: data.notaInterna,
       };
     }
     if (data.personaRowIndex) {
@@ -341,12 +344,13 @@ async function updateCliente(rowIndex, data) {
     menuRecepcion: data.menuRecepcion, menuIslas: data.menuIslas,
     menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
     menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
+    notaInterna: data.notaInterna,
   };
 
   const ops = [
     sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Eventos!A${rowIndex}:W${rowIndex}`,
+      range: `Eventos!A${rowIndex}:X${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [eventoToRow(eventoData)] },
     }),
@@ -1790,8 +1794,8 @@ async function migrarClientesAPersonasEventos() {
     resource: { values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor']] },
   });
   await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A1:W1', valueInputOption: 'USER_ENTERED',
-    resource: { values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado']] },
+    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A1:X1', valueInputOption: 'USER_ENTERED',
+    resource: { values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna']] },
   });
 
   // Old Clientes columns (0-indexed):

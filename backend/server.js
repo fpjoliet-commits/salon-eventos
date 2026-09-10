@@ -88,7 +88,7 @@ const ESTADOS_VALIDOS = [
 
 const LARGO_MAX = 500;          // tope general para cualquier texto
 const LARGO_MAX_LARGO = 3000;   // observaciones y campos de texto libre
-const CAMPOS_LARGOS = ['observaciones', 'otrosPedidos', 'exclienteNota', 'notas'];
+const CAMPOS_LARGOS = ['observaciones', 'otrosPedidos', 'exclienteNota', 'notas', 'notaInterna'];
 
 const esFechaISO = v => v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v);
 

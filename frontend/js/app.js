@@ -880,7 +880,47 @@ function renderClienteDetail(c) {
         ${c.proximoSeguimiento ? `<button class="btn btn-secondary btn-sm" onclick="limpiarProximoSeguimiento()">Borrar</button>` : ''}
       </span>`;
   }
+
+  // Nota interna: siempre interna (data-internal en el contenedor), desaparece
+  // en Vista cliente. Editable acá mismo sin abrir el formulario de Editar.
+  const notaPanel = $('modal-nota-interna');
+  if (notaPanel) {
+    notaPanel.innerHTML = `
+      <div class="nota-interna-header">
+        <span class="detail-label">📝 Nota interna</span>
+        <span class="nota-interna-hint">Solo la ve el equipo · se oculta en Vista cliente</span>
+      </div>
+      <textarea id="modal-nota-interna-text" class="nota-interna-text" rows="3"
+        placeholder="Anotá lo que necesites recordar de este cliente...">${esc(c.notaInterna || '')}</textarea>
+      <div class="nota-interna-actions">
+        <button class="btn btn-secondary btn-sm" onclick="guardarNotaInterna()">Guardar nota</button>
+        <span id="modal-nota-interna-status" class="nota-interna-status"></span>
+      </div>`;
+  }
 }
+
+window.guardarNotaInterna = async function() {
+  const c = currentClienteModal;
+  if (!c) return;
+  const texto = ($('modal-nota-interna-text')?.value || '').trim();
+  const status = $('modal-nota-interna-status');
+  try {
+    await apiFetch(`/clientes/${c.rowIndex}`, {
+      method: 'PUT',
+      body: buildClienteBody(c, { notaInterna: texto }),
+    });
+    c.notaInterna = texto;
+    const idx = allClientes.findIndex(x => x.id === c.id);
+    if (idx !== -1) allClientes[idx].notaInterna = texto;
+    if (status) {
+      status.textContent = '✓ Guardada';
+      status.classList.add('ok');
+      setTimeout(() => { status.textContent = ''; status.classList.remove('ok'); }, 2500);
+    }
+  } catch (err) {
+    toast('No se pudo guardar la nota: ' + err.message, 'error');
+  }
+};
 
 $('btn-editar-cliente').addEventListener('click', () => {
   if (!currentClienteModal) return;
@@ -1881,6 +1921,9 @@ $('cliente-form').addEventListener('submit', async e => {
       ? form.fechaVisita.value
       : form.proximoSeguimiento.value,
     nombreAgasajado: form.nombreAgasajado.value,
+    // La nota interna se edita desde la ficha (tab Información), no desde este
+    // formulario; se preserva acá para que un Editar no la borre.
+    notaInterna: (isEdit && currentClienteModal) ? (currentClienteModal.notaInterna || '') : '',
     cargadoPor: currentUser.usuario,
   };
 
@@ -2381,6 +2424,7 @@ function buildClienteBody(c, overrides = {}) {
     menuPrincipal: c.menuPrincipal,
     menuPostre: c.menuPostre,
     nombreAgasajado: c.nombreAgasajado,
+    notaInterna: c.notaInterna,
     cargadoPor: c.cargadoPor,
     fechaCarga: c.fechaCarga,
     ...overrides,
