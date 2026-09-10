@@ -6925,27 +6925,82 @@ async function guardarActualizacionStock() {
   }
 }
 
+/* Resta del pedido lo que ya hay en stock, para que quede lo que hay que COMPRAR.
+
+   Antes esto restaba el stock cada vez que se apretaba el botón: pedir 100
+   empanaditas con 30 en stock daba 70, y un segundo click daba 40, y un tercero
+   10. Se subpedía comida para un evento sin ningún aviso.
+
+   Ahora es un interruptor: guarda lo pedido original en la fila, y volver a
+   apretarlo deshace el descuento en vez de encimarlo. Las filas que se editaron
+   a mano DESPUÉS del descuento no se tocan al deshacer. */
+const TXT_DESCONTAR = '📦 Descontar stock';
+const TXT_DESHACER_DESC = '↩ Deshacer descuento';
+
 function descontarStockDelPedido() {
   const tbody = $('cocina-items-tbody');
   if (!tbody) return;
+  const btn = $('cocina-descontar-stock-btn');
+  const filas = [...tbody.querySelectorAll('tr[data-idx]')];
+
+  /* ── Deshacer ── */
+  if (tbody.dataset.stockDescontado === '1') {
+    let n = 0;
+    filas.forEach(tr => {
+      const input = tr.querySelector('.cocina-cant-input');
+      if (!input || input.dataset.pedidoBase === undefined) return;
+      // Sólo se restaura si sigue teniendo el valor que dejó el descuento
+      if (input.value === input.dataset.pedidoAplicado) {
+        input.value = input.dataset.pedidoBase;
+        n++;
+      }
+      delete input.dataset.pedidoBase;
+      delete input.dataset.pedidoAplicado;
+    });
+    tbody.dataset.stockDescontado = '';
+    if (btn) btn.innerHTML = TXT_DESCONTAR;
+    toast(n ? `Descuento deshecho en ${n} ítem${n > 1 ? 's' : ''}` : 'Descuento deshecho');
+    return;
+  }
+
+  /* ── Aplicar ── */
   let count = 0;
-  tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+  filas.forEach(tr => {
     const id = tr.dataset.id;
     if (!id) return;
     const stockItem = cocinaStockActual.find(s => s.id === id);
-    if (!stockItem || stockItem.cantidad <= 0) return;
+    if (!stockItem || parseFloat(stockItem.cantidad) <= 0) return;
     const input = tr.querySelector('.cocina-cant-input');
     if (!input) return;
     const pedido = parseFloat(input.value) || 0;
-    const nuevo = Math.max(0, pedido - stockItem.cantidad);
-    if (nuevo !== pedido) { input.value = nuevo; count++; }
+    const nuevo = Math.max(0, pedido - parseFloat(stockItem.cantidad));
+    if (nuevo === pedido) return;              // nada que descontar en esta fila
+    input.dataset.pedidoBase = String(pedido);
+    input.value = nuevo;
+    input.dataset.pedidoAplicado = input.value;
+    count++;
   });
-  const btn = $('cocina-descontar-stock-btn');
-  if (btn) {
-    const orig = btn.innerHTML;
-    btn.innerHTML = count > 0 ? `✓ ${count} descontados` : '📦 Sin stock disponible';
-    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+
+  if (!count) {
+    if (btn) {
+      btn.innerHTML = '📦 Sin stock para descontar';
+      setTimeout(() => { btn.innerHTML = TXT_DESCONTAR; }, 2000);
+    }
+    return;
   }
+
+  tbody.dataset.stockDescontado = '1';
+  if (btn) btn.innerHTML = TXT_DESHACER_DESC;
+  toast(`Stock descontado en ${count} ítem${count > 1 ? 's' : ''}`);
+}
+
+/* El tbody no se reemplaza, sólo su innerHTML: hay que limpiar la marca a mano
+   o un pedido nuevo arrancaría creyendo que ya se le descontó el stock. */
+function resetDescuentoStock() {
+  const tbody = $('cocina-items-tbody');
+  if (tbody) tbody.dataset.stockDescontado = '';
+  const btn = $('cocina-descontar-stock-btn');
+  if (btn) btn.innerHTML = TXT_DESCONTAR;
 }
 
 function renderPedidosList() {
@@ -7088,6 +7143,7 @@ function _cantWrap(value, step, cls, dataAttr) {
 function renderItemsTableEditable(existingItems) {
   const tbody = $('cocina-items-tbody');
   if (!tbody) return;
+  resetDescuentoStock();
 
   // Totales por categoría guardados (ej: "Empanaditas: 150" sin desglosar por tipo).
   // Se persisten como un registro especial dentro del mismo JSON de items.
