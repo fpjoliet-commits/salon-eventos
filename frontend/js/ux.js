@@ -11,9 +11,8 @@
      5. Tamaño de texto A / A+ / A++ (NN/g 60+)
      6. Orden por columna + exportar CSV
      7. Filtros que se recuerdan
-     8. Accesibilidad del modal de cliente y de los tabs
-     9. Paleta de comandos (Ctrl+K)
-    10. Inicio: resumen del día sobre el calendario
+     8. Roles ARIA del modal de cliente y de los tabs
+      9. Inicio: resumen del día sobre el calendario
    ============================================================ */
 
 (function () {
@@ -399,9 +398,8 @@
   ];
 
   function exportarCSV(soloEstos = null) {
-    // Sin argumento exporta lo que se está viendo. Si se dispara desde Ctrl+K sin
-    // haber pasado por Clientes, ultimaVista está vacía: exportar todo es más
-    // útil que un error.
+    // Sin argumento exporta lo que se está viendo; con lista, sólo esos
+    // (lo usa la barra de selección múltiple).
     const lista = soloEstos && soloEstos.length ? soloEstos
                 : ultimaVista.length ? ultimaVista
                 : getClientes();
@@ -503,8 +501,8 @@
   }
 
   /* ============================================================
-     8. ACCESIBILIDAD DEL MODAL DE CLIENTE Y DE LOS TABS
-     Antes: sin role, sin aria-modal, sin foco atrapado, y Esc no cerraba.
+     8. MODAL DE CLIENTE Y TABS
+     Antes: sin role, sin aria-modal y Esc no cerraba.
      ============================================================ */
 
   let liberarModal = null;
@@ -538,7 +536,7 @@
     // Esc cierra el modal (antes sólo cerraba el drawer de la sidebar)
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
-      if (document.querySelector('.uic-overlay') || document.querySelector('.cmdk-overlay')) return;
+      if (document.querySelector('.uic-overlay')) return;
       if (!overlay.classList.contains('hidden')) { e.preventDefault(); cerrarModalCliente(); }
     });
   }
@@ -562,27 +560,14 @@
         }
       });
 
+      // Sólo aria-selected. NO se toca tabIndex: son <button>, ya se alcanzan
+      // solos, y el tabIndex=-1 del patrón de flechas los volvía inalcanzables.
       const sincronizar = () => btns.forEach(b => {
-        const activo = b.classList.contains('active');
-        b.setAttribute('aria-selected', String(activo));
-        b.tabIndex = activo ? 0 : -1;
+        b.setAttribute('aria-selected', String(b.classList.contains('active')));
       });
       sincronizar();
       new MutationObserver(sincronizar).observe(lista, {
         subtree: true, attributes: true, attributeFilter: ['class'],
-      });
-
-      lista.addEventListener('keydown', e => {
-        const idx = btns.indexOf(document.activeElement);
-        if (idx === -1) return;
-        const visibles = btns.filter(b => !b.classList.contains('hidden') && b.offsetParent !== null);
-        const vi = visibles.indexOf(document.activeElement);
-        let dest = null;
-        if (e.key === 'ArrowRight') dest = visibles[(vi + 1) % visibles.length];
-        else if (e.key === 'ArrowLeft') dest = visibles[(vi - 1 + visibles.length) % visibles.length];
-        else if (e.key === 'Home') dest = visibles[0];
-        else if (e.key === 'End') dest = visibles[visibles.length - 1];
-        if (dest) { e.preventDefault(); dest.focus(); dest.click(); }
       });
     });
   }
@@ -814,255 +799,7 @@
   }
 
   /* ============================================================
-     9. PALETA DE COMANDOS (Ctrl+K)
-     Un keystroke para llegar a cualquier cliente o acción.
-     ============================================================ */
-
-  let cmdkAbierto = false;
-  let cmdkSel = 0;
-  let cmdkItems = [];
-
-  function accionesDisponibles() {
-    const admin = window.isAdmin?.() === true;
-    const superadmin = window.isSuperAdmin?.() === true;
-    const a = [
-      { icono: '➕', titulo: 'Nuevo cliente', sub: 'Cargar una consulta nueva', run: () => window.navigateTo('nuevo-cliente') },
-      { icono: '🏠', titulo: 'Ir a Inicio', sub: 'Resumen del día y calendario', run: () => window.navigateTo('calendario') },
-      { icono: '👥', titulo: 'Ir a Clientes', sub: 'Listado completo', run: () => window.navigateTo('clientes') },
-      { icono: '📱', titulo: 'Ir a Seguimientos', sub: 'Pendientes por contactar', run: () => window.navigateTo('seguimientos') },
-      { icono: '📋', titulo: 'Ir a Propuesta', sub: 'Armar una propuesta', run: () => window.navigateTo('propuesta') },
-      { icono: '⬇', titulo: 'Exportar clientes a CSV', sub: 'Descarga la vista actual', run: exportarCSV },
-    ];
-    if (admin) {
-      a.push({ icono: '⏱', titulo: 'Ir a Timing Planner', sub: 'Armar el timing de un evento', run: () => window.navigateTo('timing-global') });
-      a.push({ icono: '💸', titulo: 'Ir a Egresos', sub: 'Gastos y pagos', run: () => window.navigateTo('egresos') });
-    }
-    if (superadmin) {
-      a.push({ icono: '🍳', titulo: 'Ir a Gestión de Cocina', sub: 'Stock, pedidos y compras', run: () => window.navigateTo('cocina') });
-    }
-    a.push({ icono: '🔤', titulo: 'Agrandar la letra del sistema', sub: 'Pasa al tamaño más grande', run: () => aplicarEscala(3) });
-    a.push({ icono: '🔤', titulo: 'Volver la letra al tamaño normal', sub: 'Tamaño por defecto', run: () => aplicarEscala(1) });
-    return a;
-  }
-
-  /* Puntaje simple: empezar con el texto buscado vale más que contenerlo */
-  function puntaje(texto, q) {
-    const t = norm(texto);
-    if (!t) return -1;
-    if (t === q) return 100;
-    if (t.startsWith(q)) return 70;
-    // que alguna palabra empiece con lo buscado (apellido, nombre)
-    if (t.split(/[\s,]+/).some(p => p.startsWith(q))) return 55;
-    if (t.includes(q)) return 30;
-    return -1;
-  }
-
-  function buscarCmdk(q) {
-    const query = norm(q);
-    const grupos = [];
-
-    const acciones = accionesDisponibles();
-    if (!query) {
-      grupos.push({ label: 'Acciones', items: acciones.slice(0, 6) });
-      const activos = getClientes()
-        .filter(c => c.estado === 'Confirmado' || c.estado === 'Por cerrar')
-        .slice(0, 5)
-        .map(itemCliente);
-      if (activos.length) grupos.push({ label: 'Clientes activos', items: activos });
-      return grupos;
-    }
-
-    const accMatch = acciones
-      .map(a => ({ a, p: Math.max(puntaje(a.titulo, query), puntaje(a.sub, query) - 20) }))
-      .filter(x => x.p > 0)
-      .sort((x, y) => y.p - x.p)
-      .map(x => x.a);
-    if (accMatch.length) grupos.push({ label: 'Acciones', items: accMatch.slice(0, 5) });
-
-    const cliMatch = getClientes()
-      .map(c => {
-        const p = Math.max(
-          puntaje(c.apellidoNombre, query),
-          puntaje(c.telefono, query) - 5,
-          puntaje(c.gmail, query) - 10,
-          puntaje(c.tipoEvento, query) - 30,
-        );
-        return { c, p };
-      })
-      .filter(x => x.p > 0)
-      .sort((x, y) => y.p - x.p || (x.c.fechaEvento || '').localeCompare(y.c.fechaEvento || ''))
-      .slice(0, 8)
-      .map(x => itemCliente(x.c));
-    if (cliMatch.length) grupos.push({ label: 'Clientes', items: cliMatch });
-
-    return grupos;
-  }
-
-  function itemCliente(c) {
-    const partes = [c.tipoEvento, c.fechaEvento ? window.formatDate?.(c.fechaEvento) : '', c.telefono]
-      .filter(Boolean).join(' · ');
-    return {
-      icono: '👤',
-      titulo: c.apellidoNombre || '(sin nombre)',
-      sub: partes,
-      badge: window.estadoBadge?.(c.estado) || '',
-      run: () => window.openClienteModal(c),
-    };
-  }
-
-  function pintarCmdk(q) {
-    const lista = document.getElementById('cmdk-list');
-    if (!lista) return;
-    const grupos = buscarCmdk(q);
-    cmdkItems = grupos.flatMap(g => g.items);
-    if (cmdkSel >= cmdkItems.length) cmdkSel = 0;
-
-    if (!cmdkItems.length) {
-      lista.innerHTML = `<div class="cmdk-empty">Nada coincide con “${escHtml(q)}”</div>`;
-      return;
-    }
-
-    let i = 0;
-    lista.innerHTML = grupos.map(g => `
-      <div class="cmdk-group" role="group" aria-label="${escHtml(g.label)}">
-        <div class="cmdk-group-label">${escHtml(g.label)}</div>
-        ${g.items.map(it => {
-          const idx = i++;
-          return `<div class="cmdk-item" role="option" data-idx="${idx}"
-                       aria-selected="${idx === cmdkSel}" id="cmdk-item-${idx}">
-            <span class="cmdk-item-icon" aria-hidden="true">${it.icono}</span>
-            <span class="cmdk-item-main">
-              <span class="cmdk-item-title">${escHtml(it.titulo)}</span>
-              ${it.sub ? `<span class="cmdk-item-sub">${escHtml(it.sub)}</span>` : ''}
-            </span>
-            ${it.badge ? `<span class="cmdk-item-badge">${it.badge}</span>` : ''}
-          </div>`;
-        }).join('')}
-      </div>`).join('');
-
-    lista.querySelectorAll('.cmdk-item').forEach(el => {
-      el.addEventListener('click', () => ejecutarCmdk(Number(el.dataset.idx)));
-      el.addEventListener('mousemove', () => moverCmdk(Number(el.dataset.idx)));
-    });
-    actualizarSelCmdk();
-  }
-
-  function actualizarSelCmdk() {
-    const lista = document.getElementById('cmdk-list');
-    if (!lista) return;
-    lista.querySelectorAll('.cmdk-item').forEach(el => {
-      const activo = Number(el.dataset.idx) === cmdkSel;
-      el.setAttribute('aria-selected', String(activo));
-      if (activo) el.scrollIntoView({ block: 'nearest' });
-    });
-    document.getElementById('cmdk-input')?.setAttribute('aria-activedescendant', `cmdk-item-${cmdkSel}`);
-  }
-
-  function moverCmdk(idx) {
-    if (idx === cmdkSel || idx < 0 || idx >= cmdkItems.length) return;
-    cmdkSel = idx;
-    actualizarSelCmdk();
-  }
-
-  function ejecutarCmdk(idx) {
-    const it = cmdkItems[idx];
-    if (!it) return;
-    cerrarCmdk();
-    setTimeout(() => { try { it.run(); } catch (e) { window.toast?.('No se pudo abrir: ' + e.message, 'error'); } }, 60);
-  }
-
-  let liberarCmdk = null;
-
-  function abrirCmdk() {
-    if (cmdkAbierto) return;
-    cmdkAbierto = true;
-    cmdkSel = 0;
-
-    const overlay = document.createElement('div');
-    overlay.className = 'cmdk-overlay';
-    overlay.id = 'cmdk-overlay';
-    overlay.innerHTML = `
-      <div class="cmdk-panel" role="dialog" aria-modal="true" aria-label="Buscar y ejecutar acciones">
-        <div class="cmdk-input-wrap">
-          <span class="cmdk-input-icon" aria-hidden="true">🔍</span>
-          <input type="text" class="cmdk-input" id="cmdk-input" role="combobox"
-                 aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list"
-                 autocomplete="off" spellcheck="false"
-                 placeholder="Buscá un cliente o escribí una acción...">
-          <span class="cmdk-esc" aria-hidden="true">ESC</span>
-        </div>
-        <div class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Resultados"></div>
-        <div class="cmdk-footer" aria-hidden="true">
-          <span><kbd>↑</kbd><kbd>↓</kbd> moverse</span>
-          <span><kbd>Enter</kbd> abrir</span>
-          <span><kbd>Esc</kbd> cerrar</span>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    requestAnimationFrame(() => overlay.classList.add('cmdk-show'));
-
-    const input = document.getElementById('cmdk-input');
-    pintarCmdk('');
-    liberarCmdk = trapFocus(overlay.querySelector('.cmdk-panel'), { initialFocus: input });
-
-    const repintar = debounce(() => { cmdkSel = 0; pintarCmdk(input.value); }, 90);
-    input.addEventListener('input', repintar);
-
-    input.addEventListener('keydown', e => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); moverCmdk(Math.min(cmdkSel + 1, cmdkItems.length - 1)); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); moverCmdk(Math.max(cmdkSel - 1, 0)); }
-      else if (e.key === 'Enter') { e.preventDefault(); ejecutarCmdk(cmdkSel); }
-      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrarCmdk(); }
-    });
-
-    overlay.addEventListener('click', e => { if (e.target === overlay) cerrarCmdk(); });
-  }
-
-  function cerrarCmdk() {
-    const overlay = document.getElementById('cmdk-overlay');
-    if (!overlay) { cmdkAbierto = false; return; }
-    cmdkAbierto = false;
-    liberarCmdk?.(); liberarCmdk = null;
-    overlay.classList.remove('cmdk-show');
-    setTimeout(() => overlay.remove(), 160);
-  }
-
-  function montarCmdk() {
-    document.addEventListener('keydown', e => {
-      // Ctrl+K / ⌘K en cualquier momento
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        cmdkAbierto ? cerrarCmdk() : abrirCmdk();
-        return;
-      }
-      // "/" abre la búsqueda si no estás escribiendo en un campo
-      if (e.key === '/' && !cmdkAbierto) {
-        const t = e.target;
-        const escribiendo = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
-        if (escribiendo) return;
-        if (document.getElementById('login-screen') && !document.getElementById('login-screen').classList.contains('hidden')) return;
-        e.preventDefault();
-        abrirCmdk();
-      }
-    });
-
-    // Botón visible en la sidebar: el atajo tiene que ser descubrible
-    const nav = document.querySelector('.sidebar-nav');
-    if (nav && !document.getElementById('cmdk-hint')) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.id = 'cmdk-hint';
-      btn.className = 'cmdk-hint';
-      const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-      btn.innerHTML = `<span aria-hidden="true">🔍</span><span>Buscar…</span>
-        <span class="cmdk-hint-keys">${mac ? '⌘' : 'Ctrl'} K</span>`;
-      btn.addEventListener('click', abrirCmdk);
-      nav.insertAdjacentElement('beforebegin', btn);
-    }
-  }
-
-  /* ============================================================
-     10. INICIO — RESUMEN DEL DÍA SOBRE EL CALENDARIO
+     9. INICIO — RESUMEN DEL DÍA SOBRE EL CALENDARIO
      El landing pasa a responder "¿qué tengo que hacer hoy?" antes de
      mostrar la grilla. Los números son botones: llevan a la lista real.
      ============================================================ */
@@ -1287,55 +1024,11 @@
     const buscador = reemplazarNodo('search-input');
     if (buscador) {
       buscador.addEventListener('input', debounce(() => window.applyFilters?.(), 180));
-      // Esc dentro del buscador limpia el texto
-      buscador.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && buscador.value) {
-          e.stopPropagation();
-          buscador.value = '';
-          window.applyFilters?.();
-        }
-      });
     }
 
     ['filter-estado', 'filter-origen', 'filter-evento'].forEach(id => {
       const sel = reemplazarNodo(id);
       sel?.addEventListener('change', () => window.applyFilters?.());
-    });
-  }
-
-  /* ============================================================
-     TECLADO EN LA TABLA DE CLIENTES
-     Las filas son clickeables pero no eran alcanzables por teclado.
-     ============================================================ */
-
-  function montarTecladoTabla() {
-    const tbody = document.getElementById('clientes-tbody');
-    if (!tbody || tbody.dataset.uxKeys) return;
-    tbody.dataset.uxKeys = '1';
-
-    new MutationObserver(() => {
-      tbody.querySelectorAll('tr:not([tabindex])').forEach(tr => {
-        tr.tabIndex = 0;
-        tr.setAttribute('role', 'button');
-        const nombre = tr.querySelector('td strong')?.textContent || 'cliente';
-        tr.setAttribute('aria-label', `Ver ficha de ${nombre}`);
-      });
-    }).observe(tbody, { childList: true });
-
-    tbody.addEventListener('keydown', e => {
-      const tr = e.target.closest('tr');
-      if (!tr) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        if (e.target !== tr) return;      // si el foco está en un botón, que actúe el botón
-        e.preventDefault();
-        tr.click();
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        const filas = [...tbody.querySelectorAll('tr')];
-        const i = filas.indexOf(tr);
-        const dest = filas[e.key === 'ArrowDown' ? i + 1 : i - 1];
-        dest?.focus();
-      }
     });
   }
 
@@ -1403,13 +1096,11 @@
   function init() {
     prepararToastContainer();
     montarControlTamano();
-    montarCmdk();
     montarA11yModal();
     montarA11yTabs();
     montarOrdenTabla();
     montarColumnaSeleccion();
     montarFiltros();
-    montarTecladoTabla();
     aplicarInputmodes();
     observarInputsNuevos();
     envolverFunciones();
