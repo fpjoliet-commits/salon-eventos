@@ -1905,6 +1905,7 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 .tim-rest-wrap { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; }
 .tim-rest-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .tim-rest-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--primary); }
+.tim-rest-total { font-size: 14px; margin-bottom: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); color: var(--text); }
 .tim-rest-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .tim-rest-item { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 3px 10px; font-size: 13px; }
 .tim-rest-item .btn-tim-del { font-size: 11px; padding: 0 4px; color: var(--danger); background: none; border: none; cursor: pointer; line-height: 1; }

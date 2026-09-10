@@ -3453,87 +3453,96 @@ function imprimirTimming(cliente, items) {
 function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   const d = cocinaData || {};
 
-  // cols: 1=columna única, 2=dos cols, 3=tres cols, 4=cuatro cols
-  const boxGrid = (arr, cols = 2) => {
-    if (!arr || !arr.length) return '<span class="empty">—</span>';
-    const cls = ['', 'g1', 'g2', 'g3', 'g4'][cols] || 'g2';
-    return `<div class="${cls}">${arr.map(i => `<div class="cb"><span class="cb-t">${esc(i)}</span><span class="cb-w"></span></div>`).join('')}</div>`;
-  };
-
-  const subGrp = (label, arr, cols = 2) => arr && arr.length
-    ? `<div class="sg"><span class="sl">${label}</span>${boxGrid(arr, cols)}</div>`
-    : '';
-
-  const sHead = (title, hora) =>
-    `<div class="sh"><span class="st">${title}</span>${hora ? `<span class="hora">${hora}</span>` : ''}</div>`;
+  const esInformal = d.modo === 'informal';
+  const oculta = k => (d.seccionesOcultas || []).includes(k);
 
   const todasPastas = [...(d.pastas || []), ...(d.pastasGourmet || [])];
   const todasSalsas = [...(d.salsas || []), ...(d.salsasGourmet || [])];
-  const esInformal = d.modo === 'informal';
 
-  const oculta = k => (d.seccionesOcultas || []).includes(k);
+  // Casilla para marcar la sección como completada durante el evento.
+  const chk = '<span class="chk"></span>';
+  // Ítems en texto compacto, separados por punto medio (sin casillas ni líneas).
+  const mini = arr => (arr && arr.length) ? arr.map(esc).join(' · ') : '';
+  const miniGrp = (label, arr) => (arr && arr.length)
+    ? `<div class="mg"><span class="mgl">${label}:</span> ${mini(arr)}</div>` : '';
+  // Encabezado: casilla + título grande + hora. Todo alineado a la izquierda.
+  const secHead = (title, hora) =>
+    `<div class="sh">${chk}<span class="st">${title}</span>${hora ? `<span class="hora">${hora}</span>` : ''}</div>`;
 
-  // Plato central: base + relleno + salsa + guarnición, todo en UN mismo ítem
-  const platoCentralItem = (tipo, base, relleno, salsa, guar) => {
+  // Plato central: una sola base en TRES renglones — proteína+relleno / guarnición / salsa
+  const platoCentralItem = (tipo, base, relleno, salsa, guar, mostrarTipo) => {
     if (!base) return '';
-    const comps = [];
-    if (relleno) comps.push(esc(relleno));
-    if (salsa) comps.push(/^salsa/i.test(salsa) ? esc(salsa) : 'Salsa ' + esc(salsa));
-    if (guar) comps.push(esc(guar));
+    const nombre = relleno ? `${esc(base)} ${esc(relleno)}` : esc(base);
+    const salsaTxt = salsa ? (/^salsa/i.test(salsa) ? esc(salsa) : 'Salsa ' + esc(salsa)) : '';
     return `<div class="pc-item">
-      <div class="pc-tipo">${tipo}</div>
-      <div class="pc-linea"><span class="pc-nombre">${esc(base)}</span>${comps.length ? `<span class="pc-comp"> · ${comps.join(' · ')}</span>` : ''}</div>
-      <span class="pc-w"></span>
+      ${mostrarTipo ? `<div class="pc-tipo">${tipo}</div>` : ''}
+      <div class="pc-nombre">${nombre}</div>
+      ${guar ? `<div class="pc-comp">${esc(guar)}</div>` : ''}
+      ${salsaTxt ? `<div class="pc-comp">${salsaTxt}</div>` : ''}
     </div>`;
   };
+
   const hayPlatoCentral = d.platoCentralAve || d.platoCentralCarne;
   const hayPrimerPlato = todasPastas.length;
   const hayIslas = (d.islas || []).length;
   const hayMesaDulces = (d.mesaDulces || []).length || d.postre;
   const hayPostresAm = (d.postres || []).length || d.tortaHomenaje;
+  const hayRecepcion = (d.canapes||[]).length || (d.bruschettas||[]).length || (d.recepcionOtros||[]).length || (d.brochettes||[]).length || (d.empanaditas||[]).length || (d.calientesOtros||[]).length;
 
-  const secPrimerPlato = (!oculta('primerPlato') && hayPrimerPlato) ? `
-    <div class="sec">
-      ${sHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
-      ${subGrp('Pastas', todasPastas)}
-      ${todasSalsas.length ? `<div class="sg">
-        <span class="sl">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</span>
-        ${boxGrid(todasSalsas)}
-      </div>` : ''}
-    </div>` : '';
-  const secPlatoCentral = (!oculta('platoCentral') && hayPlatoCentral) ? `
-    <div class="sec">
-      ${sHead('Plato Central', d.horaPlatoCentral)}
-      ${platoCentralItem('Ave', d.platoCentralAve, d.rellenoAve, d.salsaAve, d.guarnicionAve)}
-      ${platoCentralItem('Carne', d.platoCentralCarne, d.rellenoCarne, d.salsaCarne, d.guarnicionCarne)}
-    </div>` : '';
-  const filaPrincipal = (secPrimerPlato && secPlatoCentral)
-    ? `<div class="r2">${secPrimerPlato}${secPlatoCentral}</div>`
-    : (secPrimerPlato + secPlatoCentral);
+  // ---- Secciones: una sola columna, de arriba hacia abajo, títulos grandes y marcables ----
+  const secRecepcion = (!oculta('recepcion') && hayRecepcion) ? `<div class="sec">
+    ${secHead('Recepción', d.horaRecepcion)}
+    <div class="rec">
+      ${miniGrp('Canapés', d.canapes)}
+      ${miniGrp('Bruschettas', d.bruschettas)}
+      ${miniGrp('Bocados fríos', d.recepcionOtros)}
+      ${miniGrp('Brochettes', d.brochettes)}
+      ${miniGrp('Mini empanaditas', d.empanaditas)}
+      ${miniGrp('Bocados calientes', d.calientesOtros)}
+    </div>
+  </div>` : '';
 
-  const cuerpoMedio = esInformal ? `
-  ${(!oculta('islas') && hayIslas) ? `<div class="sec">
-    ${sHead('Islas en vivo — Plato Central', d.horaIslas)}
-    ${boxGrid(d.islas, 1)}
-  </div>` : ''}
+  const secIslas = (!oculta('islas') && hayIslas) ? `<div class="sec">
+    ${secHead(esInformal ? 'Islas en vivo — Plato Central' : 'Islas', d.horaIslas)}
+    <div class="isla">${(d.islas||[]).map(i => `<div>${esc(i)}</div>`).join('')}</div>
+  </div>` : '';
 
-  ${(!oculta('postres') && hayPostresAm) ? `<div class="sec">
-    ${sHead('Torta Homenaje & Postres', d.horaPostres)}
-    ${boxGrid(d.postres, 2)}
-    ${d.tortaHomenaje ? `<div class="postre-note">Torta homenaje: <strong>${esc(d.tortaHomenaje)}</strong></div>` : ''}
-  </div>` : ''}` : `
-  ${(!oculta('islas') && hayIslas) ? `<div class="sec">
-    ${sHead('Islas', d.horaIslas)}
-    ${boxGrid(d.islas, 1)}
-  </div>` : ''}
+  const secPrimerPlato = (!oculta('primerPlato') && hayPrimerPlato) ? `<div class="sec">
+    ${secHead('Primer Plato — Mesa Italiana', d.horaPrimerPlato)}
+    ${todasPastas.length ? `<div class="pp-sub">Pastas</div>
+      <div class="pp-pastas">${todasPastas.map(p => `<div>${esc(p)}</div>`).join('')}</div>` : ''}
+    ${todasSalsas.length ? `<div class="pp-sub">Salsas${d.cantidadSalsas ? ` (elegir ${d.cantidadSalsas})` : ''}</div>
+      <div class="pp-salsas">${todasSalsas.map(s => `<span>${esc(s)}</span>`).join('')}</div>` : ''}
+  </div>` : '';
 
-  ${filaPrincipal}
+  const dosPlatos = d.platoCentralAve && d.platoCentralCarne;
+  const secPlatoCentral = (!oculta('platoCentral') && hayPlatoCentral) ? `<div class="sec">
+    ${secHead('Plato Central', d.horaPlatoCentral)}
+    ${platoCentralItem('Ave', d.platoCentralAve, d.rellenoAve, d.salsaAve, d.guarnicionAve, dosPlatos)}
+    ${platoCentralItem('Carne', d.platoCentralCarne, d.rellenoCarne, d.salsaCarne, d.guarnicionCarne, dosPlatos)}
+  </div>` : '';
 
-  ${(!oculta('mesaDulces') && hayMesaDulces) ? `<div class="sec">
-    ${sHead('Mesa de Dulces', d.horaMesaDulces)}
-    ${boxGrid(d.mesaDulces, 4)}
-    ${d.postre ? `<div class="postre-note">Postre / Torta: <strong>${esc(d.postre)}</strong></div>` : ''}
-  </div>` : ''}`;
+  const secMesaDulces = (!oculta('mesaDulces') && hayMesaDulces) ? `<div class="sec">
+    ${secHead('Mesa de Dulces', d.horaMesaDulces)}
+    ${d.postre ? `<div class="mg"><span class="mgl">Torta / Postre:</span> ${esc(d.postre)}</div>` : ''}
+    <div class="wl"></div><div class="wl"></div>
+  </div>` : '';
+
+  const secPostresAm = (!oculta('postres') && hayPostresAm) ? `<div class="sec">
+    ${secHead('Torta Homenaje & Postres', d.horaPostres)}
+    ${miniGrp('Postres', d.postres)}
+    ${d.tortaHomenaje ? `<div class="mg"><span class="mgl">Torta homenaje:</span> ${esc(d.tortaHomenaje)}</div>` : ''}
+  </div>` : '';
+
+  const finItems = (d.finFiesta || []).map(esc).join(' · ');
+  const secFinFiesta = (!oculta('finFiesta') && (d.finFiesta||[]).length) ? `<div class="sec">
+    ${secHead('Fin de Fiesta' + (finItems ? ' — ' + finItems : ''), d.horaCafeteria)}
+  </div>` : '';
+
+  const secciones = (esInformal
+    ? [secRecepcion, secIslas, secPostresAm, secFinFiesta]
+    : [secRecepcion, secIslas, secPrimerPlato, secPlatoCentral, secMesaDulces, secFinFiesta]
+  ).join('');
 
   const totalRest = (restricciones || []).reduce((s, r) => s + (parseInt(r.cantidad) || 0), 0);
   const invitadosCoc = parseInt(cliente.cantidadInvitados) || 0;
@@ -3549,7 +3558,7 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
 <meta charset="UTF-8">
 <title>Cocina — ${esc(cliente.apellidoNombre)}</title>
 <style>
-@page{size:A4 portrait;margin:11mm 13mm}
+@page{size:A4 portrait;margin:16mm 18mm}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;background:#fff;display:flex;flex-direction:column}
@@ -3559,44 +3568,37 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;backgroun
 .cr{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end}
 .dato{text-align:center}.dato label{font-size:9px;color:#888;text-transform:uppercase;display:block}
 .dato span{font-size:14px;font-weight:700}.dato .big{font-size:24px;color:#8f2e4d}
-/* body principal ocupa todo el espacio entre header y footer */
-.body{flex:1;display:flex;flex-direction:column;gap:6px}
-/* grid externo: secciones lado a lado */
-.r2{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:start}
-/* sección */
-.sec{border:1.5px solid #ddd;border-radius:5px;padding:7px 10px}
-.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid #eee}
-.st{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#8f2e4d}
-.hora{font-size:18px;font-weight:900;color:#8f2e4d}
-/* columnas internas dentro de una sección */
-.inner2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;align-items:start}
-/* subgrupos */
-.sg{margin-bottom:6px}.sg:last-child{margin-bottom:0}
-.sl{font-size:11.5px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
-/* grillas de checkboxes — columnas fijas, alineación limpia */
-.g1{display:flex;flex-direction:column;gap:4px}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px 8px}
-.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:3px 6px}
-/* cada ítem es un título con su propio renglón para anotar una observación */
-.cb{display:flex;flex-direction:column;gap:3px;min-width:0}
-.cb-t{display:flex;align-items:flex-start;gap:7px;font-size:16px;font-weight:700;line-height:1.25;word-break:break-word}
-.cb-t::before{content:'';display:inline-block;width:16px;height:16px;border:1.5px solid #555;border-radius:2px;flex-shrink:0;margin-top:2px}
-.cb-w{border-bottom:1px dashed #bbb;min-height:16px}
+/* cuerpo: una sola columna de secciones, de arriba hacia abajo */
+.body{flex:1;display:flex;flex-direction:column;gap:7px}
+.sec{border:1.5px solid #ccc;border-radius:6px;padding:8px 11px}
+/* encabezado: casilla + título grande + hora, todo alineado a la izquierda */
+.sh{display:flex;align-items:center;gap:10px}
+.chk{width:20px;height:20px;border:2px solid #555;border-radius:3px;flex-shrink:0}
+.st{flex:1;font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#8f2e4d;line-height:1.15}
+.hora{flex-shrink:0;font-size:22px;font-weight:900;color:#8f2e4d}
+/* ítems compactos (recepción) — sin casillas ni líneas */
+.rec{margin-top:4px}
+.mg{font-size:13px;color:#333;line-height:1.5;margin-top:3px}
+.mgl{font-weight:700;color:#666;text-transform:uppercase;font-size:11px;letter-spacing:.3px}
+/* islas: cada isla en su renglón; el espacio libre a la derecha sirve para anotar */
+.isla{margin-top:5px}
+.isla>div{font-size:18px;font-weight:600;line-height:1.55}
+/* primer plato: pastas en dos columnas, salsas en una fila, letra grande */
+.pp-sub{font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.3px;margin-top:7px}
+.pp-pastas{display:grid;grid-template-columns:1fr 1fr;gap:2px 20px;font-size:16px;margin-top:3px}
+.pp-salsas{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:16px;margin-top:3px}
+/* mesa de dulces: renglones en blanco para escribir */
+.wl{border-bottom:1px dashed #bbb;height:20px;margin-top:9px}
 /* restricciones */
 .rg{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
 .rr{font-size:13px;line-height:1.6}.rc{font-size:11px;color:#666}
 .rtot{font-size:13px;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid #ddd}
-/* plato central — cada plato es UN ítem en UNA sola línea: base · relleno · salsa · guarnición */
-.pc-item{border:1px solid #e2c9d2;border-left:3px solid #8f2e4d;border-radius:4px;padding:6px 9px;margin-bottom:6px}
-.pc-item:last-child{margin-bottom:0}
+/* plato central: una base en tres renglones grandes */
+.pc-item{margin-top:5px;line-height:1.4}
 .pc-tipo{font-size:11px;font-weight:700;color:#8f2e4d;text-transform:uppercase;letter-spacing:.5px}
-.pc-linea{line-height:1.3}
-.pc-nombre{font-size:18px;font-weight:800}
-.pc-comp{font-size:16px;color:#333}
-.pc-w{display:block;border-bottom:1px dashed #bbb;min-height:16px;margin-top:6px}
+.pc-nombre{font-size:19px;font-weight:800}
+.pc-comp{font-size:17px;color:#222}
 .empty{font-size:12.5px;color:#aaa;font-style:italic}
-.postre-note{margin-top:5px;font-size:15px;font-style:italic;color:#444}
 .footer{flex-shrink:0;margin-top:5px;font-size:9px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:3px}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
@@ -3622,28 +3624,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;backgroun
     ${restHtml}
   </div>
 
-  ${(!oculta('recepcion') && ((d.canapes||[]).length || (d.bruschettas||[]).length || (d.recepcionOtros||[]).length || (d.brochettes||[]).length || (d.empanaditas||[]).length || (d.calientesOtros||[]).length)) ? `<div class="sec">
-    ${sHead('Recepción', d.horaRecepcion)}
-    <div class="inner2">
-      <div>
-        ${subGrp('Canapés', d.canapes)}
-        ${subGrp('Bruschettas', d.bruschettas)}
-        ${subGrp('Bocados fríos', d.recepcionOtros)}
-      </div>
-      <div>
-        ${subGrp('Brochettes', d.brochettes)}
-        ${subGrp('Mini Empanaditas', d.empanaditas)}
-        ${subGrp('Bocados calientes', d.calientesOtros)}
-      </div>
-    </div>
-  </div>` : ''}
-
-  ${cuerpoMedio}
-
-  ${(!oculta('finFiesta') && (d.finFiesta||[]).length) ? `<div class="sec">
-    ${sHead('Fin de Fiesta', d.horaCafeteria)}
-    ${boxGrid(d.finFiesta, 3)}
-  </div>` : ''}
+  ${secciones}
 
 </div>
 
