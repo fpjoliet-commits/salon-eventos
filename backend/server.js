@@ -725,6 +725,18 @@ app.get('/api/stock-actual', auth, superAdminOnly, async (req, res) => {
   }
 });
 
+// Stock mínimo deseado por ítem (par level): por debajo de esto se marca "reponer".
+app.post('/api/stock-actual/minimo', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { id, minimo } = req.body;
+    if (!id) return res.status(400).json({ error: 'id requerido' });
+    await sheets.actualizarMinimoStock(id, minimo);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/stock-actual/actualizar', auth, superAdminOnly, async (req, res) => {
   try {
     const { actualizaciones } = req.body;

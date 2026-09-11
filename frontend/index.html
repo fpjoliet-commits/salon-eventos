@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260911g">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260911i-combo">
-  <link rel="stylesheet" href="css/ux.css?v=20260911g">
+  <link rel="stylesheet" href="css/style.css?v=20260911k-egr">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260911k-combo">
+  <link rel="stylesheet" href="css/ux.css?v=20260911k">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#121009">
@@ -781,8 +781,36 @@
         <!-- ─── TAB: PEDIDO DE SEMANA ─── -->
         <div id="cocina-tab-pedido" class="cocina-tab-pane hidden">
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+            <button id="cocina-prod-semana-btn" class="btn btn-secondary">📆 Producción de la semana</button>
             <button id="cocina-imprimir-pedido-vacio-btn" class="btn btn-secondary">🖨️ Imprimir planilla en blanco</button>
             <button id="cocina-nuevo-btn" class="btn btn-primary">+ Nuevo pedido</button>
+          </div>
+
+          <!-- Hoja consolidada: cuánto hay que producir sumando todos los eventos del rango -->
+          <div id="cocina-prod-semana-panel" class="cocina-panel cocina-prod-panel hidden">
+            <div class="cocina-panel-header">
+              <h3>📆 Producción de la semana</h3>
+              <button id="cocina-prod-cerrar-btn" class="btn btn-secondary btn-sm">Cerrar</button>
+            </div>
+            <div class="cocina-hint cocina-hint-sm">💡 Suma todos los eventos del rango en <strong>una sola hoja por ítem</strong> y le resta el stock una única vez. El formal y el americano tienen secciones distintas: elegí el menú y tildá los eventos de ese tipo. La comanda del día del evento se imprime desde el Timing.</div>
+            <div class="cocina-prod-rango">
+              <label>Desde <input type="date" id="cocina-prod-desde"></label>
+              <label>Hasta <input type="date" id="cocina-prod-hasta"></label>
+              <label>Menú
+                <select id="cocina-prod-menu">
+                  <option value="formal">Formal</option>
+                  <option value="americano">Americano</option>
+                </select>
+              </label>
+            </div>
+            <div id="cocina-prod-semana-lista"></div>
+            <div class="cocina-panel-footer">
+              <label class="cocina-prod-blanco">
+                <input type="checkbox" id="cocina-prod-en-blanco">
+                Sin las cantidades, para llenar a mano
+              </label>
+              <button id="cocina-prod-imprimir-btn" class="btn btn-primary">🖨️ Imprimir producción</button>
+            </div>
           </div>
 
           <div class="cocina-hint">💡 <strong>Flujo de uso:</strong> antes de cada evento creás un pedido con lo que se va a preparar → cocina lo usa para producir → después del evento abrís el pedido y cargás lo que sobró con el botón "CARGAR STOCK". Eso actualiza automáticamente el stock disponible.</div>
@@ -1641,9 +1669,9 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260911h-combo"></script>
-  <script src="js/propuesta-ui.js?v=20260911g-kb"></script>
+  <script src="js/app.js?v=20260911k-egr"></script>
+  <script src="js/propuesta-ui.js?v=20260911k-kb"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
-  <script src="js/ux.js?v=20260911g"></script>
+  <script src="js/ux.js?v=20260911k"></script>
 </body>
 </html>

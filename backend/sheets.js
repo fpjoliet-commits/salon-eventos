@@ -1039,11 +1039,9 @@ function detectarUnidad(categoria, nombre) {
   const cat = (categoria || '').toLowerCase();
   const nom = (nombre || '').toLowerCase();
   if (cat.includes('salsas') || cat.includes('salsa')) return 'lt';
-  // Proteínas: la carne se compra por peso (bondiola, picada, bife...); el pollo
-  // relleno ya viene por porción, así que sigue en unidades.
-  if (cat.includes('proteína') || cat.includes('proteina')) {
-    return (nom.includes('pechuga') || nom.includes('pollo')) ? 'und' : 'kg';
-  }
+  // Proteínas del plato central: SIEMPRE en unidades (porciones). Lo que se cuenta
+  // es cuántas quedan o cuántas hay que hacer, no el peso.
+  if (cat.includes('proteína') || cat.includes('proteina')) return 'und';
   return 'und';
 }
 
@@ -1298,7 +1296,7 @@ async function addCatalogoItem(data) {
   if (!tieneCredenciales) {
     item.rowIndex = memCatalogoItems.length + 2;
     memCatalogoItems.push(item);
-    memStockActual.push({ rowIndex: memStockActual.length + 2, id: item.id, categoria: item.categoria, nombre: item.nombre, unidad: item.unidad, cantidad: 0, actualizado: '' });
+    memStockActual.push({ rowIndex: memStockActual.length + 2, id: item.id, categoria: item.categoria, nombre: item.nombre, unidad: item.unidad, cantidad: 0, actualizado: '', minimo: 0 });
     return item;
   }
   const sheets = getSheets();
@@ -1310,9 +1308,9 @@ async function addCatalogoItem(data) {
   });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'StockActual!A:F',
+    range: 'StockActual!A:G',
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [[item.id, item.categoria, item.nombre, item.unidad, 0, '']] },
+    resource: { values: [[item.id, item.categoria, item.nombre, item.unidad, 0, '', 0]] },
   });
   return item;
 }
@@ -1352,7 +1350,9 @@ async function deleteCatalogoItem(rowIndex) {
 }
 
 /* ===================== STOCK ACTUAL COCINA ===================== */
-// Columnas A-F: id, categoria, nombre, unidad, cantidad, actualizado
+// Columnas A-G: id, categoria, nombre, unidad, cantidad, actualizado, minimo
+// `minimo` es el stock mínimo deseado por ítem (par level): por debajo de eso
+// el tablero lo marca como "reponer". Vacío o 0 = sin mínimo definido.
 
 function rowToStockItem(row, index) {
   return {
@@ -1363,6 +1363,7 @@ function rowToStockItem(row, index) {
     unidad: row[3] || 'und',
     cantidad: parseFloat(row[4]) || 0,
     actualizado: row[5] || '',
+    minimo: parseFloat(row[6]) || 0,
   };
 }
 
@@ -1371,9 +1372,30 @@ async function getStockActual() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'StockActual!A2:F',
+    range: 'StockActual!A2:G',
   });
   return (res.data.values || []).map((row, i) => rowToStockItem(row, i)).filter(s => s.id);
+}
+
+// Guarda el stock mínimo deseado (par level) de un ítem. Columna G.
+async function actualizarMinimoStock(id, minimo) {
+  const val = parseFloat(minimo) || 0;
+  if (!tieneCredenciales) {
+    const idx = memStockActual.findIndex(s => s.id === id);
+    if (idx !== -1) memStockActual[idx].minimo = val;
+    return;
+  }
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'StockActual!A2:A' });
+  const rows = res.data.values || [];
+  const rowIdx = rows.findIndex(r => r[0] === id);
+  if (rowIdx === -1) return;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `StockActual!G${rowIdx + 2}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [[val]] },
+  });
 }
 
 async function actualizarStockActual(actualizaciones) {
@@ -1994,7 +2016,7 @@ async function initSheets() {
       headers.push({ range: 'PedidosCocina!A1:H1', values: [['id','idCliente','nombreEvento','fecha','itemsJSON','estado','creadoPor','fechaCarga']] });
     }
     if (!existing.includes('StockActual')) {
-      headers.push({ range: 'StockActual!A1:F1', values: [['id','categoria','nombre','unidad','cantidad','actualizado']] });
+      headers.push({ range: 'StockActual!A1:G1', values: [['id','categoria','nombre','unidad','cantidad','actualizado','minimo']] });
     }
     if (!existing.includes('Auditoria')) {
       headers.push({ range: 'Auditoria!A1:G1', values: [['fecha','usuario','accion','entidad','idEntidad','nombre','detalle']] });
@@ -2071,7 +2093,7 @@ module.exports = {
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,
   editarItemCatalogo, eliminarItemCatalogo,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
-  getStockActual, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial, sincronizarIngredientesStock,
+  getStockActual, actualizarMinimoStock, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial, sincronizarIngredientesStock,
   initSheets,
   migrarClientesAPersonasEventos,
   registrarAuditoria, getAuditoria, fotoAuditoria,

@@ -6911,10 +6911,22 @@ const PEDIDO_CAT_ORDER = [
   'Islas',
   'Primer Plato - Pastas', 'Primer Plato - Salsas',
   'Proteínas', 'Salsa plato', 'Guarnición plato central',
+  'Postres',
   'Cafetería / Fin de Fiesta',
 ];
 
+// La proteína del plato central SIEMPRE se cuenta en unidades (porciones): lo que
+// queda o lo que hay que hacer, nunca por peso. Vale para la pantalla y el papel,
+// sin importar qué unidad tenga guardada el ítem de antes.
+const CATS_SIEMPRE_UNIDADES = new Set(['Proteínas']);
+function unidadDe(item) {
+  if (!item) return 'und';
+  return CATS_SIEMPRE_UNIDADES.has(item.categoria) ? 'und' : (item.unidad || 'und');
+}
+
 function catDisplayName(cat) {
+  // "Cafetería" no es cocina: el grupo se muestra siempre como Fin de Fiesta.
+  if (cat === 'Cafetería / Fin de Fiesta') return 'Fin de Fiesta';
   return cat
     .replace(/^Recepción - /, '')
     .replace(/^Primer Plato - /, '')
@@ -7015,7 +7027,18 @@ function renderStockDashboard() {
     <select id="stock-add-unidad" class="stock-add-sel">${UNITS_SD.map(u => `<option>${u}</option>`).join('')}</select>
     <button id="stock-add-btn" class="btn btn-primary btn-sm">Agregar</button>
   </div>
-  <p class="stock-dash-hint">💡 Arrastrá un grupo <b>desde su título</b> para moverlo de lugar. Con el <b>✏️</b> de cada ítem podés cambiarle el nombre, la unidad, pasarlo a otro grupo o eliminarlo.</p>`;
+  <p class="stock-dash-hint">💡 Arrastrá un grupo <b>desde su título</b> para moverlo de lugar. Con el <b>✏️</b> de cada ítem podés cambiarle el nombre, la unidad, pasarlo a otro grupo o eliminarlo. En <b>mín.</b> ponés cuánto querés tener siempre de ese ítem: si baja de ahí, queda marcado en naranja para reponer.</p>`;
+  // Resumen: qué hay que reponer según el mínimo de cada ítem.
+  const sinStock = items.filter(i => i.cantidad === 0);
+  const bajos = items.filter(i => i.cantidad > 0 && (parseFloat(i.minimo) || 0) > 0 && i.cantidad < parseFloat(i.minimo));
+  if (sinStock.length || bajos.length) {
+    html += `<div class="stock-reponer-bar">
+      <span class="stock-reponer-titulo">🛒 Para reponer:</span>
+      ${sinStock.length ? `<span class="stock-reponer-chip stock-reponer-cero">${sinStock.length} sin stock</span>` : ''}
+      ${bajos.length ? `<span class="stock-reponer-chip stock-reponer-bajo">${bajos.length} bajo el mínimo</span>` : ''}
+      <span class="stock-reponer-detalle">${[...sinStock, ...bajos].slice(0, 8).map(i => esc(i.nombre)).join(' · ')}${(sinStock.length + bajos.length) > 8 ? ' …' : ''}</span>
+    </div>`;
+  }
   html += '<div class="stock-dash-grid" id="stock-dash-grid">';
   catOrder.forEach((cat, ci) => {
     const color = cocCatColor(cat);
@@ -7025,9 +7048,13 @@ function renderStockDashboard() {
         <span class="stock-dash-cat-name">${esc(catDisplayName(cat))}</span>
       </div>`;
     byCategory[cat].forEach(item => {
-      // Sin umbral de "stock bajo": el 0 se marca como sin-stock (dato objetivo), el resto neutro.
-      const level = item.cantidad === 0 ? 'sin-stock' : 'ok';
-      const step = (item.unidad === 'lt' || item.unidad === 'kg') ? '0.5' : '1';
+      // El "stock bajo" depende del mínimo que se le fijó a ESE ítem (par level),
+      // no de un umbral fijo: 4 kg de carne y 4 servilletas no son lo mismo.
+      const min = parseFloat(item.minimo) || 0;
+      const level = item.cantidad === 0 ? 'sin-stock'
+        : (min > 0 && item.cantidad < min) ? 'bajo' : 'ok';
+      const unid = unidadDe(item);
+      const step = (unid === 'lt' || unid === 'kg') ? '0.5' : '1';
       html += `<div class="stock-dash-item-row" draggable="true" data-id="${esc(item.id)}" data-cat="${esc(cat)}" data-nombre="${esc(item.nombre)}">
         <span class="stock-dash-nombre">${esc(item.nombre)}</span>
         <div class="stock-dash-stepper" data-id="${esc(item.id)}">
@@ -7035,7 +7062,11 @@ function renderStockDashboard() {
           <input type="number" class="stock-dash-cant-input stock-${level}" value="${item.cantidad}" min="0" step="${step}" inputmode="decimal" data-id="${esc(item.id)}" aria-label="Cantidad de ${esc(item.nombre)}">
           <button type="button" class="stock-step-btn stock-step-plus" data-id="${esc(item.id)}" aria-label="Sumar uno" tabindex="-1">+</button>
         </div>
-        <span class="stock-dash-unidad">${esc(item.unidad||'und')}</span>
+        <span class="stock-dash-unidad">${esc(unid)}</span>
+        <label class="stock-dash-min" title="Stock mínimo deseado: por debajo de este número el ítem se marca para reponer. 0 = sin mínimo.">
+          <span class="stock-dash-min-lbl">mín.</span>
+          <input type="number" class="stock-dash-min-input" value="${min || ''}" min="0" step="${step}" inputmode="decimal" placeholder="—" data-id="${esc(item.id)}" aria-label="Stock mínimo de ${esc(item.nombre)}">
+        </label>
         <button type="button" class="stock-edit-btn" data-id="${esc(item.id)}" title="Editar o eliminar este ítem">✏️</button>
       </div>`;
     });
@@ -7058,6 +7089,27 @@ function _wireStockDashControls() {
       _moverGrupoStock(btn.dataset.cat, parseInt(btn.dataset.dir));
     });
   });
+  // Mínimo por ítem: se guarda al salir del campo (no hace falta botón).
+  grid.querySelectorAll('.stock-dash-min-input').forEach(input => {
+    ['mousedown', 'dragstart', 'touchstart', 'click'].forEach(ev =>
+      input.addEventListener(ev, e => e.stopPropagation()));
+    input.addEventListener('change', async () => {
+      const id = input.dataset.id;
+      const minimo = parseFloat(input.value) || 0;
+      const item = cocinaStockActual.find(s => s.id === id);
+      const previo = item ? (parseFloat(item.minimo) || 0) : 0;
+      if (item) item.minimo = minimo;
+      try {
+        await apiFetch('/stock-actual/minimo', { method: 'POST', body: { id, minimo } });
+        renderStockDashboard();
+      } catch (e) {
+        if (item) item.minimo = previo;
+        input.value = previo || '';
+        toast('No se pudo guardar el mínimo: ' + e.message, 'error');
+      }
+    });
+  });
+
   grid.querySelectorAll('.stock-edit-btn').forEach(btn => {
     // que tocar el botón no dispare el drag del ítem
     ['mousedown', 'dragstart'].forEach(ev => btn.addEventListener(ev, e => e.stopPropagation()));
@@ -7478,11 +7530,12 @@ function openActualizarStockForm() {
     const color = cocCatColor(cat);
     html += `<tr class="cocina-cat-header-row"><td colspan="3" class="cocina-cat-header-cell" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
     byCategory[cat].forEach(item => {
-      const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
+      const unidAct = unidadDe(item);
+      const step = unidAct === 'lt' || unidAct === 'kg' ? '0.5' : '1';
       html += `<tr style="background:${color}22">
         <td style="padding-left:16px;font-size:13px">${esc(item.nombre)}<button type="button" class="coc-edit-item" data-id="${esc(item.id)}" title="Editar o eliminar este ítem del catálogo">✏️</button></td>
         <td>${_cantWrap(item.cantidad || 0, step, 'cocina-stock-update-input', `data-item-id="${esc(item.id)}"`)}</td>
-        <td class="cocina-unidad-cell">${esc(item.unidad||'und')}</td>
+        <td class="cocina-unidad-cell">${esc(unidAct)}</td>
       </tr>`;
     });
   });
@@ -7821,13 +7874,14 @@ function renderItemsTableEditable(existingItems) {
     const catCollapsed = isEdit ? conCant === 0 : true;
     html += `<tr class="cocina-cat-header-row${catCollapsed ? ' coc-collapsed' : ''}" data-cat="${esc(cat)}"><td colspan="6" class="cocina-cat-header-cell" data-collapsible style="background:${color}"><span class="coc-cat-toggle">▾</span> ${esc(catLabel)} ${countLabel}${totalInput}</td></tr>`;
     byCategory[cat].forEach(item => {
-      const step = item.unidad === 'lt' || item.unidad === 'kg' ? '0.5' : '1';
+      const unidItem = unidadDe(item);
+      const step = unidItem === 'lt' || unidItem === 'kg' ? '0.5' : '1';
       const stockCant = cocinaStockActual.find(s => s.id === item.id)?.cantidad;
-      const stockDisplay = (stockCant != null && stockCant > 0) ? `${stockCant} ${esc(item.unidad||'und')}` : '—';
-      html += `<tr data-idx="${globalIdx++}" data-id="${esc(item.id||'')}" data-cat="${esc(item.categoria)}" data-nombre="${esc(item.nombre)}" data-unidad="${esc(item.unidad||'und')}" style="background:${color}22">
+      const stockDisplay = (stockCant != null && stockCant > 0) ? `${stockCant} ${esc(unidItem)}` : '—';
+      html += `<tr data-idx="${globalIdx++}" data-id="${esc(item.id||'')}" data-cat="${esc(item.categoria)}" data-nombre="${esc(item.nombre)}" data-unidad="${esc(unidItem)}" style="background:${color}22">
         <td style="padding-left:16px" class="cocina-item-nombre-cell">${esc(item.nombre)}${item.id ? `<button type="button" class="coc-edit-item" data-id="${esc(item.id)}" title="Editar o eliminar este ítem del catálogo">✏️</button>` : ''}</td>
         <td>${_cantWrap(item.cantidad||'', step, 'cocina-cant-input', 'data-field="cantidad"')}</td>
-        <td class="cocina-unidad-cell">${esc(item.unidad||'und')}</td>
+        <td class="cocina-unidad-cell">${esc(unidItem)}</td>
         <td class="cocina-stock-col cocina-stock-val">${stockDisplay}</td>
         <td><input class="cocina-obs-input" value="${esc(item.observaciones||'')}" placeholder="Obs." data-field="observaciones"></td>
         <td><button type="button" class="btn-icon cocina-remove-row" title="Quitar">✕</button></td>
@@ -8651,58 +8705,6 @@ function imprimirPlanillaPedidoVacia() {
   });
 }
 
-function _imprimirPlanillaPedidoHTML(MIGA_DESGLOSE, sel, hoy) {
-  let rows = '';
-  let migaRendered = false;
-  PEDIDO_CAT_ORDER.forEach(cat => {
-    if (cat === 'Sanguche de Miga - Totales' || MIGA_DESGLOSE.has(cat)) {
-      if (migaRendered) return;
-      migaRendered = true;
-      const migaSels = ['Blancos', 'Negros'].filter(n => sel.has(`__miga__||${n}`));
-      if (!migaSels.length) return;
-      const color = cocCatColor('Sanguche de Miga - Totales');
-      rows += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">🥪 Sanguche de Miga</td></tr>`;
-      migaSels.forEach(nombre => {
-        rows += `<tr>
-          <td class="print-item-name">${nombre}</td>
-          <td style="width:90px;height:26px"></td>
-          <td style="width:60px;text-align:center;color:#888">und</td>
-          <td style="width:34%;height:26px"></td>
-        </tr>`;
-      });
-      return;
-    }
-    const items = cocinaCatalogo.filter(c => c.categoria === cat && sel.has(`${cat}||${c.nombre}`));
-    if (!items.length) return;
-    const color = cocCatColor(cat);
-    rows += `<tr><td colspan="4" class="print-cat-header" style="background:${color}">${esc(catDisplayName(cat))}</td></tr>`;
-    items.forEach(i => {
-      rows += `<tr>
-        <td class="print-item-name">${esc(i.nombre)}</td>
-        <td style="width:90px;height:26px"></td>
-        <td style="width:60px;text-align:center;color:#888">${esc(i.unidad||'und')}</td>
-        <td style="width:34%;height:26px"></td>
-      </tr>`;
-    });
-  });
-
-  const html = `<table class="print-table">
-    <thead>
-      <tr><td colspan="4" class="print-doc-header">
-        <div class="ph-title">JOLIET — PEDIDO DE PRODUCCIÓN (PLANILLA EN BLANCO)</div>
-        <div class="ph-meta">
-          <span><b>Evento:</b> _____________________________</span>
-          <span><b>Fecha del evento:</b> ___/___/______</span>
-          <span><b>Generado:</b> ${hoy}</span>
-        </div>
-        <div class="ph-fill">Completado por: _____________________________________</div>
-      </td></tr>
-      <tr><th style="width:36%">Ítem</th><th style="width:90px">Cant.</th><th style="width:60px">Unid.</th><th>Observaciones</th></tr>
-    </thead>
-    <tbody>${rows || `<tr><td colspan="4" style="text-align:center;padding:12px">Sin ítems en el catálogo</td></tr>`}</tbody>
-  </table>`;
-  abrirVentanaImpresion(html);
-}
 
 function buildPrintPedidoHTML(pedido) {
   const hoy = new Date().toLocaleDateString('es-AR');
@@ -8727,7 +8729,7 @@ function buildPrintPedidoHTML(pedido) {
     const totLabel = catTotales[cat] ? ` &nbsp;·&nbsp; TOTAL: ${esc(catTotales[cat])}` : '';
     rows += `<tr><td colspan="4" style="background:${color};padding:3px 8px;font-weight:700;font-size:9pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}${totLabel}</td></tr>`;
     (byCategory[cat] || []).forEach(i => {
-      rows += `<tr style="background:${color}40"><td style="padding-left:12px">${esc(i.nombre)}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:center">${esc(i.unidad||'und')}</td><td>${esc(i.observaciones||'')}</td></tr>`;
+      rows += `<tr style="background:${color}40"><td style="padding-left:12px">${esc(i.nombre)}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:center">${esc(unidadDe(i))}</td><td>${esc(i.observaciones||'')}</td></tr>`;
     });
   });
   const evento = esc(pedido.nombreEvento||'—');
@@ -8769,7 +8771,7 @@ function buildPrintRelevamientoHTML(pedido) {
     rows += `<tr><td colspan="5" style="background:${color};padding:3px 8px;font-weight:700;font-size:8pt;color:#5d4037;border-bottom:1px solid #ccc">${esc(catDisplayName(cat))}</td></tr>`;
     byCategory[cat].forEach(({ catItem, pedItem, preparado, stockPrev }) => {
       const total = preparado + stockPrev;
-      const unid = catItem.unidad || 'und';
+      const unid = unidadDe(catItem);
       rows += `<tr style="background:${color}40">
         <td style="padding-left:12px">${esc(catItem.nombre)}</td>
         <td style="text-align:center;color:#555">${stockPrev > 0 ? `${stockPrev} ${esc(unid)}` : '—'}</td>
@@ -8833,7 +8835,9 @@ function abrirVentanaImpresion(htmlContent) {
   .print-obs-col{width:34%;height:26px}
   .print-leyenda{font-size:10pt;color:#666;margin:6px 0 8px 0}
   .print-doc-header{break-after:avoid;page-break-after:avoid}
+  .hp-head{border-bottom:2px solid #333;padding:0 0 8px 0;margin:0 0 6px 0;break-after:avoid;page-break-after:avoid}
   @page{size:A4 portrait;margin:14mm 15mm 20mm 15mm;@bottom-right{content:"Hoja " counter(page) " de " counter(pages);font-size:14pt;font-weight:700;color:#333}}
+  ${_HP_STYLES}
   @media print{body{padding:0;margin:0} .print-page-break{page-break-before:always}}
   </style></head><body>${htmlContent}<script>setTimeout(function(){window.print();},300);<\/script></body></html>`);
   win.document.close();
@@ -8881,6 +8885,365 @@ function imprimirPedidoCocina(pedido) {
 }
 
 function imprimirRelevamientoCocina(pedido) { abrirVentanaImpresion(buildPrintRelevamientoHTML(pedido)); }
+
+/* ================== HOJA DE PRODUCCIÓN (layout único) ==================
+   Una sola hoja, seis o siete TÍTULOS GRANDES y un desglose mínimo debajo.
+   Las dos columnas de la izquierda son cuadros del mismo ancho en toda la
+   hoja, así lo que se escribe a mano queda siempre alineado:
+     · "A PRODUCIR" → sale impreso cuando la hoja se genera de los pedidos,
+                      o en blanco si se pide la planilla vacía.
+     · "HECHO"      → siempre vacío, se completa en cocina.
+   El Plato Central respeta el orden de siempre: proteína (con su relleno),
+   guarnición y salsa, y el espacio de la derecha queda para aclaraciones.
+
+   La usan las dos impresiones: Producción de la semana y planilla en blanco. */
+
+// El formal y el americano no comparten ni las secciones ni los nombres, así que
+// cada uno tiene su propio juego de títulos. Fin de Fiesta va en los dos, pero al
+// pie y en chico: no se produce en cocina, solo conviene tenerlo a la vista.
+// (Cafetería queda afuera de la hoja: no es cocina.)
+const MENUS_PROD = {
+  formal: {
+    label: 'Formal',
+    grupos: [
+      { titulo: 'RECEPCIÓN', cats: [
+    'Recepción - Canapés', 'Recepción - Bruschettas', 'Recepción - Fríos',
+    'Recepción - Brochettes', 'Recepción - Empanaditas', 'Recepción - Calientes',
+    'Sanguche de Miga - Totales', 'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros'] },
+      { titulo: 'ISLAS', cats: ['Islas'] },
+      { titulo: 'PRIMER PLATO', cats: ['Primer Plato - Pastas', 'Primer Plato - Salsas'] },
+      // Siempre en este orden: proteína → (relleno) → guarnición → salsa
+      { titulo: 'PLATO CENTRAL', cats: ['Proteínas', 'Guarnición plato central', 'Salsa plato'] },
+      { titulo: 'MESA DE DULCES', cats: ['Postres'] },
+    ],
+  },
+  americano: {
+    label: 'Americano',
+    grupos: [
+      { titulo: 'RECEPCIÓN', cats: [
+    'Recepción - Canapés', 'Recepción - Bruschettas', 'Recepción - Fríos',
+    'Recepción - Brochettes', 'Recepción - Empanaditas', 'Recepción - Calientes',
+    'Sanguche de Miga - Totales', 'Sanguche de Miga - Blancos', 'Sanguche de Miga - Negros'] },
+      // En el americano las estaciones SON el plato central: van todas juntas.
+      { titulo: 'ESTACIONES EN VIVO', cats: [
+        'Islas', 'Proteínas', 'Guarnición plato central', 'Salsa plato'] },
+      { titulo: 'POSTRE', cats: ['Postres'] },
+    ],
+  },
+};
+
+// Bloque chico del pie, sin cuadros de cantidad.
+const CATS_PIE_PROD = ['Cafetería / Fin de Fiesta'];
+
+function menuProdElegido() {
+  const v = $('cocina-prod-menu')?.value || localStorage.getItem('cocina-prod-menu') || 'formal';
+  return MENUS_PROD[v] ? v : 'formal';
+}
+
+
+// Categorías que en el Plato Central llevan el renglón punteado del relleno.
+const CATS_CON_RELLENO = new Set(['Proteínas']);
+
+const _HP_STYLES = `
+  .hp { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .hp th, .hp td { border:1px solid #8a8a8a; }
+  .hp thead th {
+    background:#ddd; font-size:9.5pt; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:#333; padding:4px 6px; text-align:center;
+  }
+  .hp thead th.hp-th-name { text-align:left; padding-left:10px; }
+  .hp-sec td {
+    background:#e4e4e4; font-size:18pt; font-weight:800; letter-spacing:.6px;
+    text-transform:uppercase; padding:7px 10px; color:#1a1a1a;
+    border-left:none; border-right:none; border-top:2px solid #333;
+  }
+  .hp-sub td {
+    font-size:9.5pt; font-weight:700; color:#666; letter-spacing:1.2px;
+    text-transform:uppercase; padding:4px 10px 2px 14px;
+    border:none; border-bottom:1px solid #ddd; background:#fbfbfb;
+  }
+  .hp-box {
+    width:26mm; height:12mm; text-align:center; vertical-align:middle;
+    font-size:20pt; font-weight:800; line-height:1.05;
+  }
+  .hp-box small { display:block; font-size:9pt; font-weight:400; color:#777; margin-top:1px; }
+  .hp-box-hecho { width:21mm; background:#fff; }
+  .hp-name { padding:5px 10px; font-size:13.5pt; font-weight:600; vertical-align:middle; }
+  .hp-name .hp-rel {
+    display:block; font-size:9.5pt; font-weight:400; color:#888; margin-top:5px;
+    border-bottom:1px dotted #aaa; padding-bottom:2px; max-width:62mm;
+  }
+  .hp-name .hp-det { display:block; font-size:9pt; font-weight:400; color:#999; margin-top:2px; }
+  .hp-obs { width:52mm; }
+  .hp-pie {
+    margin-top:5mm; padding-top:2mm; border-top:1px dotted #bbb;
+    font-size:9pt; color:#888; break-inside:avoid;
+  }
+  .hp-pie-lbl {
+    font-weight:700; letter-spacing:1px; text-transform:uppercase;
+    color:#999; margin-right:8px;
+  }
+  .hp-pie-it { margin-right:12px; }
+  .hp-pie-it b { color:#666; }
+  .hp tr { page-break-inside:avoid; break-inside:avoid; }
+  .hp-sec td, .hp-sub td { page-break-after:avoid; break-after:avoid; }
+`;
+
+// secciones: [{ titulo, bloques: [{ sublabel, filas: [{nombre, cant, unidad, relleno, detalle}] }] }]
+function buildHojaProduccionHTML({ titulo, meta, pie, secciones, pieFilas }) {
+  let rows = '';
+  secciones.forEach(sec => {
+    rows += `<tr class="hp-sec"><td colspan="4">${esc(sec.titulo)}</td></tr>`;
+    sec.bloques.forEach(bl => {
+      if (bl.sublabel) rows += `<tr class="hp-sub"><td colspan="4">${esc(bl.sublabel)}</td></tr>`;
+      bl.filas.forEach(f => {
+        const cant = (f.cant === '' || f.cant === null || f.cant === undefined)
+          ? '' : `${f.cant}<small>${esc(f.unidad || 'und')}</small>`;
+        rows += `<tr>
+          <td class="hp-box">${cant}</td>
+          <td class="hp-box hp-box-hecho"></td>
+          <td class="hp-name">${esc(f.nombre)}${
+            f.detalle ? `<span class="hp-det">${esc(f.detalle)}</span>` : ''}${
+            f.relleno ? '<span class="hp-rel">Relleno:</span>' : ''}</td>
+          <td class="hp-obs"></td>
+        </tr>`;
+      });
+    });
+  });
+
+  // Fin de fiesta: un renglón chico abajo de todo, a modo de recordatorio.
+  const pieHtml = (pieFilas && pieFilas.length)
+    ? `<div class="hp-pie"><span class="hp-pie-lbl">Fin de fiesta</span>${
+        pieFilas.map(f => `<span class="hp-pie-it">${esc(f.nombre)}${
+          (f.cant === '' || f.cant === null || f.cant === undefined) ? '' : ` <b>${f.cant}</b> ${esc(f.unidad || 'und')}`
+        }</span>`).join('')}</div>`
+    : '';
+
+  return `<div class="hp-head">
+    <div class="ph-title">${esc(titulo)}</div>
+    <div class="ph-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>
+    <div class="ph-fill">${pie}</div>
+  </div>
+  <table class="hp">
+    <thead>
+      <tr>
+        <th style="width:26mm">A producir</th>
+        <th style="width:21mm">Hecho</th>
+        <th class="hp-th-name">Ítem</th>
+        <th style="width:52mm">Aclaraciones</th>
+      </tr>
+    </thead>
+    <tbody>${rows || '<tr><td colspan="4" style="text-align:center;padding:14px">Sin ítems para imprimir</td></tr>'}</tbody>
+  </table>${pieHtml}`;
+}
+
+// Subtítulo chico de cada bloque: no repite el título grande ni el nombre largo
+// de la categoría ('Guarnición plato central' abajo de PLATO CENTRAL sobra).
+const _SUBLABEL_PROD = {
+  'Guarnición plato central': 'Guarnición',
+  'Salsa plato': 'Salsa',
+  'Sanguche de Miga - Totales': 'Sanguche de miga',
+  'Sanguche de Miga - Blancos': 'Sanguche de miga — blancos',
+  'Sanguche de Miga - Negros': 'Sanguche de miga — negros',
+};
+function _subLabelProd(cat, tituloMacro) {
+  if (cat in _SUBLABEL_PROD) return _SUBLABEL_PROD[cat];
+  const l = catDisplayName(cat).replace(/^Sanguche de Miga - /, '');
+  return l.toUpperCase() === tituloMacro.toUpperCase() ? '' : l;
+}
+
+// Agrupa un mapa {categoria: [filas]} en los macro-grupos de título grande.
+function _armarSeccionesProduccion(porCategoria, menuKey) {
+  const menu = MENUS_PROD[menuKey] || MENUS_PROD.formal;
+  const secciones = [];
+  const usadas = new Set(CATS_PIE_PROD);
+  menu.grupos.forEach(mg => {
+    const bloques = [];
+    mg.cats.forEach(cat => {
+      usadas.add(cat);
+      const filas = porCategoria[cat];
+      if (!filas || !filas.length) return;
+      if (CATS_CON_RELLENO.has(cat)) filas.forEach(f => { f.relleno = true; });
+      bloques.push({ sublabel: mg.cats.length > 1 ? _subLabelProd(cat, mg.titulo) : '', filas });
+    });
+    if (bloques.length) secciones.push({ titulo: mg.titulo, bloques });
+  });
+  // Categorías nuevas que no figuran en ningún grupo del menú: todas juntas al final.
+  const sueltas = Object.keys(porCategoria).filter(c => !usadas.has(c) && porCategoria[c].length);
+  if (sueltas.length) {
+    secciones.push({
+      titulo: 'OTROS',
+      bloques: sueltas.map(cat => ({ sublabel: catDisplayName(cat), filas: porCategoria[cat] })),
+    });
+  }
+  // Pie: Fin de Fiesta, en una línea y sin cuadros.
+  const pieFilas = [];
+  CATS_PIE_PROD.forEach(cat => (porCategoria[cat] || []).forEach(f => pieFilas.push(f)));
+  return { secciones, pieFilas };
+}
+
+/* ---------------- Producción de la semana ---------------- */
+
+function buildPrintProduccionSemanaHTML(pedidos, desde, hasta, opts = {}) {
+  const enBlanco = !!opts.enBlanco;
+  const hoy = new Date().toLocaleDateString('es-AR');
+
+  // Consolidar por ítem (id si existe, si no por nombre) sumando todos los eventos.
+  const acum = {};
+  pedidos.forEach(p => {
+    (p.items || []).forEach(i => {
+      if (!i || i.catTotalesMarker) return;
+      const cant = parseFloat(i.cantidad) || 0;
+      if (cant <= 0) return;
+      const key = i.id || i.nombre;
+      const cat = i.categoria || 'Sin categoría';
+      if (!acum[key]) acum[key] = { id: i.id, nombre: i.nombre, unidad: unidadDe({ categoria: cat, unidad: i.unidad }), categoria: cat, total: 0 };
+      acum[key].total += cant;
+    });
+  });
+
+  const porCategoria = {};
+  Object.values(acum).forEach(it => {
+    // El stock se resta UNA sola vez, sobre el total de la semana.
+    const stock = cocinaStockActual.find(s => s.id === it.id)?.cantidad || 0;
+    const total = +it.total.toFixed(2);
+    const falta = Math.max(0, +(total - stock).toFixed(2));
+    (porCategoria[it.categoria] = porCategoria[it.categoria] || []).push({
+      nombre: it.nombre,
+      unidad: it.unidad,
+      cant: enBlanco ? '' : falta,
+      detalle: (!enBlanco && stock > 0) ? `pedido ${total} − ${stock} en stock` : '',
+    });
+  });
+  Object.values(porCategoria).forEach(arr => arr.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '')));
+
+  const rango = (desde ? formatDate(desde) : '—') + ' al ' + (hasta ? formatDate(hasta) : '—');
+  const eventos = pedidos.map(p => `${formatDate(p.fecha)} · ${esc(p.nombreEvento || '—')}`).join(' &nbsp;|&nbsp; ');
+  const menuKey = opts.menu || menuProdElegido();
+  const { secciones, pieFilas } = _armarSeccionesProduccion(porCategoria, menuKey);
+  return buildHojaProduccionHTML({
+    titulo: `JOLIET — PRODUCCIÓN DE LA SEMANA · MENÚ ${MENUS_PROD[menuKey].label.toUpperCase()}`
+      + (enBlanco ? ' (EN BLANCO)' : ''),
+    meta: [
+      `<b>Semana:</b> ${rango}`,
+      `<b>Eventos:</b> ${pedidos.length}`,
+      `<b>Generado:</b> ${hoy}`,
+    ],
+    pie: (eventos ? eventos + ' &nbsp;—&nbsp; ' : '') + 'Producido por: _____________________',
+    secciones, pieFilas,
+  });
+}
+
+/* ---------------- Planilla de pedido en blanco ---------------- */
+
+function _imprimirPlanillaPedidoHTML(MIGA_DESGLOSE, sel, hoy) {
+  const porCategoria = {};
+  let migaHecha = false;
+  PEDIDO_CAT_ORDER.forEach(cat => {
+    if (cat === 'Sanguche de Miga - Totales' || MIGA_DESGLOSE.has(cat)) {
+      if (migaHecha) return;
+      migaHecha = true;
+      const elegidos = ['Blancos', 'Negros'].filter(n => sel.has(`__miga__||${n}`));
+      if (elegidos.length) {
+        porCategoria['Sanguche de Miga - Totales'] =
+          elegidos.map(n => ({ nombre: n, unidad: 'und', cant: '' }));
+      }
+      return;
+    }
+    const items = cocinaCatalogo.filter(c => c.categoria === cat && sel.has(`${cat}||${c.nombre}`));
+    if (items.length) {
+      porCategoria[cat] = items.map(i => ({ nombre: i.nombre, unidad: unidadDe(i), cant: '' }));
+    }
+  });
+
+  const menuKey = menuProdElegido();
+  const { secciones, pieFilas } = _armarSeccionesProduccion(porCategoria, menuKey);
+  abrirVentanaImpresion(buildHojaProduccionHTML({
+    titulo: `JOLIET — PEDIDO DE PRODUCCIÓN · MENÚ ${MENUS_PROD[menuKey].label.toUpperCase()} (EN BLANCO)`,
+    meta: [
+      '<b>Evento:</b> _____________________________',
+      '<b>Fecha del evento:</b> ___/___/______',
+      `<b>Generado:</b> ${hoy}`,
+    ],
+    pie: 'Completado por: _____________________________________',
+    secciones, pieFilas,
+  }));
+}
+
+
+/* ============ PRODUCCIÓN DE LA SEMANA (consolidado multi-evento) ============
+   Documento distinto de la comanda del evento: acá no importa el orden de
+   servicio sino CUÁNTO hay que producir de cada ítem sumando todos los eventos
+   del rango. El stock se descuenta UNA sola vez sobre el total consolidado
+   (descontarlo pedido por pedido haría que el mismo stock se reste N veces). */
+
+// Lunes a domingo de la semana en curso, en fechas locales (no UTC).
+function _semanaActualISO() {
+  const hoy = hoyLocal();
+  const dow = (hoy.getDay() + 6) % 7; // 0 = lunes
+  const lun = new Date(hoy); lun.setDate(hoy.getDate() - dow);
+  const dom = new Date(lun); dom.setDate(lun.getDate() + 6);
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { desde: iso(lun), hasta: iso(dom) };
+}
+
+function toggleProduccionSemanaPanel() {
+  const panel = $('cocina-prod-semana-panel');
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    if (!$('cocina-prod-desde').value) {
+      const { desde, hasta } = _semanaActualISO();
+      $('cocina-prod-desde').value = desde;
+      $('cocina-prod-hasta').value = hasta;
+    }
+    const selMenu = $('cocina-prod-menu');
+    if (selMenu) selMenu.value = menuProdElegido();
+    panel.classList.remove('hidden');
+    renderProduccionSemanaLista();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function _pedidosEnRango() {
+  const desde = $('cocina-prod-desde')?.value || '';
+  const hasta = $('cocina-prod-hasta')?.value || '';
+  return cocinaPedidos
+    .filter(p => p.fecha && (!desde || p.fecha >= desde) && (!hasta || p.fecha <= hasta))
+    .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+}
+
+function renderProduccionSemanaLista() {
+  const cont = $('cocina-prod-semana-lista');
+  if (!cont) return;
+  const pedidos = _pedidosEnRango();
+  if (!pedidos.length) {
+    cont.innerHTML = '<p class="empty-msg" style="padding:10px 0">No hay pedidos con fecha en ese rango.</p>';
+    return;
+  }
+  cont.innerHTML = '<p class="cocina-prod-lista-titulo">Eventos incluidos <span class="label-optional">(destildá el que no quieras sumar)</span></p>' +
+    pedidos.map(p => {
+      const n = (p.items || []).filter(i => i && !i.catTotalesMarker && parseFloat(i.cantidad) > 0).length;
+      return `<label class="cocina-prod-evento">
+        <input type="checkbox" class="cocina-prod-chk" value="${p.rowIndex}" checked>
+        <span class="cocina-prod-fecha">${formatDate(p.fecha)}</span>
+        <span class="cocina-prod-nombre">${esc(p.nombreEvento || '—')}</span>
+        <span class="cocina-prod-items">${n} ítems</span>
+      </label>`;
+    }).join('');
+}
+
+function imprimirProduccionSemana() {
+  const marcados = [...document.querySelectorAll('.cocina-prod-chk:checked')].map(c => parseInt(c.value));
+  const pedidos = _pedidosEnRango().filter(p => marcados.includes(p.rowIndex));
+  if (!pedidos.length) { toast('Elegí al menos un evento para la hoja de producción.', 'error'); return; }
+  abrirVentanaImpresion(buildPrintProduccionSemanaHTML(
+    pedidos, $('cocina-prod-desde')?.value || '', $('cocina-prod-hasta')?.value || '',
+    { enBlanco: !!$('cocina-prod-en-blanco')?.checked }
+  ));
+}
+
+
 
 function toggleStockCol() {
   const wrap = $('cocina-form-wrap');
@@ -9079,6 +9442,14 @@ $('cocina-limpiar-duplicados-btn')?.addEventListener('click', async () => {
 // Tab pedido
 $('cocina-nuevo-btn')?.addEventListener('click', () => openFormularioPedido());
 $('cocina-imprimir-pedido-vacio-btn')?.addEventListener('click', imprimirPlanillaPedidoVacia);
+$('cocina-prod-semana-btn')?.addEventListener('click', toggleProduccionSemanaPanel);
+$('cocina-prod-cerrar-btn')?.addEventListener('click', () => $('cocina-prod-semana-panel')?.classList.add('hidden'));
+$('cocina-prod-desde')?.addEventListener('change', renderProduccionSemanaLista);
+$('cocina-prod-hasta')?.addEventListener('change', renderProduccionSemanaLista);
+$('cocina-prod-imprimir-btn')?.addEventListener('click', imprimirProduccionSemana);
+$('cocina-prod-menu')?.addEventListener('change', e => {
+  localStorage.setItem('cocina-prod-menu', e.target.value);
+});
 $('cocina-toggle-stock-col-btn')?.addEventListener('click', toggleStockCol);
 $('cocina-descontar-stock-btn')?.addEventListener('click', descontarStockDelPedido);
 $('cocina-form-cancel-btn')?.addEventListener('click', cancelarFormularioPedido);

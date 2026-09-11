@@ -3333,3 +3333,69 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
 #view-clientes .data-table thead th[data-sort-key] .th-sort { cursor: grab; }
 #view-clientes .data-table thead th.col-dragging { opacity: .6; background: var(--gold-soft, #f3e9d2); }
 .columnas-panel-sub { font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--text-muted); font-size: 11px; }
+
+
+/* ===== Producción de la semana (hoja consolidada multi-evento) ===== */
+.cocina-prod-panel { margin-bottom: 16px; }
+.cocina-prod-rango {
+  display: flex; gap: 20px; flex-wrap: wrap;
+  padding: 12px 4px; align-items: center;
+}
+.cocina-prod-rango label {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600; font-size: 1rem;
+}
+.cocina-prod-rango input[type="date"] {
+  padding: 8px 10px; font-size: 1rem;
+  border: 1px solid #ccc; border-radius: 6px;
+}
+.cocina-prod-lista-titulo { font-weight: 600; margin: 4px 0 8px; }
+.cocina-prod-evento {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px;
+  margin-bottom: 6px; cursor: pointer; background: #fff;
+}
+.cocina-prod-evento:hover { background: #fafafa; }
+.cocina-prod-evento input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
+.cocina-prod-fecha { font-weight: 700; min-width: 110px; }
+.cocina-prod-nombre { flex: 1; }
+.cocina-prod-items { color: #777; font-size: 0.9rem; }
+
+
+/* ===== Stock: mínimo por ítem (par level) y resumen de reposición ===== */
+.stock-reponer-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 12px;
+}
+.stock-reponer-titulo { font-weight: 700; }
+.stock-reponer-chip {
+  font-weight: 700; padding: 3px 10px; border-radius: 12px; font-size: 0.9rem;
+}
+.stock-reponer-cero { background: #ffebee; color: #c62828; }
+.stock-reponer-bajo { background: #fff3e0; color: #e65100; }
+.stock-reponer-detalle { color: #6d4c41; font-size: 0.92rem; flex: 1; min-width: 200px; }
+
+.stock-dash-min {
+  display: flex; align-items: center; gap: 4px;
+  color: #999; font-size: 0.82rem; cursor: pointer;
+}
+.stock-dash-min-lbl { user-select: none; }
+.stock-dash-min-input {
+  width: 52px; padding: 4px 5px; text-align: center;
+  border: 1px dashed #ccc; border-radius: 5px;
+  font-size: 0.92rem; color: #666; background: transparent;
+}
+.stock-dash-min-input:focus { border-style: solid; border-color: #888; background: #fff; color: #222; }
+.stock-dash-cant-input.stock-bajo { color: #f57c00; font-weight: 700; }
+
+.cocina-prod-blanco {
+  display: flex; align-items: center; gap: 8px;
+  margin-right: auto; font-size: 0.95rem; color: #555; cursor: pointer;
+}
+.cocina-prod-blanco input { width: 18px; height: 18px; cursor: pointer; }
+
+#cocina-prod-menu {
+  padding: 8px 10px; font-size: 1rem;
+  border: 1px solid #ccc; border-radius: 6px; background: #fff;
+}
