@@ -1402,6 +1402,12 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   color: var(--text-muted);
   font-size: 13px;
 }
+.fila-agasajado {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 400;
+  margin-top: 2px;
+}
 
 /* VIP en restricciones */
 .list-item.list-item-vip {

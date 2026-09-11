@@ -538,9 +538,15 @@ function renderClientes(clientes) {
       if (c.estado === 'Confirmado') tr.classList.add('tr-confirmado');
       else if (c.estado === 'Por cerrar') tr.classList.add('tr-por-cerrar');
 
+      const agasajado = (c.nombreAgasajado || '').trim();
+      const mostrarAgasajado = agasajado &&
+        agasajado.toLowerCase() !== (c.apellidoNombre || '').trim().toLowerCase();
+      const agasajadoLine = mostrarAgasajado
+        ? `<div class="fila-agasajado">🎉 ${esc(agasajado)}</div>`
+        : '';
       const nameCell = isCont
-        ? `<span class="grupo-cont-icon">└</span> <strong>${esc(c.apellidoNombre) || '—'}</strong>`
-        : `<strong>${esc(c.apellidoNombre) || '—'}</strong>`;
+        ? `<span class="grupo-cont-icon">└</span> <strong>${esc(c.apellidoNombre) || '—'}</strong>${agasajadoLine}`
+        : `<strong>${esc(c.apellidoNombre) || '—'}</strong>${agasajadoLine}`;
 
       tr.innerHTML = `
         <td>${nameCell}</td>
@@ -594,6 +600,7 @@ function applyFilters() {
   let filtered = allClientes.filter(c => {
     const matchSearch = !search ||
       (c.apellidoNombre || '').toLowerCase().includes(search) ||
+      (c.nombreAgasajado || '').toLowerCase().includes(search) ||
       (c.telefono || '').includes(search) ||
       (c.gmail || '').toLowerCase().includes(search);
     const matchEstado = !estado ||
@@ -1874,7 +1881,7 @@ $('cliente-form').addEventListener('submit', async e => {
     } catch {}
   }
 
-  // Validar: máximo 2 eventos por día
+  // Aviso de choque de fecha (sin límite: solo advierte y muestra con qué eventos choca)
   const fechaEv = form.fechaEvento.value;
   if (fechaEv) {
     const currentId = $('edit-cliente-id').value;
@@ -1883,16 +1890,19 @@ $('cliente-form').addEventListener('submit', async e => {
       c.estado !== 'Cancelado' &&
       c.id !== currentId
     );
-    if (otrosEnFecha.length >= 2) {
-      $('form-error').textContent = `⚠️ Ya hay 2 eventos registrados para el ${formatDateWithDay(fechaEv)}. No se pueden cargar más de 2 eventos por día.`;
-      show('form-error');
-      return;
-    }
-    if (otrosEnFecha.length === 1) {
+    if (otrosEnFecha.length >= 1) {
+      const n = otrosEnFecha.length;
+      const lista = otrosEnFecha
+        .sort((a, b) => (a.turno || '').localeCompare(b.turno || ''))
+        .map(c => {
+          const detalle = [c.turno, c.tipoEvento].filter(Boolean).join(' · ');
+          return `• ${c.apellidoNombre}${detalle ? ` (${detalle})` : ''}`;
+        })
+        .join('\n');
       const ok = await uiConfirm({
-        titulo: 'Ya hay un evento ese día',
-        mensaje: `El ${formatDateWithDay(fechaEv)} ya está tomado por ${otrosEnFecha[0].apellidoNombre}.\n\n¿Confirmás que va a haber 2 eventos ese día?`,
-        confirmar: 'Sí, van 2 eventos',
+        titulo: `Ya hay ${n} evento${n > 1 ? 's' : ''} ese día`,
+        mensaje: `El ${formatDateWithDay(fechaEv)} ya ${n > 1 ? 'están tomados por' : 'está tomado por'}:\n\n${lista}\n\n¿Sumás este evento igual?`,
+        confirmar: `Sí, sumar (quedan ${n + 1})`,
         cancelar: 'No, cambiar la fecha',
       });
       if (!ok) return;
