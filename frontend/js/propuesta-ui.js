@@ -334,3 +334,90 @@
   window.updatePropuestaScenery = update;
   update();
 })();
+
+/* ============================================================
+   PROPUESTA — TECLADO EN TABLET
+   ------------------------------------------------------------
+   Al enfocar un campo de texto dentro del kiosco (sobre todo en
+   horizontal) el teclado tapaba el input. Marcamos .kb-open en el
+   kiosco (el CSS apoya el contenido arriba) y traemos el campo
+   enfocado a la vista por encima del teclado, reaccionando además
+   a los cambios de geometría del visualViewport.
+   ============================================================ */
+(function initPropuestaKeyboard() {
+  const FIELD_SEL = 'input:not([type=checkbox]):not([type=radio]):not([type=hidden]), textarea, select';
+  let activeKiosco = null;
+  let activeField = null;
+
+  const traerALaVista = () => {
+    if (activeField) activeField.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  };
+
+  document.addEventListener('focusin', e => {
+    const field = e.target.closest && e.target.closest(FIELD_SEL);
+    const kiosco = field && field.closest('.propuesta-kiosco');
+    if (!kiosco) return;
+    activeKiosco = kiosco;
+    activeField = field;
+    kiosco.classList.add('kb-open');
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', traerALaVista);
+    // Esperamos a que el teclado termine de subir antes de centrar
+    setTimeout(traerALaVista, 260);
+    setTimeout(traerALaVista, 560);
+  });
+
+  document.addEventListener('focusout', e => {
+    const field = e.target.closest && e.target.closest(FIELD_SEL);
+    if (!field || !activeKiosco || !activeKiosco.contains(field)) return;
+    setTimeout(() => {
+      const a = document.activeElement;
+      // Si el foco saltó a otro campo del mismo kiosco, seguimos en modo teclado
+      if (a && activeKiosco.contains(a) && a.matches && a.matches(FIELD_SEL)) { activeField = a; return; }
+      activeKiosco.classList.remove('kb-open');
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', traerALaVista);
+      activeKiosco = null;
+      activeField = null;
+    }, 90);
+  });
+})();
+
+/* ============================================================
+   PROPUESTA — AJUSTE POR DESBORDE (independiente de resolución)
+   ------------------------------------------------------------
+   En vez de adivinar la altura con un media query, medimos si el
+   contenido del slide activo es más alto que el área visible. Si
+   desborda, marcamos .slides-overflow en el contenedor y el CSS
+   apoya el contenido arriba (así no se corta y se scrollea hasta
+   los botones). Reacciona a cambios de tamaño (orientación, barras
+   del navegador, teclado) y de contenido (cambio de slide, armado
+   del resumen final).
+   ============================================================ */
+(function initPropuestaOverflowFit() {
+  const container = document.querySelector('.propuesta-slides-container');
+  if (!container) return;
+
+  const check = () => {
+    const overflows = container.scrollHeight > container.clientHeight + 2;
+    if (container.classList.contains('slides-overflow') !== overflows) {
+      container.classList.toggle('slides-overflow', overflows);
+    }
+  };
+  // Debounce con setTimeout (no depende de que la página composite frames como rAF)
+  let pending = false;
+  const schedule = () => {
+    if (pending) return;
+    pending = true;
+    setTimeout(() => { pending = false; check(); }, 30);
+  };
+
+  if ('ResizeObserver' in window) new ResizeObserver(schedule).observe(container);
+  // Cambio de slide activo o contenido inyectado (resumen del cierre, etc.)
+  new MutationObserver(schedule).observe(container, {
+    subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']
+  });
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', schedule);
+  check();
+  schedule();
+})();
