@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
   <link rel="stylesheet" href="css/style.css?v=20260911g">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260911g-kb">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260911i-combo">
   <link rel="stylesheet" href="css/ux.css?v=20260911g">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
@@ -1316,9 +1316,15 @@
             </div>
             <input type="email" id="prop-contacto-gmail" placeholder="Correo electrónico" class="propuesta-input preform-input" style="width:100%;box-sizing:border-box">
             <div class="preform-or">— o elegí un cliente existente —</div>
-            <select id="prop-cliente-existente" class="propuesta-input preform-select">
-              <option value="">Buscar cliente existente...</option>
-            </select>
+            <div class="preform-combo" id="prop-cliente-combo">
+              <span class="preform-combo-ico" aria-hidden="true">🔍</span>
+              <input type="text" id="prop-cliente-buscar" class="propuesta-input preform-input preform-combo-input"
+                     placeholder="Buscar por nombre o teléfono..." autocomplete="off"
+                     role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="prop-cliente-list">
+              <button type="button" class="preform-combo-clear hidden" id="prop-cliente-clear" aria-label="Limpiar">✕</button>
+              <input type="hidden" id="prop-cliente-existente" value="">
+              <div class="preform-combo-list" id="prop-cliente-list" role="listbox" hidden></div>
+            </div>
             <button class="btn-propuesta-primary" id="btn-preform-comenzar">Comenzar propuesta →</button>
           </div>
         </div>
@@ -1635,7 +1641,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260911g"></script>
+  <script src="js/app.js?v=20260911h-combo"></script>
   <script src="js/propuesta-ui.js?v=20260911g-kb"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911g"></script>

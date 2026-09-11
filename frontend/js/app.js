@@ -4095,6 +4095,9 @@ function initPropuesta() {
   set('prop-agasajado', ''); set('prop-cumple-anios', ''); set('prop-fecha', ''); set('prop-infantil-cant', ''); set('prop-pedidos', '');
   set('prop-contacto-nombre', ''); set('prop-contacto-telefono', ''); set('prop-contacto-gmail', '');
   const clSel = $('prop-cliente-existente'); if (clSel) clSel.value = '';
+  const clBuscar = $('prop-cliente-buscar'); if (clBuscar) clBuscar.value = '';
+  const clClear = $('prop-cliente-clear'); if (clClear) clClear.classList.add('hidden');
+  const clLista = $('prop-cliente-list'); if (clLista) { clLista.hidden = true; clLista.innerHTML = ''; }
   const invDisplay = $('prop-invitados-display'); if (invDisplay) invDisplay.textContent = '100';
   set('prop-invitados', '100');
   const miCb = $('prop-menu-infantil'); if (miCb) miCb.checked = false;
@@ -4108,18 +4111,11 @@ function initPropuesta() {
 }
 
 function openPropuestaPreForm() {
-  const sel = $('prop-cliente-existente');
-  if (sel) {
-    sel.innerHTML = '<option value="">Buscar cliente existente...</option>';
-    (allClientes || []).slice()
-      .sort((a, b) => (a.apellidoNombre || '').localeCompare(b.apellidoNombre || ''))
-      .forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.rowIndex;
-        opt.textContent = c.apellidoNombre + (c.tipoEvento ? ` · ${c.tipoEvento}` : '');
-        sel.appendChild(opt);
-      });
-  }
+  // Reset del buscador de cliente existente (typeahead)
+  const hid = $('prop-cliente-existente'); if (hid) hid.value = '';
+  const buscar = $('prop-cliente-buscar'); if (buscar) buscar.value = '';
+  const lista = $('prop-cliente-list'); if (lista) { lista.hidden = true; lista.innerHTML = ''; }
+  const clr = $('prop-cliente-clear'); if (clr) clr.classList.add('hidden');
   showEl($('propuesta-preform'));
   const slidesEl = document.querySelector('.propuesta-slides-container');
   const navEl = document.querySelector('.propuesta-nav');
@@ -4127,6 +4123,109 @@ function openPropuestaPreForm() {
   if (navEl) navEl.style.display = 'none';
   mostrarBorradorPendiente();
   preloadPropuestaImgs();
+}
+
+/* Buscador de cliente existente (typeahead) — reemplaza al <select> con scroll */
+function initPropuestaClienteCombo() {
+  const buscar = $('prop-cliente-buscar');
+  const hidden = $('prop-cliente-existente');
+  const lista  = $('prop-cliente-list');
+  const clear  = $('prop-cliente-clear');
+  const combo  = $('prop-cliente-combo');
+  if (!buscar || !hidden || !lista || !combo) return;
+
+  const MAX = 40; // tope de resultados mostrados
+  let activo = -1; // índice resaltado para teclado
+
+  const norm = s => (s || '').toString().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  const iniciales = nombre => {
+    const partes = (nombre || '').trim().split(/[\s,]+/).filter(Boolean);
+    return ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+  };
+
+  const cerrar = () => { lista.hidden = true; buscar.setAttribute('aria-expanded', 'false'); activo = -1; };
+
+  const seleccionar = (c) => {
+    hidden.value = c.rowIndex;
+    buscar.value = c.apellidoNombre || '';
+    clear?.classList.remove('hidden');
+    const ni = $('prop-contacto-nombre'); if (ni) ni.value = c.apellidoNombre || '';
+    const ti = $('prop-contacto-telefono'); if (ti) ti.value = c.telefono || '';
+    const gi = $('prop-contacto-gmail'); if (gi) gi.value = c.gmail || '';
+    cerrar();
+  };
+
+  const render = () => {
+    const term = norm(buscar.value);
+    let matches = (allClientes || []).slice()
+      .sort((a, b) => (a.apellidoNombre || '').localeCompare(b.apellidoNombre || ''));
+    if (term) {
+      matches = matches.filter(c =>
+        norm(c.apellidoNombre).includes(term) || norm(c.telefono).includes(term));
+    }
+    const total = matches.length;
+    matches = matches.slice(0, MAX);
+    activo = -1;
+
+    if (!total) {
+      lista.innerHTML = `<div class="combo-empty">Sin resultados${buscar.value ? ` para “${esc(buscar.value)}”` : ''}</div>`;
+    } else {
+      lista.innerHTML = matches.map((c, i) => {
+        const meta = [c.tipoEvento, c.telefono].filter(Boolean).join(' · ');
+        return `<div class="combo-item" role="option" data-row="${c.rowIndex}" data-i="${i}">
+          <span class="combo-avatar">${esc(iniciales(c.apellidoNombre))}</span>
+          <span class="combo-text">
+            <span class="combo-name">${esc(c.apellidoNombre || 'Sin nombre')}</span>
+            ${meta ? `<span class="combo-meta">${esc(meta)}</span>` : ''}
+          </span>
+        </div>`;
+      }).join('') + (total > MAX
+        ? `<div class="combo-more">Mostrando ${MAX} de ${total} · seguí escribiendo para afinar</div>`
+        : '');
+    }
+    lista.hidden = false;
+    buscar.setAttribute('aria-expanded', 'true');
+  };
+
+  buscar.addEventListener('input', () => { hidden.value = ''; clear?.classList.toggle('hidden', !buscar.value); render(); });
+  buscar.addEventListener('focus', render);
+  buscar.addEventListener('keydown', e => {
+    const items = [...lista.querySelectorAll('.combo-item')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (lista.hidden) { render(); return; }
+      activo += (e.key === 'ArrowDown' ? 1 : -1);
+      if (activo < 0) activo = items.length - 1;
+      if (activo >= items.length) activo = 0;
+      items.forEach((el, i) => el.classList.toggle('active', i === activo));
+      items[activo]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      if (!lista.hidden && items[activo]) {
+        e.preventDefault();
+        const c = (allClientes || []).find(x => x.rowIndex === parseInt(items[activo].dataset.row));
+        if (c) seleccionar(c);
+      }
+    } else if (e.key === 'Escape') {
+      cerrar();
+    }
+  });
+
+  lista.addEventListener('mousedown', e => {
+    const item = e.target.closest('.combo-item');
+    if (!item) return;
+    e.preventDefault(); // evita el blur antes del click
+    const c = (allClientes || []).find(x => x.rowIndex === parseInt(item.dataset.row));
+    if (c) seleccionar(c);
+  });
+
+  clear?.addEventListener('click', () => {
+    hidden.value = ''; buscar.value = ''; clear.classList.add('hidden');
+    buscar.focus(); render();
+  });
+
+  document.addEventListener('click', e => { if (!combo.contains(e.target)) cerrar(); });
 }
 
 function startPropuestaSlides() {
@@ -6282,15 +6381,8 @@ ${tipo === 'contrato' ? (() => {
   // Pre-form: comenzar propuesta
   $('btn-preform-comenzar')?.addEventListener('click', startPropuestaSlides);
 
-  // Pre-form: al elegir cliente existente, pre-llenar nombre y teléfono
-  $('prop-cliente-existente')?.addEventListener('change', e => {
-    if (!e.target.value) return;
-    const cliente = (allClientes || []).find(c => c.rowIndex === parseInt(e.target.value));
-    if (!cliente) return;
-    const ni = $('prop-contacto-nombre'); if (ni) ni.value = cliente.apellidoNombre || '';
-    const ti = $('prop-contacto-telefono'); if (ti) ti.value = cliente.telefono || '';
-    const gi = $('prop-contacto-gmail'); if (gi) gi.value = cliente.gmail || '';
-  });
+  // Pre-form: buscador de cliente existente (typeahead con lista filtrada)
+  initPropuestaClienteCombo();
 
   // Guardar cliente desde propuesta
   $('btn-guardar-cliente-propuesta')?.addEventListener('click', guardarClientePropuesta);
