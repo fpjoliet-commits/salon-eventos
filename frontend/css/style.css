@@ -3327,3 +3327,9 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
 .stock-cat-handle { cursor: grab; touch-action: none; }
 .stock-cat-handle:active { cursor: grabbing; }
 .stock-cat-grip { opacity: .5; margin-right: 6px; user-select: none; font-size: 13px; }
+
+/* ============ Arrastre horizontal de columnas (tabla de clientes) ============ */
+#view-clientes .data-table thead th[data-sort-key] { cursor: grab; touch-action: pan-y; }
+#view-clientes .data-table thead th[data-sort-key] .th-sort { cursor: grab; }
+#view-clientes .data-table thead th.col-dragging { opacity: .6; background: var(--gold-soft, #f3e9d2); }
+.columnas-panel-sub { font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--text-muted); font-size: 11px; }

@@ -7112,6 +7112,71 @@ function enableTouchDragReorder(container, itemSelector, handleSelector, onDrop)
   });
 }
 
+/* Mueve una columna (su <th> y TODAS sus celdas <td data-col>) antes/después de
+   otra. Header y cuerpo se mueven juntos → nunca quedan desfasados. */
+function moverColumna(table, key, pos, refKey) {
+  if (key === refKey) return;
+  const head = table.querySelector('thead tr');
+  const th = head?.querySelector(`th[data-sort-key="${key}"]`);
+  const refTh = head?.querySelector(`th[data-sort-key="${refKey}"]`);
+  if (!th || !refTh) return;
+  pos === 'after' ? refTh.after(th) : refTh.before(th);
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    const td = tr.querySelector(`td[data-col="${key}"]`);
+    const ref = tr.querySelector(`td[data-col="${refKey}"]`);
+    if (td && ref) pos === 'after' ? ref.after(td) : ref.before(td);
+  });
+}
+
+/* Arrastrar una columna en la propia tabla (mouse + touch) para reordenarla.
+   Un click sin arrastre sigue ordenando por esa columna. */
+function habilitarArrastreColumnas(table, onReorder) {
+  const thead = table?.querySelector('thead tr');
+  if (!thead || thead.dataset.colDragReady) return;
+  thead.dataset.colDragReady = '1';
+  let dragTh = null, startX = 0, moved = false;
+  const cols = () => [...thead.querySelectorAll('th[data-sort-key]')];
+
+  const onMove = e => {
+    if (!dragTh) return;
+    if (!moved) {
+      if (Math.abs(e.clientX - startX) < 6) return;
+      moved = true;
+      dragTh.classList.add('col-dragging');
+    }
+    e.preventDefault();
+    const t = document.elementFromPoint(e.clientX, e.clientY)?.closest('th[data-sort-key]');
+    if (t && t !== dragTh && thead.contains(t)) {
+      const list = cols();
+      moverColumna(table, dragTh.dataset.sortKey,
+        list.indexOf(dragTh) < list.indexOf(t) ? 'after' : 'before', t.dataset.sortKey);
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove);
+    if (dragTh) dragTh.classList.remove('col-dragging');
+    if (moved) {
+      thead._colDragUntil = Date.now() + 400;   // suprime el click de ordenar
+      onReorder?.(cols().map(th => th.dataset.sortKey));
+    }
+    dragTh = null; moved = false;
+  };
+  thead.addEventListener('pointerdown', e => {
+    if (e.button != null && e.button !== 0) return;
+    const th = e.target.closest('th[data-sort-key]');
+    if (!th) return;
+    dragTh = th; startX = e.clientX; moved = false;
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp, { once: true });
+  });
+  // Si venimos de arrastrar, no dispares el orden por columna
+  thead.addEventListener('click', e => {
+    if (thead._colDragUntil && Date.now() < thead._colDragUntil) {
+      e.stopPropagation(); e.preventDefault(); thead._colDragUntil = 0;
+    }
+  }, true);
+}
+
 function initStockDashDnD() {
   const grid = document.getElementById('stock-dash-grid');
   if (!grid) return;

@@ -439,14 +439,18 @@
       thead.insertBefore(th, actionsTh || null);
     });
 
-    // Cada fila: las celdas de datos vienen en el orden por defecto (COLUMNAS)
+    // Cada fila: se etiquetan las celdas con data-col la primera vez (cuando
+    // todavía están en el orden por defecto de COLUMNAS) y de ahí en más se
+    // reordenan por esa clave, no por posición. Así header y cuerpo nunca se
+    // desfasan aunque se reordene varias veces sin re-render.
     document.querySelectorAll('#clientes-tbody tr').forEach(tr => {
       const kids = [...tr.children];
       const check = tr.querySelector('.td-check');
       const actionsTd = tr.querySelector('.acciones-col') || kids[kids.length - 1];
       const dataTds = kids.filter(td => td !== check && td !== actionsTd);
+      dataTds.forEach((td, i) => { if (!td.dataset.col && COLUMNAS[i]) td.dataset.col = COLUMNAS[i].key; });
       const tdByKey = {};
-      COLUMNAS.forEach((col, i) => { if (dataTds[i]) tdByKey[col.key] = dataTds[i]; });
+      dataTds.forEach(td => { if (td.dataset.col) tdByKey[td.dataset.col] = td; });
       cfg.orden.forEach(k => {
         const td = tdByKey[k];
         if (!td) return;
@@ -454,6 +458,16 @@
         tr.insertBefore(td, actionsTd || null);
       });
     });
+
+    // Arrastre horizontal de columnas en la propia tabla (mouse + touch)
+    const tabla = document.querySelector('#view-clientes .data-table');
+    if (tabla) {
+      window.habilitarArrastreColumnas?.(tabla, nuevoOrden => {
+        const c = leerConfigColumnas();
+        c.orden = nuevoOrden;
+        guardarConfigColumnas(c);
+      });
+    }
   }
 
   function montarMenuColumnas() {
@@ -479,10 +493,9 @@
     const pintarPanel = () => {
       const cfg = leerConfigColumnas();
       const label = k => (COLUMNAS.find(c => c.key === k)?.label || k);
-      panel.innerHTML = `<div class="columnas-panel-head">Mostrar columnas · arrastrá ⠿ para ordenar</div>`
+      panel.innerHTML = `<div class="columnas-panel-head">Mostrar u ocultar columnas<br><span class="columnas-panel-sub">Para ordenar, arrastrá la columna en la tabla</span></div>`
         + cfg.orden.map(k => `
           <div class="columnas-row" data-key="${k}">
-            <span class="columnas-grip" aria-hidden="true" title="Arrastrá para reordenar">⠿</span>
             <label class="columnas-check">
               <input type="checkbox" ${cfg.ocultas.includes(k) ? '' : 'checked'}> ${escHtml(label(k))}
             </label>
@@ -521,13 +534,6 @@
       }
     });
 
-    // Reordenar arrastrando desde el asa ⠿ (mouse + touch)
-    window.enableTouchDragReorder?.(panel, '.columnas-row', '.columnas-grip', rows => {
-      const cfg = leerConfigColumnas();
-      cfg.orden = rows.map(r => r.dataset.key);
-      guardarConfigColumnas(cfg);
-      aplicarConfigColumnas();
-    });
   }
 
   /* --- CSV de la vista actual (respeta filtros y orden) --- */
