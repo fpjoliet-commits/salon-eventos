@@ -1513,6 +1513,154 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .cuota-badge-pagada    { background: var(--success-bg); color: var(--success); }
 .cuota-badge-pendiente { background: var(--warning-bg);  color: var(--warning); }
+.cuota-item.cuota-parcial   { background: #fefce8; border-color: #fde68a; }
+.cuota-badge-parcial        { background: #fef3c7; color: #92400e; }
+
+/* ---- Cobros sin confirmar (no suman en ningun total) ---- */
+.aviso-sinconf {
+  background: #fefce8; border: 1px solid #fde68a; border-radius: var(--radius);
+  padding: 9px 13px; font-size: 13px; color: #92400e; margin-bottom: 10px;
+}
+.list-item-sinconf { background: #fefce8; }
+.chip-sinconf {
+  display: inline-block; background: #fef3c7; color: #92400e;
+  font-size: 10.5px; font-weight: 700; padding: 2px 8px;
+  border-radius: 20px; margin-left: 6px; vertical-align: middle;
+}
+
+/* ===================== PAGO POR CUBIERTO ===================== */
+.cub-cab {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.cub-precio { display: flex; flex-direction: column; gap: 2px; }
+.cub-precio-lbl {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text-muted);
+}
+.cub-precio-val { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cub-favor {
+  background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;
+  border-radius: var(--radius); padding: 9px 14px; font-size: 14px;
+}
+.cub-favor-ayuda { display: block; font-size: 11.5px; opacity: .8; }
+
+.cub-barra-wrap { margin-bottom: 16px; }
+.cub-barra {
+  background: #f0ece5; border-radius: 8px; height: 22px; overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+.cub-barra-fill {
+  height: 100%; background: linear-gradient(90deg, #15803d, #22c55e);
+  border-radius: 8px; transition: width .3s;
+}
+.cub-barra-txt { margin-top: 7px; font-size: 14.5px; text-align: center; }
+
+.cub-listo {
+  background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;
+  border-radius: var(--radius); padding: 11px 15px;
+  font-size: 15px; font-weight: 600; margin: 14px 0;
+}
+.cub-nota, .cub-aviso {
+  background: var(--cream); border: 1px solid var(--border-light);
+  border-radius: var(--radius); padding: 11px 15px;
+  font-size: 13.5px; color: var(--text-muted); margin-top: 14px;
+}
+.cub-aviso { background: #fefce8; border-color: #fde68a; color: #92400e; font-size: 14.5px; }
+
+/* Calculo en vivo al registrar el cobro */
+.cub-calc { margin-bottom: 4px; }
+.cub-calc-fila {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 6px 0; font-size: 14.5px;
+}
+.cub-calc-fila > span:first-child { flex: 1; color: var(--text-muted); }
+.cub-calc-fila b { font-variant-numeric: tabular-nums; }
+.cub-calc-conv { border-bottom: 1px solid var(--border-light); padding-bottom: 9px; }
+.cub-calc-destacado {
+  border-top: 2px solid var(--border-light); margin-top: 6px; padding-top: 10px;
+  font-size: 17px;
+}
+.cub-calc-destacado > span:first-child { color: var(--text); font-weight: 600; }
+.cub-calc-destacado b { color: #166534; font-size: 19px; }
+.cub-calc-resto b { color: #92400e; }
+.cub-calc-ayuda { font-size: 12px; color: var(--text-muted); }
+
+.pago-cotiz-row { display: flex; gap: 6px; align-items: center; }
+.pago-cotiz-row input { flex: 1; min-width: 0; }
+.pago-cotiz-info {
+  display: block; margin-top: 4px; font-size: 11.5px; color: var(--text-muted);
+}
+
+/* ---- Vista previa de imputacion del cobro ---- */
+.imp-caja {
+  margin: 12px 0 10px;
+  background: var(--cream);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.imp-tit {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-muted); margin-bottom: 9px;
+}
+.imp-vacio { font-size: 13.5px; color: var(--text-muted); font-style: italic; }
+.imp-fila {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 0; border-bottom: 1px solid var(--border-light);
+}
+.imp-fila:last-of-type { border-bottom: none; }
+.imp-cuota { font-weight: 600; font-size: 14.5px; min-width: 92px; }
+.imp-monto {
+  font-variant-numeric: tabular-nums; font-weight: 700;
+  font-size: 15px; min-width: 110px;
+}
+.imp-chip {
+  font-size: 12px; font-weight: 700; padding: 3px 10px;
+  border-radius: 20px; background: var(--border-light); color: var(--text-muted);
+}
+.imp-ok      { background: #f0fdf4; color: #166534; }
+.imp-parcial { background: #fef3c7; color: #92400e; }
+.imp-sobrante .imp-cuota { color: #92400e; }
+.imp-saldo {
+  margin-top: 11px; padding-top: 10px;
+  border-top: 2px solid var(--border-light);
+  font-size: 15px;
+}
+.imp-saldo b { font-variant-numeric: tabular-nums; }
+.imp-manual-lbl {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13.5px; color: var(--text-muted);
+  margin: 0 0 12px; cursor: pointer;
+}
+.imp-manual-lbl input { width: 16px; height: 16px; cursor: pointer; margin: 0; }
+
+/* ---- Resumen del plan al crearlo ---- */
+.plan-resumen {
+  margin: 12px 0;
+  background: var(--cream);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  max-width: 380px;
+}
+.plan-resumen:empty { display: none; }
+.plan-linea {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px; padding: 5px 0; font-size: 14.5px;
+}
+.plan-linea b { font-variant-numeric: tabular-nums; }
+.plan-extra b { color: #92400e; }
+.plan-total {
+  border-top: 2px solid var(--border-light);
+  margin-top: 6px; padding-top: 9px; font-size: 16px; font-weight: 600;
+}
+.plan-cuotas-txt {
+  margin-top: 9px; padding-top: 9px;
+  border-top: 1px dashed var(--border-light);
+  font-size: 15px; text-align: center;
+}
+
 
 .cuotas-form {
   background: var(--cream);
@@ -2344,6 +2492,67 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   opacity: 1;
   background: var(--border);
 }
+
+.btn-egr-del {
+  background: none; border: none; cursor: pointer;
+  font-size: 1rem; padding: 2px 6px; border-radius: 4px;
+  opacity: 0.55; transition: opacity .15s, background .15s;
+}
+.btn-egr-del:hover { opacity: 1; background: #fee2e2; }
+.egr-acciones { white-space: nowrap; text-align: right; }
+
+/* ---- Destino del gasto: salón (fijo) vs evento ---- */
+.egr-destino {
+  background: var(--cream);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.egr-destino-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.egr-destino-opts { display: flex; flex-wrap: wrap; gap: 10px; }
+.egr-destino-opt {
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 16px;
+  background: var(--surface);
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14.5px;
+  transition: border-color .15s, background .15s;
+}
+.egr-destino-opt:hover { border-color: var(--text-muted); }
+.egr-destino-opt input { width: 18px; height: 18px; cursor: pointer; margin: 0; }
+.egr-destino-opt:has(input:checked) {
+  border-color: #166534;
+  background: #f0fdf4;
+  font-weight: 600;
+}
+#egr-evento-group { margin-top: 12px; }
+#egr-evento { font-size: 15px; min-height: 42px; }
+
+/* ---- Badges de la columna Evento ---- */
+.egr-evento-badge {
+  display: inline-block;
+  background: #eff6ff; color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11.5px; font-weight: 600;
+  white-space: nowrap;
+}
+.egr-fijo-badge {
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-style: italic;
+}
+.btn-repetir { white-space: nowrap; }
 
 /* ===================== COCINA — TABS DE NAVEGACIÓN ===================== */
 

@@ -1234,8 +1234,9 @@ async function loadPagosCliente(cliente) {
   $('pagos-list').innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';
   try {
     const { ingresos } = await apiFetch(`/ingresos/totales/${cliente.id}`);
-    const totalARS = ingresos.filter(i => !i.moneda || i.moneda === 'ARS').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
-    const totalUSD = ingresos.filter(i => i.moneda === 'USD').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+    const confirmados = ingresos.filter(i => i.confirmado !== false);
+    const totalARS = confirmados.filter(i => !i.moneda || i.moneda === 'ARS').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
+    const totalUSD = confirmados.filter(i => i.moneda === 'USD').reduce((s, i) => s + (parseFloat(i.monto) || 0), 0);
     const partes = [];
     if (totalARS > 0) partes.push(formatMoney(totalARS));
     if (totalUSD > 0) partes.push(formatMoneda(totalUSD, 'USD'));
@@ -1244,10 +1245,15 @@ async function loadPagosCliente(cliente) {
       $('pagos-list').innerHTML = '<p style="color:#999;font-size:13px;margin-bottom:12px">Sin ingresos registrados.</p>';
       return;
     }
-    $('pagos-list').innerHTML = `<div class="item-list">${ingresos.map(i => `
-      <div class="list-item">
+    // Un cobro sin confirmar no suma en ningun total. Antes era invisible en la
+    // ficha, asi que la plata desaparecia sin que nadie se enterara.
+    const sinConf = ingresos.filter(i => i.confirmado === false).length;
+    $('pagos-list').innerHTML =
+      (sinConf ? `<div class="aviso-sinconf">${sinConf} cobro(s) sin confirmar. No suman en los totales hasta que se confirmen.</div>` : '') +
+      `<div class="item-list">${ingresos.map(i => `
+      <div class="list-item${i.confirmado === false ? ' list-item-sinconf' : ''}">
         <div class="list-item-info">
-          <div class="list-item-label">${i.tipoIngreso} — ${formatMoneda(i.monto, i.moneda || 'ARS')}</div>
+          <div class="list-item-label">${i.tipoIngreso} — ${formatMoneda(i.monto, i.moneda || 'ARS')}${i.confirmado === false ? ' <span class="chip-sinconf">sin confirmar</span>' : ''}</div>
           <div class="list-item-sub">${formatDate(i.fecha)}${i.formaPago ? ' · ' + i.formaPago : ''}${i.notas ? ' · ' + i.notas : ''}</div>
         </div>
       </div>
@@ -1257,14 +1263,207 @@ async function loadPagosCliente(cliente) {
   }
 }
 
+/* Espejo de calcularImputacion() de backend/sheets.js. Vive duplicada aca para
+   poder mostrar la vista previa al instante: pedirsela al servidor significaria
+   esperar a que Render despierte (~50s) con la persona y el cliente enfrente.
+   El servidor vuelve a calcularla al guardar, asi que manda el servidor.
+   Si cambia una, hay que cambiar la otra. */
+function calcularImputacionLocal(cuotas, montoRecibido) {
+  const pendientes = cuotas
+    .filter(c => c.estado !== 'pagada' && c.estado !== 'cancelada')
+    .sort((a, b) => a.numeroCuota - b.numeroCuota);
+  let restante = montoRecibido;
+  const aplicaciones = [];
+  for (const c of pendientes) {
+    if (restante <= 0.005) break;
+    const debe = (c.valorActual || 0) - (c.montoPagado || 0);
+    if (debe <= 0.005) continue;
+    const aplicar = Math.min(restante, debe);
+    const nuevoPagado = (c.montoPagado || 0) + aplicar;
+    aplicaciones.push({
+      numeroCuota: c.numeroCuota,
+      aplicado: aplicar,
+      restaDespues: Math.max(0, (c.valorActual || 0) - nuevoPagado),
+      nuevoEstado: nuevoPagado >= (c.valorActual || 0) - 0.5 ? 'pagada' : 'parcial',
+    });
+    restante -= aplicar;
+  }
+  return { aplicaciones, sobrante: Math.max(0, restante) };
+}
+
+// Cuotas del cliente abierto, cacheadas para poder previsualizar sin red.
+let cuotasClienteActual = [];
+
+async function traerCotizacion(silencioso) {
+  try {
+    cotizacionBlue = await apiFetch('/cotizacion-blue');
+    if ($('pago-cotizacion')) $('pago-cotizacion').value = cotizacionBlue.promedio;
+    if ($('pago-cotiz-info')) {
+      $('pago-cotiz-info').textContent =
+        `Blue: compra ${formatMoney(cotizacionBlue.compra)} · venta ${formatMoney(cotizacionBlue.venta)} → promedio ${formatMoney(cotizacionBlue.promedio)}`;
+    }
+  } catch (e) {
+    if ($('pago-cotiz-info')) {
+      $('pago-cotiz-info').textContent = 'No se pudo traer la cotización. Escribila a mano.';
+    }
+    if (!silencioso) toast('No se pudo traer la cotización', 'error');
+  }
+  renderPreviewImputacion();
+}
+
+// Vista previa del pago por cubierto: hace la doble conversion (dolar -> peso
+// -> cubierto) a la vista, que es justo lo que hay que decirle al cliente.
+function renderPreviewCubiertos() {
+  const cont = $('pago-imputacion');
+  const est = estadoCubiertosActual;
+  if (!cont || !est) return;
+  showEl(cont);
+
+  const moneda = $('pago-moneda').value || 'ARS';
+  const monto  = parseFloat($('pago-monto').value) || 0;
+  const cotiz  = parseFloat($('pago-cotizacion')?.value) || 0;
+  const esUSD  = moneda === 'USD';
+
+  if (!(est.precio > 0)) {
+    cont.innerHTML = '<div class="imp-vacio">Este evento no tiene precio de cubierto cargado.</div>';
+    return;
+  }
+  if (!monto) {
+    cont.innerHTML = '<div class="imp-vacio">Escribí el monto y te muestro cuántos cubiertos compra.</div>';
+    return;
+  }
+  if (esUSD && !(cotiz > 0)) {
+    cont.innerHTML = '<div class="imp-vacio">Falta la cotización del dólar para poder convertir.</div>';
+    return;
+  }
+
+  const montoARS = esUSD ? monto * cotiz : monto;
+  const r = calcularCompraCubiertosLocal(montoARS, est.saldoAFavor, est.precio, est.restantes);
+  const pagadosAhora = est.cubiertosPagados + r.cubiertos;
+  const faltanAhora = Math.max(0, est.total - pagadosAhora);
+
+  cont.innerHTML =
+    '<div class="imp-tit">Lo que le podés decir al cliente:</div>' +
+    '<div class="cub-calc">' +
+      `<div class="cub-calc-fila"><span>Precio del cubierto hoy</span><b>${formatMoney(est.precio)}</b></div>` +
+      (esUSD
+        ? `<div class="cub-calc-fila"><span>Recibís</span><b>U$S ${monto.toLocaleString('es-AR')}</b></div>` +
+          `<div class="cub-calc-fila"><span>Cotización usada</span><b>${formatMoney(cotiz)}</b></div>` +
+          `<div class="cub-calc-fila cub-calc-conv"><span>En pesos</span><b>${formatMoney(montoARS)}</b></div>`
+        : `<div class="cub-calc-fila"><span>Recibís</span><b>${formatMoney(montoARS)}</b></div>`) +
+      (est.saldoAFavor > 0.5
+        ? `<div class="cub-calc-fila"><span>Tenía a favor</span><b>+ ${formatMoney(est.saldoAFavor)}</b></div>`
+        : '') +
+      `<div class="cub-calc-fila cub-calc-destacado"><span>Compra</span>
+         <b>${r.cubiertos} cubierto${r.cubiertos === 1 ? '' : 's'}</b></div>` +
+      (r.saldoNuevo > 0.5
+        ? `<div class="cub-calc-fila cub-calc-resto"><span>Queda a favor</span><b>${formatMoney(r.saldoNuevo)}</b>
+             <span class="cub-calc-ayuda">para el próximo pago</span></div>`
+        : '') +
+      (r.excedente > 0.5
+        ? `<div class="cub-calc-fila cub-calc-resto"><span>Pagó de más</span><b>${formatMoney(r.excedente)}</b>
+             <span class="cub-calc-ayuda">ya tiene todos los cubiertos</span></div>`
+        : '') +
+    '</div>' +
+    '<div class="imp-saldo">' +
+      `Queda con <b>${pagadosAhora} de ${est.total}</b> cubiertos. ` +
+      (faltanAhora > 0
+        ? `Le faltan <b>${faltanAhora}</b> → <b>${formatMoney(faltanAhora * est.precio)}</b> al precio de hoy.`
+        : '<b>Ya tiene todos los cubiertos pagados.</b>') +
+    '</div>';
+}
+
+function renderPreviewImputacion() {
+  const cont = $('pago-imputacion');
+  if (!cont) return;
+  const tipo  = $('pago-tipo').value;
+  const monto = parseFloat($('pago-monto').value) || 0;
+
+  // Modalidad por cubierto: cualquier cobro compra cubiertos, incluida la seña.
+  if (estadoCubiertosActual) { renderPreviewCubiertos(); return; }
+
+  if (tipo !== 'Cuota') { hideEl(cont); return; }
+  showEl(cont);
+
+  if (!cuotasClienteActual.length) {
+    cont.innerHTML = '<div class="imp-vacio">Este cliente todavía no tiene un plan de cuotas. ' +
+      'El cobro se va a registrar igual, pero no se va a descontar de ningún plan.</div>';
+    return;
+  }
+  if (!monto) {
+    cont.innerHTML = '<div class="imp-vacio">Escribí el monto y te muestro qué cuotas cubre.</div>';
+    return;
+  }
+
+  const moneda = cuotasClienteActual[0]?.moneda || 'ARS';
+  const { aplicaciones, sobrante } = calcularImputacionLocal(cuotasClienteActual, monto);
+
+  if (!aplicaciones.length) {
+    cont.innerHTML = '<div class="imp-vacio">El plan ya está todo pagado. ' +
+      'Este cobro se registra como un pago a favor.</div>';
+    return;
+  }
+
+  const saldoAntes = cuotasClienteActual.reduce(
+    (s, c) => s + Math.max(0, (c.valorActual || 0) - (c.montoPagado || 0)), 0);
+
+  cont.innerHTML =
+    '<div class="imp-tit">Este cobro cubre:</div>' +
+    aplicaciones.map(a =>
+      '<div class="imp-fila">' +
+        '<span class="imp-cuota">Cuota ' + a.numeroCuota + '</span>' +
+        '<span class="imp-monto">' + formatMoneda(a.aplicado, moneda) + '</span>' +
+        (a.nuevoEstado === 'pagada'
+          ? '<span class="imp-chip imp-ok">queda saldada</span>'
+          : '<span class="imp-chip imp-parcial">quedan ' + formatMoneda(a.restaDespues, moneda) + '</span>') +
+      '</div>').join('') +
+    (sobrante > 0.5
+      ? '<div class="imp-fila imp-sobrante"><span class="imp-cuota">Sobrante a favor</span>' +
+        '<span class="imp-monto">' + formatMoneda(sobrante, moneda) + '</span>' +
+        '<span class="imp-chip">no cubre más cuotas</span></div>'
+      : '') +
+    '<div class="imp-saldo">Saldo del plan después de este cobro: <b>' +
+      formatMoneda(Math.max(0, saldoAntes - (monto - sobrante)), moneda) + '</b></div>';
+}
+
 $('pago-tipo').addEventListener('change', () => {
   const tipo = $('pago-tipo').value;
-  const seccion = $('cuotas-a-tachar');
-  if (tipo === 'Cuota') {
-    showEl(seccion);
-    renderCuotasATacharLista();
+  const manual = $('cuotas-a-tachar');
+  if (tipo !== 'Cuota') hideEl(manual);
+  const wrap = $('pago-modo-manual-wrap');
+  if (wrap) wrap.style.display = (tipo === 'Cuota' && !estadoCubiertosActual) ? '' : 'none';
+  const toggle = $('pago-modo-manual');
+  if (toggle) toggle.checked = false;
+  hideEl(manual);
+  renderPreviewImputacion();
+});
+
+$('pago-monto')?.addEventListener('input', renderPreviewImputacion);
+$('pago-cotizacion')?.addEventListener('input', renderPreviewImputacion);
+$('btn-traer-cotiz')?.addEventListener('click', () => traerCotizacion(false));
+
+$('pago-moneda')?.addEventListener('change', () => {
+  const esUSD = $('pago-moneda').value === 'USD';
+  const grupo = $('pago-cotiz-group');
+  // La cotizacion solo hace falta en modalidad cubiertos: ahi hay que pasar a
+  // pesos para poder convertir a cubiertos. En cuotas el monto se guarda tal cual.
+  if (grupo) grupo.style.display = (esUSD && estadoCubiertosActual) ? '' : 'none';
+  if (esUSD && estadoCubiertosActual && !parseFloat($('pago-cotizacion')?.value)) {
+    traerCotizacion(true);
   } else {
-    hideEl(seccion);
+    renderPreviewImputacion();
+  }
+});
+
+// "Elegir yo las cuotas": la excepcion, no el camino principal.
+document.addEventListener('change', e => {
+  if (e.target.id !== 'pago-modo-manual') return;
+  const manual = $('cuotas-a-tachar');
+  const auto   = $('pago-imputacion');
+  if (e.target.checked) {
+    showEl(manual); renderCuotasATacharLista(); hideEl(auto);
+  } else {
+    hideEl(manual); showEl(auto); renderPreviewImputacion();
   }
 });
 
@@ -1303,6 +1502,13 @@ function renderCuotasATacharLista() {
 $('pago-form').addEventListener('submit', async e => {
   e.preventDefault();
   hide('pago-error'); hide('pago-success');
+  // Render tarda hasta ~50s cuando esta dormido: sin esto, el doble click
+  // impaciente registra el cobro dos veces y no hay como darse cuenta despues.
+  const btnPago = e.target.querySelector('button[type=submit]');
+  if (btnPago?.disabled) return;
+  const txtPago = btnPago?.textContent;
+  if (btnPago) { btnPago.disabled = true; btnPago.textContent = 'Registrando…'; }
+  const soltarBoton = () => { if (btnPago) { btnPago.disabled = false; btnPago.textContent = txtPago; } };
   const tipo = $('pago-tipo').value;
   const moneda = $('pago-moneda').value || 'ARS';
   const monto = parseFloat($('pago-monto').value);
@@ -1313,15 +1519,52 @@ $('pago-form').addEventListener('submit', async e => {
 
   if (!(monto > 0)) {
     $('pago-error').textContent = 'Ingresá un monto mayor a 0.';
-    show('pago-error'); return;
+    show('pago-error'); soltarBoton(); return;
   }
 
-  const cuotasSeleccionadas = tipo === 'Cuota'
+  const modoManual = $('pago-modo-manual')?.checked;
+  const cuotasSeleccionadas = (tipo === 'Cuota' && modoManual)
     ? [...($('cuotas-a-tachar-lista')?.querySelectorAll('.tachar-check:checked') || [])].map(c => parseInt(c.dataset.row))
     : [];
 
+  // Antes, elegir tipo "Cuota" y no tildar nada creaba un ingreso suelto que no
+  // tocaba el plan: la plata entraba pero la cuota seguia figurando impaga.
+  if (tipo === 'Cuota' && modoManual && !cuotasSeleccionadas.length) {
+    $('pago-error').textContent = 'Marcaste "elegir yo las cuotas" pero no tildaste ninguna. ' +
+      'Tildá al menos una, o destildá esa opción para que el sistema las impute solo.';
+    show('pago-error'); soltarBoton(); return;
+  }
+
+  // Una fecha de cobro a futuro casi siempre es un error de tipeo en el año, y
+  // manda la plata a un mes que despues nadie mira. Se avisa, no se traba.
+  if (fecha > hoyISO()) {
+    const d = fecha.split('-');
+    if (!confirm(`La fecha del cobro (${d[2]}/${d[1]}/${d[0]}) es posterior a hoy.
+
+` +
+                 '¿Es correcta? Revisá que el año esté bien escrito.')) {
+      soltarBoton(); return;
+    }
+  }
+
   try {
-    if (tipo === 'Cuota' && cuotasSeleccionadas.length) {
+    if (estadoCubiertosActual) {
+      // Modalidad por cubierto: todo cobro (seña incluida) compra cubiertos.
+      const r = await apiFetch('/cubiertos/cobrar', { method: 'PUT', body: {
+        idEvento: idCliente, monto, moneda, fecha, formaPago, notas,
+        tipoIngreso: tipo,
+        cotizacion: moneda === 'USD' ? (parseFloat($('pago-cotizacion')?.value) || 0) : 0,
+      }});
+      toast(r.cubiertosComprados
+        ? `${r.cubiertosComprados} cubierto(s) — quedan ${r.restantes} por pagar`
+        : 'Cobro registrado (no alcanzó para un cubierto entero)');
+    } else if (tipo === 'Cuota' && !modoManual && cuotasClienteActual.length) {
+      const r = await apiFetch('/cuotas/imputar', { method: 'PUT', body: {
+        idCliente, monto, fechaPago: fecha, notas, formaPago, moneda,
+      }});
+      const n = r.aplicaciones?.length || 0;
+      toast(n ? `Cobro imputado a ${n} cuota${n > 1 ? 's' : ''}` : 'Cobro registrado');
+    } else if (tipo === 'Cuota' && cuotasSeleccionadas.length) {
       const nums = [...($('cuotas-a-tachar-lista')?.querySelectorAll('.tachar-check:checked') || [])]
         .map(c => c.dataset.num || '');
       await apiFetch('/cuotas/pagar', { method: 'PUT', body: {
@@ -1346,13 +1589,19 @@ $('pago-form').addEventListener('submit', async e => {
     $('pago-form').reset();
     $('pago-fecha').value = hoyISO();
     hideEl($('cuotas-a-tachar'));
+    hideEl($('pago-imputacion'));
+    const wrapM = $('pago-modo-manual-wrap');
+    if (wrapM) wrapM.style.display = 'none';
+    if ($('pago-cotiz-group')) $('pago-cotiz-group').style.display = 'none';
     if (canManagePagos()) {
       loadPagosCliente(currentClienteModal);
-      if (tipo === 'Cuota' && cuotasSeleccionadas.length) loadCuotasTab(currentClienteModal);
+      if (tipo === 'Cuota' || estadoCubiertosActual) loadCuotasTab(currentClienteModal);
     }
   } catch (err) {
     $('pago-error').textContent = err.message;
     show('pago-error');
+  } finally {
+    soltarBoton();
   }
 });
 
@@ -2145,10 +2394,44 @@ function openEditForm(cliente) {
 }
 
 /* ===================== CUOTAS ===================== */
+/* Espejo de calcularCompraCubiertos() de backend/sheets.js, para previsualizar
+   sin esperar al servidor. Si cambia una, hay que cambiar la otra. */
+function calcularCompraCubiertosLocal(montoARS, saldoPrevio, precio, restantes) {
+  const disponible = (montoARS || 0) + (saldoPrevio || 0);
+  if (!(precio > 0)) return { cubiertos: 0, saldoNuevo: disponible, excedente: 0 };
+  let cubiertos = Math.floor(disponible / precio);
+  let excedente = 0;
+  if (restantes !== null && restantes !== undefined && cubiertos > restantes) {
+    cubiertos = Math.max(0, restantes);
+    excedente = disponible - cubiertos * precio;
+  }
+  return { cubiertos, saldoNuevo: excedente > 0 ? 0 : disponible - cubiertos * precio, excedente };
+}
+
+let estadoCubiertosActual = null;   // foto del evento abierto
+let cotizacionBlue = null;          // cacheada mientras el modal esta abierto
+
 async function loadCuotasTab(cliente) {
   const con = $('cuotas-content');
   if (!con) return;
   con.innerHTML = '<p style="color:#999;font-size:13px">Cargando...</p>';
+
+  // La modalidad decide que se muestra: mezclar cuotas y cubiertos en la misma
+  // pantalla confunde, y el negocio usa una sola por evento.
+  // La guia de arriba explica el flujo de cuotas: no aplica a pago por cubierto.
+  const guia = $('guia-cuotas');
+  if (guia) guia.style.display = cliente.modalidadPago === 'cubiertos' ? 'none' : '';
+
+  if (cliente.modalidadPago === 'cubiertos') {
+    cuotasClienteActual = [];
+    try {
+      estadoCubiertosActual = await apiFetch(`/cubiertos/${cliente.id}`);
+      renderCubiertos(cliente, estadoCubiertosActual);
+    } catch (e) { con.innerHTML = `<p class="error-msg">${e.message}</p>`; }
+    return;
+  }
+
+  estadoCubiertosActual = null;
   try {
     const cuotas = await apiFetch(`/cuotas/cliente/${cliente.id}`);
     renderCuotas(cliente, cuotas);
@@ -2157,15 +2440,64 @@ async function loadCuotasTab(cliente) {
   }
 }
 
+function renderCubiertos(cliente, est) {
+  const con = $('cuotas-content');
+  const pct = est.total > 0 ? Math.min(100, Math.round(est.cubiertosPagados / est.total * 100)) : 0;
+
+  if (!(est.precio > 0)) {
+    con.innerHTML = `<div class="cub-aviso">Este evento está marcado para pagar <b>por cubierto</b>,
+      pero no tiene precio de cubierto cargado. Editá el evento y completá
+      <b>Precio del cubierto</b> para poder registrar cobros.</div>`;
+    return;
+  }
+
+  con.innerHTML = `
+    <div class="cub-cab">
+      <div class="cub-precio">
+        <span class="cub-precio-lbl">Precio del cubierto hoy</span>
+        <span class="cub-precio-val">${formatMoney(est.precio)}</span>
+      </div>
+      ${est.saldoAFavor > 0.5
+        ? `<div class="cub-favor">A favor: <b>${formatMoney(est.saldoAFavor)}</b>
+             <span class="cub-favor-ayuda">se suma al próximo pago</span></div>`
+        : ''}
+    </div>
+
+    <div class="cub-barra-wrap">
+      <div class="cub-barra"><div class="cub-barra-fill" style="width:${pct}%"></div></div>
+      <div class="cub-barra-txt">
+        <b>${est.cubiertosPagados}</b> de <b>${est.total}</b> cubiertos pagados (${pct}%)
+      </div>
+    </div>
+
+    <div class="cuotas-resumen">
+      <div class="cuota-stat"><div class="cuota-stat-label">Cubiertos pagados</div>
+        <div class="cuota-stat-val verde">${est.cubiertosPagados}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Le faltan</div>
+        <div class="cuota-stat-val ${est.restantes > 0 ? 'rojo' : 'verde'}">${est.restantes}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Falta pagar (precio de hoy)</div>
+        <div class="cuota-stat-val ${est.faltaPagar > 0 ? 'rojo' : 'verde'}">${formatMoney(est.faltaPagar)}</div></div>
+      <div class="cuota-stat"><div class="cuota-stat-label">Cobrado en total</div>
+        <div class="cuota-stat-val">${formatMoney(est.totalPagadoARS)}</div></div>
+    </div>
+
+    ${est.completo ? '<div class="cub-listo">✓ Tiene todos los cubiertos pagados.</div>' : ''}
+
+    <div class="cub-nota">Los cubiertos ya pagados quedan al precio que se pagaron.
+      Si el precio sube, solo se encarecen los que falten.</div>`;
+}
+
 function renderCuotas(cliente, cuotas) {
   const con = $('cuotas-content');
-  const pendientes = cuotas.filter(c => c.estado === 'pendiente');
+  cuotasClienteActual = cuotas;   // para previsualizar la imputacion sin red
+  // 'parcial' cuenta como pendiente: todavia debe plata, aunque ya pago algo.
+  const pendientes = cuotas.filter(c => c.estado === 'pendiente' || c.estado === 'parcial');
   const pagadas = cuotas.filter(c => c.estado === 'pagada');
 
   if (!cuotas.length) {
     con.innerHTML = `
       <p style="color:#666;font-size:13px;margin-bottom:16px">No hay plan de pagos para este cliente.</p>
-      ${formCrearPlan(cliente.id)}`;
+      ${formCrearPlan(cliente.id, parseFloat(cliente.montoPresupuesto) || 0)}`;
     bindFormCrearPlan(cliente);
     return;
   }
@@ -2177,8 +2509,10 @@ function renderCuotas(cliente, cuotas) {
   const esIPC = indexacion === 'ipc';
 
   const totalContrato = cuotas.reduce((s, c) => s + c.valorOriginal, 0);
-  const totalPagado = pagadas.reduce((s, c) => s + c.montoPagado, 0);
-  const saldoPendiente = pendientes.reduce((s, c) => s + c.valorActual, 0);
+  // Se suma lo efectivamente pagado en TODAS las cuotas, no solo en las saldadas:
+  // si no, lo cobrado a cuenta de una cuota parcial desaparecia de los totales.
+  const totalPagado = cuotas.reduce((s, c) => s + (c.montoPagado || 0), 0);
+  const saldoPendiente = pendientes.reduce((s, c) => s + Math.max(0, c.valorActual - (c.montoPagado || 0)), 0);
   const valorCuotaActual = pendientes.length ? pendientes[0].valorActual : (pagadas[pagadas.length - 1]?.montoPagado || 0);
 
   con.innerHTML = `
@@ -2251,13 +2585,17 @@ function renderCuotas(cliente, cuotas) {
 
     <div class="cuotas-lista">
       ${cuotas.map(c => `
-        <div class="cuota-item cuota-${c.estado}" data-row="${c.rowIndex}">
-          ${c.estado === 'pendiente' ? `<input type="checkbox" class="cuota-check" data-row="${c.rowIndex}" data-valor="${c.valorActual}" data-num="${c.numeroCuota}">` : '<span class="cuota-check-ph"></span>'}
+        <div class="cuota-item cuota-${c.estado}${c.estado !== 'pagada' ? ' cuota-pendiente' : ''}" data-row="${c.rowIndex}">
+          ${c.estado !== 'pagada' ? `<input type="checkbox" class="cuota-check" data-row="${c.rowIndex}" data-valor="${Math.max(0, c.valorActual - (c.montoPagado || 0))}" data-num="${c.numeroCuota}">` : '<span class="cuota-check-ph"></span>'}
           <span class="cuota-num">Cuota ${c.numeroCuota}</span>
           <span class="cuota-vence">${formatDateWithDay(c.fechaVencimiento)}</span>
           <span class="cuota-valor">${formatMoneda(c.valorActual, moneda)}</span>
-          <span class="cuota-badge cuota-badge-${c.estado}">${c.estado === 'pagada' ? `✓ Pagada ${formatDate(c.fechaPago)}` : 'Pendiente'}</span>
-          ${c.estado === 'pagada' && c.montoPagado ? `<span style="font-size:11px;color:#888">cobrado: ${formatMoneda(c.montoPagado, moneda)}</span>` : ''}
+          ${c.estado === 'pagada'
+            ? `<span class="cuota-badge cuota-badge-pagada">✓ Pagada ${formatDate(c.fechaPago)}</span>`
+            : c.estado === 'parcial'
+              ? `<span class="cuota-badge cuota-badge-parcial">Falta ${formatMoneda(Math.max(0, c.valorActual - (c.montoPagado || 0)), moneda)}</span>`
+              : `<span class="cuota-badge cuota-badge-pendiente">Pendiente</span>`}
+          ${c.montoPagado ? `<span style="font-size:11px;color:#888">cobrado: ${formatMoneda(c.montoPagado, moneda)}</span>` : ''}
         </div>
       `).join('')}
     </div>
@@ -2271,7 +2609,22 @@ function renderCuotas(cliente, cuotas) {
   bindCuotasAcciones(cliente, cuotas, moneda);
 }
 
-function formCrearPlan(idCliente) {
+/* Recargo por financiacion segun en cuantas cuotas paga.
+   Es solo el valor que aparece propuesto: siempre se puede escribir otro
+   encima. Para cambiar la tabla, editar estos numeros y nada mas. */
+const RECARGO_POR_CUOTAS = { 1: 0, 2: 5, 3: 10, 4: 15, 6: 20, 9: 30, 12: 40 };
+
+function recargoSugerido(n) {
+  if (!n || n < 1) return 0;
+  if (RECARGO_POR_CUOTAS[n] !== undefined) return RECARGO_POR_CUOTAS[n];
+  // Entre dos tramos de la tabla, toma el tramo inmediato inferior.
+  const escalones = Object.keys(RECARGO_POR_CUOTAS).map(Number).sort((a, b) => a - b);
+  let r = 0;
+  escalones.forEach(e => { if (n >= e) r = RECARGO_POR_CUOTAS[e]; });
+  return r;
+}
+
+function formCrearPlan(idCliente, contadoSugerido = 0) {
   return `
     <form id="form-crear-plan" class="cuotas-form">
       <h4>Crear plan de pagos</h4>
@@ -2291,23 +2644,28 @@ function formCrearPlan(idCliente) {
           </select>
         </div>
         <div class="form-group">
-          <label>Monto total del contrato <span class="tip" data-tip="El importe total acordado con el cliente por todo el servicio. Las cuotas se calculan sobre este monto.">?</span></label>
-          <input type="number" id="plan-monto" min="0" required placeholder="600000">
+          <label>Precio contado <span class="tip" data-tip="Lo que sale el servicio si paga todo junto, sin financiación. Es el precio del presupuesto. El recargo por cuotas se calcula sobre este número.">?</span></label>
+          <input type="number" id="plan-monto" min="0" required placeholder="600000"
+                 value="${contadoSugerido > 0 ? contadoSugerido : ''}">
         </div>
         <div class="form-group">
-          <label>Cantidad de cuotas <span class="tip" data-tip="En cuántos pagos mensuales se divide. El sistema genera automáticamente una cuota por mes a partir de la fecha de inicio.">?</span></label>
+          <label>Cantidad de cuotas <span class="tip" data-tip="En cuántos pagos mensuales se divide. El sistema genera una cuota por mes desde la fecha de inicio.">?</span></label>
           <input type="number" id="plan-ncuotas" min="1" max="60" required placeholder="6">
         </div>
         <div class="form-group">
-          <label>Valor por cuota <span class="tip" data-tip="Opcional. Si lo dejás vacío se calcula automáticamente (monto ÷ cuotas). Completalo solo si el valor pactado es distinto, por redondeo o descuento especial.">?</span></label>
-          <input type="number" id="plan-valor-cuota" min="0" placeholder="Auto (monto ÷ cuotas)">
+          <label>Recargo % <span class="tip" data-tip="Se completa solo según en cuántas cuotas paga, pero podés escribir otro número encima si arreglaste algo distinto con el cliente.">?</span></label>
+          <input type="number" id="plan-recargo" min="0" max="200" step="0.1" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Valor por cuota <span class="tip" data-tip="Se calcula solo. Si escribís un valor acá (por redondeo, por ejemplo), el recargo se recalcula para que cierre.">?</span></label>
+          <input type="number" id="plan-valor-cuota" min="0" placeholder="Auto">
         </div>
         <div class="form-group">
           <label>Fecha 1° cuota <span class="tip" data-tip="Fecha de vencimiento de la primera cuota. Las siguientes se generan mes a mes desde esta fecha.">?</span></label>
           <input type="date" id="plan-fecha" required value="${hoyISO()}">
         </div>
       </div>
-      <p id="plan-preview" style="font-size:13px;color:#555;margin:6px 0"></p>
+      <div id="plan-resumen" class="plan-resumen"></div>
       <button type="submit" class="btn btn-primary btn-sm">Crear plan</button>
     </form>`;
 }
@@ -2335,22 +2693,59 @@ function formAgregarCuotas(idCliente, totalActual, moneda = 'ARS') {
 }
 
 function bindFormCrearPlan(cliente) {
-  const updatePreview = () => {
-    const monto = parseFloat($('plan-monto')?.value) || 0;
-    const n = parseInt($('plan-ncuotas')?.value) || 0;
-    const valorCustom = parseFloat($('plan-valor-cuota')?.value) || 0;
-    const moneda = $('plan-moneda')?.value || 'ARS';
-    if (monto && n) {
-      const v = valorCustom || Math.round(monto / n);
-      $('plan-preview').textContent = `→ ${n} cuotas de ${formatMoneda(v, moneda)} c/u`;
+  // El contado es el precio sin financiar; el total del plan puede ser mayor
+  // por el recargo. No son el mismo numero y esta bien que difieran: antes se
+  // los confundia y por eso el saldo del cliente nunca cerraba.
+  let editandoValor = false;
+
+  const calcular = () => {
+    const contado = parseFloat($('plan-monto')?.value) || 0;
+    const n       = parseInt($('plan-ncuotas')?.value) || 0;
+    const moneda  = $('plan-moneda')?.value || 'ARS';
+    const cont    = $('plan-resumen');
+    if (!cont) return;
+
+    if (!contado || !n) { cont.innerHTML = ''; return; }
+
+    let recargo, valor, financiado;
+    if (editandoValor) {
+      // Escribio el valor de cuota a mano: el recargo se deduce de ahi.
+      valor      = parseFloat($('plan-valor-cuota').value) || 0;
+      financiado = valor * n;
+      recargo    = contado > 0 ? (financiado / contado - 1) * 100 : 0;
+      $('plan-recargo').value = Math.round(recargo * 10) / 10;
     } else {
-      $('plan-preview').textContent = '';
+      recargo    = parseFloat($('plan-recargo').value) || 0;
+      financiado = contado * (1 + recargo / 100);
+      valor      = Math.round(financiado / n);
+      financiado = valor * n;   // lo que realmente va a sumar el plan
+      $('plan-valor-cuota').value = valor;
     }
+
+    const extra = financiado - contado;
+    cont.innerHTML = `
+      <div class="plan-linea"><span>Precio contado</span><b>${formatMoneda(contado, moneda)}</b></div>
+      <div class="plan-linea ${extra > 0 ? 'plan-extra' : ''}">
+        <span>Recargo por financiar</span>
+        <b>${extra >= 0 ? '+ ' : '- '}${formatMoneda(Math.abs(extra), moneda)}</b></div>
+      <div class="plan-linea plan-total"><span>Total del plan</span>
+        <b>${formatMoneda(financiado, moneda)}</b></div>
+      <div class="plan-cuotas-txt">${n} cuota${n > 1 ? 's' : ''} de
+        <b>${formatMoneda(valor, moneda)}</b></div>`;
   };
-  $('plan-monto')?.addEventListener('input', updatePreview);
-  $('plan-ncuotas')?.addEventListener('input', updatePreview);
-  $('plan-valor-cuota')?.addEventListener('input', updatePreview);
-  $('plan-moneda')?.addEventListener('change', updatePreview);
+
+  $('plan-ncuotas')?.addEventListener('input', () => {
+    // Al cambiar la cantidad de cuotas se re-propone el recargo de la tabla.
+    editandoValor = false;
+    $('plan-recargo').value = recargoSugerido(parseInt($('plan-ncuotas').value) || 0);
+    calcular();
+  });
+  $('plan-monto')?.addEventListener('input', () => { editandoValor = false; calcular(); });
+  $('plan-recargo')?.addEventListener('input', () => { editandoValor = false; calcular(); });
+  $('plan-valor-cuota')?.addEventListener('input', () => { editandoValor = true; calcular(); });
+  $('plan-moneda')?.addEventListener('change', calcular);
+  const updatePreview = calcular;
+  calcular();
 
   $('form-crear-plan')?.addEventListener('submit', async e => {
     e.preventDefault();
@@ -2359,7 +2754,9 @@ function bindFormCrearPlan(cliente) {
     try {
       await apiFetch('/cuotas/plan', { method: 'POST', body: {
         idCliente: cliente.id,
-        montoTotal: parseFloat($('plan-monto').value),
+        // montoTotal es el TOTAL FINANCIADO (contado + recargo), que es lo que
+        // el cliente realmente va a terminar pagando y contra lo que se mide el saldo.
+        montoTotal: (parseFloat($('plan-valor-cuota').value) || 0) * (parseInt($('plan-ncuotas').value) || 0),
         cantidadCuotas: parseInt($('plan-ncuotas').value),
         valorCuota: parseFloat($('plan-valor-cuota').value) || null,
         fechaInicio: $('plan-fecha').value,
@@ -6403,6 +6800,11 @@ const EGRESOS_CATEGORIAS = {
 
 const EGRESOS_NOTAS_OBLIGATORIAS = new Set(['Vajilla', 'Decoración', '(detalle en notas)']);
 
+/* Categorias que casi siempre corresponden a un evento puntual. Preseleccionan
+   "gasto de un evento" para que el caso tipico no requiera un click extra,
+   pero se puede cambiar siempre. Servicios y Mantenimiento son del salon. */
+const EGRESOS_CATEGORIAS_DE_EVENTO = new Set(['Personal', 'Bebidas', 'Evento', 'Materia Prima']);
+
 let allEgresos = [];
 let allEmpleados = [];
 let egresosCargados = false;
@@ -6422,6 +6824,23 @@ function populateEmpleadoSelect() {
     '<option value="__nuevo__">+ Agregar nuevo...</option>';
 }
 
+// Los egresos de evento se imputan al evento; el resto son costo fijo del salon.
+// Esa distincion es la que despues se usa para tabular en Excel.
+function populateEgrEventoSelect() {
+  const sel = $('egr-evento');
+  if (!sel) return;
+  const prev = sel.value;
+  const ordenados = [...allClientes]
+    .filter(c => c.id)
+    .sort((a, b) => (b.fechaEvento || '').localeCompare(a.fechaEvento || ''));
+  sel.innerHTML = '<option value="">Seleccioná el evento...</option>' +
+    ordenados.map(c => {
+      const f = c.fechaEvento ? ` — ${formatDate(c.fechaEvento)}` : '';
+      return `<option value="${esc(c.id)}">${esc(c.apellidoNombre || 'Sin nombre')}${f}</option>`;
+    }).join('');
+  sel.value = prev;
+}
+
 async function initEgresos() {
   const fechaInput = $('egr-fecha');
   if (fechaInput && !fechaInput.value) {
@@ -6430,6 +6849,9 @@ async function initEgresos() {
   document.querySelectorAll('#egr-categoria .superadmin-only').forEach(opt => {
     opt.style.display = isSuperAdmin() ? '' : 'none';
   });
+  if (!allClientes.length) {
+    try { allClientes = await apiFetch('/clientes'); } catch (e) { console.error(e); }
+  }
   if (!egresosCargados) {
     await Promise.all([loadEgresos(), loadEmpleados()]);
     egresosCargados = true;
@@ -6438,6 +6860,7 @@ async function initEgresos() {
     renderEgresos();
     populateEmpleadoSelect();
   }
+  populateEgrEventoSelect();
 }
 
 function setupEgresosForm() {
@@ -6457,6 +6880,15 @@ function setupEgresosForm() {
     personalRow.style.display = esPersonal ? '' : 'none';
     empSel.required = esPersonal;
     $('egr-rol-pago').required = esPersonal;
+
+    // Propone el destino segun la categoria, sin trabar: la persona puede
+    // cambiarlo. Con el default fijo en "salon" nadie imputaba nunca a eventos.
+    if (cat) {
+      const deEvento = EGRESOS_CATEGORIAS_DE_EVENTO.has(cat);
+      const radio = document.querySelector(
+        `input[name="egr-destino"][value="${deEvento ? 'evento' : 'fijo'}"]`);
+      if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
+    }
     updateNotasLabel();
   });
 
@@ -6469,7 +6901,67 @@ function setupEgresosForm() {
   });
   if (nuevoEmpInput) nuevoEmpInput.style.display = 'none';
 
+  document.querySelectorAll('input[name="egr-destino"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const esEvento = r.value === 'evento' && r.checked;
+      const grupo = $('egr-evento-group');
+      if (!grupo) return;
+      grupo.classList.toggle('hidden', !esEvento);
+      $('egr-evento').required = esEvento;
+      if (!esEvento) $('egr-evento').value = '';
+    });
+  });
+
+  $('egr-repetir-fijos')?.addEventListener('click', repetirFijosMesPasado);
+  $('egr-limpiar-filtros')?.addEventListener('click', () => {
+    ['egr-filtro-mes', 'egr-filtro-destino', 'egr-filtro-cat', 'egr-filtro-moneda']
+      .forEach(id => { if ($(id)) $(id).value = ''; });
+    renderEgresos();
+  });
+
   $('egreso-form')?.addEventListener('submit', submitEgreso);
+}
+
+// Vuelve a cargar los gastos generales del mes anterior con la fecha de hoy.
+// Pensado para luz/gas/agua/wifi: cargarlos de a uno todos los meses es el
+// trabajo repetitivo mas grande de esta pantalla.
+async function repetirFijosMesPasado() {
+  const hoy = new Date();
+  const ant = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const periodoAnt = `${ant.getFullYear()}-${String(ant.getMonth() + 1).padStart(2, '0')}`;
+  const candidatos = allEgresos.filter(e =>
+    (e.periodo || (e.fecha || '').slice(0, 7)) === periodoAnt &&
+    (e.tipoCosto || 'Fijo') === 'Fijo' &&
+    e.categoria === 'Servicios');
+
+  if (!candidatos.length) {
+    toast('No hay gastos fijos de Servicios el mes pasado para repetir', 'error');
+    return;
+  }
+  const detalle = candidatos
+    .map(e => `• ${e.concepto}: ${formatMoneda(parseFloat(e.monto) || 0, e.moneda)}`).join('\n');
+  if (!confirm(`Se van a cargar ${candidatos.length} gasto(s) con la fecha de hoy:\n\n${detalle}\n\nDespués podés corregir los montos uno por uno. ¿Continuar?`))
+    return;
+
+  const btn = $('egr-repetir-fijos');
+  if (btn) { btn.disabled = true; btn.textContent = 'Cargando...'; }
+  let ok = 0;
+  for (const c of candidatos) {
+    try {
+      const nuevo = await apiFetch('/egresos', { method: 'POST', body: {
+        fecha: hoyISO(), concepto: c.concepto, categoria: c.categoria,
+        monto: parseFloat(c.monto) || 0, moneda: c.moneda,
+        idEmpleado: '', nombreEmpleado: '', rolPago: '',
+        notas: c.notas || '', idEvento: '',
+      } });
+      allEgresos.unshift(nuevo);
+      ok++;
+    } catch (err) { console.error('Error repitiendo egreso:', err); }
+  }
+  allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  renderEgresos();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Repetir gastos fijos del mes pasado'; }
+  toast(`${ok} gasto(s) cargados. Revisá los montos.`);
 }
 
 function updateNotasLabel() {
@@ -6513,6 +7005,14 @@ async function submitEgreso(e) {
     show('egr-error'); return;
   }
 
+  // Un año mal tipeado manda el gasto a un mes que despues nadie mira.
+  const fEgr = $('egr-fecha').value;
+  if (fEgr > hoyISO()) {
+    const d = fEgr.split('-');
+    if (!confirm(`La fecha del gasto (${d[2]}/${d[1]}/${d[0]}) es posterior a hoy.` +
+                 String.fromCharCode(10, 10) + '¿Es correcta? Revisá que el año esté bien escrito.')) return;
+  }
+
   const body = {
     fecha: $('egr-fecha').value,
     concepto: $('egr-concepto').value,
@@ -6522,7 +7022,14 @@ async function submitEgreso(e) {
     idEmpleado, nombreEmpleado,
     rolPago: $('egr-rol-pago')?.value || '',
     notas: $('egr-notas').value.trim(),
+    idEvento: document.querySelector('input[name="egr-destino"]:checked')?.value === 'evento'
+      ? ($('egr-evento')?.value || '') : '',
   };
+
+  if (document.querySelector('input[name="egr-destino"]:checked')?.value === 'evento' && !body.idEvento) {
+    $('egr-error').textContent = 'Elegí a qué evento corresponde este gasto.';
+    show('egr-error'); return;
+  }
 
   try {
     const nuevo = await apiFetch('/egresos', { method: 'POST', body });
@@ -6563,9 +7070,13 @@ function renderEgresos() {
   hide('egresos-loading');
   const filtCat = $('egr-filtro-cat')?.value || '';
   const filtMoneda = $('egr-filtro-moneda')?.value || '';
+  const filtMes = $('egr-filtro-mes')?.value || '';
+  const filtDestino = $('egr-filtro-destino')?.value || '';
   const lista = allEgresos.filter(e => {
     if (filtCat && e.categoria !== filtCat) return false;
     if (filtMoneda && e.moneda !== filtMoneda) return false;
+    if (filtMes && (e.periodo || (e.fecha || '').slice(0, 7)) !== filtMes) return false;
+    if (filtDestino && (e.tipoCosto || 'Fijo') !== filtDestino) return false;
     return true;
   });
 
@@ -6583,18 +7094,23 @@ function renderEgresos() {
     const empInfo = e.nombreEmpleado
       ? `<span class="egr-emp-name">${esc(e.nombreEmpleado)}</span>${e.rolPago ? ` <span class="egr-rol-badge">${esc(e.rolPago)}</span>` : ''}`
       : '—';
-    const editBtn = isSuperAdmin()
-      ? `<button class="btn-egr-edit" data-row="${e.rowIndex}" title="Editar">✏️</button>`
+    const acciones = isSuperAdmin()
+      ? `<button class="btn-egr-edit" data-row="${e.rowIndex}" title="Editar">✏️</button>
+         <button class="btn-egr-del" data-row="${e.rowIndex}" title="Borrar">🗑️</button>`
       : '';
+    const eventoCell = e.idEvento
+      ? `<span class="egr-evento-badge">${esc(e.evento || e.idEvento)}</span>`
+      : '<span class="egr-fijo-badge">Salón</span>';
     return `<tr>
       <td>${formatDate(e.fecha)}</td>
       <td><span class="egr-cat-badge egr-cat-${(e.categoria||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z-]/g,'')}">${esc(e.categoria)}</span></td>
       <td>${esc(e.concepto)}</td>
       <td>${empInfo}</td>
+      <td>${eventoCell}</td>
       <td class="num-cell">${formatMoneda(parseFloat(e.monto)||0, e.moneda)}</td>
       <td class="egr-notas-cell">${esc(e.notas)}</td>
       <td class="muted-cell">${esc(e.cargadoPor)}</td>
-      <td>${editBtn}</td>
+      <td class="egr-acciones">${acciones}</td>
     </tr>`;
   }).join('');
 
@@ -6609,7 +7125,23 @@ function renderEgresos() {
 }
 
 document.addEventListener('change', e => {
-  if (e.target.id === 'egr-filtro-cat' || e.target.id === 'egr-filtro-moneda') renderEgresos();
+  if (['egr-filtro-cat', 'egr-filtro-moneda', 'egr-filtro-mes', 'egr-filtro-destino']
+      .includes(e.target.id)) renderEgresos();
+});
+
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('.btn-egr-del');
+  if (!btn) return;
+  const rowIndex = parseInt(btn.dataset.row);
+  const eg = allEgresos.find(x => x.rowIndex === rowIndex);
+  const desc = eg ? `${eg.concepto} — ${formatMoneda(parseFloat(eg.monto) || 0, eg.moneda)}` : 'este egreso';
+  if (!confirm(`¿Borrar ${desc}?\n\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await apiFetch(`/egresos/${rowIndex}`, { method: 'DELETE' });
+    allEgresos = allEgresos.filter(x => x.rowIndex !== rowIndex);
+    renderEgresos();
+    toast('Egreso borrado');
+  } catch (err) { toast('Error al borrar: ' + err.message, 'error'); }
 });
 
 /* ===================== EGRESOS COCINA ===================== */
@@ -9475,3 +10007,20 @@ $('cocina-relevamiento-guardar-btn')?.addEventListener('click', guardarRelevamie
     initApp();
   }
 })();
+
+
+/* Precio del cubierto: solo se pide cuando la modalidad es "por cubierto".
+   Se propone el precio general del salon, que despues cada evento puede ajustar. */
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'ev-modalidad') return;
+  const grupo = $('ev-precio-cubierto-group');
+  const esCub = e.target.value === 'cubiertos';
+  if (grupo) grupo.style.display = esCub ? '' : 'none';
+  const input = $('ev-precio-cubierto');
+  if (esCub && input && !input.value) {
+    try {
+      const cfg = await apiFetch('/config');
+      if (cfg.precioCubiertoGeneral) input.value = cfg.precioCubiertoGeneral;
+    } catch { /* si no hay config, se carga a mano */ }
+  }
+});

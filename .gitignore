@@ -6,3 +6,8 @@ backend/.env
 .DS_Store
 Thumbs.db
 _archivo/
+
+# Dashboard de escritorio: contiene la contrasena de superadmin
+dashboard/config.json
+dashboard/ultima-ejecucion.log
+dashboard/*.html.tmp

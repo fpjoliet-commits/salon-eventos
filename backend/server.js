@@ -36,7 +36,9 @@ app.use(cors({
   },
 }));
 
-app.use(express.json());
+// Guardamos el cuerpo crudo (rawBody) para poder verificar la firma del webhook
+// de WhatsApp. No afecta al resto de la app.
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use(express.static(path.join(process.cwd(), 'frontend')));
 
@@ -261,9 +263,31 @@ app.get('/api/auditoria/cliente/:idCliente', auth, adminOnly, async (req, res) =
   }
 });
 
+// Devuelve { cliente, fechaEvento, etiqueta } de un evento, para desnormalizar en
+// las hojas Ingresos/Egresos. La planilla se analiza en Excel: un id opaco no sirve
+// como rotulo de tabla dinamica, el nombre del cliente si.
+async function datosEvento(idEvento) {
+  if (!idEvento) return { cliente: '', fechaEvento: '', etiqueta: '' };
+  try {
+    const evs = await sheets.getClientes();
+    const ev = evs.find(c => c.id === idEvento);
+    if (!ev) return { cliente: '', fechaEvento: '', etiqueta: '' };
+    const cliente = ev.apellidoNombre || '';
+    const fechaEvento = ev.fechaEvento || '';
+    // dd/mm/yyyy: es como lo lee el personal y como lo espera Excel con locale es-AR
+    const m = String(fechaEvento).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const fechaLinda = m ? `${m[3]}/${m[2]}/${m[1]}` : fechaEvento;
+    const etiqueta = [cliente, fechaLinda].filter(Boolean).join(' — ');
+    return { cliente, fechaEvento, etiqueta };
+  } catch { return { cliente: '', fechaEvento: '', etiqueta: '' }; }
+}
+
 app.post('/api/ingresos', auth, async (req, res) => {
   try {
-    const ingreso = await sheets.addIngreso({ ...req.body, cargadoPor: req.user.usuario });
+    const { cliente, fechaEvento } = await datosEvento(req.body.idCliente);
+    const ingreso = await sheets.addIngreso({
+      ...req.body, cargadoPor: req.user.usuario, cliente, fechaEvento,
+    });
     res.json(ingreso);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -353,17 +377,198 @@ app.put('/api/cuotas/pagar', auth, async (req, res) => {
     await sheets.pagarCuotas(rowIndices, fechaPago, notas);
     const montoRegistrar = montoEfectivo || montoTotal;
     if (idCliente && montoRegistrar > 0) {
+      // Mismo enriquecido que POST /api/ingresos: sin esto los cobros de cuotas
+      // caian en la planilla sin el nombre del cliente y no se podian analizar.
+      const { cliente, fechaEvento } = await datosEvento(idCliente);
       await sheets.addIngreso({
         idCliente,
-        tipoIngreso: descripcion || 'Cuota',
+        // tipoIngreso es una categoria cerrada y se agrupa por ella; el detalle
+        // de que cuotas cubrio va en notas, no pisando la categoria.
+        tipoIngreso: 'Cuota',
         monto: montoRegistrar,
         fecha: fechaPago,
         formaPago: formaPago || '',
-        notas: notas || '',
+        notas: [descripcion, notas].filter(Boolean).join(' — '),
         moneda: monedaPago || 'ARS',
+        cliente, fechaEvento,
       });
     }
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Cobro con imputacion automatica: entra un monto, el sistema decide que cuotas
+// tapa. Reemplaza al flujo de tildar cuotas a mano (que sigue disponible como
+// excepcion en /api/cuotas/pagar).
+app.put('/api/cuotas/imputar', auth, adminOnly, async (req, res) => {
+  try {
+    const { idCliente, monto, fechaPago, notas, formaPago, moneda } = req.body;
+    const importe = parseFloat(monto);
+    if (!idCliente || !(importe > 0)) {
+      return res.status(400).json({ error: 'Falta el cliente o el monto del cobro.' });
+    }
+    const { aplicaciones, sobrante } = await sheets.imputarPago(idCliente, importe, fechaPago, notas);
+
+    const detalle = aplicaciones.length
+      ? 'Cuota' + (aplicaciones.length > 1 ? 's' : '') + ' ' +
+        aplicaciones.map(a => a.numeroCuota).join(', ')
+      : '';
+    const { cliente, fechaEvento } = await datosEvento(idCliente);
+    await sheets.addIngreso({
+      idCliente,
+      tipoIngreso: 'Cuota',
+      monto: importe,
+      fecha: fechaPago,
+      formaPago: formaPago || '',
+      notas: [detalle, sobrante > 0.5 ? `sobrante a favor ${Math.round(sobrante)}` : '', notas]
+             .filter(Boolean).join(' — '),
+      moneda: moneda || 'ARS',
+      cargadoPor: req.user.usuario,
+      cliente, fechaEvento,
+    });
+    res.json({ ok: true, aplicaciones, sobrante });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ------------------------- PAGO POR CUBIERTO ------------------------------ */
+
+// Cotizacion del blue. Se toma el promedio entre compra y venta, que es el
+// criterio que usa el salon para convertir. Se cachea 10 minutos: no hace falta
+// pegarle a la API en cada tecla y evita quedarse sin servicio si hay un pico.
+let _cacheDolar = { valor: null, ts: 0 };
+
+async function cotizacionBlue() {
+  const AHORA = Date.now();
+  if (_cacheDolar.valor && AHORA - _cacheDolar.ts < 10 * 60 * 1000) return _cacheDolar.valor;
+
+  const fuentes = [
+    { url: 'https://dolarapi.com/v1/dolares/blue',
+      leer: d => ({ compra: d.compra, venta: d.venta }) },
+    { url: 'https://api.bluelytics.com.ar/v2/latest',
+      leer: d => ({ compra: d.blue.value_buy, venta: d.blue.value_sell }) },
+  ];
+  for (const f of fuentes) {
+    try {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(f.url, { signal: ctrl.signal });
+      clearTimeout(to);
+      if (!r.ok) continue;
+      const { compra, venta } = f.leer(await r.json());
+      if (!(compra > 0) || !(venta > 0)) continue;
+      const val = {
+        compra, venta,
+        promedio: Math.round((compra + venta) / 2),
+        fuente: f.url.includes('dolarapi') ? 'DolarAPI (blue)' : 'Bluelytics (blue)',
+        actualizado: new Date().toISOString(),
+      };
+      _cacheDolar = { valor: val, ts: AHORA };
+      return val;
+    } catch { /* probamos la siguiente fuente */ }
+  }
+  return null;
+}
+
+app.get('/api/cotizacion-blue', auth, async (req, res) => {
+  const c = await cotizacionBlue();
+  if (!c) return res.status(503).json({ error: 'No se pudo obtener la cotización. Cargala a mano.' });
+  res.json(c);
+});
+
+// Precio general del cubierto (se propone al crear un evento; cada evento
+// despues puede tener el suyo).
+app.get('/api/config', auth, async (req, res) => {
+  try { res.json(await sheets.getConfig()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/config', auth, superAdminOnly, async (req, res) => {
+  try {
+    const { clave, valor } = req.body;
+    if (!clave) return res.status(400).json({ error: 'Falta la clave.' });
+    res.json(await sheets.setConfig(clave, valor));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Estado de cubiertos de un evento: cuantos lleva, cuanto a favor, cuanto falta.
+app.get('/api/cubiertos/:idEvento', auth, adminOnly, async (req, res) => {
+  try {
+    const [eventos, ingresos] = await Promise.all([sheets.getClientes(), sheets.getIngresos()]);
+    const ev = eventos.find(e => e.id === req.params.idEvento);
+    if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+    const delEvento = ingresos.filter(i => i.idCliente === ev.id);
+    res.json({ ...sheets.estadoCubiertos(ev, delEvento), evento: ev.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Registrar un cobro que compra cubiertos.
+app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
+  try {
+    const { idEvento, monto, moneda, cotizacion, fecha, formaPago, notas, tipoIngreso } = req.body;
+    const importe = parseFloat(monto);
+    if (!idEvento || !(importe > 0)) {
+      return res.status(400).json({ error: 'Falta el evento o el monto del cobro.' });
+    }
+
+    const [eventos, ingresos] = await Promise.all([sheets.getClientes(), sheets.getIngresos()]);
+    const ev = eventos.find(e => e.id === idEvento);
+    if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+
+    const estado = sheets.estadoCubiertos(ev, ingresos.filter(i => i.idCliente === idEvento));
+    if (!(estado.precio > 0)) {
+      return res.status(400).json({ error: 'Este evento no tiene precio de cubierto cargado.' });
+    }
+
+    // Doble conversion: dolares -> pesos -> cubiertos. El tipo de cambio usado
+    // se guarda en la fila para que el calculo quede reproducible mas adelante.
+    const esUSD = (moneda || 'ARS') === 'USD';
+    const tc = esUSD ? parseFloat(cotizacion) : 0;
+    if (esUSD && !(tc > 0)) {
+      return res.status(400).json({ error: 'Falta la cotización del dólar para convertir el cobro.' });
+    }
+    const montoARS = esUSD ? importe * tc : importe;
+
+    const compra = sheets.calcularCompraCubiertos(
+      montoARS, estado.saldoAFavor, estado.precio, estado.restantes);
+
+    const { cliente, fechaEvento } = await datosEvento(idEvento);
+    const detalle = [
+      compra.cubiertos > 0 ? `${compra.cubiertos} cubierto(s) a ${Math.round(estado.precio)}` : 'sin cubiertos',
+      esUSD ? `U$S ${importe} x ${tc}` : '',
+      compra.saldoNuevo > 0.5 ? `a favor ${Math.round(compra.saldoNuevo)}` : '',
+      compra.excedente > 0.5 ? `excedente ${Math.round(compra.excedente)}` : '',
+      notas,
+    ].filter(Boolean).join(' — ');
+
+    await sheets.addIngreso({
+      idCliente: idEvento,
+      tipoIngreso: tipoIngreso || 'Cubiertos',
+      monto: importe,
+      fecha,
+      formaPago: formaPago || '',
+      notas: detalle,
+      moneda: moneda || 'ARS',
+      cargadoPor: req.user.usuario,
+      cliente, fechaEvento,
+      cubiertos: compra.cubiertos,
+      precioCubierto: estado.precio,
+      cotizacion: esUSD ? tc : '',
+      montoARS,
+    });
+
+    const pagadosAhora = estado.cubiertosPagados + compra.cubiertos;
+    res.json({
+      ok: true,
+      montoARS,
+      cubiertosComprados: compra.cubiertos,
+      precioUsado: estado.precio,
+      saldoAFavor: compra.saldoNuevo,
+      excedente: compra.excedente,
+      cubiertosPagados: pagadosAhora,
+      totalCubiertos: estado.total,
+      restantes: Math.max(0, estado.total - pagadosAhora),
+      faltaPagar: Math.max(0, estado.total - pagadosAhora) * estado.precio,
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -465,6 +670,24 @@ app.post('/api/empleados', auth, adminOnly, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Datos crudos para el dashboard externo ───────────────────────────────────
+// Un unico endpoint a proposito: la PC que lo consume arranca Render dormido y
+// cada request extra son ~50s de espera. Devuelve todo lo necesario de una.
+app.get('/api/dashboard-data', auth, superAdminOnly, async (req, res) => {
+  try {
+    const [clientes, ingresos, egresos, cuotas] = await Promise.all([
+      sheets.getClientes(),
+      sheets.getIngresos(),
+      sheets.getEgresos(),
+      sheets.getAllCuotas(),
+    ]);
+    res.json({
+      generado: new Date().toISOString(),
+      clientes, ingresos, egresos, cuotas,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Egresos
 app.get('/api/egresos', auth, adminOnly, async (req, res) => {
   try { res.json(await sheets.getEgresos()); }
@@ -474,14 +697,26 @@ app.get('/api/egresos', auth, adminOnly, async (req, res) => {
 app.post('/api/egresos', auth, adminOnly, async (req, res) => {
   if (req.body.categoria === 'Materia Prima' && req.user.role !== 'superadmin')
     return res.status(403).json({ error: 'Solo el superadmin puede registrar Materia Prima' });
-  try { res.json(await sheets.addEgreso({ ...req.body, cargadoPor: req.user.usuario })); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  try {
+    const { etiqueta } = await datosEvento(req.body.idEvento);
+    res.json(await sheets.addEgreso({
+      ...req.body, cargadoPor: req.user.usuario, evento: etiqueta,
+    }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
   try {
     const rowIndex = parseInt(req.params.rowIndex);
-    res.json(await sheets.updateEgreso(rowIndex, req.body));
+    const { etiqueta } = await datosEvento(req.body.idEvento);
+    res.json(await sheets.updateEgreso(rowIndex, { ...req.body, evento: etiqueta }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Borrar egreso — solo superadmin, igual criterio que el boton de editar.
+app.delete('/api/egresos/:rowIndex', auth, superAdminOnly, async (req, res) => {
+  try {
+    res.json(await sheets.deleteEgreso(parseInt(req.params.rowIndex)));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

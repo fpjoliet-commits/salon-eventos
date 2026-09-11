@@ -114,6 +114,13 @@ function rowToEvento(row, index) {
     menuPostre: row[21] || '',
     nombreAgasajado: row[22] || '',
     notaInterna: row[23] || '',
+    // Modalidad de cobro: 'contado' | 'cuotas' | 'cubiertos'. La sena convive
+    // con cualquiera de las tres, no es una modalidad.
+    modalidadPago: row[24] || '',
+    // Precio unitario del cubierto pactado para ESTE evento. Cuando sube, solo
+    // afecta a los cubiertos todavia no pagados: los comprados quedan congelados
+    // al precio que se pago, que es justamente lo que se le promete al cliente.
+    precioCubierto: row[25] || '',
   };
 }
 
@@ -125,6 +132,7 @@ function eventoToRow(e) {
     e.menuInfantil, e.otrosPedidos, e.observaciones, e.proximoSeguimiento,
     e.menuRecepcion, e.menuIslas, e.menuPrimerPlato, e.menuPrincipal, e.menuPostre,
     e.nombreAgasajado, e.notaInterna,
+    e.modalidadPago || '', e.precioCubierto || '',
   ].map(v => v || '');
 }
 
@@ -212,7 +220,7 @@ async function getClientes() {
   }
   const sheets = getSheets();
   const [evRes, perRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:X' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:Z' }),
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K' }),
   ]);
   const personas = (perRes.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
@@ -273,6 +281,7 @@ async function addCliente(data) {
     menuPostre: data.menuPostre,
     nombreAgasajado: data.nombreAgasajado,
     notaInterna: data.notaInterna,
+    modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
   };
 
   if (!tieneCredenciales) {
@@ -289,7 +298,7 @@ async function addCliente(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Eventos!A${nextRow}:X${nextRow}`,
+    range: `Eventos!A${nextRow}:Z${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [eventoToRow(evento)] },
   });
@@ -315,6 +324,8 @@ async function updateCliente(rowIndex, data) {
         menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
         menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
         notaInterna: data.notaInterna,
+        modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
+    modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
       };
     }
     if (data.personaRowIndex) {
@@ -345,12 +356,13 @@ async function updateCliente(rowIndex, data) {
     menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
     menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
     notaInterna: data.notaInterna,
+    modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
   };
 
   const ops = [
     sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Eventos!A${rowIndex}:X${rowIndex}`,
+      range: `Eventos!A${rowIndex}:Z${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [eventoToRow(eventoData)] },
     }),
@@ -380,6 +392,15 @@ async function updateCliente(rowIndex, data) {
 }
 
 /* ===================== INGRESOS ===================== */
+// Deriva 'YYYY-MM' de una fecha ISO o dd/mm/yyyy. Sirve para tablas dinamicas.
+function periodoDe(fecha) {
+  const f = String(fecha || '').trim();
+  let m = f.match(/^(\d{4})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}`;
+  m = f.match(/^\d{1,2}\/(\d{1,2})\/(\d{4})/);
+  if (m) return `${m[2]}-${String(m[1]).padStart(2, '0')}`;
+  return '';
+}
 function rowToIngreso(row, index) {
   return {
     rowIndex: index + 2,
@@ -392,6 +413,16 @@ function rowToIngreso(row, index) {
     notas: row[6] || '',
     moneda: row[7] || 'ARS',
     confirmado: row[8] !== '0',
+    cliente: row[9] || '',
+    fechaEvento: row[10] || '',
+    periodo: row[11] || '',
+    // Modalidad "pago por cubierto": cada cobro compra un lote de cubiertos y
+    // les congela el precio. Se guarda el precio usado para que el congelamiento
+    // quede documentado en la propia fila y no dependa de nada externo.
+    cubiertos: parseFloat(row[12]) || 0,
+    precioCubierto: parseFloat(row[13]) || 0,
+    cotizacion: parseFloat(row[14]) || 0,   // dolar usado, si se pago en USD
+    montoARS: parseFloat(row[15]) || 0,     // el importe ya convertido a pesos
   };
 }
 
@@ -399,6 +430,8 @@ function ingresoToRow(i) {
   return [
     i.id, i.idCliente, i.tipoIngreso, i.monto, i.fecha, i.formaPago, i.notas,
     i.moneda || 'ARS', i.confirmado === false ? '0' : '1',
+    i.cliente || '', i.fechaEvento || '', i.periodo || periodoDe(i.fecha),
+    i.cubiertos || '', i.precioCubierto || '', i.cotizacion || '', i.montoARS || '',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -407,7 +440,7 @@ async function getIngresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:I',
+    range: 'Ingresos!A2:P',
   });
   return (res.data.values || []).map((row, i) => rowToIngreso(row, i));
 }
@@ -415,7 +448,7 @@ async function getIngresos() {
 async function addIngreso(data) {
   const id = generateId('ING');
   const confirmado = data.cargadoPor === 'empleado' ? false : true;
-  const ingreso = { ...data, id, confirmado };
+  const ingreso = { ...data, id, confirmado, periodo: periodoDe(data.fecha) };
   if (!tieneCredenciales) {
     ingreso.rowIndex = memIngresos.length + 2;
     memIngresos.push(ingreso);
@@ -429,7 +462,7 @@ async function addIngreso(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!A${nextRow}:I${nextRow}`,
+    range: `Ingresos!A${nextRow}:P${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [ingresoToRow(ingreso)] },
   });
@@ -450,6 +483,107 @@ async function confirmarIngreso(rowIndex) {
     valueInputOption: 'USER_ENTERED',
     resource: { values: [['1']] },
   });
+}
+
+/* ===================== CONFIGURACION GENERAL =====================
+ * Hoja Config (A: clave, B: valor). Guarda ajustes del salon que no pertenecen
+ * a ningun evento: hoy, el precio general del cubierto que se propone al crear
+ * un evento nuevo.
+ * ============================================================================= */
+let memConfig = {};
+
+async function getConfig() {
+  if (!tieneCredenciales) return { ...memConfig };
+  const sheets = getSheets();
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Config!A2:B',
+    });
+    const cfg = {};
+    (res.data.values || []).forEach(r => { if (r[0]) cfg[r[0]] = r[1] || ''; });
+    return cfg;
+  } catch { return {}; }
+}
+
+async function setConfig(clave, valor) {
+  if (!tieneCredenciales) { memConfig[clave] = String(valor); return { [clave]: String(valor) }; }
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Config!A2:B',
+  });
+  const filas = res.data.values || [];
+  const idx = filas.findIndex(r => r[0] === clave);
+  const fila = idx === -1 ? filas.length + 2 : idx + 2;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Config!A${fila}:B${fila}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [[clave, String(valor)]] },
+  });
+  return { [clave]: String(valor) };
+}
+
+/* ===================== PAGO POR CUBIERTO =====================
+ * El cliente compra cubiertos al precio del dia y se los congela. Si despues
+ * el precio sube, solo afecta a los cubiertos que todavia no pago. Es una
+ * cobertura contra inflacion para el cliente y plata real anticipada para el
+ * salon.
+ *
+ * Nada de esto se guarda calculado "al total": cada fila de Ingresos guarda
+ * cuantos cubiertos compro y a que precio, asi el congelamiento queda
+ * documentado pago por pago y se puede auditar en la planilla.
+ *
+ * OJO: calcularCompraCubiertos() esta duplicada en frontend/js/app.js para la
+ * vista previa. Si cambia una, hay que cambiar la otra.
+ * ========================================================================= */
+
+// Cuantos cubiertos compra un importe, redondeando SIEMPRE para abajo.
+// Lo que sobra no se pierde: queda a favor y se suma al proximo pago.
+function calcularCompraCubiertos(montoARS, saldoPrevio, precio, cubiertosRestantes) {
+  const disponible = (montoARS || 0) + (saldoPrevio || 0);
+  if (!(precio > 0)) return { cubiertos: 0, usado: 0, saldoNuevo: disponible, excedente: 0 };
+
+  let cubiertos = Math.floor(disponible / precio);
+  let excedente = 0;
+  // No se pueden comprar mas cubiertos que los que tiene el evento.
+  if (cubiertosRestantes !== null && cubiertosRestantes !== undefined && cubiertos > cubiertosRestantes) {
+    cubiertos = Math.max(0, cubiertosRestantes);
+    excedente = disponible - cubiertos * precio;   // pago de mas: sobra plata
+  }
+  const usado = cubiertos * precio;
+  return {
+    cubiertos,
+    usado,
+    saldoNuevo: excedente > 0 ? 0 : disponible - usado,
+    excedente,
+  };
+}
+
+// Foto del evento: cuantos cubiertos lleva pagados, cuanto le queda a favor y
+// cuanto le falta al precio de hoy.
+function estadoCubiertos(evento, ingresosDelEvento) {
+  const precio = parseFloat(evento.precioCubierto) || 0;
+  const total = parseInt(evento.cantidadInvitados) || 0;
+  const pagos = (ingresosDelEvento || []).filter(i => i.confirmado !== false);
+
+  const cubiertosPagados = pagos.reduce((s, i) => s + (parseFloat(i.cubiertos) || 0), 0);
+  // El saldo a favor es lo que se pago menos lo que efectivamente se convirtio
+  // en cubiertos. Se deriva, no se guarda: asi no hay dos numeros que puedan
+  // dejar de coincidir.
+  const totalPagadoARS = pagos.reduce(
+    (s, i) => s + (parseFloat(i.montoARS) || parseFloat(i.monto) || 0), 0);
+  const aplicadoACubiertos = pagos.reduce(
+    (s, i) => s + (parseFloat(i.cubiertos) || 0) * (parseFloat(i.precioCubierto) || 0), 0);
+  const saldoAFavor = Math.max(0, totalPagadoARS - aplicadoACubiertos);
+
+  const restantes = Math.max(0, total - cubiertosPagados);
+  return {
+    precio, total, cubiertosPagados, restantes, saldoAFavor, totalPagadoARS,
+    faltaPagar: restantes * precio,
+    completo: total > 0 && cubiertosPagados >= total,
+  };
 }
 
 /* ===================== RESTRICCIONES ===================== */
@@ -631,6 +765,19 @@ function cuotaToRow(c) {
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
+// Todas las cuotas vigentes, para el dashboard externo (quien debe plata).
+async function getAllCuotas() {
+  if (!tieneCredenciales) return memCuotas.filter(c => c.estado !== 'cancelada');
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Cuotas!A2:M',
+  });
+  return (res.data.values || [])
+    .map((row, i) => rowToCuota(row, i))
+    .filter(c => c.id && c.estado !== 'cancelada');
+}
+
 async function getCuotasByCliente(idCliente) {
   if (!tieneCredenciales) {
     return memCuotas.filter(c => c.idCliente === idCliente && c.estado !== 'cancelada');
@@ -706,6 +853,89 @@ async function confirmarCuotas(rowIndices) {
       resource: { values: [['1']] },
     })
   ));
+}
+
+/* ---------------------------------------------------------------------------
+ * Imputacion automatica de un cobro sobre el plan de cuotas.
+ *
+ * El cliente tipico no paga "la cuota 4, completa, el dia que vence": trae lo
+ * que puede cuando puede. A veces adelanta, a veces se atrasa y trae tres
+ * juntas, a veces trae de menos. Obligar a alguien a traducir eso a mano a
+ * "tildar cuotas" es de donde salia la mayoria de los datos sucios.
+ *
+ * Regla: la plata tapa las cuotas pendientes mas viejas primero. Lo que no
+ * alcanza a cubrir una cuota entera la deja en 'parcial' con el monto real.
+ * NUNCA se cobra recargo por mora aca: los atrasos se perdonan, es una
+ * decision del negocio.
+ *
+ * OJO: calcularImputacion() esta duplicada en frontend/js/app.js para poder
+ * mostrar la vista previa sin pegarle al servidor (que puede tardar ~50s en
+ * despertar). Si cambia una, hay que cambiar la otra.
+ * ------------------------------------------------------------------------- */
+function calcularImputacion(cuotas, montoRecibido) {
+  const pendientes = cuotas
+    .filter(c => c.estado !== 'pagada' && c.estado !== 'cancelada')
+    .sort((a, b) => a.numeroCuota - b.numeroCuota);
+
+  let restante = montoRecibido;
+  const aplicaciones = [];
+
+  for (const c of pendientes) {
+    if (restante <= 0.005) break;
+    const debe = (c.valorActual || 0) - (c.montoPagado || 0);
+    if (debe <= 0.005) continue;
+    const aplicar = Math.min(restante, debe);
+    const nuevoPagado = (c.montoPagado || 0) + aplicar;
+    // Tolerancia de medio peso: evita que un redondeo deje una cuota
+    // eternamente en 'parcial' por diferencias de centavos.
+    const saldada = nuevoPagado >= (c.valorActual || 0) - 0.5;
+    aplicaciones.push({
+      rowIndex: c.rowIndex,
+      numeroCuota: c.numeroCuota,
+      valorActual: c.valorActual || 0,
+      yaPagado: c.montoPagado || 0,
+      aplicado: aplicar,
+      nuevoPagado,
+      restaDespues: Math.max(0, (c.valorActual || 0) - nuevoPagado),
+      nuevoEstado: saldada ? 'pagada' : 'parcial',
+    });
+    restante -= aplicar;
+  }
+  // Sobrante: pago mas que todo lo que debia. Se registra igual como ingreso,
+  // pero no se inventa una cuota para meterlo.
+  return { aplicaciones, sobrante: Math.max(0, restante) };
+}
+
+async function imputarPago(idCliente, montoRecibido, fechaPago, notas) {
+  const cuotas = await getCuotasByCliente(idCliente);
+  const { aplicaciones, sobrante } = calcularImputacion(cuotas, montoRecibido);
+  if (!aplicaciones.length) return { aplicaciones, sobrante };
+
+  if (!tieneCredenciales) {
+    aplicaciones.forEach(a => {
+      const idx = memCuotas.findIndex(c => c.rowIndex === a.rowIndex);
+      if (idx !== -1) {
+        memCuotas[idx].estado = a.nuevoEstado;
+        memCuotas[idx].fechaPago = fechaPago;
+        memCuotas[idx].montoPagado = a.nuevoPagado;
+        if (notas) memCuotas[idx].notas = notas;
+      }
+    });
+    return { aplicaciones, sobrante };
+  }
+
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: {
+      valueInputOption: 'USER_ENTERED',
+      data: aplicaciones.map(a => ({
+        range: `Cuotas!G${a.rowIndex}:J${a.rowIndex}`,
+        values: [[a.nuevoEstado, fechaPago, a.nuevoPagado, notas || '']],
+      })),
+    },
+  });
+  return { aplicaciones, sobrante };
 }
 
 async function pagarCuotas(rowIndices, fechaPago, notas) {
@@ -877,8 +1107,12 @@ async function addEmpleado(data) {
 }
 
 /* ===================== EGRESOS ===================== */
-// Columnas A-L: id, fecha, concepto, categoria, monto, moneda,
-//               idEmpleado, nombreEmpleado, rolPago, notas, cargadoPor, proveedor
+// Columnas A-P: id, fecha, concepto, categoria, monto, moneda,
+//               idEmpleado, nombreEmpleado, rolPago, notas, cargadoPor, proveedor,
+//               tipoCosto, idEvento, evento, periodo
+// tipoCosto: 'Fijo' (gasto general del salon) | 'Evento' (imputado a un evento puntual)
+// evento/periodo se guardan desnormalizados a proposito: la planilla se analiza
+// en Excel con tablas dinamicas y ahi un id opaco no sirve.
 
 function rowToEgreso(row, index) {
   return {
@@ -895,6 +1129,10 @@ function rowToEgreso(row, index) {
     notas: row[9] || '',
     cargadoPor: row[10] || '',
     proveedor: row[11] || '',
+    tipoCosto: row[12] || 'Fijo',
+    idEvento: row[13] || '',
+    evento: row[14] || '',
+    periodo: row[15] || '',
   };
 }
 
@@ -905,6 +1143,8 @@ function egresoToRow(e) {
     e.idEmpleado || '', e.nombreEmpleado || '', e.rolPago || '',
     e.notas || '', e.cargadoPor || '',
     e.proveedor || '',
+    e.tipoCosto || 'Fijo', e.idEvento || '', e.evento || '',
+    e.periodo || periodoDe(e.fecha),
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -913,27 +1153,51 @@ async function getEgresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A2:L',
+    range: 'Egresos!A2:P',
   });
   return (res.data.values || []).map((row, i) => rowToEgreso(row, i)).filter(e => e.id);
 }
 
 async function addEgreso(data) {
   const id = generateId('EGR');
-  const e = { ...data, id };
+  const e = { ...data, id, periodo: periodoDe(data.fecha), tipoCosto: data.idEvento ? 'Evento' : 'Fijo' };
   if (!tieneCredenciales) {
     e.rowIndex = memEgresos.length + 2;
     memEgresos.push(e);
     return e;
   }
   const sheets = getSheets();
-  await sheets.spreadsheets.values.append({
+  // Escritura por fila explicita (no append) para poder devolver el rowIndex real:
+  // sin el, el egreso recien cargado no se podia editar hasta recargar la pagina.
+  const colA = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A:L',
+    range: 'Egresos!A:A',
+  });
+  const nextRow = (colA.data.values || []).length + 1;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Egresos!A${nextRow}:P${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [egresoToRow(e)] },
   });
+  e.rowIndex = nextRow;
   return e;
+}
+
+async function deleteEgreso(rowIndex) {
+  if (!tieneCredenciales) {
+    const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
+    if (idx !== -1) memEgresos[idx] = { rowIndex };
+    return { ok: true };
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Egresos!A${rowIndex}:P${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [Array(16).fill('')] },
+  });
+  return { ok: true };
 }
 
 async function updateEgreso(rowIndex, data) {
@@ -945,7 +1209,7 @@ async function updateEgreso(rowIndex, data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!B${rowIndex}:L${rowIndex}`,
+    range: `Egresos!B${rowIndex}:P${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: {
       values: [[
@@ -953,6 +1217,8 @@ async function updateEgreso(rowIndex, data) {
         data.monto || '', data.moneda || 'ARS',
         data.idEmpleado || '', data.nombreEmpleado || '', data.rolPago || '',
         data.notas || '', data.cargadoPor || '', data.proveedor || '',
+        data.idEvento ? 'Evento' : (data.tipoCosto || 'Fijo'),
+        data.idEvento || '', data.evento || '', periodoDe(data.fecha),
       ]],
     },
   });
@@ -1014,7 +1280,7 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   // Borrar ingresos asociados al cliente eliminado
   const ingRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:H',
+    range: 'Ingresos!A2:P',
   });
   const ingRows = ingRes.data.values || [];
   const filasABorrar = ingRows
@@ -1025,9 +1291,9 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   for (const ingRowIndex of filasABorrar) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Ingresos!A${ingRowIndex}:H${ingRowIndex}`,
+      range: `Ingresos!A${ingRowIndex}:P${ingRowIndex}`,
       valueInputOption: 'USER_ENTERED',
-      resource: { values: [Array(8).fill('')] },
+      resource: { values: [Array(16).fill('')] },
     });
   }
 }
@@ -1817,7 +2083,7 @@ async function migrarClientesAPersonasEventos() {
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A1:X1', valueInputOption: 'USER_ENTERED',
-    resource: { values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna']] },
+    resource: { values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna','modalidadPago','precioCubierto']] },
   });
 
   // Old Clientes columns (0-indexed):
@@ -1979,6 +2245,7 @@ async function initSheets() {
     if (!existing.includes('PedidosCocina')) toCreate.push('PedidosCocina');
     if (!existing.includes('StockActual')) toCreate.push('StockActual');
     if (!existing.includes('Auditoria')) toCreate.push('Auditoria');
+    if (!existing.includes('Config')) toCreate.push('Config');
 
     if (toCreate.length) {
       await sheets.spreadsheets.batchUpdate({
@@ -1988,6 +2255,20 @@ async function initSheets() {
     }
 
     const headers = [];
+
+    // Encabezados de columnas nuevas en hojas que YA existen. Solo tocan la fila 1,
+    // nunca los datos. Necesario para que Excel muestre nombres de columna reales
+    // en las tablas dinamicas (el analisis se hace por fuera del sistema).
+    if (existing.includes('Ingresos')) {
+      headers.push({ range: 'Ingresos!A1:P1', values: [['id','idEvento','tipoIngreso','monto','fecha','formaPago','notas','moneda','confirmado','cliente','fechaEvento','periodo','cubiertos','precioCubierto','cotizacion','montoARS']] });
+    }
+    if (existing.includes('Egresos')) {
+      headers.push({ range: 'Egresos!A1:P1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo']] });
+    }
+
+    if (!existing.includes('Config')) {
+      headers.push({ range: 'Config!A1:B1', values: [['clave','valor']] });
+    }
     if (!existing.includes('Personas')) {
       headers.push({ range: 'Personas!A1:K1', values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor']] });
     }
@@ -2007,7 +2288,7 @@ async function initSheets() {
       headers.push({ range: 'Empleados!A1:C1', values: [['id','nombre','activo']] });
     }
     if (!existing.includes('Egresos')) {
-      headers.push({ range: 'Egresos!A1:L1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor']] });
+      headers.push({ range: 'Egresos!A1:P1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo']] });
     }
     if (!existing.includes('CatalogoItems')) {
       headers.push({ range: 'CatalogoItems!A1:E1', values: [['id','categoria','nombre','activo','unidad']] });
@@ -2087,9 +2368,11 @@ module.exports = {
   getIngresos, addIngreso, confirmarIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
-  getCuotasByCliente, createPlan, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
+  getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,
+  calcularCompraCubiertos, estadoCubiertos,
+  getConfig, setConfig, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado,
-  getEgresos, addEgreso, updateEgreso,
+  getEgresos, addEgreso, updateEgreso, deleteEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,
   editarItemCatalogo, eliminarItemCatalogo,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,

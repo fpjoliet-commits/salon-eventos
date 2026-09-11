@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Salón Joliet — Resumen</title>
+<style>
+  :root{
+    --tinta:#1c1a17; --suave:#6b645c; --linea:#e3ddd4;
+    --papel:#faf7f2; --tarjeta:#fff;
+    --verde:#15803d; --verde-f:#f0fdf4;
+    --rojo:#b91c1c;  --rojo-f:#fef2f2;
+    --azul:#1d4ed8;  --azul-f:#eff6ff;
+    --ambar:#a16207; --ambar-f:#fefce8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--papel);color:var(--tinta);
+       font:17px/1.5 "Segoe UI",system-ui,sans-serif;padding:0 0 60px}
+  .cinta{background:var(--tinta);color:#fff;padding:18px 32px;
+         display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+  .cinta h1{margin:0;font-size:24px;letter-spacing:.02em}
+  .cinta .sello{font-size:14px;color:#c9c2b8}
+  main{max-width:1180px;margin:0 auto;padding:0 24px}
+  section{margin-top:36px}
+  h2{font-size:22px;margin:0 0 4px;letter-spacing:.01em}
+  .sub{color:var(--suave);font-size:15px;margin:0 0 16px}
+  .tarjeta{background:var(--tarjeta);border:1px solid var(--linea);
+           border-radius:12px;padding:22px 24px}
+
+  .barra-mes{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;padding-top:26px}
+  .barra-mes label{font-size:16px;font-weight:600}
+  select{font:inherit;font-size:17px;padding:10px 14px;border:2px solid var(--linea);
+         border-radius:10px;background:#fff;min-width:230px;cursor:pointer}
+
+  .trio{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .kpi{border-radius:12px;padding:24px 26px;border:1px solid var(--linea);background:var(--tarjeta)}
+  .kpi .rot{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--suave)}
+  .kpi .val{font-size:42px;font-weight:700;margin:8px 0 4px;letter-spacing:-.02em;
+            font-variant-numeric:tabular-nums;line-height:1.1}
+  .kpi .pie{font-size:14.5px;color:var(--suave)}
+  .kpi-in  {background:var(--verde-f);border-color:#bbf7d0}
+  .kpi-in .val{color:var(--verde)}
+  .kpi-out {background:var(--rojo-f);border-color:#fecaca}
+  .kpi-out .val{color:var(--rojo)}
+  .kpi-net .val.pos{color:var(--verde)} .kpi-net .val.neg{color:var(--rojo)}
+  .delta{font-weight:600}
+  .delta.pos{color:var(--verde)} .delta.neg{color:var(--rojo)}
+
+  table{width:100%;border-collapse:collapse;font-size:16px}
+  th{text-align:left;font-size:13px;letter-spacing:.07em;text-transform:uppercase;
+     color:var(--suave);padding:10px 12px;border-bottom:2px solid var(--linea);white-space:nowrap}
+  td{padding:14px 12px;border-bottom:1px solid var(--linea);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:1px solid var(--linea)}
+  .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .fuerte{font-weight:700}
+  .chip{display:inline-block;padding:4px 11px;border-radius:20px;font-size:13.5px;font-weight:700;white-space:nowrap}
+  .chip-ok{background:var(--verde-f);color:var(--verde)}
+  .chip-mal{background:var(--rojo-f);color:var(--rojo)}
+  .chip-neutro{background:var(--azul-f);color:var(--azul)}
+  .chip-aviso{background:var(--ambar-f);color:var(--ambar)}
+  .tenue{color:var(--suave);font-size:14.5px}
+  .tabla-scroll{overflow-x:auto}
+
+  .barra-fila{display:grid;grid-template-columns:190px 1fr 150px;gap:14px;
+              align-items:center;padding:9px 0}
+  .barra-nom{font-weight:600;font-size:16px}
+  .barra-pista{background:#f0ece5;border-radius:6px;height:26px;overflow:hidden}
+  .barra-relleno{height:100%;border-radius:6px;background:var(--azul)}
+  .barra-monto{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .grupo-tit{font-size:15px;font-weight:700;color:var(--suave);text-transform:uppercase;
+             letter-spacing:.07em;margin:22px 0 6px}
+  .grupo-tit:first-child{margin-top:0}
+
+  .vacio{color:var(--suave);font-style:italic;padding:18px 4px}
+  .nota{background:var(--ambar-f);border:1px solid #fde68a;border-radius:10px;
+        padding:12px 16px;font-size:15px;margin-top:14px}
+  .pie-pag{text-align:center;color:var(--suave);font-size:14px;margin-top:44px}
+  @media (max-width:760px){
+    .barra-fila{grid-template-columns:120px 1fr 110px;gap:8px}
+    .kpi .val{font-size:34px}
+  }
+  @media print{body{background:#fff}.cinta{background:#fff;color:#000}.barra-mes{display:none}}
+</style>
+</head>
+<body>
+<div class="cinta">
+  <h1>Salón Joliet — Resumen</h1>
+  <div class="sello" id="sello"></div>
+</div>
+
+<main>
+  <div class="barra-mes">
+    <label for="mes">Mes:</label>
+    <select id="mes"></select>
+  </div>
+
+  <section>
+    <h2>Resumen del mes</h2>
+    <p class="sub" id="sub-resumen"></p>
+    <div class="trio">
+      <div class="kpi kpi-in">
+        <div class="rot">Entró</div><div class="val" id="k-in">—</div>
+        <div class="pie" id="k-in-pie"></div>
+      </div>
+      <div class="kpi kpi-out">
+        <div class="rot">Salió</div><div class="val" id="k-out">—</div>
+        <div class="pie" id="k-out-pie"></div>
+      </div>
+      <div class="kpi kpi-net">
+        <div class="rot">Quedó</div><div class="val" id="k-net">—</div>
+        <div class="pie" id="k-net-pie"></div>
+      </div>
+    </div>
+    <div id="avisos"></div>
+  </section>
+
+  <section>
+    <h2>Rentabilidad por evento</h2>
+    <p class="sub">Lo cobrado menos lo gastado, evento por evento. Solo aparecen los que ya tienen movimientos.</p>
+    <div class="tarjeta"><div id="tabla-eventos"></div></div>
+  </section>
+
+  <section>
+    <h2>En qué se va la plata</h2>
+    <p class="sub" id="sub-gastos"></p>
+    <div class="tarjeta"><div id="graf-gastos"></div></div>
+  </section>
+
+  <section>
+    <h2>Quién debe plata</h2>
+    <p class="sub">Clientes con saldo pendiente, ordenados por fecha de evento. Lo más urgente arriba.</p>
+    <div class="tarjeta"><div id="tabla-deuda"></div></div>
+  </section>
+
+  <p class="pie-pag">Este archivo se actualiza solo los lunes a la mañana.<br>
+     Para actualizarlo ahora, usá el acceso directo <strong>Actualizar resumen</strong> del escritorio.</p>
+</main>
+
+<script>
+const DATOS = /*__DATOS__*/ {"generado":"","clientes":[],"ingresos":[],"egresos":[],"cuotas":[]} /*__FIN__*/;
+
+/* ---------- utilidades ---------- */
+const pesos = n => '$ ' + Math.round(n).toLocaleString('es-AR');
+const dolar = n => 'U$S ' + Math.round(n).toLocaleString('es-AR');
+const esUSD = x => (x.moneda || 'ARS') === 'USD';
+const num = v => parseFloat(v) || 0;
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio',
+               'agosto','septiembre','octubre','noviembre','diciembre'];
+function nombreMes(p){ const t = p.split('-'); return MESES[+t[1]-1] + ' ' + t[0]; }
+function periodoDe(x){ return x.periodo || (x.fecha || '').slice(0,7); }
+function fechaLinda(f){
+  const m = String(f||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3]+'/'+m[2]+'/'+m[1] : (f || '—');
+}
+function esc(s){ return String(s==null?'':s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+const ING = (DATOS.ingresos || []).filter(i => i.id);
+const EGR = (DATOS.egresos  || []).filter(e => e.id);
+const CLI = (DATOS.clientes || []).filter(c => c.id);
+const CUO = (DATOS.cuotas   || []).filter(c => c.id);
+const mapaCli = {};
+CLI.forEach(c => { mapaCli[c.id] = c; });
+
+/* Solo cuenta plata confirmada: un ingreso cargado por un empleado entra sin
+   confirmar y no debe inflar el resumen hasta que el admin lo valide. */
+const ingOk   = ING.filter(i => i.confirmado !== false);
+const ingPend = ING.filter(i => i.confirmado === false);
+
+document.getElementById('sello').textContent = DATOS.generado
+  ? 'Datos al ' + new Date(DATOS.generado).toLocaleString('es-AR',
+      {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+  : 'Sin datos';
+
+/* ---------- selector de mes ---------- */
+const periodos = [];
+[...ingOk, ...EGR].forEach(x => { const p = periodoDe(x);
+  if (p && periodos.indexOf(p) === -1) periodos.push(p); });
+const hoyP = new Date().toISOString().slice(0,7);
+if (periodos.indexOf(hoyP) === -1) periodos.push(hoyP);
+periodos.sort().reverse();
+
+const selMes = document.getElementById('mes');
+selMes.innerHTML = periodos.map(p => '<option value="'+p+'">'+nombreMes(p)+'</option>').join('');
+selMes.value = hoyP;
+selMes.addEventListener('change', () => { bloqueResumen(); bloqueGastos(); });
+
+function mesAnterior(p){
+  const t = p.split('-').map(Number);
+  const d = new Date(t[0], t[1]-2, 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+
+/* ---------- BLOQUE 1: resumen del mes ---------- */
+function totalesDe(p){
+  const i = ingOk.filter(x => periodoDe(x) === p);
+  const e = EGR.filter(x => periodoDe(x) === p);
+  const sum = (arr, usd) => arr.filter(x => esUSD(x) === usd).reduce((s,x) => s + num(x.monto), 0);
+  return { inA: sum(i,false), inU: sum(i,true), outA: sum(e,false), outU: sum(e,true),
+           nI: i.length, nE: e.length };
+}
+
+function bloqueResumen(){
+  const p = selMes.value, t = totalesDe(p), ta = totalesDe(mesAnterior(p));
+  const neto = t.inA - t.outA, netoAnt = ta.inA - ta.outA;
+
+  document.getElementById('sub-resumen').textContent =
+    nombreMes(p) + ' — ' + t.nI + ' cobro(s) y ' + t.nE + ' gasto(s) registrados.';
+  document.getElementById('k-in').textContent  = pesos(t.inA);
+  document.getElementById('k-out').textContent = pesos(t.outA);
+  const kn = document.getElementById('k-net');
+  kn.textContent = pesos(neto);
+  kn.className = 'val ' + (neto >= 0 ? 'pos' : 'neg');
+
+  // subirBueno: en 'Salio' un aumento es mala noticia, asi que el color se invierte.
+  const comp = (actual, anterior, subirBueno) => {
+    if (!anterior) return '<span class="tenue">sin dato del mes anterior</span>';
+    const d = actual - anterior;
+    if (d === 0) return '<span class="tenue">igual que el mes pasado</span>';
+    const pc = Math.round(Math.abs(d) / Math.abs(anterior) * 100);
+    const bueno = (d > 0) === subirBueno;
+    return '<span class="delta ' + (bueno ? 'pos' : 'neg') + '">' +
+           (d > 0 ? '▲' : '▼') + ' ' + pc + '%</span> contra ' + nombreMes(mesAnterior(p));
+  };
+  document.getElementById('k-in-pie').innerHTML  = comp(t.inA, ta.inA, true);
+  document.getElementById('k-out-pie').innerHTML = comp(t.outA, ta.outA, false);
+  document.getElementById('k-net-pie').innerHTML = netoAnt
+    ? comp(neto, netoAnt, true) : '<span class="tenue">sin dato del mes anterior</span>';
+
+  let avisos = '';
+  if (t.inU || t.outU) {
+    const partes = [];
+    if (t.inU)  partes.push('entró ' + dolar(t.inU));
+    if (t.outU) partes.push('salió ' + dolar(t.outU));
+    avisos += '<div class="nota"><strong>Además hubo movimientos en dólares:</strong> ' +
+      partes.join(' y ') + '. No se mezclan con los pesos porque no hay un tipo de cambio ' +
+      'cargado — se muestran aparte a propósito.</div>';
+  }
+  if (ingPend.length) avisos += '<div class="nota"><strong>' + ingPend.length + ' cobro(s) sin confirmar</strong>' +
+      ' — cargados por un empleado y todavía no confirmados. No están sumados acá.</div>';
+  document.getElementById('avisos').innerHTML = avisos;
+}
+
+/* ---------- BLOQUE 2: rentabilidad por evento ---------- */
+function bloqueEventos(){
+  const porEv = {};
+  const tocar = id => { if (!porEv[id]) porEv[id] = {cobradoA:0,cobradoU:0,gastadoA:0,gastadoU:0};
+                        return porEv[id]; };
+  ingOk.forEach(i => { if (!i.idCliente) return; const r = tocar(i.idCliente);
+    if (esUSD(i)) r.cobradoU += num(i.monto); else r.cobradoA += num(i.monto); });
+  EGR.forEach(e => { if (!e.idEvento) return; const r = tocar(e.idEvento);
+    if (esUSD(e)) r.gastadoU += num(e.monto); else r.gastadoA += num(e.monto); });
+
+  const filas = Object.keys(porEv).map(id => {
+    const r = porEv[id], c = mapaCli[id] || {};
+    const margen = r.cobradoA - r.gastadoA;
+    return { r, margen,
+             pct: r.cobradoA > 0 ? Math.round(margen / r.cobradoA * 100) : null,
+             inv: parseInt(c.cantidadInvitados) || 0,
+             nombre: c.apellidoNombre || '(evento eliminado)',
+             fecha: c.fechaEvento || '', tipo: c.tipoEvento || '' };
+  }).sort((a,b) => (b.fecha || '').localeCompare(a.fecha || ''));
+
+  const cont = document.getElementById('tabla-eventos');
+  if (!filas.length) {
+    cont.innerHTML = '<div class="vacio">Todavía no hay eventos con movimientos cargados.</div>'; return; }
+
+  cont.innerHTML = '<div class="tabla-scroll"><table><thead><tr>' +
+    '<th>Evento</th><th>Fecha</th><th class="num">Cobrado</th><th class="num">Gastado</th>' +
+    '<th class="num">Margen</th><th class="num">%</th><th class="num">Por invitado</th>' +
+    '</tr></thead><tbody>' + filas.map(f => {
+      const chip = f.pct === null
+        ? '<span class="chip chip-neutro">sin cobros</span>'
+        : '<span class="chip ' + (f.margen >= 0 ? 'chip-ok' : 'chip-mal') + '">' + f.pct + '%</span>';
+      const porInv = f.inv
+        ? pesos(f.margen / f.inv) + '<div class="tenue">' + f.inv + ' invitados</div>'
+        : '<span class="tenue">sin dato</span>';
+      const pu = [];
+      if (f.r.cobradoU) pu.push(dolar(f.r.cobradoU) + ' cobrado');
+      if (f.r.gastadoU) pu.push(dolar(f.r.gastadoU) + ' gastado');
+      const extraU = pu.length ? '<div class="tenue">+ ' + pu.join(' / ') + ' en USD</div>' : '';
+      return '<tr>' +
+        '<td><span class="fuerte">' + esc(f.nombre) + '</span>' +
+            '<div class="tenue">' + esc(f.tipo) + '</div>' + extraU + '</td>' +
+        '<td>' + fechaLinda(f.fecha) + '</td>' +
+        '<td class="num">' + pesos(f.r.cobradoA) + '</td>' +
+        '<td class="num">' + pesos(f.r.gastadoA) + '</td>' +
+        '<td class="num fuerte" style="color:' + (f.margen >= 0 ? 'var(--verde)' : 'var(--rojo)') + '">' +
+          pesos(f.margen) + '</td>' +
+        '<td class="num">' + chip + '</td>' +
+        '<td class="num">' + porInv + '</td></tr>';
+    }).join('') + '</tbody></table></div>' +
+    '<div class="nota">El margen es <strong>lo cobrado menos lo gastado a hoy</strong>, no el margen final: ' +
+    'si el evento todavía no se cobró entero, se ve peor de lo que va a terminar siendo.</div>';
+}
+
+/* ---------- BLOQUE 3: en qué se va la plata ---------- */
+function bloqueGastos(){
+  const p = selMes.value;
+  const delMes = EGR.filter(e => periodoDe(e) === p && !esUSD(e));
+  const cont = document.getElementById('graf-gastos');
+  document.getElementById('sub-gastos').textContent =
+    'Gastos de ' + nombreMes(p) + ', agrupados por categoría. En pesos.';
+
+  if (!delMes.length) {
+    cont.innerHTML = '<div class="vacio">No hay gastos cargados en este mes.</div>'; return; }
+
+  const dibujar = (lista, titulo) => {
+    if (!lista.length) return '';
+    const porCat = {};
+    lista.forEach(e => { const c = e.categoria || 'Sin categoría';
+                         porCat[c] = (porCat[c] || 0) + num(e.monto); });
+    const orden = Object.keys(porCat).map(k => [k, porCat[k]]).sort((a,b) => b[1] - a[1]);
+    const tope  = orden[0][1];
+    const total = orden.reduce((s,par) => s + par[1], 0);
+    return '<div class="grupo-tit">' + titulo + ' — ' + pesos(total) + '</div>' +
+      orden.map(par => '<div class="barra-fila">' +
+          '<div class="barra-nom">' + esc(par[0]) + '</div>' +
+          '<div class="barra-pista"><div class="barra-relleno" style="width:' +
+            Math.max(2, par[1] / tope * 100) + '%"></div></div>' +
+          '<div class="barra-monto">' + pesos(par[1]) + '</div></div>').join('');
+  };
+
+  cont.innerHTML =
+    dibujar(delMes.filter(e => e.idEvento),  'Gastos de eventos') +
+    dibujar(delMes.filter(e => !e.idEvento), 'Gastos generales del salón');
+}
+
+/* ---------- BLOQUE 4: quién debe plata ---------- */
+function bloqueDeuda(){
+  const hoy = new Date().toISOString().slice(0,10);
+  const filas = CLI.map(c => {
+    const cuotas  = CUO.filter(q => q.idCliente === c.id);
+    const cobrado = ingOk.filter(i => i.idCliente === c.id && !esUSD(i))
+                         .reduce((s,i) => s + num(i.monto), 0);
+
+    // Si hay plan de cuotas, el total a cobrar es el del PLAN (contado + recargo
+    // por financiar), no el presupuesto, que es el precio de contado. Usar el
+    // presupuesto acá subestimaba la deuda de todo cliente que paga en cuotas.
+    const conPlan = cuotas.length > 0;
+    const totalPlan = cuotas.reduce((s,q) => s + num(q.valorActual), 0);
+    const pagadoPlan = cuotas.reduce((s,q) => s + num(q.montoPagado), 0);
+    const presu = conPlan ? totalPlan : num(c.montoPresupuesto);
+    const saldo = conPlan ? totalPlan - pagadoPlan : presu - cobrado;
+
+    return { c, presu, cobrado: conPlan ? pagadoPlan : cobrado, saldo, conPlan,
+             vencidas:   cuotas.filter(q => q.estado !== 'pagada' && q.fechaVencimiento && q.fechaVencimiento < hoy).length,
+             pendientes: cuotas.filter(q => q.estado !== 'pagada').length };
+  }).filter(f => f.presu > 0 && f.saldo > 0.5 && f.c.estado !== 'Cancelado')
+    .sort((a,b) => (a.c.fechaEvento || '9999').localeCompare(b.c.fechaEvento || '9999'));
+
+  const cont = document.getElementById('tabla-deuda');
+  if (!filas.length) {
+    cont.innerHTML = '<div class="vacio">No hay saldos pendientes. Está todo cobrado.</div>'; return; }
+
+  const totalDeuda = filas.reduce((s,f) => s + f.saldo, 0);
+  cont.innerHTML = '<div class="tabla-scroll"><table><thead><tr>' +
+    '<th>Cliente</th><th>Evento</th><th class="num">Total a cobrar</th>' +
+    '<th class="num">Cobrado</th><th class="num">Falta</th><th>Cuotas</th>' +
+    '</tr></thead><tbody>' + filas.map(f => {
+      const pasado = f.c.fechaEvento && f.c.fechaEvento < hoy;
+      let est = '<span class="tenue">sin plan — precio contado</span>';
+      if (f.vencidas)        est = '<span class="chip chip-mal">' + f.vencidas + ' vencida(s)</span>';
+      else if (f.pendientes) est = '<span class="chip chip-neutro">' + f.pendientes + ' por vencer</span>';
+      return '<tr>' +
+        '<td><span class="fuerte">' + esc(f.c.apellidoNombre || '—') + '</span>' +
+            '<div class="tenue">' + esc(f.c.telefono || 'sin teléfono') + '</div></td>' +
+        '<td>' + fechaLinda(f.c.fechaEvento) +
+            (pasado ? '<div><span class="chip chip-aviso">ya pasó</span></div>' : '') + '</td>' +
+        '<td class="num">' + pesos(f.presu) + '</td>' +
+        '<td class="num">' + pesos(f.cobrado) + '</td>' +
+        '<td class="num fuerte" style="color:var(--rojo)">' + pesos(f.saldo) + '</td>' +
+        '<td>' + est + '</td></tr>';
+    }).join('') + '</tbody><tfoot><tr>' +
+      '<td colspan="4" class="fuerte">Total por cobrar</td>' +
+      '<td class="num fuerte" style="color:var(--rojo);font-size:19px">' + pesos(totalDeuda) + '</td>' +
+      '<td></td></tr></tfoot></table></div>';
+}
+
+bloqueResumen(); bloqueEventos(); bloqueGastos(); bloqueDeuda();
+</script>
+</body>
+</html>

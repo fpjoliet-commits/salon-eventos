@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260911k-egr">
+  <link rel="stylesheet" href="css/style.css?v=20260911n-cub">
   <link rel="stylesheet" href="css/propuesta.css?v=20260911k-combo">
   <link rel="stylesheet" href="css/ux.css?v=20260911k">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -399,8 +399,20 @@
                 </select>
               </div>
               <div class="form-group" id="monto-group" style="display:none">
-                <label>Monto presupuesto</label>
+                <label>Monto presupuesto <span class="tip" data-tip="Precio de contado, sin financiación. Si después arma un plan de cuotas, el total del plan puede ser mayor por el recargo.">?</span></label>
                 <input type="number" name="montoPresupuesto" min="0">
+              </div>
+              <div class="form-group">
+                <label>¿Cómo paga? <span class="tip" data-tip="Contado: paga todo junto o en pagos sueltos. Cuotas: plan de cuotas fijas con recargo. Por cubierto: compra cubiertos al precio del día y se los congela. La seña se registra igual en cualquiera de las tres.">?</span></label>
+                <select name="modalidadPago" id="ev-modalidad">
+                  <option value="">Contado / pagos sueltos</option>
+                  <option value="cuotas">Plan de cuotas</option>
+                  <option value="cubiertos">Por cubierto</option>
+                </select>
+              </div>
+              <div class="form-group" id="ev-precio-cubierto-group" style="display:none">
+                <label>Precio del cubierto <span class="tip" data-tip="Precio pactado por cubierto. Cada pago le compra cubiertos a este precio y se los congela: si después lo subís, solo afecta a los cubiertos que todavía no pagó.">?</span></label>
+                <input type="number" name="precioCubierto" id="ev-precio-cubierto" min="0" step="0.01">
               </div>
             </div>
           </div>
@@ -479,6 +491,25 @@
         <div class="egresos-form-card">
           <h3 class="egresos-form-title">Registrar egreso</h3>
           <form id="egreso-form" class="egreso-form">
+            <!-- Destino del gasto: define si el costo es fijo del salon o de un evento -->
+            <div class="egr-destino">
+              <span class="egr-destino-label">¿Para qué es este gasto?</span>
+              <div class="egr-destino-opts">
+                <label class="egr-destino-opt">
+                  <input type="radio" name="egr-destino" value="fijo" checked>
+                  <span>Gasto general del salón</span>
+                </label>
+                <label class="egr-destino-opt">
+                  <input type="radio" name="egr-destino" value="evento">
+                  <span>Gasto de un evento</span>
+                </label>
+              </div>
+              <div class="form-group hidden" id="egr-evento-group">
+                <label>¿De qué evento?</label>
+                <select id="egr-evento"><option value="">Seleccioná el evento...</option></select>
+              </div>
+            </div>
+
             <div class="egreso-form-row">
               <div class="form-group">
                 <label>Fecha</label>
@@ -551,6 +582,8 @@
 
             <div class="egreso-form-actions">
               <button type="submit" class="btn btn-primary">Registrar egreso</button>
+              <button type="button" id="egr-repetir-fijos" class="btn btn-sm btn-repetir"
+                      title="Vuelve a cargar los gastos generales del mes anterior con la fecha de hoy">↻ Repetir gastos fijos del mes pasado</button>
               <span id="egr-success" class="egr-success hidden">✓ Guardado</span>
               <span id="egr-error" class="error-msg hidden"></span>
             </div>
@@ -562,6 +595,12 @@
           <div class="egresos-list-header">
             <h3>Historial de egresos</h3>
             <div class="egresos-filtros">
+              <input type="month" id="egr-filtro-mes" class="filter-select" title="Filtrar por mes">
+              <select id="egr-filtro-destino" class="filter-select">
+                <option value="">Todos los gastos</option>
+                <option value="Fijo">Solo generales del salón</option>
+                <option value="Evento">Solo de eventos</option>
+              </select>
               <select id="egr-filtro-cat" class="filter-select">
                 <option value="">Todas las categorías</option>
                 <option>Servicios</option>
@@ -576,6 +615,7 @@
                 <option value="ARS">Solo ARS</option>
                 <option value="USD">Solo USD</option>
               </select>
+              <button type="button" id="egr-limpiar-filtros" class="btn btn-sm">Ver todo</button>
             </div>
           </div>
           <div id="egresos-loading" class="loading-msg">Cargando...</div>
@@ -587,6 +627,7 @@
                   <th>Categoría</th>
                   <th>Concepto</th>
                   <th>Empleado / Rol</th>
+                  <th>Evento</th>
                   <th>Monto</th>
                   <th>Notas</th>
                   <th>Cargado por</th>
@@ -1161,7 +1202,7 @@
         <!-- Tab: Plan de pago -->
         <div id="tab-cuotas" class="tab-content hidden">
 
-          <details class="guia-carga" style="margin-bottom:16px">
+          <details class="guia-carga" id="guia-cuotas" style="margin-bottom:16px">
             <summary class="guia-carga-header">
               <span>💡 ¿Cómo cargar el plan de pagos y registrar cobros?</span>
               <span class="guia-chevron">▾</span>
@@ -1208,6 +1249,16 @@
                 <label>Monto</label>
                 <input type="number" id="pago-monto" min="0.01" step="0.01" required placeholder="0">
               </div>
+              <!-- Solo para pago por cubierto en dólares: hay que pasar a pesos
+                   antes de poder convertir a cubiertos. -->
+              <div class="form-group" id="pago-cotiz-group" style="display:none">
+                <label>Cotización del dólar <span class="tip" data-tip="Se trae sola del blue (promedio entre compra y venta). Si arreglaste otro valor con el cliente, escribilo acá. Queda guardado el valor que se usó.">?</span></label>
+                <div class="pago-cotiz-row">
+                  <input type="number" id="pago-cotizacion" min="0" step="0.01" placeholder="0">
+                  <button type="button" id="btn-traer-cotiz" class="btn btn-sm" title="Traer la cotización de hoy">↻</button>
+                </div>
+                <small id="pago-cotiz-info" class="pago-cotiz-info"></small>
+              </div>
               <div class="form-group">
                 <label>Fecha</label>
                 <input type="date" id="pago-fecha" required>
@@ -1228,6 +1279,15 @@
                 <input type="text" id="pago-notas">
               </div>
             </div>
+            <!-- Imputacion automatica: el sistema decide que cuotas cubre el
+                 monto recibido. Es el camino normal. -->
+            <div id="pago-imputacion" class="imp-caja hidden"></div>
+
+            <label id="pago-modo-manual-wrap" class="imp-manual-lbl" style="display:none">
+              <input type="checkbox" id="pago-modo-manual">
+              <span>Prefiero elegir yo a qué cuotas va este pago</span>
+            </label>
+
             <div id="cuotas-a-tachar" class="hidden" style="margin:10px 0 14px">
               <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
                 ¿A qué cuotas corresponde este pago? <span class="tip" data-tip="Seleccioná las cuotas que cubre este cobro. Se marcarán como pagadas automáticamente.">?</span>
@@ -1669,7 +1729,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260911k-egr"></script>
+  <script src="js/app.js?v=20260911n-cub"></script>
   <script src="js/propuesta-ui.js?v=20260911k-kb"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>
