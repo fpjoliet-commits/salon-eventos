@@ -479,16 +479,13 @@
     const pintarPanel = () => {
       const cfg = leerConfigColumnas();
       const label = k => (COLUMNAS.find(c => c.key === k)?.label || k);
-      panel.innerHTML = `<div class="columnas-panel-head">Mostrar y ordenar columnas</div>`
-        + cfg.orden.map((k, i) => `
+      panel.innerHTML = `<div class="columnas-panel-head">Mostrar columnas · arrastrá ⠿ para ordenar</div>`
+        + cfg.orden.map(k => `
           <div class="columnas-row" data-key="${k}">
+            <span class="columnas-grip" aria-hidden="true" title="Arrastrá para reordenar">⠿</span>
             <label class="columnas-check">
               <input type="checkbox" ${cfg.ocultas.includes(k) ? '' : 'checked'}> ${escHtml(label(k))}
             </label>
-            <span class="columnas-move">
-              <button type="button" data-dir="-1" title="Subir"${i === 0 ? ' disabled' : ''}>▲</button>
-              <button type="button" data-dir="1" title="Bajar"${i === cfg.orden.length - 1 ? ' disabled' : ''}>▼</button>
-            </span>
           </div>`).join('')
         + `<button type="button" id="columnas-reset" class="columnas-reset">Restablecer</button>`;
     };
@@ -517,24 +514,19 @@
     });
 
     panel.addEventListener('click', e => {
-      const mv = e.target.closest('.columnas-move button');
-      if (mv) {
-        const k = mv.closest('.columnas-row').dataset.key;
-        const dir = parseInt(mv.dataset.dir);
-        const cfg = leerConfigColumnas();
-        const i = cfg.orden.indexOf(k), j = i + dir;
-        if (j < 0 || j >= cfg.orden.length) return;
-        [cfg.orden[i], cfg.orden[j]] = [cfg.orden[j], cfg.orden[i]];
-        guardarConfigColumnas(cfg);
-        aplicarConfigColumnas();
-        pintarPanel();
-        return;
-      }
       if (e.target.id === 'columnas-reset') {
         try { localStorage.removeItem(LS.columnas); } catch {}
         aplicarConfigColumnas();
         pintarPanel();
       }
+    });
+
+    // Reordenar arrastrando desde el asa ⠿ (mouse + touch)
+    window.enableTouchDragReorder?.(panel, '.columnas-row', '.columnas-grip', rows => {
+      const cfg = leerConfigColumnas();
+      cfg.orden = rows.map(r => r.dataset.key);
+      guardarConfigColumnas(cfg);
+      aplicarConfigColumnas();
     });
   }
 

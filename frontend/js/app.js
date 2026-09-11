@@ -3186,7 +3186,12 @@ function abrirCopiarTiming(cliente, itemsActuales) {
   const key = c => fechaLocal(c.fechaEvento);
   const proximos = conFecha.filter(c => key(c) >= hoy).sort((a, b) => key(a) - key(b));
   const pasados  = conFecha.filter(c => key(c) <  hoy).sort((a, b) => key(b) - key(a));
-  const opt = c => `<option value="${c.id}">${esc(c.apellidoNombre) || 'Sin nombre'} — ${c.fechaEvento ? formatDate(c.fechaEvento) : 'sin fecha'}${c.estado ? ` · ${esc(c.estado)}` : ''}</option>`;
+  const opt = c => {
+    const fecha = c.fechaEvento ? formatDate(c.fechaEvento) : 'sin fecha';
+    const fmt = c.formato ? ` · ${esc(c.formato)}` : '';
+    const pax = c.cantidadInvitados ? ` · ${esc(String(c.cantidadInvitados))} pax` : '';
+    return `<option value="${c.id}">${esc(c.apellidoNombre) || 'Sin nombre'} — ${fecha}${fmt}${pax}</option>`;
+  };
   const grupo = (label, arr) => arr.length ? `<optgroup label="${label}">${arr.map(opt).join('')}</optgroup>` : '';
 
   bar.innerHTML = `
@@ -6918,15 +6923,14 @@ function renderStockDashboard() {
     <select id="stock-add-unidad" class="stock-add-sel">${UNITS_SD.map(u => `<option>${u}</option>`).join('')}</select>
     <button id="stock-add-btn" class="btn btn-primary btn-sm">Agregar</button>
   </div>
-  <p class="stock-dash-hint">💡 Con <b>◀ ▶</b> movés el grupo de lugar. Con el <b>✏️</b> de cada ítem podés cambiarle el nombre, la unidad, pasarlo a otro grupo o eliminarlo.</p>`;
+  <p class="stock-dash-hint">💡 Arrastrá un grupo <b>desde su título</b> para moverlo de lugar. Con el <b>✏️</b> de cada ítem podés cambiarle el nombre, la unidad, pasarlo a otro grupo o eliminarlo.</p>`;
   html += '<div class="stock-dash-grid" id="stock-dash-grid">';
   catOrder.forEach((cat, ci) => {
     const color = cocCatColor(cat);
-    html += `<div class="stock-dash-section" draggable="true" data-cat="${esc(cat)}">
-      <div class="stock-dash-cat-header" style="background:${color}">
-        <button class="stock-cat-move" data-cat="${esc(cat)}" data-dir="-1" title="Mover grupo a la izquierda"${ci === 0 ? ' disabled' : ''}>◀</button>
+    html += `<div class="stock-dash-section" data-cat="${esc(cat)}">
+      <div class="stock-dash-cat-header stock-cat-handle" style="background:${color}" title="Arrastrá para reordenar">
+        <span class="stock-cat-grip" aria-hidden="true">⠿</span>
         <span class="stock-dash-cat-name">${esc(catDisplayName(cat))}</span>
-        <button class="stock-cat-move" data-cat="${esc(cat)}" data-dir="1" title="Mover grupo a la derecha"${ci === catOrder.length - 1 ? ' disabled' : ''}>▶</button>
       </div>`;
     byCategory[cat].forEach(item => {
       // Sin umbral de "stock bajo": el 0 se marca como sin-stock (dato objetivo), el resto neutro.
@@ -7064,9 +7068,58 @@ function _wireStockAddBar() {
   });
 }
 
+/* Reordenar arrastrando, con mouse Y con el dedo (pointer events).
+   `handleSelector` limita desde dónde se puede agarrar (null = todo el ítem).
+   `onDrop` recibe los ítems en el nuevo orden. Marcá el handle con
+   touch-action:none en CSS para que el dedo arrastre en vez de scrollear. */
+function enableTouchDragReorder(container, itemSelector, handleSelector, onDrop) {
+  if (!container || container.dataset.dragReady) return;
+  container.dataset.dragReady = '1';
+  let dragging = null, startX = 0, startY = 0, moved = false;
+
+  const onMove = e => {
+    if (!dragging) return;
+    if (!moved) {
+      if (Math.abs(e.clientX - startX) < 6 && Math.abs(e.clientY - startY) < 6) return;
+      moved = true;
+      dragging.classList.add('drag-reorder-active');
+    }
+    e.preventDefault();
+    const under = document.elementFromPoint(e.clientX, e.clientY)?.closest(itemSelector);
+    if (under && under !== dragging && container.contains(under)) {
+      const items = [...container.querySelectorAll(itemSelector)];
+      if (items.indexOf(dragging) < items.indexOf(under)) under.after(dragging);
+      else under.before(dragging);
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove);
+    if (dragging) dragging.classList.remove('drag-reorder-active');
+    if (moved && onDrop) onDrop([...container.querySelectorAll(itemSelector)]);
+    dragging = null; moved = false;
+  };
+  container.addEventListener('pointerdown', e => {
+    if (e.button != null && e.button !== 0) return;
+    if (e.target.closest('button, input, select, a, textarea')) return;
+    const handle = handleSelector ? e.target.closest(handleSelector) : e.target.closest(itemSelector);
+    if (!handle) return;
+    const item = handle.closest(itemSelector);
+    if (!item || !container.contains(item)) return;
+    dragging = item; moved = false;
+    startX = e.clientX; startY = e.clientY;
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp, { once: true });
+  });
+}
+
 function initStockDashDnD() {
   const grid = document.getElementById('stock-dash-grid');
   if (!grid) return;
+  // Reordenar grupos arrastrando desde su cabecera (mouse + touch).
+  enableTouchDragReorder(grid, '.stock-dash-section', '.stock-dash-cat-header', secciones => {
+    const order = secciones.map(el => el.dataset.cat);
+    try { localStorage.setItem('cocina-stock-cat-order', JSON.stringify(order)); } catch {}
+  });
   let mode = null;        // 'section' | 'item'
   let dragEl = null;      // sección que se reordena
   let dragItem = null;    // fila de ítem que se mueve de grupo

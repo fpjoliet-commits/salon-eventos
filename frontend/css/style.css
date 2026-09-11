@@ -3311,3 +3311,19 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
   border-radius: 10px;
 }
 .tim-copiar-label { font-size: 13px; font-weight: 600; }
+
+/* ============ Reordenar arrastrando (columnas y stock) ============ */
+.drag-reorder-active { opacity: .55; }
+.columnas-grip {
+  cursor: grab;
+  touch-action: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
+  padding: 2px 2px;
+}
+.columnas-grip:active { cursor: grabbing; }
+.stock-cat-handle { cursor: grab; touch-action: none; }
+.stock-cat-handle:active { cursor: grabbing; }
+.stock-cat-grip { opacity: .5; margin-right: 6px; user-select: none; font-size: 13px; }
