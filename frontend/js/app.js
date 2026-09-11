@@ -624,8 +624,10 @@ function openClienteModal(cliente, tabInicial = 'info') {
   currentClienteModal = cliente;
 
   // Restaurar header si estaba en modo edición
-  const wrap = document.querySelector('.modal-nombre-wrap');
-  wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
+  const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
+  const tituloCliente = esc(cliente.apellidoNombre)
+    || (cliente.telefono ? `Sin nombre · ${esc(cliente.telefono)}` : 'Sin nombre');
+  wrap.innerHTML = `<h3 id="modal-titulo">${tituloCliente}</h3>`;
 
   // Botones admin-only en modal
   const btnNuevoEvento = $('btn-nuevo-evento');
@@ -2572,7 +2574,7 @@ function buildClienteBody(c, overrides = {}) {
 }
 
 function injectNombreAcciones(cliente) {
-  const wrap = document.querySelector('.modal-nombre-wrap');
+  const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
   const sugerenciaArea = $('nombre-sugerencia-area');
   if (!wrap) return;
 
@@ -2624,7 +2626,7 @@ function injectNombreAcciones(cliente) {
 }
 
 function startInlineNombreEdit(cliente, valorInicial = null) {
-  const wrap = document.querySelector('.modal-nombre-wrap');
+  const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
   if (!wrap) return;
   const val = valorInicial !== null ? valorInicial : (cliente.apellidoNombre || '');
 
@@ -2655,7 +2657,7 @@ function startInlineNombreEdit(cliente, valorInicial = null) {
 async function saveNombreEdit(cliente, nuevoNombre) {
   if (!nuevoNombre) return;
   if (nuevoNombre === cliente.apellidoNombre) {
-    const wrap = document.querySelector('.modal-nombre-wrap');
+    const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
     wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
     injectNombreAcciones(cliente);
     return;
@@ -2677,7 +2679,7 @@ async function saveNombreEdit(cliente, nuevoNombre) {
     const idx = allClientes.findIndex(c => c.id === cliente.id);
     if (idx !== -1) Object.assign(allClientes[idx], { apellidoNombre: nuevoNombre, observaciones: obsLimpio });
 
-    const wrap = document.querySelector('.modal-nombre-wrap');
+    const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
     wrap.innerHTML = `<h3 id="modal-titulo">${esc(nuevoNombre)}</h3>`;
     injectNombreAcciones(cliente);
     renderClienteDetail(cliente);
@@ -2689,7 +2691,7 @@ async function saveNombreEdit(cliente, nuevoNombre) {
 }
 
 function showSugerirNombreForm(cliente) {
-  const wrap = document.querySelector('.modal-nombre-wrap');
+  const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
   if (!wrap) return;
 
   const obs = cliente.observaciones || '';
@@ -2741,7 +2743,7 @@ async function saveSugerenciaNombre(cliente, nombreSugerido) {
     const idx = allClientes.findIndex(c => c.id === cliente.id);
     if (idx !== -1) allClientes[idx].observaciones = obsNuevo;
 
-    const wrap = document.querySelector('.modal-nombre-wrap');
+    const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
     wrap.innerHTML = `<h3 id="modal-titulo">${esc(cliente.apellidoNombre) || 'Cliente'}</h3>`;
     injectNombreAcciones(cliente);
 

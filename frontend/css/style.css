@@ -713,6 +713,8 @@ textarea { resize: vertical; min-height: 70px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
   padding: 22px 28px;
   border-bottom: 1px solid var(--border-light);
 }
