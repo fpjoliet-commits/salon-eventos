@@ -550,6 +550,7 @@ function renderClientes(clientes) {
         <td>${estadoBadge(c.estado)}</td>
         <td class="${segClass}">${formatDate(c.proximoSeguimiento)}</td>
         <td>${c.origen || '—'}</td>
+        <td>${formatDate(c.fechaCarga)}</td>
         <td class="acciones-col">
           <button class="btn btn-sm btn-secondary btn-ver">Ver</button>
           ${canManagePagos() ? `<button class="btn btn-sm btn-pago-rapido">$ Pago</button>` : ''}
@@ -3947,6 +3948,25 @@ function preFillPropuestaFromCliente(cliente) {
     d.invitados = inv;
     const ii = $('prop-invitados'); if (ii) ii.value = inv;
     const id2 = $('prop-invitados-display'); if (id2) id2.textContent = inv;
+  }
+  // Nombre del agasajado (mismo dato que el formulario del cliente)
+  if (cliente.nombreAgasajado) {
+    d.agasajado = cliente.nombreAgasajado;
+    const ai = $('prop-agasajado'); if (ai) ai.value = cliente.nombreAgasajado;
+  }
+  // Menú infantil: el cliente guarda la cantidad de chicos → tildar y completar
+  const infCant = parseInt(cliente.menuInfantil);
+  if (infCant > 0) {
+    d.menuInfantil = true;
+    d.infantilCant = String(infCant);
+    const mi = $('prop-menu-infantil'); if (mi) mi.checked = true;
+    const ic = $('prop-infantil-cant'); if (ic) ic.value = infCant;
+    const infRow = document.getElementById('infantil-count-row'); if (infRow) infRow.style.display = '';
+  }
+  // Otros pedidos / requerimientos cargados en el formulario
+  if (cliente.otrosPedidos) {
+    d.pedidos = cliente.otrosPedidos;
+    const pi = $('prop-pedidos'); if (pi) pi.value = cliente.otrosPedidos;
   }
 
   hideEl($('propuesta-preform'));

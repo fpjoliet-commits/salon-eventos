@@ -313,6 +313,7 @@
     { key: 'estado',            label: 'Estado',            tipo: 'estado' },
     { key: 'proximoSeguimiento', label: 'Próx. seguimiento', tipo: 'fecha' },
     { key: 'origen',            label: 'Origen',            tipo: 'texto' },
+    { key: 'fechaCarga',        label: 'Fecha de carga',    tipo: 'fechaCarga' },
   ];
 
   let orden = { key: null, dir: 'asc' };
@@ -327,6 +328,12 @@
     if (col.tipo === 'fecha') {
       // Sin fecha va siempre al final, ordene asc o desc
       return v || '￿';
+    }
+    if (col.tipo === 'fechaCarga') {
+      // fechaCarga viene DD/MM/YYYY (o ISO): se parsea a timestamp real para
+      // ordenar cronológico, no como texto. Sin fecha → al final.
+      const d = window.parseFechaCarga?.(v);
+      return d ? d.getTime() : Number.POSITIVE_INFINITY;
     }
     return norm(v);
   }
