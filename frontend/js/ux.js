@@ -26,6 +26,7 @@
     textSize: 'crm_text_size',
     filtros: 'crm_filtros_clientes',
     orden: 'crm_orden_clientes',
+    columnas: 'crm_columnas_clientes',
   };
 
   /* Nombres reales detrás de cada usuario del login.
@@ -393,6 +394,148 @@
       if (g && COLUMNAS.some(c => c.key === g.key)) orden = g;
     } catch { /* preferencia corrupta: se ignora */ }
     pintarEstadoOrden();
+  }
+
+  /* ============================================================
+     6b. OCULTAR / REORDENAR COLUMNAS (se recuerda por navegador)
+     Trabaja posicionalmente: la tabla es [check][8 columnas][acciones].
+     Se reordenan/ocultan tanto los <th> como las celdas de cada fila,
+     dejando el check siempre primero y las acciones siempre al final.
+     ============================================================ */
+  function leerConfigColumnas() {
+    const claves = COLUMNAS.map(c => c.key);
+    let cfg = { orden: [...claves], ocultas: [] };
+    try {
+      const g = JSON.parse(localStorage.getItem(LS.columnas) || 'null');
+      if (g && Array.isArray(g.orden)) {
+        cfg.orden = [
+          ...g.orden.filter(k => claves.includes(k)),
+          ...claves.filter(k => !g.orden.includes(k)),   // columnas nuevas al final
+        ];
+        cfg.ocultas = (g.ocultas || []).filter(k => claves.includes(k));
+      }
+    } catch { /* preferencia corrupta: se ignora */ }
+    return cfg;
+  }
+  function guardarConfigColumnas(cfg) {
+    try { localStorage.setItem(LS.columnas, JSON.stringify(cfg)); } catch {}
+  }
+
+  function aplicarConfigColumnas() {
+    const cfg = leerConfigColumnas();
+    const oculta = k => cfg.ocultas.includes(k);
+    const thead = document.querySelector('#view-clientes .data-table thead tr');
+    if (!thead) return;
+
+    // <th> de datos, indexados por su sort-key
+    const thByKey = {};
+    thead.querySelectorAll('th[data-sort-key]').forEach(th => { thByKey[th.dataset.sortKey] = th; });
+    const actionsTh = [...thead.children].find(th => !th.classList.contains('th-check') && !th.dataset.sortKey);
+
+    cfg.orden.forEach(k => {
+      const th = thByKey[k];
+      if (!th) return;
+      th.style.display = oculta(k) ? 'none' : '';
+      thead.insertBefore(th, actionsTh || null);
+    });
+
+    // Cada fila: las celdas de datos vienen en el orden por defecto (COLUMNAS)
+    document.querySelectorAll('#clientes-tbody tr').forEach(tr => {
+      const kids = [...tr.children];
+      const check = tr.querySelector('.td-check');
+      const actionsTd = tr.querySelector('.acciones-col') || kids[kids.length - 1];
+      const dataTds = kids.filter(td => td !== check && td !== actionsTd);
+      const tdByKey = {};
+      COLUMNAS.forEach((col, i) => { if (dataTds[i]) tdByKey[col.key] = dataTds[i]; });
+      cfg.orden.forEach(k => {
+        const td = tdByKey[k];
+        if (!td) return;
+        td.style.display = oculta(k) ? 'none' : '';
+        tr.insertBefore(td, actionsTd || null);
+      });
+    });
+  }
+
+  function montarMenuColumnas() {
+    const exportBtn = document.getElementById('btn-exportar-csv');
+    if (!exportBtn || document.getElementById('btn-columnas')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'btn-columnas';
+    btn.type = 'button';
+    btn.className = exportBtn.className;
+    btn.innerHTML = '☰ Columnas';
+
+    const panel = document.createElement('div');
+    panel.id = 'columnas-panel';
+    panel.className = 'columnas-panel hidden';
+
+    const cont = document.createElement('span');
+    cont.className = 'columnas-wrap';
+    exportBtn.parentNode.insertBefore(cont, exportBtn);
+    cont.appendChild(btn);
+    cont.appendChild(panel);
+
+    const pintarPanel = () => {
+      const cfg = leerConfigColumnas();
+      const label = k => (COLUMNAS.find(c => c.key === k)?.label || k);
+      panel.innerHTML = `<div class="columnas-panel-head">Mostrar y ordenar columnas</div>`
+        + cfg.orden.map((k, i) => `
+          <div class="columnas-row" data-key="${k}">
+            <label class="columnas-check">
+              <input type="checkbox" ${cfg.ocultas.includes(k) ? '' : 'checked'}> ${escHtml(label(k))}
+            </label>
+            <span class="columnas-move">
+              <button type="button" data-dir="-1" title="Subir"${i === 0 ? ' disabled' : ''}>▲</button>
+              <button type="button" data-dir="1" title="Bajar"${i === cfg.orden.length - 1 ? ' disabled' : ''}>▼</button>
+            </span>
+          </div>`).join('')
+        + `<button type="button" id="columnas-reset" class="columnas-reset">Restablecer</button>`;
+    };
+
+    const abrir = () => { pintarPanel(); panel.classList.remove('hidden'); };
+    const cerrar = () => panel.classList.add('hidden');
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      panel.classList.contains('hidden') ? abrir() : cerrar();
+    });
+    document.addEventListener('click', e => {
+      if (!cont.contains(e.target)) cerrar();
+    });
+
+    panel.addEventListener('change', e => {
+      const row = e.target.closest('.columnas-row');
+      if (!row) return;
+      const k = row.dataset.key;
+      const cfg = leerConfigColumnas();
+      const set = new Set(cfg.ocultas);
+      e.target.checked ? set.delete(k) : set.add(k);
+      cfg.ocultas = [...set];
+      guardarConfigColumnas(cfg);
+      aplicarConfigColumnas();
+    });
+
+    panel.addEventListener('click', e => {
+      const mv = e.target.closest('.columnas-move button');
+      if (mv) {
+        const k = mv.closest('.columnas-row').dataset.key;
+        const dir = parseInt(mv.dataset.dir);
+        const cfg = leerConfigColumnas();
+        const i = cfg.orden.indexOf(k), j = i + dir;
+        if (j < 0 || j >= cfg.orden.length) return;
+        [cfg.orden[i], cfg.orden[j]] = [cfg.orden[j], cfg.orden[i]];
+        guardarConfigColumnas(cfg);
+        aplicarConfigColumnas();
+        pintarPanel();
+        return;
+      }
+      if (e.target.id === 'columnas-reset') {
+        try { localStorage.removeItem(LS.columnas); } catch {}
+        aplicarConfigColumnas();
+        pintarPanel();
+      }
+    });
   }
 
   /* --- CSV de la vista actual (respeta filtros y orden) --- */
@@ -947,6 +1090,7 @@
         pintarEstadoOrden();
         montarColumnaSeleccion();
         inyectarChecksEnFilas();
+        aplicarConfigColumnas();
       };
       envuelta._uxWrapped = true;
       window.renderClientes = envuelta;
@@ -1107,6 +1251,7 @@
     montarA11yTabs();
     montarOrdenTabla();
     montarColumnaSeleccion();
+    montarMenuColumnas();
     montarFiltros();
     aplicarInputmodes();
     observarInputsNuevos();
