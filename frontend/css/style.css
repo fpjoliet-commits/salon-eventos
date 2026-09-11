@@ -3296,3 +3296,18 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
 .columnas-move button:disabled { opacity: .35; cursor: default; }
 .columnas-reset { margin-top: 6px; width: 100%; background: none; border: none; color: var(--gold, #c4993e); font-size: 12px; cursor: pointer; padding: 6px; border-radius: 6px; }
 .columnas-reset:hover { background: var(--cream, #f5f0e6); }
+
+/* ============ Traer timing de otro evento ============ */
+.timming-header-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.tim-copiar-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: var(--cream, #f5f0e6);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.tim-copiar-label { font-size: 13px; font-weight: 600; }

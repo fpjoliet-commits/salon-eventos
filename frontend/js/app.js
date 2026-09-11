@@ -3141,8 +3141,12 @@ function renderTimmingMaitre(cliente, items) {
     <div class="timming-wrap">
       <div class="timming-header-row">
         <h4 class="timming-title">Cronograma del maître</h4>
-        <button id="btn-print-timming" class="btn btn-sm btn-secondary">🖨 Imprimir</button>
+        <div class="timming-header-btns">
+          <button id="btn-copiar-timing" class="btn btn-sm btn-secondary" title="Copiar el cronograma de otro evento">📋 Traer timing de…</button>
+          <button id="btn-print-timming" class="btn btn-sm btn-secondary">🖨 Imprimir</button>
+        </div>
       </div>
+      <div id="tim-copiar-bar" class="tim-copiar-bar hidden"></div>
       <div class="tim-list">${filas}</div>
       <div class="tim-form-card">
         <div class="tim-quick-row">
@@ -3167,6 +3171,92 @@ function renderTimmingMaitre(cliente, items) {
   bindMaitreAcciones(cliente, items);
 }
 
+/* Traer el timing de otro evento: casi todas las fiestas siguen el mismo guion.
+   Copia las actividades del maître y la configuración de cocina del evento
+   elegido al actual. Si el actual ya tiene cargado algo, se reemplaza. */
+function abrirCopiarTiming(cliente, itemsActuales) {
+  const bar = $('tim-copiar-bar');
+  if (!bar) return;
+  if (!bar.classList.contains('hidden')) { bar.classList.add('hidden'); return; }
+
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const otros = [...allClientes].filter(c => c.id !== cliente.id);
+  const conFecha = otros.filter(c => c.fechaEvento);
+  const sinFecha = otros.filter(c => !c.fechaEvento);
+  const key = c => fechaLocal(c.fechaEvento);
+  const proximos = conFecha.filter(c => key(c) >= hoy).sort((a, b) => key(a) - key(b));
+  const pasados  = conFecha.filter(c => key(c) <  hoy).sort((a, b) => key(b) - key(a));
+  const opt = c => `<option value="${c.id}">${esc(c.apellidoNombre) || 'Sin nombre'} — ${c.fechaEvento ? formatDate(c.fechaEvento) : 'sin fecha'}${c.estado ? ` · ${esc(c.estado)}` : ''}</option>`;
+  const grupo = (label, arr) => arr.length ? `<optgroup label="${label}">${arr.map(opt).join('')}</optgroup>` : '';
+
+  bar.innerHTML = `
+    <span class="tim-copiar-label">Traer el timing de:</span>
+    <select id="tim-copiar-select" class="form-select form-select-sm" style="flex:1;min-width:180px">
+      <option value="">— Elegí un evento —</option>
+      ${grupo('Próximos', proximos)}${grupo('Pasados', pasados)}${grupo('Sin fecha', sinFecha)}
+    </select>
+    <button id="tim-copiar-confirmar" class="btn btn-sm btn-primary">Traer</button>
+    <button id="tim-copiar-cancelar" class="btn btn-sm btn-secondary">Cancelar</button>`;
+  bar.classList.remove('hidden');
+
+  $('tim-copiar-cancelar').addEventListener('click', () => bar.classList.add('hidden'));
+  $('tim-copiar-confirmar').addEventListener('click', () => ejecutarCopiaTiming(cliente, itemsActuales));
+}
+
+async function ejecutarCopiaTiming(cliente, itemsActuales) {
+  const sourceId = $('tim-copiar-select')?.value;
+  if (!sourceId) { toast('Elegí un evento para copiar', 'error'); return; }
+  const origen = allClientes.find(c => c.id === sourceId);
+
+  let fuente;
+  try {
+    fuente = await apiFetch(`/timming/cliente/${sourceId}`);
+  } catch (e) { toast('No se pudo leer el timing de origen: ' + e.message, 'error'); return; }
+  if (!fuente.length) { toast('Ese evento no tiene timing cargado', 'error'); return; }
+
+  // Timing actual completo (maître + cocina) para saber si hay que reemplazar
+  let actuales = [];
+  try { actuales = await apiFetch(`/timming/cliente/${cliente.id}`); } catch {}
+
+  if (actuales.length) {
+    const ok = await uiConfirm({
+      titulo: '¿Reemplazar el timing actual?',
+      mensaje: `Este evento ya tiene timing cargado. Se va a reemplazar por el de ${origen?.apellidoNombre || 'el evento elegido'} (después lo podés retocar).`,
+      confirmar: 'Sí, traer y reemplazar',
+      cancelar: 'No',
+      tipo: 'danger',
+    });
+    if (!ok) return;
+  }
+
+  const btn = $('tim-copiar-confirmar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Trayendo…'; }
+  try {
+    // Borrar lo actual (maître + cocina)
+    for (const it of actuales) {
+      if (it.rowIndex != null) await apiFetch(`/timming/${it.rowIndex}`, { method: 'DELETE' });
+    }
+    // Copiar cada ítem del origen
+    for (const it of fuente) {
+      await apiFetch('/timming', {
+        method: 'POST',
+        body: {
+          idCliente: cliente.id,
+          hora: it.hora || '',
+          actividad: it.actividad || '',
+          tipo: it.tipo || 'maitre',
+          descripcion: it.descripcion || '',
+        },
+      });
+    }
+    toast(`Timing traído de ${origen?.apellidoNombre || 'otro evento'}`);
+    loadTimmingTab(cliente);
+  } catch (e) {
+    toast('No se pudo copiar: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Traer'; }
+  }
+}
+
 function bindMaitreAcciones(cliente, items) {
   bindActividadToggle('tim-actividad-select', 'tim-actividad-custom');
   bindAllTimePickers($('timming-add-form'));
@@ -3182,6 +3272,8 @@ function bindMaitreAcciones(cliente, items) {
       sel.focus();
     });
   });
+
+  $('btn-copiar-timing')?.addEventListener('click', () => abrirCopiarTiming(cliente, items));
 
   /* Ojo: hay que acotar al panel del maître. La clase .btn-tim-del la usan
      también los botones de borrar restricciones (en #tim-rest-panel), que tienen
