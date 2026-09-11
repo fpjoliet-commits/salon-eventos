@@ -32,7 +32,7 @@
   /* Nombres reales detrás de cada usuario del login.
      El login pide un rol, no una persona: si algún día se separa por persona,
      esto sale sobrando. Editable a mano. */
-  const NOMBRES = { superadmin: 'Fabio', admin: 'Fabio', empleado: '' };
+  const NOMBRES = { superadmin: 'Fabio', admin: 'Mariana', empleado: '' };
 
   /* Comparación sin acentos ni mayúsculas — imprescindible en español */
   const norm = s => (s || '')
