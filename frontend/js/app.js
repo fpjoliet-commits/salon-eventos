@@ -833,21 +833,40 @@ function abrirNuevoEventoParaPersona(clienteBase) {
   actualizarCampoAgasajado();
 }
 
+// Campos del modal editables en el lugar: click (o lapicito) → input → Guardar.
+// `selectName` clona las opciones del formulario para no duplicar listas.
+function _campoEditable(c, key, label, type, opts = {}) {
+  const raw = c[key];
+  const has = raw !== undefined && raw !== null && String(raw).trim() !== '';
+  const shown = has
+    ? (opts.fmt ? opts.fmt(raw) : esc(String(raw)))
+    : '<span class="detail-add">＋ agregar</span>';
+  const cls = 'detail-item' + (opts.full ? ' detail-full' : '') + (opts.internal ? ' internal-field' : '');
+  const dataInt = opts.internal ? ' data-internal' : '';
+  const selAttr = opts.selectName ? ` data-edit-select="${opts.selectName}"` : '';
+  return `<div class="${cls}"${dataInt}>
+    <span class="detail-label">${label}</span>
+    <span class="detail-value detail-editable" data-edit-key="${key}" data-edit-type="${type}"${selAttr} role="button" tabindex="0" title="Tocá para editar">${shown}<button type="button" class="detail-edit-pencil" tabindex="-1" aria-hidden="true">✎</button></span>
+  </div>`;
+}
+
 function renderClienteDetail(c) {
+  const ed = (key, label, type, opts) => _campoEditable(c, key, label, type, opts);
+  const obs = (c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim();
   $('cliente-detail-grid').innerHTML = `
     <div class="detail-item"><span class="detail-label">Estado</span><span class="detail-value">${estadoBadge(c.estado)}</span></div>
-    <div class="detail-item"><span class="detail-label">Teléfono</span><span class="detail-value">${c.telefono || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Gmail</span><span class="detail-value">${c.gmail || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Tipo de evento</span><span class="detail-value">${c.tipoEvento || '—'}</span></div>
-    ${c.nombreAgasajado ? `<div class="detail-item"><span class="detail-label">Agasajad@</span><span class="detail-value" style="font-weight:600">${esc(c.nombreAgasajado)}</span></div>` : ''}
-    <div class="detail-item"><span class="detail-label">Formato</span><span class="detail-value">${c.formato || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Fecha del evento</span><span class="detail-value">${formatDateWithDay(c.fechaEvento)}</span></div>
+    ${ed('telefono', 'Teléfono', 'tel')}
+    ${ed('gmail', 'Gmail', 'email')}
+    ${ed('tipoEvento', 'Tipo de evento', 'select', { selectName: 'tipoEvento' })}
+    ${ed('nombreAgasajado', 'Agasajad@', 'text')}
+    ${ed('formato', 'Formato', 'select', { selectName: 'formato' })}
+    ${ed('fechaEvento', 'Fecha del evento', 'date', { fmt: formatDateWithDay })}
     <div class="detail-item"><span class="detail-label">Estado de la fecha</span><span class="detail-value">${c.estadoFecha || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Invitados</span><span class="detail-value">${c.cantidadInvitados || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Turno</span><span class="detail-value">${c.turno || '—'}</span></div>
-    <div class="detail-item"><span class="detail-label">Menú infantil</span><span class="detail-value">${c.menuInfantil || '—'}</span></div>
-    ${c.otrosPedidos ? `<div class="detail-item detail-full"><span class="detail-label">Otros pedidos</span><span class="detail-value">${esc(c.otrosPedidos)}</span></div>` : ''}
-    ${(c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim() ? `<div class="detail-item detail-full"><span class="detail-label">Observaciones</span><span class="detail-value">${esc((c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim())}</span></div>` : ''}
+    ${ed('cantidadInvitados', 'Invitados', 'number')}
+    ${ed('turno', 'Turno', 'select', { selectName: 'turno' })}
+    ${ed('menuInfantil', 'Menú infantil', 'number')}
+    ${ed('otrosPedidos', 'Otros pedidos', 'textarea', { full: true })}
+    ${obs ? `<div class="detail-item detail-full"><span class="detail-label">Observaciones</span><span class="detail-value">${esc(obs)}</span></div>` : ''}
     ${(c.menuRecepcion || c.menuIslas || c.menuPrimerPlato || c.menuPrincipal || c.menuPostre) ? `
       <div class="detail-item detail-full detail-menu-section">
         <span class="detail-label">Menú del evento</span>
@@ -905,6 +924,9 @@ function renderClienteDetail(c) {
         <span id="modal-nota-interna-status" class="nota-interna-status"></span>
       </div>`;
   }
+
+  // Al re-renderizar no queda ningún campo en edición: ocultar la barra de guardar.
+  actualizarBarraGuardarCliente?.();
 }
 
 window.guardarNotaInterna = async function() {
@@ -935,6 +957,108 @@ $('btn-editar-cliente').addEventListener('click', () => {
   hideEl($('modal-overlay'));
   openEditForm(currentClienteModal);
 });
+
+/* ---- Edición en el lugar de los campos del cliente (sin salir del modal) ----
+   Click (o Enter) sobre un campo → se vuelve input del tipo correcto; se pueden
+   editar varios; un solo "Guardar cambios" hace el PUT. Los <select> clonan las
+   opciones del formulario para no duplicar listas. */
+function _clienteGridEl() { return document.getElementById('cliente-detail-grid'); }
+
+function iniciarEdicionCampoCliente(span) {
+  if (!span || span.classList.contains('editing')) return;
+  const c = currentClienteModal; if (!c) return;
+  const key = span.dataset.editKey;
+  const type = span.dataset.editType;
+  const selectName = span.dataset.editSelect;
+  const actual = (c[key] ?? '').toString();
+  let control;
+  if (type === 'select') {
+    control = document.createElement('select');
+    const src = document.querySelector(`#cliente-form [name="${selectName}"]`);
+    control.innerHTML = src ? src.innerHTML : '<option value="">—</option>';
+    control.value = actual;
+  } else if (type === 'textarea') {
+    control = document.createElement('textarea');
+    control.rows = 2;
+    control.value = actual;
+  } else {
+    control = document.createElement('input');
+    control.type = type || 'text';
+    control.value = actual;
+  }
+  control.className = 'detail-edit-input';
+  control.dataset.editKey = key;
+  control.addEventListener('click', e => e.stopPropagation());
+  control.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && type !== 'textarea') { e.preventDefault(); guardarEdicionesCliente(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelarEdicionesCliente(); }
+  });
+  span.classList.add('editing');
+  span.innerHTML = '';
+  span.appendChild(control);
+  control.focus();
+  try { control.select?.(); } catch {}
+  actualizarBarraGuardarCliente();
+}
+
+function recolectarEdicionesCliente() {
+  const grid = _clienteGridEl(); if (!grid) return {};
+  const edits = {};
+  grid.querySelectorAll('.detail-value.editing .detail-edit-input').forEach(ctrl => {
+    edits[ctrl.dataset.editKey] = ctrl.value.trim();
+  });
+  return edits;
+}
+
+function actualizarBarraGuardarCliente() {
+  const bar = document.getElementById('cliente-edit-bar');
+  if (!bar) return;
+  const hay = !!_clienteGridEl()?.querySelector('.detail-value.editing');
+  bar.classList.toggle('hidden', !hay);
+}
+
+async function guardarEdicionesCliente() {
+  const c = currentClienteModal; if (!c) return;
+  const edits = recolectarEdicionesCliente();
+  if (!Object.keys(edits).length) { actualizarBarraGuardarCliente(); return; }
+  const btn = document.getElementById('cliente-edit-guardar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try {
+    await apiFetch(`/clientes/${c.rowIndex}`, { method: 'PUT', body: buildClienteBody(c, edits) });
+    Object.assign(c, edits);
+    const idx = allClientes.findIndex(x => x.id === c.id);
+    if (idx !== -1) Object.assign(allClientes[idx], edits);
+    renderClienteDetail(c);
+    renderClientes(allClientes);
+    renderRemindersBar?.();
+    renderSeguimientosPanel?.();
+    document.dispatchEvent(new CustomEvent('crm:clientes-cargados'));
+    toast('Cambios guardados');
+  } catch (err) {
+    toast('No se pudo guardar: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+  }
+}
+
+function cancelarEdicionesCliente() {
+  if (currentClienteModal) renderClienteDetail(currentClienteModal);
+}
+
+_clienteGridEl()?.addEventListener('click', e => {
+  const span = e.target.closest('.detail-editable');
+  if (span && !span.classList.contains('editing')) iniciarEdicionCampoCliente(span);
+});
+_clienteGridEl()?.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const span = e.target.closest('.detail-editable');
+  if (span && e.target === span && !span.classList.contains('editing')) {
+    e.preventDefault();
+    iniciarEdicionCampoCliente(span);
+  }
+});
+document.getElementById('cliente-edit-guardar')?.addEventListener('click', guardarEdicionesCliente);
+document.getElementById('cliente-edit-cancelar')?.addEventListener('click', cancelarEdicionesCliente);
 
 
 /* ===================== RESTRICCIONES ===================== */

@@ -3212,3 +3212,61 @@ tr.coc-row-hidden { display: none; }
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* ============ Edición en el lugar de los campos del cliente ============ */
+.detail-editable {
+  position: relative;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 22px 2px 4px;
+  margin: -2px -4px;
+  transition: background .12s;
+}
+.detail-editable:hover,
+.detail-editable:focus-visible { background: var(--gold-soft, #f3e9d2); outline: none; }
+.detail-edit-pencil {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--text-muted, #888);
+  font-size: 13px;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: opacity .12s;
+}
+.detail-editable:hover .detail-edit-pencil,
+.detail-editable:focus-visible .detail-edit-pencil { opacity: .85; }
+.detail-add { color: var(--gold, #c4993e); font-style: italic; }
+.detail-edit-input {
+  width: 100%;
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--gold, #c4993e);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: inherit;
+  box-shadow: 0 0 0 2px var(--gold-soft, #f3e9d2);
+}
+textarea.detail-edit-input { resize: vertical; min-height: 46px; }
+.cliente-edit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 10px;
+  position: sticky;
+  bottom: 8px;
+  z-index: 3;
+}
+.cliente-edit-bar-msg { font-size: 13px; font-weight: 600; color: #6d4c00; }
+.cliente-edit-bar-btns { display: flex; gap: 8px; }
