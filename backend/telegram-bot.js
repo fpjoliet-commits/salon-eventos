@@ -16,7 +16,7 @@
      TELEGRAM_WEBHOOK_SECRET  (opcional) texto secreto para validar el webhook
      TELEGRAM_CHAT_MAP        "chatId:usuario,chatId:usuario"  (quién puede cargar)
      GEMINI_API_KEY           API key de Google AI Studio (capa gratuita)
-     GEMINI_MODEL             (opcional) por defecto gemini-2.5-flash
+     GEMINI_MODEL             (opcional) por defecto gemini-flash-latest
    ========================================================================== */
 
 const express = require('express');
@@ -24,7 +24,9 @@ const express = require('express');
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// 'gemini-flash-latest' apunta siempre al Flash vigente: evita el 404 cuando Google
+// retira un modelo pinneado (ej. gemini-2.5-flash quedó sin acceso para keys nuevas).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 
 // El bot está "activo" solo si puede hablar con Telegram y con la IA.
 const BOT_ACTIVO = Boolean(TOKEN && GEMINI_API_KEY);

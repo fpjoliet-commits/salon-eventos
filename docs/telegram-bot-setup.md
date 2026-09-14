@@ -39,7 +39,7 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
 GEMINI_API_KEY=AIza...
 TELEGRAM_CHAT_MAP=123456789:fabio,987654321:mariana
 TELEGRAM_WEBHOOK_SECRET=algo-secreto-que-inventes   # opcional pero recomendado
-# GEMINI_MODEL=gemini-2.5-flash                      # opcional
+# GEMINI_MODEL=gemini-flash-latest                      # opcional
 ```
 
 ## 5. Registrar el webhook (una vez, después de desplegar)
