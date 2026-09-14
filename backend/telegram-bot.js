@@ -106,7 +106,6 @@ Si no estás seguro del monto, poné 0. No inventes cliente si no lo nombran.`;
 
 async function interpretarConGemini(input, { fetchImpl = fetch } = {}) {
   if (!GEMINI_API_KEY) throw new Error('Falta GEMINI_API_KEY');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
   const parts = [{ text: PROMPT_SISTEMA }];
   if (input.audioBase64) {
     parts.push({ inline_data: { mime_type: input.mime || 'audio/ogg', data: input.audioBase64 } });
@@ -117,24 +116,40 @@ async function interpretarConGemini(input, { fetchImpl = fetch } = {}) {
   } else {
     parts.push({ text: `Mensaje: "${input.texto || ''}"` });
   }
-  const res = await fetchImpl(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: { temperature: 0, responseMimeType: 'application/json' },
-    }),
+  const cuerpo = JSON.stringify({
+    contents: [{ parts }],
+    generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   });
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    const err = new Error(`Gemini ${res.status}: ${t.slice(0, 200)}`);
-    // 429 / RESOURCE_EXHAUSTED = nos quedamos sin cupo de IA (rate limit o cuota diaria).
-    if (res.status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(t)) err.sinCupo = true;
-    throw err;
+
+  // Resiliencia: si el modelo está saturado (503) reintentamos, y si insiste
+  // probamos un modelo alternativo (flash-lite). Cupo agotado (429) no se reintenta.
+  const modelos = [...new Set([GEMINI_MODEL, process.env.GEMINI_MODEL_FALLBACK || 'gemini-flash-lite-latest'])];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let ultimoErr;
+  for (const modelo of modelos) {
+    for (let intento = 0; intento < 2; intento++) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI_API_KEY}`;
+      let res;
+      try {
+        res = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: cuerpo });
+      } catch (e) { ultimoErr = e; break; }          // error de red: pasar al siguiente modelo
+      if (res.ok) {
+        const data = await res.json();
+        const txt = (data?.candidates?.[0]?.content?.parts || [])
+          .filter(p => !p.thought).map(p => p.text).filter(Boolean).join('');
+        return parsearJSON(txt);
+      }
+      const t = await res.text().catch(() => '');
+      const err = new Error(`Gemini ${res.status}: ${t.slice(0, 200)}`);
+      if (res.status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(t)) err.sinCupo = true;
+      if (res.status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(t)) err.sobrecargado = true;
+      ultimoErr = err;
+      if (err.sinCupo) throw err;                            // cupo agotado: reintentar no sirve
+      if (err.sobrecargado) { await sleep(1200); continue; } // saturado: reintentar mismo modelo
+      break;                                                 // otro error: pasar al siguiente modelo
+    }
   }
-  const data = await res.json();
-  const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return parsearJSON(txt);
+  throw ultimoErr;
 }
 
 // Extrae el JSON aunque venga con ```json ... ``` u otra decoración.
@@ -364,6 +379,9 @@ async function processUpdate(update, deps) {
       ? '⚠️ Por ahora me quedé *sin cupo de IA* para interpretar mensajes.\n\n' +
         'Podés *cargar el movimiento a mano* en el CRM, o esperar un rato y reenviarlo ' +
         '(el cupo gratuito se renueva solo).'
+      : e.sobrecargado
+      ? '⏳ La IA está *saturada* en este momento (mucha demanda). Reenviá el mensaje en un minuto, ' +
+        'o cargalo a mano en el CRM. Suele durar poco.'
       : 'Tuve un problema para entender el mensaje 😔. Probá de nuevo en un ratito.';
     await enviar(chatId, msg);
     return { error: e.message, sinCupo: !!e.sinCupo };
