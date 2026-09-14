@@ -95,13 +95,20 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
-// Visibilidad de movimientos: el superadmin (Fabio) ve TODO; cualquier otro rol
-// (admin/Mariana) ve solo lo que cargó él mismo (cargadoPor === su usuario).
-// Se compara sin distinguir mayúsculas para tolerar variantes en el dato.
+// Visibilidad de movimientos. El superadmin (Lautaro/Fabio) ve TODO.
+// Un rol no-super ve lo que cargó con su propio usuario MÁS las etiquetas de
+// LABELS_VISIBLES: así Mariana entra como 'admin' y ve tanto lo cargado a mano
+// ('admin') como lo que mandó por el bot, etiquetado con su nombre ('Mariana').
+// La etiqueta (cargadoPor) es el "quién cargó" que se muestra; la visibilidad
+// se decide acá, separada de la etiqueta.
+const LABELS_VISIBLES = { admin: ['mariana'] };
+
 function soloPropiosSiNoSuper(items, req) {
   if (req.user.role === 'superadmin') return items;
   const yo = (req.user.usuario || '').toLowerCase();
-  return items.filter(m => (m.cargadoPor || '').toLowerCase() === yo);
+  const extra = (LABELS_VISIBLES[req.user.role] || []).map(s => s.toLowerCase());
+  const permitidos = new Set([yo, ...extra]);
+  return items.filter(m => permitidos.has((m.cargadoPor || '').toLowerCase()));
 }
 
 /* ===================== VALIDACIÓN DE ENTRADA =====================
