@@ -35,16 +35,23 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
   ];
 
   for (const c of casos) {
-    const r = await bot.processUpdate(updateTexto('mensaje de prueba'), {
-      sheets, sendText, chatMap,
-      interpretar: async () => c.ext,          // IA falsa
-      descargarVoz: async () => '',
-    });
-    const reg = r.registro || {};
+    const deps = { sheets, sendText, chatMap, interpretar: async () => c.ext, descargarVoz: async () => '' };
+    // 1) mensaje -> el bot interpreta y PIDE confirmación (no carga todavía)
+    const paso1 = await bot.processUpdate(updateTexto('mensaje de prueba'), deps);
+    // 2) el usuario responde "sí" -> recién ahí carga el borrador
+    const paso2 = await bot.processUpdate(updateTexto('sí'), deps);
+    const reg = paso2.registro || {};
     console.log(`\n▶ ${c.nombre}`);
-    console.log(`   tipo=${r.tipo} monto=${reg.monto} ${reg.moneda} confirmado=${reg.confirmado}` +
-                ` atribuido=${r.match ? r.match.apellidoNombre : '(ninguno)'}`);
+    console.log(`   paso1: ${paso1.pendiente ? 'pidió confirmación ✓' : JSON.stringify(paso1)}`);
+    console.log(`   paso2 (tras "sí"): tipo=${paso2.tipo} monto=${reg.monto} ${reg.moneda} confirmado=${reg.confirmado}` +
+                ` atribuido=${paso2.match ? paso2.match.apellidoNombre : '(ninguno)'}`);
   }
+
+  // Caso extra: pide confirmación y el usuario dice "no" -> NO debe cargar nada.
+  const depsNo = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 99999, moneda: 'ARS', categoria: 'Servicios', concepto: 'no cargar' }), descargarVoz: async () => '' };
+  await bot.processUpdate(updateTexto('gasto trucho'), depsNo);
+  const rNo = await bot.processUpdate(updateTexto('no'), depsNo);
+  console.log(`\n▶ Rechazo con "no": ${rNo.cancelado ? 'descartado, no cargó ✓' : 'FALLÓ (cargó algo)'}`);
 
   const egresos = await sheets.getEgresos();
   const ingresos = await sheets.getIngresos();

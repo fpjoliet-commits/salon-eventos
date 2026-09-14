@@ -64,6 +64,10 @@ Simula mensajes y verifica que se creen los borradores correctos, sin usar la re
 
 ## Qué hace y qué NO hace
 
-- **Sí:** cobros sueltos (Seña / Saldo / Otro) y gastos (de evento o generales), por audio o texto.
-- **No:** cuotas de un plan (eso queda en la ficha del cliente, es más delicado).
-- **Nunca** confirma solo: siempre queda en la bandeja para revisión humana.
+- **Entrada:** audio, texto, o **foto de una factura** (lee el total y el concepto).
+- **Confirmación en Telegram:** primero muestra lo que entendió y pregunta *¿lo cargo? sí/no*.
+  Recién con **"sí"** crea el borrador; con **"no"** (o cualquier otra cosa) no manda nada al sistema.
+- **Sí:** cobros sueltos (Seña / Saldo / Otro) y gastos (de evento o generales).
+- **No (por ahora):** cuotas de un plan (van en la ficha), y **cargar varios gastos en un solo mensaje**
+  (interpreta un movimiento por mensaje; para varios, mandalos de a uno).
+- **Nunca** carga en firme: el borrador queda en la bandeja *Por confirmar* para la confirmación final del admin.

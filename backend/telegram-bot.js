@@ -111,6 +111,9 @@ async function interpretarConGemini(input, { fetchImpl = fetch } = {}) {
   if (input.audioBase64) {
     parts.push({ inline_data: { mime_type: input.mime || 'audio/ogg', data: input.audioBase64 } });
     parts.push({ text: 'Transcribí el audio y devolvé el JSON del movimiento.' });
+  } else if (input.imageBase64) {
+    parts.push({ inline_data: { mime_type: input.mime || 'image/jpeg', data: input.imageBase64 } });
+    parts.push({ text: 'Es la foto de una factura/comprobante. Leé el TOTAL y el concepto y devolvé el JSON del movimiento (tipo egreso salvo que sea claramente un cobro).' });
   } else {
     parts.push({ text: `Mensaje: "${input.texto || ''}"` });
   }
@@ -213,6 +216,46 @@ async function descargarVoz(fileId, { fetchImpl = fetch } = {}) {
   return Buffer.from(buf).toString('base64');
 }
 
+/* ─────────────────── Confirmación por Telegram (estado en memoria) ──────────
+   El bot NO carga nada hasta que el usuario responde "sí". Así, si no confirma
+   (o dice otra cosa), no se manda nada al sistema. Estado con vencimiento; si
+   Render reinicia, se pierde el pendiente y se vuelve a mandar el movimiento. */
+const CONFIRM_TTL_MS = 30 * 60 * 1000;   // 30 min
+const _pend = new Map();                  // chatId -> { ext, ts }
+
+function getPend(chatId) {
+  const e = _pend.get(chatId);
+  if (e && Date.now() - e.ts < CONFIRM_TTL_MS) return e;
+  _pend.delete(chatId);
+  return null;
+}
+function setPend(chatId, ext) { _pend.set(chatId, { ext, ts: Date.now() }); }
+function clearPend(chatId) { _pend.delete(chatId); }
+
+const PALABRAS_SI = new Set(['si', 'sii', 'sisi', 'dale', 'ok', 'oka', 'okey', 'confirmo', 'confirmar', 'cargalo', 'carga', 'cargá', 'va', 'listo', 'correcto', 'bien', 'perfecto']);
+const PALABRAS_NO = new Set(['no', 'nop', 'cancelar', 'cancela', 'borra', 'borralo', 'dejalo', 'anula', 'anular', 'mal']);
+
+// Pregunta de confirmación con el resumen de lo entendido.
+function textoPreguntaConfirmar(ext, match) {
+  const esIngreso = ext.tipo === 'ingreso';
+  const tag = esIngreso ? 'COBRO' : 'GASTO';
+  const clase = esIngreso ? (ext.tipoIngreso || 'Otro') : (ext.categoria || 'General');
+  const atrib = match ? `\n• Cliente/evento: ${match.apellidoNombre}` : '\n• Sin cliente asociado';
+  return `🧾 Entendí un *${tag}*:\n` +
+         `• Monto: $${Number(ext.monto).toLocaleString('es-AR')} ${ext.moneda === 'USD' ? 'USD' : 'ARS'}\n` +
+         `• ${clase}${ext.concepto ? ' — ' + ext.concepto : ''}${atrib}\n\n` +
+         `¿Lo cargo? Respondé *sí* o *no*.`;
+}
+
+// Confirmación final después de cargar el borrador.
+function textoCargado(borr) {
+  if (!borr.ok) return 'No pude cargarlo 🤔. Probá de nuevo.';
+  const r = borr.registro;
+  const tag = borr.tipo === 'ingreso' ? 'COBRO' : 'GASTO';
+  return `✅ Cargado: ${tag} de $${Number(r.monto).toLocaleString('es-AR')} ${r.moneda}.\n` +
+         `Quedó en *Por confirmar* del CRM para la confirmación final del admin.`;
+}
+
 /* ─────────────────── Orquestador de un update (testeable) ────────────────── */
 
 async function processUpdate(update, deps) {
@@ -233,15 +276,40 @@ async function processUpdate(update, deps) {
     return { ignorado: 'chat_no_autorizado' };
   }
 
+  // ── ¿Hay algo esperando confirmación en este chat? ──
+  const pend = getPend(chatId);
+  const textoPlano = msg.text ? normalizar(msg.text) : '';
+  if (pend) {
+    if (textoPlano && PALABRAS_SI.has(textoPlano)) {
+      const clientes = await sheets.getClientes().catch(() => []);
+      const borr = await crearBorrador(sheets, pend.ext, usuario, clientes);
+      clearPend(chatId);
+      await enviar(chatId, textoCargado(borr));
+      return borr;
+    }
+    if (textoPlano && PALABRAS_NO.has(textoPlano)) {
+      clearPend(chatId);
+      await enviar(chatId, 'Ok, lo descarté 👍 No cargué nada.');
+      return { cancelado: true };
+    }
+    // Cualquier otra cosa: se descarta el pendiente y se interpreta el mensaje nuevo.
+    clearPend(chatId);
+  }
+
   let input = null;
   if (msg.voice || msg.audio) {
     const fileId = (msg.voice || msg.audio).file_id;
     const audioBase64 = await bajarVoz(fileId);
     input = { audioBase64, mime: (msg.voice || msg.audio).mime_type || 'audio/ogg' };
+  } else if (Array.isArray(msg.photo) && msg.photo.length) {
+    // Telegram manda varios tamaños; el último es el más grande.
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    const imageBase64 = await bajarVoz(fileId);
+    input = { imageBase64, mime: 'image/jpeg' };
   } else if (msg.text) {
     input = { texto: msg.text };
   } else {
-    await enviar(chatId, 'Mandame un *audio* o un texto contando el cobro o gasto 🙂');
+    await enviar(chatId, 'Mandame un *audio*, un *texto* o la *foto de una factura* con el cobro o gasto 🙂');
     return { ignorado: 'sin_contenido' };
   }
 
@@ -259,10 +327,18 @@ async function processUpdate(update, deps) {
     return { error: e.message, sinCupo: !!e.sinCupo };
   }
 
+  // Si no se entendió un monto usable, no guardamos nada y pedimos repetir.
+  if (!ext || !(parseFloat(ext.monto) > 0)) {
+    await enviar(chatId, 'No entendí bien el monto 🤔. Probá de nuevo diciendo el número y qué es (ej: "gasté 80 mil en bebidas").');
+    return { ok: false, motivo: 'sin_monto' };
+  }
+
+  // Se entendió: NO se carga todavía. Se guarda como pendiente y se pide confirmación.
   const clientes = await sheets.getClientes().catch(() => []);
-  const borr = await crearBorrador(sheets, ext, usuario, clientes);
-  await enviar(chatId, textoConfirmacion(borr));
-  return borr;
+  const match = ext.cliente ? matchCliente(ext.cliente, clientes) : null;
+  setPend(chatId, ext);
+  await enviar(chatId, textoPreguntaConfirmar(ext, match));
+  return { pendiente: ext };
 }
 
 /* ─────────────────────── Router de Express (webhook) ───────────────────────── */
