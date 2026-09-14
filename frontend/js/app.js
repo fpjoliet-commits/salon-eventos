@@ -7175,6 +7175,14 @@ async function loadEgresos() {
   }
 }
 
+// Muestra el "quién cargó" con nombre de persona. Los usuarios de login son
+// superadmin/admin/empleado; mostramos 'admin'→Mariana y 'empleado'→Anita.
+// El bot ya carga con el nombre (Lautaro/Fabio/Mariana), que pasa tal cual.
+function nombreCargador(v) {
+  const map = { admin: 'Mariana', empleado: 'Anita' };
+  return map[(v || '').toLowerCase()] || v || '';
+}
+
 function renderEgresos() {
   hide('egresos-loading');
   const filtTipo = $('egr-filtro-tipo')?.value || '';     // '' | 'ingreso' | 'egreso'
@@ -7232,7 +7240,7 @@ function renderEgresos() {
         <td>${clienteCell}</td>
         <td class="num-cell mov-monto-in">+ ${formatMoneda(monto, m.moneda)}</td>
         <td class="egr-notas-cell">${esc(m.formaPago || '')}</td>
-        <td class="muted-cell">${esc(m.cargadoPor)}</td>
+        <td class="muted-cell">${esc(nombreCargador(m.cargadoPor))}</td>
         <td class="egr-acciones"></td>
       </tr>`;
     }
@@ -7255,7 +7263,7 @@ function renderEgresos() {
       <td>${eventoCell}</td>
       <td class="num-cell mov-monto-out">− ${formatMoneda(monto, m.moneda)}</td>
       <td class="egr-notas-cell">${esc(m.notas)}</td>
-      <td class="muted-cell">${esc(m.cargadoPor)}</td>
+      <td class="muted-cell">${esc(nombreCargador(m.cargadoPor))}</td>
       <td class="egr-acciones">${acciones}</td>
     </tr>`;
   }).join('');
@@ -7385,7 +7393,7 @@ function renderPendientes() {
     const esIngreso = it.tipo === 'ingreso';
     const signo = esIngreso ? '+' : '−';
     const forma = it.formaPago ? ` · ${esc(it.formaPago)}` : '';
-    const quien = it.cargadoPor ? ` · cargó ${esc(it.cargadoPor)}` : '';
+    const quien = it.cargadoPor ? ` · cargó ${esc(nombreCargador(it.cargadoPor))}` : '';
     return `<div class="pend-item pend-${it.tipo}">
       <div class="pend-tipo-tag">${esIngreso ? 'COBRO' : 'GASTO'}</div>
       <div class="pend-main">
@@ -7658,7 +7666,7 @@ function renderEgresosCocina() {
       <td>${provBadge}</td>
       <td class="num-cell">${formatMoneda(parseFloat(e.monto) || 0, e.moneda)}</td>
       <td class="egr-notas-cell">${esc(e.notas)}</td>
-      <td class="muted-cell">${esc(e.cargadoPor)}</td>
+      <td class="muted-cell">${esc(nombreCargador(e.cargadoPor))}</td>
       <td><button class="btn-egr-edit" data-row="${e.rowIndex}" title="Editar">✏️</button></td>
     </tr>`;
   }).join('');
