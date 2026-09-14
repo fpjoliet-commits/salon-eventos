@@ -53,6 +53,15 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
   const rBtn = await bot.processUpdate({ update_id: 999, callback_query: { id: 'cb1', data: 'conf_si', message: { chat: { id: 111 } } } }, depsBtn);
   console.log(`\n▶ Confirmar con BOTÓN: ${rBtn.ok ? 'cargó ✓ ($' + rBtn.registro.monto + ')' : 'FALLÓ'}`);
 
+  // Caso extra: REINICIO del server entre la pregunta y el "Sí".
+  // El pendiente debe sobrevivir (está en Config), no perderse con la caché.
+  const depsReinicio = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 50000, moneda: 'ARS', categoria: 'Servicios', concepto: 'internet' }), descargarVoz: async () => '', answerCallback: async () => {} };
+  await bot.processUpdate(updateTexto('internet 50 mil'), depsReinicio);
+  bot._vaciarCacheParaTest();   // ← simula que Render reinició (RAM vacía)
+  const rRe = await bot.processUpdate({ update_id: 1001, callback_query: { id: 'cb2', data: 'conf_si', message: { chat: { id: 111 } } } }, depsReinicio);
+  const regRe = rRe.registro || {};
+  console.log(`\n▶ Confirmar tras REINICIO: ${regRe.monto ? 'recuperó el pendiente y cargó ✓ ($' + regRe.monto + ')' : 'FALLÓ (se perdió el pendiente) ✗'}`);
+
   // Caso extra: pide confirmación y el usuario dice "no" -> NO debe cargar nada.
   const depsNo = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 99999, moneda: 'ARS', categoria: 'Servicios', concepto: 'no cargar' }), descargarVoz: async () => '' };
   await bot.processUpdate(updateTexto('gasto trucho'), depsNo);

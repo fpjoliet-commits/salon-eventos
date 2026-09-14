@@ -266,16 +266,37 @@ async function descargarVoz(fileId, { fetchImpl = fetch } = {}) {
    (o dice otra cosa), no se manda nada al sistema. Estado con vencimiento; si
    Render reinicia, se pierde el pendiente y se vuelve a mandar el movimiento. */
 const CONFIRM_TTL_MS = 30 * 60 * 1000;   // 30 min
-const _pend = new Map();                  // chatId -> { ext, ts }
+const _pend = new Map();                  // caché en memoria: chatId -> { ext, ts }
+const claveConfig = chatId => 'botpend_' + chatId;
 
-function getPend(chatId) {
-  const e = _pend.get(chatId);
-  if (e && Date.now() - e.ts < CONFIRM_TTL_MS) return e;
-  _pend.delete(chatId);
+// El pendiente se GUARDA de forma durable en la hoja Config (clave-valor), no solo
+// en RAM. Así sobrevive a reinicios/redeploys y al dormido de Render: si tus padres
+// tardan en tocar "Sí", el pendiente sigue ahí. El Map es solo una caché rápida.
+async function getPend(sheets, chatId) {
+  let e = _pend.get(chatId);
+  if (!e && sheets && sheets.getConfig) {
+    try {
+      const raw = (await sheets.getConfig())[claveConfig(chatId)];
+      if (raw) e = JSON.parse(raw);
+    } catch { /* Config inaccesible: seguimos con lo que haya en caché */ }
+  }
+  if (e && Date.now() - e.ts < CONFIRM_TTL_MS) { _pend.set(chatId, e); return e; }
+  await clearPend(sheets, chatId);
   return null;
 }
-function setPend(chatId, ext) { _pend.set(chatId, { ext, ts: Date.now() }); }
-function clearPend(chatId) { _pend.delete(chatId); }
+async function setPend(sheets, chatId, ext) {
+  const e = { ext, ts: Date.now() };
+  _pend.set(chatId, e);
+  if (sheets && sheets.setConfig) {
+    try { await sheets.setConfig(claveConfig(chatId), JSON.stringify(e)); } catch { /* queda al menos en caché */ }
+  }
+}
+async function clearPend(sheets, chatId) {
+  _pend.delete(chatId);
+  if (sheets && sheets.setConfig) {
+    try { await sheets.setConfig(claveConfig(chatId), ''); } catch { /* nada que hacer */ }
+  }
+}
 
 const PALABRAS_SI = new Set(['si', 'sii', 'sisi', 'dale', 'ok', 'oka', 'okey', 'confirmo', 'confirmar', 'cargalo', 'carga', 'cargá', 'va', 'listo', 'correcto', 'bien', 'perfecto']);
 const PALABRAS_NO = new Set(['no', 'nop', 'cancelar', 'cancela', 'borra', 'borralo', 'dejalo', 'anula', 'anular', 'mal']);
@@ -303,19 +324,19 @@ function textoCargado(borr) {
 
 // Carga el pendiente (usado por el botón "Sí" y por el "sí" tipeado).
 async function confirmarYCargar(sheets, chatId, usuario, enviar) {
-  const pend = getPend(chatId);
+  const pend = await getPend(sheets, chatId);
   if (!pend) {
     await enviar(chatId, 'No hay nada pendiente para confirmar. Mandá el movimiento de nuevo 🙂');
     return { sin_pendiente: true };
   }
   const clientes = await sheets.getClientes().catch(() => []);
   const borr = await crearBorrador(sheets, pend.ext, usuario, clientes);
-  clearPend(chatId);
+  await clearPend(sheets, chatId);
   await enviar(chatId, textoCargado(borr));
   return borr;
 }
-async function cancelarPendiente(chatId, enviar) {
-  clearPend(chatId);
+async function cancelarPendiente(sheets, chatId, enviar) {
+  await clearPend(sheets, chatId);
   await enviar(chatId, 'Ok, lo descarté 👍 No cargué nada.');
   return { cancelado: true };
 }
@@ -338,7 +359,7 @@ async function processUpdate(update, deps) {
     const usuario = chatMap[chatId];
     if (!usuario) return { ignorado: 'chat_no_autorizado' };
     if (cq.data === 'conf_si') return confirmarYCargar(sheets, chatId, usuario, enviar);
-    if (cq.data === 'conf_no') return cancelarPendiente(chatId, enviar);
+    if (cq.data === 'conf_no') return cancelarPendiente(sheets, chatId, enviar);
     return { ignorado: 'callback_desconocido' };
   }
 
@@ -354,13 +375,13 @@ async function processUpdate(update, deps) {
   }
 
   // ── ¿Hay algo esperando confirmación en este chat? ──
-  const pend = getPend(chatId);
+  const pend = await getPend(sheets, chatId);
   const textoPlano = msg.text ? normalizar(msg.text) : '';
   if (pend) {
     if (textoPlano && PALABRAS_SI.has(textoPlano)) return confirmarYCargar(sheets, chatId, usuario, enviar);
-    if (textoPlano && PALABRAS_NO.has(textoPlano)) return cancelarPendiente(chatId, enviar);
+    if (textoPlano && PALABRAS_NO.has(textoPlano)) return cancelarPendiente(sheets, chatId, enviar);
     // Cualquier otra cosa: se descarta el pendiente y se interpreta el mensaje nuevo.
-    clearPend(chatId);
+    await clearPend(sheets, chatId);
   }
 
   let input = null;
@@ -406,7 +427,7 @@ async function processUpdate(update, deps) {
   // Se entendió: NO se carga todavía. Se guarda como pendiente y se pide confirmación.
   const clientes = await sheets.getClientes().catch(() => []);
   const match = ext.cliente ? matchCliente(ext.cliente, clientes) : null;
-  setPend(chatId, ext);
+  await setPend(sheets, chatId, ext);
   await enviar(chatId, textoPreguntaConfirmar(ext, match), { reply_markup: TECLADO_SINO });
   return { pendiente: ext };
 }
@@ -455,4 +476,6 @@ module.exports = {
   textoConfirmacion,
   interpretarConGemini,
   _chatMap: CHAT_MAP,
+  // Solo para tests: simula un reinicio del server vaciando la caché en memoria.
+  _vaciarCacheParaTest: () => _pend.clear(),
 };
