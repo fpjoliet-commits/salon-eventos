@@ -317,6 +317,17 @@ app.put('/api/ingresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) =
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Editar un cobro (usado para corregir borradores desde la bandeja "Por confirmar").
+app.put('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
+  try {
+    const { cliente, fechaEvento } = await datosEvento(req.body.idCliente);
+    const actualizado = await sheets.updateIngreso(parseInt(req.params.rowIndex), {
+      ...req.body, cliente, fechaEvento,
+    });
+    res.json(actualizado);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Restricciones
 app.get('/api/restricciones', auth, async (req, res) => {
   try {

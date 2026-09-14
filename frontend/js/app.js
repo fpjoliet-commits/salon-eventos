@@ -7252,13 +7252,69 @@ document.addEventListener('click', e => {
   if (!btn) return;
   const rowIndex = parseInt(btn.dataset.row);
   if (btn.dataset.tipo === 'ingreso') {
-    toast('Editar un cobro todavía se hace desde la ficha del cliente', 'error');
+    const ingreso = (pendientes.ingresos || []).find(x => x.rowIndex === rowIndex);
+    if (ingreso) openEditarIngreso(ingreso);
     return;
   }
   const egreso = (pendientes.egresos || []).find(x => x.rowIndex === rowIndex)
     || allEgresos.find(x => x.rowIndex === rowIndex);
   if (egreso) openEditarEgreso(egreso);
 });
+
+function openEditarIngreso(ingreso) {
+  $('edi-row-index').value = ingreso.rowIndex;
+  $('edi-fecha').value = ingreso.fecha || '';
+  $('edi-monto').value = ingreso.monto || '';
+  $('edi-moneda').value = ingreso.moneda || 'ARS';
+  // El tipo puede venir como "Cuota" (borrador de empleado); si no está en la lista, lo agrega.
+  const tipoSel = $('edi-tipo');
+  if (ingreso.tipoIngreso && ![...tipoSel.options].some(o => o.value === ingreso.tipoIngreso)) {
+    tipoSel.add(new Option(ingreso.tipoIngreso, ingreso.tipoIngreso));
+  }
+  tipoSel.value = ingreso.tipoIngreso || 'Seña';
+  $('edi-forma').value = ingreso.formaPago || 'Efectivo';
+  populateEgrEventoSelect('edi-cliente');
+  $('edi-cliente').value = ingreso.idCliente || '';
+  $('edi-notas').value = ingreso.notas || '';
+  hide('edi-error');
+  show('modal-editar-ingreso');
+}
+
+async function submitEditarIngreso(ev) {
+  ev.preventDefault();
+  hide('edi-error');
+  const rowIndex = parseInt($('edi-row-index').value);
+  const original = (pendientes.ingresos || []).find(x => x.rowIndex === rowIndex) || {};
+  const monto = parseFloat($('edi-monto').value);
+  if (!(monto > 0)) {
+    show('edi-error');
+    $('edi-error').textContent = 'Ingresá un monto mayor a 0.';
+    return;
+  }
+  const updated = {
+    ...original,
+    fecha: $('edi-fecha').value,
+    monto,
+    moneda: $('edi-moneda').value,
+    tipoIngreso: $('edi-tipo').value,
+    formaPago: $('edi-forma').value,
+    idCliente: $('edi-cliente').value,        // el server deriva cliente/fechaEvento
+    notas: $('edi-notas').value.trim(),
+  };
+  try {
+    await apiFetch(`/ingresos/${rowIndex}`, { method: 'PUT', body: updated });
+    hide('modal-editar-ingreso');
+    toast('Cobro actualizado');
+    loadPendientes();
+  } catch (err) {
+    show('edi-error');
+    $('edi-error').textContent = err.message || 'Error al guardar';
+  }
+}
+
+document.getElementById('editar-ingreso-form')?.addEventListener('submit', submitEditarIngreso);
+document.getElementById('close-editar-ingreso-btn')?.addEventListener('click', () => hide('modal-editar-ingreso'));
+document.getElementById('cancel-editar-ingreso-btn')?.addEventListener('click', () => hide('modal-editar-ingreso'));
 
 document.addEventListener('click', async e => {
   const conf = e.target.closest('.btn-pend-confirmar');

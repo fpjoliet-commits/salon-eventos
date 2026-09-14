@@ -1192,6 +1192,68 @@
     </div>
   </div>
 
+  <!-- MODAL: Editar cobro (desde la bandeja Por confirmar) -->
+  <div id="modal-editar-ingreso" class="modal-overlay hidden">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header">
+        <div class="modal-nombre-wrap"><h3>Editar cobro</h3></div>
+        <button class="modal-close" id="close-editar-ingreso-btn">✕</button>
+      </div>
+      <form id="editar-ingreso-form" class="egreso-form" style="padding:20px 24px">
+        <input type="hidden" id="edi-row-index">
+        <div class="egreso-form-row">
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="edi-fecha" required>
+          </div>
+          <div class="form-group">
+            <label>Monto</label>
+            <input type="number" id="edi-monto" min="0.01" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label>Moneda</label>
+            <select id="edi-moneda">
+              <option value="ARS">ARS $</option>
+              <option value="USD">USD U$S</option>
+            </select>
+          </div>
+        </div>
+        <div class="egreso-form-row">
+          <div class="form-group">
+            <label>Tipo de cobro</label>
+            <select id="edi-tipo">
+              <option>Seña</option>
+              <option>Saldo final</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Forma de pago</label>
+            <select id="edi-forma">
+              <option>Efectivo</option>
+              <option>Transferencia</option>
+              <option>Cheque</option>
+              <option>Mercado Pago</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>¿De qué cliente / evento es este cobro?</label>
+          <select id="edi-cliente"><option value="">Sin asociar</option></select>
+        </div>
+        <div class="form-group">
+          <label>Notas</label>
+          <input type="text" id="edi-notas">
+        </div>
+        <div class="egreso-form-actions" style="margin-top:16px">
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+          <button type="button" class="btn btn-secondary" id="cancel-editar-ingreso-btn">Cancelar</button>
+          <span id="edi-error" class="error-msg hidden"></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL: Detalle cliente -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal">

@@ -485,6 +485,33 @@ async function confirmarIngreso(rowIndex) {
   });
 }
 
+// Edita un ingreso (columnas B:P, sin tocar el id ni forzar confirmado).
+// El confirmado se preserva desde data: el modal manda el valor original, asi
+// un borrador editado sigue siendo borrador y uno confirmado sigue confirmado.
+async function updateIngreso(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
+    if (idx !== -1) memIngresos[idx] = { ...memIngresos[idx], ...data, rowIndex };
+    return memIngresos[idx] || { ...data, rowIndex };
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Ingresos!B${rowIndex}:P${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: {
+      values: [[
+        data.idCliente || '', data.tipoIngreso || '', data.monto || '',
+        data.fecha || '', data.formaPago || '', data.notas || '',
+        data.moneda || 'ARS', data.confirmado === false ? '0' : '1',
+        data.cliente || '', data.fechaEvento || '', periodoDe(data.fecha),
+        data.cubiertos || '', data.precioCubierto || '', data.cotizacion || '', data.montoARS || '',
+      ]],
+    },
+  });
+  return { ...data, rowIndex };
+}
+
 /* ===================== CONFIGURACION GENERAL =====================
  * Hoja Config (A: clave, B: valor). Guarda ajustes del salon que no pertenecen
  * a ningun evento: hoy, el precio general del cubierto que se propone al crear
@@ -2391,7 +2418,7 @@ async function patchEvento(rowIndex, patch) {
 module.exports = {
   getPersonas, addPersona, updatePersona,
   getClientes, addCliente, updateCliente, deleteEvento, patchEvento,
-  getIngresos, addIngreso, confirmarIngreso,
+  getIngresos, addIngreso, confirmarIngreso, updateIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,
