@@ -1030,16 +1030,6 @@ app.post('/api/stock-actual/actualizar', auth, superAdminOnly, async (req, res) 
   }
 });
 
-// ── Bot de WhatsApp ─────────────────────────────────────────────────────────
-// El router se monta siempre, pero solo responde de verdad si están las
-// variables de entorno WHATSAPP_* (ver docs/whatsapp-bot-setup.md).
-const whatsappBot = require('./whatsapp-bot');
-app.use('/api', whatsappBot.crearRouter(sheets));
-if (whatsappBot.BOT_ACTIVO) {
-  console.log('🤖 Bot de WhatsApp ACTIVO — webhook en /api/webhook/whatsapp');
-} else {
-  console.log('🤖 Bot de WhatsApp inactivo (faltan variables WHATSAPP_*)');
-}
 
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
