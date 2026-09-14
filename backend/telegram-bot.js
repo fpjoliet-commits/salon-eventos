@@ -122,7 +122,10 @@ async function interpretarConGemini(input, { fetchImpl = fetch } = {}) {
   });
   if (!res.ok) {
     const t = await res.text().catch(() => '');
-    throw new Error(`Gemini ${res.status}: ${t.slice(0, 200)}`);
+    const err = new Error(`Gemini ${res.status}: ${t.slice(0, 200)}`);
+    // 429 / RESOURCE_EXHAUSTED = nos quedamos sin cupo de IA (rate limit o cuota diaria).
+    if (res.status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(t)) err.sinCupo = true;
+    throw err;
   }
   const data = await res.json();
   const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -245,8 +248,13 @@ async function processUpdate(update, deps) {
     ext = await interpretar(input, deps);
   } catch (e) {
     console.error('[telegram] interpretar:', e.message);
-    await enviar(chatId, 'Tuve un problema para entender el mensaje 😔. Probá de nuevo en un ratito.');
-    return { error: e.message };
+    const msg = e.sinCupo
+      ? '⚠️ Por ahora me quedé *sin cupo de IA* para interpretar mensajes.\n\n' +
+        'Podés *cargar el movimiento a mano* en el CRM, o esperar un rato y reenviarlo ' +
+        '(el cupo gratuito se renueva solo).'
+      : 'Tuve un problema para entender el mensaje 😔. Probá de nuevo en un ratito.';
+    await enviar(chatId, msg);
+    return { error: e.message, sinCupo: !!e.sinCupo };
   }
 
   const clientes = await sheets.getClientes().catch(() => []);
