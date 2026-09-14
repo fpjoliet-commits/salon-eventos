@@ -91,6 +91,13 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
   const regAd = rAdic.registro || {};
   console.log(`▶ ADICIONAL mesa dulce: ${regAd.notas === 'Mesa dulce' ? 'concepto guardado ✓' : 'FALLÓ ✗'} atribuido=${rAdic.match ? rAdic.match.apellidoNombre : '(ninguno)'}`);
 
+  // Chat NO habilitado: el bot debe responder con el chat_id para darlo de alta.
+  const enviadosOnb = [];
+  const depsOnb = { sheets, sendText: async (id, t) => enviadosOnb.push({ id, t }), chatMap, interpretar: async () => ({}), descargarVoz: async () => '' };
+  const rOnb = await bot.processUpdate({ update_id: 7, message: { chat: { id: 987654321 }, text: 'hola' } }, depsOnb);
+  const msgOnb = enviadosOnb[0]?.t || '';
+  console.log(`\n▶ Chat NO habilitado: ${rOnb.ignorado === 'chat_no_autorizado' && msgOnb.includes('987654321') ? 'devolvió el ID ✓' : 'FALLÓ ✗'}`);
+
   const egresos = await sheets.getEgresos();
   const ingresos = await sheets.getIngresos();
   console.log('\n=== RESUMEN ===');

@@ -383,9 +383,14 @@ async function processUpdate(update, deps) {
   const chatId = String(msg.chat?.id ?? '');
   const usuario = chatMap[chatId];
   if (!usuario) {
-    // Chat no autorizado: no cargamos nada. Avisamos una vez.
-    await enviar(chatId, 'Este chat no está habilitado para cargar movimientos. Pedile al admin que te dé de alta.');
-    return { ignorado: 'chat_no_autorizado' };
+    // Chat no autorizado: no cargamos nada. Le devolvemos SU número de chat para
+    // que se lo pase al admin y lo dé de alta (evita el baile de getUpdates/webhook).
+    await enviar(chatId,
+      '👋 ¡Hola! Este chat todavía *no está habilitado* para cargar movimientos.\n\n' +
+      'Pasale este número al administrador para que te dé de alta:\n\n' +
+      '🔑 *' + chatId + '*\n\n' +
+      'Apenas te habilite, vas a poder cargar cobros y gastos por acá.');
+    return { ignorado: 'chat_no_autorizado', chatId };
   }
 
   // ── ¿Hay algo esperando confirmación en este chat? ──
