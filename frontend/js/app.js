@@ -271,6 +271,7 @@ function initApp() {
 
   loadClientes();
   loadPersonas();
+  if (isAdmin()) refreshPendientesBadge();
   navigateTo('calendario');
 }
 
@@ -6826,8 +6827,8 @@ function populateEmpleadoSelect() {
 
 // Los egresos de evento se imputan al evento; el resto son costo fijo del salon.
 // Esa distincion es la que despues se usa para tabular en Excel.
-function populateEgrEventoSelect() {
-  const sel = $('egr-evento');
+function populateEgrEventoSelect(selId = 'egr-evento') {
+  const sel = $(selId);
   if (!sel) return;
   const prev = sel.value;
   const ordenados = [...allClientes]
@@ -6861,6 +6862,7 @@ async function initEgresos() {
     populateEmpleadoSelect();
   }
   populateEgrEventoSelect();
+  loadPendientes();
 }
 
 function setupEgresosForm() {
@@ -7073,6 +7075,7 @@ function renderEgresos() {
   const filtMes = $('egr-filtro-mes')?.value || '';
   const filtDestino = $('egr-filtro-destino')?.value || '';
   const lista = allEgresos.filter(e => {
+    if (e.confirmado === false) return false;   // los borradores viven en "Por confirmar", no en el historial
     if (filtCat && e.categoria !== filtCat) return false;
     if (filtMoneda && e.moneda !== filtMoneda) return false;
     if (filtMes && (e.periodo || (e.fecha || '').slice(0, 7)) !== filtMes) return false;
@@ -7142,6 +7145,161 @@ document.addEventListener('click', async e => {
     renderEgresos();
     toast('Egreso borrado');
   } catch (err) { toast('Error al borrar: ' + err.message, 'error'); }
+});
+
+/* ===================== POR CONFIRMAR (bandeja) ===================== */
+// Ingresos cargados por 'empleado' y egresos cargados por el bot nacen sin confirmar.
+// Aca se listan para que un admin los confirme (o descarte) de a un toque.
+
+let pendientes = { ingresos: [], egresos: [] };
+
+// Refresca solo el numero del badge del sidebar, sin pintar la lista.
+// Se llama al iniciar sesion para que el aviso aparezca sin entrar a la seccion.
+async function refreshPendientesBadge() {
+  if (!isAdmin()) return;
+  try {
+    pendientes = await apiFetch('/pendientes');
+    pintarPendientesBadge();
+  } catch (e) { /* silencioso: el badge es un extra, no debe romper el arranque */ }
+}
+
+function totalPendientes() {
+  return (pendientes.ingresos?.length || 0) + (pendientes.egresos?.length || 0);
+}
+
+function pintarPendientesBadge() {
+  const n = totalPendientes();
+  const badge = $('nav-pendientes-badge');
+  if (badge) {
+    badge.textContent = n > 99 ? '99+' : n;
+    badge.classList.toggle('hidden', n === 0);
+  }
+  const pill = $('pendientes-count-pill');
+  if (pill) {
+    pill.textContent = n;
+    pill.classList.toggle('hidden', n === 0);
+  }
+}
+
+async function loadPendientes() {
+  if (!isAdmin()) return;
+  show('pendientes-loading');
+  hide('pendientes-empty');
+  $('pendientes-lista').innerHTML = '';
+  try {
+    pendientes = await apiFetch('/pendientes');
+    renderPendientes();
+  } catch (err) {
+    hide('pendientes-loading');
+    $('pendientes-lista').innerHTML = `<div class="error-msg">Error: ${esc(err.message)}</div>`;
+  }
+}
+
+function renderPendientes() {
+  hide('pendientes-loading');
+  pintarPendientesBadge();
+
+  // Un modelo unico para pintar ingresos y egresos con el mismo formato de tarjeta.
+  const items = [
+    ...(pendientes.ingresos || []).map(i => ({
+      tipo: 'ingreso', rowIndex: i.rowIndex,
+      titulo: i.cliente || i.tipoIngreso || 'Cobro',
+      detalle: [i.tipoIngreso, i.cliente].filter(Boolean).join(' · '),
+      monto: parseFloat(i.monto) || 0, moneda: i.moneda || 'ARS',
+      formaPago: i.formaPago || '', fecha: i.fecha, cargadoPor: i.cargadoPor,
+    })),
+    ...(pendientes.egresos || []).map(e => ({
+      tipo: 'egreso', rowIndex: e.rowIndex,
+      titulo: e.concepto || e.categoria || 'Gasto',
+      detalle: [e.categoria, e.idEvento ? (e.evento || e.idEvento) : 'Gasto general'].filter(Boolean).join(' · '),
+      monto: parseFloat(e.monto) || 0, moneda: e.moneda || 'ARS',
+      formaPago: '', fecha: e.fecha, cargadoPor: e.cargadoPor,
+    })),
+  ];
+
+  if (!items.length) {
+    show('pendientes-empty');
+    $('pendientes-lista').innerHTML = '';
+    return;
+  }
+  hide('pendientes-empty');
+
+  $('pendientes-lista').innerHTML = items.map(it => {
+    const esIngreso = it.tipo === 'ingreso';
+    const signo = esIngreso ? '+' : '−';
+    const forma = it.formaPago ? ` · ${esc(it.formaPago)}` : '';
+    const quien = it.cargadoPor ? ` · cargó ${esc(it.cargadoPor)}` : '';
+    return `<div class="pend-item pend-${it.tipo}">
+      <div class="pend-tipo-tag">${esIngreso ? 'COBRO' : 'GASTO'}</div>
+      <div class="pend-main">
+        <div class="pend-titulo">${esc(it.titulo)}</div>
+        <div class="pend-detalle">${esc(it.detalle)}${forma}${quien}</div>
+      </div>
+      <div class="pend-monto pend-monto-${it.tipo}">${signo} ${formatMoneda(it.monto, it.moneda)}</div>
+      <div class="pend-acciones">
+        <button class="btn btn-pend-editar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Editar antes de confirmar">✏️ Editar</button>
+        <button class="btn btn-primary btn-pend-confirmar" data-tipo="${it.tipo}" data-row="${it.rowIndex}">✓ Confirmar</button>
+        <button class="btn btn-sm btn-pend-descartar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Descartar este borrador">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Confirmar / descartar desde la bandeja.
+// Editar un pendiente antes de confirmarlo (reusa el modal de edición de egresos).
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.btn-pend-editar');
+  if (!btn) return;
+  const rowIndex = parseInt(btn.dataset.row);
+  if (btn.dataset.tipo === 'ingreso') {
+    toast('Editar un cobro todavía se hace desde la ficha del cliente', 'error');
+    return;
+  }
+  const egreso = (pendientes.egresos || []).find(x => x.rowIndex === rowIndex)
+    || allEgresos.find(x => x.rowIndex === rowIndex);
+  if (egreso) openEditarEgreso(egreso);
+});
+
+document.addEventListener('click', async e => {
+  const conf = e.target.closest('.btn-pend-confirmar');
+  const desc = e.target.closest('.btn-pend-descartar');
+  const btn = conf || desc;
+  if (!btn) return;
+  const tipo = btn.dataset.tipo;
+  const rowIndex = parseInt(btn.dataset.row);
+  const base = tipo === 'ingreso' ? 'ingresos' : 'egresos';
+
+  if (conf) {
+    // Segunda confirmación con el detalle, para no cargar algo mal por un miss-click.
+    const arr = tipo === 'ingreso' ? (pendientes.ingresos || []) : (pendientes.egresos || []);
+    const it = arr.find(x => x.rowIndex === rowIndex);
+    const nombre = it ? (it.concepto || it.cliente || it.categoria || '') : '';
+    const montoTxt = it ? formatMoneda(parseFloat(it.monto) || 0, it.moneda || 'ARS') : '';
+    const etiqueta = tipo === 'ingreso' ? 'COBRO' : 'GASTO';
+    if (!confirm(`¿Confirmar este ${etiqueta}?\n\n${nombre} — ${montoTxt}\n\nUna vez confirmado entra al sistema.`)) return;
+    btn.disabled = true;
+    try {
+      await apiFetch(`/${base}/${rowIndex}/confirmar`, { method: 'PUT' });
+      toast(tipo === 'ingreso' ? 'Cobro confirmado' : 'Gasto confirmado');
+      egresosCargados = false;           // el historial/totales cambiaron: forzar recarga al re-entrar
+      await Promise.all([loadEgresos(), loadPendientes()]);
+    } catch (err) { btn.disabled = false; toast('Error: ' + err.message, 'error'); }
+    return;
+  }
+
+  // Descartar = borrar el borrador. Solo egresos se pueden borrar por ahora (ruta existente, superadmin).
+  if (tipo === 'ingreso') {
+    toast('Los cobros por confirmar todavía no se pueden descartar desde acá', 'error');
+    return;
+  }
+  if (!isSuperAdmin()) { toast('Solo el superadmin puede descartar', 'error'); return; }
+  if (!confirm('¿Descartar este borrador de gasto? No se puede deshacer.')) return;
+  btn.disabled = true;
+  try {
+    await apiFetch(`/egresos/${rowIndex}`, { method: 'DELETE' });
+    toast('Borrador descartado');
+    await loadPendientes();
+  } catch (err) { btn.disabled = false; toast('Error: ' + err.message, 'error'); }
 });
 
 /* ===================== EGRESOS COCINA ===================== */
@@ -7312,9 +7470,19 @@ function openEditarEgreso(egreso) {
   $('ede-fecha').value = egreso.fecha;
   $('ede-monto').value = egreso.monto;
   $('ede-moneda').value = egreso.moneda || 'ARS';
+  document.querySelectorAll('#ede-categoria .superadmin-only').forEach(opt => {
+    opt.style.display = isSuperAdmin() ? '' : 'none';
+  });
   $('ede-categoria').value = egreso.categoria;
   $('ede-concepto').value = egreso.concepto;
   $('ede-notas').value = egreso.notas || '';
+
+  // Atribución: general vs evento. Se rellena el select de eventos y se marca el actual.
+  populateEgrEventoSelect('ede-evento');
+  const esEvento = !!egreso.idEvento;
+  document.querySelectorAll('input[name="ede-destino"]').forEach(r => { r.checked = r.value === (esEvento ? 'evento' : 'fijo'); });
+  $('ede-evento').value = egreso.idEvento || '';
+  $('ede-evento-group').classList.toggle('hidden', !esEvento);
 
   const esMateriaP = egreso.categoria === 'Materia Prima';
   const esPersonal = egreso.categoria === 'Personal';
@@ -7332,6 +7500,14 @@ function openEditarEgreso(egreso) {
   show('modal-editar-egreso');
 }
 
+// Mostrar/ocultar el select de evento según la atribución elegida en el modal de edición.
+document.addEventListener('change', ev => {
+  if (ev.target.name !== 'ede-destino') return;
+  const esEvento = ev.target.value === 'evento';
+  $('ede-evento-group')?.classList.toggle('hidden', !esEvento);
+  if (!esEvento && $('ede-evento')) $('ede-evento').value = '';
+});
+
 async function submitEditarEgreso(ev) {
   ev.preventDefault();
   hide('ede-error');
@@ -7347,24 +7523,36 @@ async function submitEditarEgreso(ev) {
     return;
   }
 
+  const categoria = $('ede-categoria').value;
+  const esEvento = document.querySelector('input[name="ede-destino"]:checked')?.value === 'evento';
+  const idEvento = esEvento ? ($('ede-evento').value || '') : '';
+  if (esEvento && !idEvento) {
+    show('ede-error');
+    $('ede-error').textContent = 'Elegí de qué evento es el gasto.';
+    return;
+  }
+
   const updated = {
     ...original,
     fecha: $('ede-fecha').value,
     monto,
     moneda: $('ede-moneda').value,
+    categoria,
     concepto: $('ede-concepto').value.trim(),
     notas: $('ede-notas').value.trim(),
-    proveedor: original.categoria === 'Materia Prima' ? ($('ede-proveedor').value.trim()) : (original.proveedor || ''),
-    nombreEmpleado: original.categoria === 'Personal' ? ($('ede-empleado').value.trim()) : original.nombreEmpleado,
-    rolPago: original.categoria === 'Personal' ? ($('ede-rol').value.trim()) : original.rolPago,
+    idEvento,                                  // '' = general del salón; el server deriva tipoCosto y la etiqueta
+    proveedor: categoria === 'Materia Prima' ? ($('ede-proveedor').value.trim()) : (original.proveedor || ''),
+    nombreEmpleado: categoria === 'Personal' ? ($('ede-empleado').value.trim()) : original.nombreEmpleado,
+    rolPago: categoria === 'Personal' ? ($('ede-rol').value.trim()) : original.rolPago,
   };
 
   try {
-    await apiFetch(`/egresos/${rowIndex}`, { method: 'PUT', body: updated });
+    const guardado = await apiFetch(`/egresos/${rowIndex}`, { method: 'PUT', body: updated });
     const idx = allEgresos.findIndex(x => x.rowIndex === rowIndex);
-    if (idx !== -1) allEgresos[idx] = updated;
+    if (idx !== -1) allEgresos[idx] = { ...updated, ...guardado };
     allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
     renderEgresos();
+    loadPendientes();                          // por si se editó un borrador todavía sin confirmar
     if (egresosCocCargados) renderEgresosCocina();
     hide('modal-editar-egreso');
     toast('Egreso actualizado');

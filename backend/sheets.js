@@ -1107,10 +1107,13 @@ async function addEmpleado(data) {
 }
 
 /* ===================== EGRESOS ===================== */
-// Columnas A-P: id, fecha, concepto, categoria, monto, moneda,
+// Columnas A-Q: id, fecha, concepto, categoria, monto, moneda,
 //               idEmpleado, nombreEmpleado, rolPago, notas, cargadoPor, proveedor,
-//               tipoCosto, idEvento, evento, periodo
+//               tipoCosto, idEvento, evento, periodo, confirmado
 // tipoCosto: 'Fijo' (gasto general del salon) | 'Evento' (imputado a un evento puntual)
+// confirmado (col Q): '0' = borrador por confirmar (ej. cargado por el bot desde un
+//   audio); vacio o '1' = confirmado. Los egresos cargados a mano nacen confirmados;
+//   los no confirmados no deben sumar en totales/reportes hasta que un humano los valide.
 // evento/periodo se guardan desnormalizados a proposito: la planilla se analiza
 // en Excel con tablas dinamicas y ahi un id opaco no sirve.
 
@@ -1133,6 +1136,7 @@ function rowToEgreso(row, index) {
     idEvento: row[13] || '',
     evento: row[14] || '',
     periodo: row[15] || '',
+    confirmado: row[16] !== '0',
   };
 }
 
@@ -1145,6 +1149,7 @@ function egresoToRow(e) {
     e.proveedor || '',
     e.tipoCosto || 'Fijo', e.idEvento || '', e.evento || '',
     e.periodo || periodoDe(e.fecha),
+    e.confirmado === false ? '0' : '1',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -1153,14 +1158,19 @@ async function getEgresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A2:P',
+    range: 'Egresos!A2:Q',
   });
   return (res.data.values || []).map((row, i) => rowToEgreso(row, i)).filter(e => e.id);
 }
 
 async function addEgreso(data) {
   const id = generateId('EGR');
-  const e = { ...data, id, periodo: periodoDe(data.fecha), tipoCosto: data.idEvento ? 'Evento' : 'Fijo' };
+  const e = {
+    ...data, id, periodo: periodoDe(data.fecha),
+    tipoCosto: data.idEvento ? 'Evento' : 'Fijo',
+    // Los egresos cargados a mano nacen confirmados; el bot los crea con confirmado:false.
+    confirmado: data.confirmado !== undefined ? data.confirmado : true,
+  };
   if (!tieneCredenciales) {
     e.rowIndex = memEgresos.length + 2;
     memEgresos.push(e);
@@ -1176,7 +1186,7 @@ async function addEgreso(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!A${nextRow}:P${nextRow}`,
+    range: `Egresos!A${nextRow}:Q${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [egresoToRow(e)] },
   });
@@ -1193,9 +1203,9 @@ async function deleteEgreso(rowIndex) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!A${rowIndex}:P${rowIndex}`,
+    range: `Egresos!A${rowIndex}:Q${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(16).fill('')] },
+    resource: { values: [Array(17).fill('')] },
   });
   return { ok: true };
 }
@@ -1223,6 +1233,22 @@ async function updateEgreso(rowIndex, data) {
     },
   });
   return { ...data, rowIndex };
+}
+
+// Confirma un egreso borrador (col Q -> '1'). Espejo de confirmarIngreso.
+async function confirmarEgreso(rowIndex) {
+  if (!tieneCredenciales) {
+    const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
+    if (idx !== -1) memEgresos[idx].confirmado = true;
+    return;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Egresos!Q${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [['1']] },
+  });
 }
 
 /* ===================== PAPELERA ===================== */
@@ -2372,7 +2398,7 @@ module.exports = {
   calcularCompraCubiertos, estadoCubiertos,
   getConfig, setConfig, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado,
-  getEgresos, addEgreso, updateEgreso, deleteEgreso,
+  getEgresos, addEgreso, updateEgreso, deleteEgreso, confirmarEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,
   editarItemCatalogo, eliminarItemCatalogo,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,

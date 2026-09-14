@@ -3608,3 +3608,118 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
   padding: 8px 10px; font-size: 1rem;
   border: 1px solid #ccc; border-radius: 6px; background: #fff;
 }
+
+/* ===================== BADGE DEL SIDEBAR (por confirmar) ===================== */
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--error);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(153,27,27,.25);
+}
+
+/* ===================== FORM "cargar a mano" (colapsable) ===================== */
+.egresos-form-details { cursor: default; }
+.egresos-form-details > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text, #333);
+}
+.egresos-form-details > summary::-webkit-details-marker { display: none; }
+.egresos-form-details > summary::after {
+  content: '▸';
+  margin-left: auto;
+  transition: transform .15s;
+  color: var(--text-muted, #888);
+}
+.egresos-form-details[open] > summary::after { transform: rotate(90deg); }
+.egresos-form-details[open] > summary { margin-bottom: 14px; }
+
+/* ===================== BANDEJA "POR CONFIRMAR" ===================== */
+.pendientes-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius, 10px);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.pendientes-header h3 {
+  margin: 0 0 2px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pendientes-count-pill {
+  min-width: 24px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.pendientes-sub { margin: 0 0 12px; color: var(--text-muted, #777); font-size: 13.5px; }
+.pendientes-empty { color: var(--success); font-weight: 600; padding: 10px 2px; }
+.pendientes-lista { display: flex; flex-direction: column; gap: 10px; }
+
+.pend-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #e5e5e5);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #fff;
+  flex-wrap: wrap;
+}
+.pend-ingreso { border-left-color: var(--success); }
+.pend-egreso  { border-left-color: var(--error); }
+.pend-tipo-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--text-muted, #888);
+  min-width: 48px;
+}
+.pend-main { flex: 1; min-width: 140px; }
+.pend-titulo { font-weight: 600; font-size: 15.5px; }
+.pend-detalle { color: var(--text-muted, #777); font-size: 13px; margin-top: 2px; }
+.pend-monto { font-weight: 800; font-size: 18px; white-space: nowrap; }
+.pend-monto-ingreso { color: var(--success); }
+.pend-monto-egreso  { color: var(--error); }
+.pend-acciones { display: flex; align-items: center; gap: 8px; }
+.btn-pend-editar {
+  padding: 5px 10px;
+  font-size: 12.5px;
+  background: transparent;
+  border: 1px solid var(--border, #ddd);
+  color: var(--text, #444);
+}
+.btn-pend-descartar {
+  background: transparent;
+  border: 1px solid var(--border, #ddd);
+  color: var(--text-muted, #888);
+}
+@media (max-width: 600px) {
+  .pend-item { gap: 8px; }
+  .pend-acciones { width: 100%; }
+  .btn-pend-confirmar { flex: 1; }
+}

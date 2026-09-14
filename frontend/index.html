@@ -83,7 +83,8 @@
           <span class="nav-icon">⏱</span> Timing Planner
         </a>
         <a href="#" class="nav-item admin-only" data-view="egresos">
-          <span class="nav-icon">💸</span> Egresos
+          <span class="nav-icon">💰</span> Movimientos
+          <span class="nav-badge hidden" id="nav-pendientes-badge" title="Movimientos por confirmar">0</span>
         </a>
         <a href="#" class="nav-item superadmin-only" data-view="cocina">
           <span class="nav-icon">🍳</span> Gestión de Cocina
@@ -481,15 +482,15 @@
         <div id="timing-global-content"></div>
       </section>
 
-      <!-- VISTA: EGRESOS -->
+      <!-- VISTA: MOVIMIENTOS (ingresos/egresos + bandeja por confirmar) -->
       <section id="view-egresos" class="view hidden">
         <div class="view-header">
-          <h2>Egresos del Salón</h2>
+          <h2>Movimientos del salón</h2>
         </div>
 
-        <!-- Formulario nuevo egreso -->
-        <div class="egresos-form-card">
-          <h3 class="egresos-form-title">Registrar egreso</h3>
+        <!-- Cargar un gasto a mano (compacto, colapsado por defecto) -->
+        <details class="egresos-form-card egresos-form-details">
+          <summary class="egresos-form-title">➕ Cargar un gasto a mano</summary>
           <form id="egreso-form" class="egreso-form">
             <!-- Destino del gasto: define si el costo es fijo del salon o de un evento -->
             <div class="egr-destino">
@@ -588,6 +589,17 @@
               <span id="egr-error" class="error-msg hidden"></span>
             </div>
           </form>
+        </details>
+
+        <!-- Bandeja: gastos/cobros por confirmar -->
+        <div class="pendientes-card" id="pendientes-card">
+          <div class="pendientes-header">
+            <h3>Por confirmar <span class="pendientes-count-pill hidden" id="pendientes-count-pill">0</span></h3>
+            <p class="pendientes-sub">Cobros y gastos cargados que esperan tu confirmación antes de entrar al sistema.</p>
+          </div>
+          <div id="pendientes-loading" class="loading-msg hidden">Cargando...</div>
+          <div id="pendientes-empty" class="pendientes-empty hidden">✓ No hay nada por confirmar.</div>
+          <div id="pendientes-lista" class="pendientes-lista"></div>
         </div>
 
         <!-- Listado de egresos recientes -->
@@ -1120,11 +1132,37 @@
         <div class="egreso-form-row">
           <div class="form-group">
             <label>Categoría</label>
-            <input type="text" id="ede-categoria" readonly style="background:#f5f5f5;cursor:default">
+            <select id="ede-categoria">
+              <option>Servicios</option>
+              <option>Bebidas</option>
+              <option>Personal</option>
+              <option>Evento</option>
+              <option>Mantenimiento</option>
+              <option class="superadmin-only" value="Materia Prima">Materia Prima</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Concepto</label>
             <input type="text" id="ede-concepto">
+          </div>
+        </div>
+
+        <!-- Atribución: gasto general del salón o imputado a un evento -->
+        <div class="egr-destino" style="margin-top:4px">
+          <span class="egr-destino-label">¿Para qué es este gasto?</span>
+          <div class="egr-destino-opts">
+            <label class="egr-destino-opt">
+              <input type="radio" name="ede-destino" value="fijo" checked>
+              <span>Gasto general del salón</span>
+            </label>
+            <label class="egr-destino-opt">
+              <input type="radio" name="ede-destino" value="evento">
+              <span>Gasto de un evento</span>
+            </label>
+          </div>
+          <div class="form-group hidden" id="ede-evento-group">
+            <label>¿De qué evento?</label>
+            <select id="ede-evento"><option value="">Seleccioná el evento...</option></select>
           </div>
         </div>
         <div class="form-group" id="ede-proveedor-group" style="display:none">
