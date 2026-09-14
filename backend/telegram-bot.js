@@ -70,15 +70,17 @@ function etiquetaEvento(cli) {
   return [nombre, fechaLinda].filter(Boolean).join(' — ');
 }
 
-// Busca el cliente/evento mencionado por nombre. Devuelve el match o null.
+// Busca el cliente/evento mencionado por nombre. Matchea tanto por el cliente
+// que contrató (apellidoNombre) como por el AGASAJADO/festejado (nombreAgasajado),
+// porque el padre puede nombrar a cualquiera de los dos ("el cumple de Sofía").
 function matchCliente(nombreBuscado, clientes) {
   const q = normalizar(nombreBuscado);
   if (!q || !Array.isArray(clientes)) return null;
   // Coincidencia por inclusión en ambos sentidos (apellido, nombre parcial, etc.).
-  const cand = clientes.filter(c => {
-    const n = normalizar(c.apellidoNombre);
-    return n && (n.includes(q) || q.includes(n) || q.split(/\s+/).some(w => w.length > 2 && n.includes(w)));
-  });
+  const coincide = campo => campo && (campo.includes(q) || q.includes(campo) ||
+    q.split(/\s+/).some(w => w.length > 2 && campo.includes(w)));
+  const cand = clientes.filter(c =>
+    coincide(normalizar(c.apellidoNombre)) || coincide(normalizar(c.nombreAgasajado)));
   if (!cand.length) return null;
   // Si hay varios, el del evento más próximo/futuro primero.
   cand.sort((a, b) => (b.fechaEvento || '').localeCompare(a.fechaEvento || ''));
@@ -101,12 +103,12 @@ Devolvé SOLO un JSON válido, sin explicaciones ni markdown, con esta forma exa
   "categoria": "Servicios" | "Bebidas" | "Personal" | "Evento" | "Mantenimiento",  // solo si tipo=egreso
   "nombreEmpleado": string | null,  // solo si es pago a una persona: su nombre. Si no, null
   "rolPago": string | null,         // rol/puesto de esa persona, ej "Mozo", "Ayudante de cocina", "Cocinero". Si no aplica, null
-  "concepto": string,            // descripción corta, ej "Compra de bebidas"
-  "cliente": string | null,      // nombre del cliente/evento si lo menciona, si no null
+  "concepto": string,            // EN CONCEPTO DE QUÉ es el movimiento, en pocas palabras. Para ingresos: "Seña", "Cuota", "Cubiertos", "Mesa dulce", "Cotillón", "Barra de luces", "Adicional", etc. Para gastos: ej "Compra de bebidas"
+  "cliente": string | null,      // nombre del CLIENTE que contrató O del AGASAJADO/festejado (ej "cumple de Sofía" -> "Sofía") si lo menciona; si no, null
   "resumen": string              // frase corta para confirmar, ej "Gasto de $80.000 en bebidas"
 }
-Reglas: si dice "sueldo/mozo/cocinero/ayudante/le pagué a <nombre>" -> categoria "Personal", y completá "nombreEmpleado" con la persona y "rolPago" con su puesto si lo dice. "luz/gas/agua" -> "Servicios".
-Para gastos que NO son a una persona (bebidas, luz, etc.) dejá nombreEmpleado y rolPago en null.
+Reglas gastos: si dice "sueldo/mozo/cocinero/ayudante/le pagué a <nombre>" -> categoria "Personal", y completá "nombreEmpleado" con la persona y "rolPago" con su puesto si lo dice. "luz/gas/agua" -> "Servicios". Para gastos que NO son a una persona (bebidas, luz, etc.) dejá nombreEmpleado y rolPago en null.
+Reglas ingresos: "tipoIngreso" SOLO puede ser "Seña", "Saldo final" u "Otro". Si es una seña -> "Seña"; si es el pago final/saldo -> "Saldo final"; TODO lo demás (cuota, cubiertos, mesa dulce, cotillón, barra de luces, adicional, lo que sea) -> "Otro", y poné el detalle exacto en "concepto". Nunca inventes un tipoIngreso fuera de esos tres.
 Si no estás seguro del monto, poné 0. No inventes cliente si no lo nombran.`;
 
 async function interpretarConGemini(input, { fetchImpl = fetch } = {}) {
@@ -311,7 +313,12 @@ function textoPreguntaConfirmar(ext, match) {
   const esIngreso = ext.tipo === 'ingreso';
   const tag = esIngreso ? 'COBRO' : 'GASTO';
   const clase = esIngreso ? (ext.tipoIngreso || 'Otro') : (ext.categoria || 'General');
-  const atrib = match ? `\n• Cliente/evento: ${match.apellidoNombre}` : '\n• Sin cliente asociado';
+  // Si matcheó por el agasajado (o el nombre dicho no es el del cliente), lo mostramos
+  // entre paréntesis para que se vea a qué evento fue.
+  const agas = match && match.nombreAgasajado ? ` (agasajado: ${match.nombreAgasajado})` : '';
+  const atrib = match
+    ? `\n• Cliente/evento: ${match.apellidoNombre}${agas}`
+    : '\n• ⚠️ Sin cliente reconocido — asignalo en el sistema al confirmar';
   const persona = ext.nombreEmpleado
     ? `\n• Empleado: ${ext.nombreEmpleado}${ext.rolPago ? ' (' + ext.rolPago + ')' : ''}` : '';
   return `🧾 Entendí un *${tag}*:\n` +

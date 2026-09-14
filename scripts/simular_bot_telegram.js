@@ -16,8 +16,9 @@ const sendText = async (chatId, text) => { enviados.push({ chatId, text }); };
 function updateTexto(texto) { return { update_id: Math.random(), message: { chat: { id: 111 }, text: texto } }; }
 
 (async () => {
-  // Cliente para probar la atribución.
-  await sheets.addCliente({ apellidoNombre: 'Pérez, Juan', fechaEvento: '2026-12-20', estado: 'Confirmado' });
+  // Cliente para probar la atribución. Le ponemos un agasajado distinto al
+  // contratante, para probar que el bot matchea también por el festejado.
+  await sheets.addCliente({ apellidoNombre: 'Pérez, Juan', nombreAgasajado: 'Sofía', fechaEvento: '2026-12-20', estado: 'Confirmado' });
 
   const casos = [
     {
@@ -72,6 +73,23 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
   await bot.processUpdate(updateTexto('gasto trucho'), depsNo);
   const rNo = await bot.processUpdate(updateTexto('no'), depsNo);
   console.log(`\n▶ Rechazo con "no": ${rNo.cancelado ? 'descartado, no cargó ✓' : 'FALLÓ (cargó algo)'}`);
+
+  // Match por AGASAJADO (unitario, con una lista fija de clientes).
+  const clientesFake = [
+    { id: 'c1', apellidoNombre: 'Pérez, Juan', nombreAgasajado: 'Sofía', fechaEvento: '2026-12-20' },
+    { id: 'c2', apellidoNombre: 'Gómez, Ana', nombreAgasajado: 'Tomás', fechaEvento: '2026-11-05' },
+  ];
+  const mAgas = bot.matchCliente('cumple de Sofía', clientesFake);
+  const mCli  = bot.matchCliente('los Gómez', clientesFake);
+  console.log(`\n▶ Match por AGASAJADO ("Sofía"): ${mAgas && mAgas.id === 'c1' ? 'encontró a Pérez ✓' : 'FALLÓ ✗'}`);
+  console.log(`▶ Match por CLIENTE ("Gómez"): ${mCli && mCli.id === 'c2' ? 'encontró a Gómez ✓' : 'FALLÓ ✗'}`);
+
+  // ADICIONAL (mesa dulce): tipoIngreso "Otro" + concepto, atribuido al cliente.
+  const depsAdic = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'ingreso', monto: 60000, moneda: 'ARS', tipoIngreso: 'Otro', formaPago: 'Transferencia', concepto: 'Mesa dulce', cliente: 'Sofía' }), descargarVoz: async () => '' };
+  await bot.processUpdate(updateTexto('nos pagaron la mesa dulce del cumple de Sofía'), depsAdic);
+  const rAdic = await bot.processUpdate(updateTexto('sí'), depsAdic);
+  const regAd = rAdic.registro || {};
+  console.log(`▶ ADICIONAL mesa dulce: ${regAd.notas === 'Mesa dulce' ? 'concepto guardado ✓' : 'FALLÓ ✗'} atribuido=${rAdic.match ? rAdic.match.apellidoNombre : '(ninguno)'}`);
 
   const egresos = await sheets.getEgresos();
   const ingresos = await sheets.getIngresos();
