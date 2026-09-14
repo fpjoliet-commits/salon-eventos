@@ -26,10 +26,13 @@ Solo los chats habilitados pueden cargar (seguridad). Para saber el `chat_id`:
 2. Abrí en el navegador: `https://api.telegram.org/bot<TOKEN>/getUpdates`
 3. Buscá `"chat":{"id": 123456789 ...}`. Ese número es el chat de esa persona.
 
-Armá el mapa `chat_id:usuario` con los usuarios del CRM (`fabio`, `mariana`):
+Armá el mapa `chat_id:usuario` con los **usuarios del login del CRM**
+(`superadmin` = Fabio, `admin` = Mariana, `empleado` = Anita). ⚠️ Tiene que ser
+ese usuario exacto, NO el nombre de pila: así el movimiento queda a nombre del
+que lo cargó y cada uno ve lo suyo (Mariana solo ve sus movimientos; Fabio ve todo).
 
 ```
-TELEGRAM_CHAT_MAP=123456789:fabio,987654321:mariana
+TELEGRAM_CHAT_MAP=123456789:superadmin,987654321:admin
 ```
 
 ## 4. Variables de entorno (en Render)

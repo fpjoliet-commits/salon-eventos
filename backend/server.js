@@ -95,6 +95,15 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
+// Visibilidad de movimientos: el superadmin (Fabio) ve TODO; cualquier otro rol
+// (admin/Mariana) ve solo lo que cargó él mismo (cargadoPor === su usuario).
+// Se compara sin distinguir mayúsculas para tolerar variantes en el dato.
+function soloPropiosSiNoSuper(items, req) {
+  if (req.user.role === 'superadmin') return items;
+  const yo = (req.user.usuario || '').toLowerCase();
+  return items.filter(m => (m.cargadoPor || '').toLowerCase() === yo);
+}
+
 /* ===================== VALIDACIÓN DE ENTRADA =====================
    Hasta acá el backend confiaba en lo que mandaba el front. Un pedido armado
    a mano podía escribir cualquier cosa en la planilla (textos gigantes,
@@ -719,13 +728,13 @@ app.get('/api/dashboard-data', auth, superAdminOnly, async (req, res) => {
 app.get('/api/ingresos', auth, adminOnly, async (req, res) => {
   try {
     const ingresos = await sheets.getIngresos();
-    res.json(ingresos.filter(i => i.confirmado !== false));
+    res.json(soloPropiosSiNoSuper(ingresos.filter(i => i.confirmado !== false), req));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Egresos
 app.get('/api/egresos', auth, adminOnly, async (req, res) => {
-  try { res.json(await sheets.getEgresos()); }
+  try { res.json(soloPropiosSiNoSuper(await sheets.getEgresos(), req)); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -735,8 +744,8 @@ app.get('/api/pendientes', auth, adminOnly, async (req, res) => {
   try {
     const [ingresos, egresos] = await Promise.all([sheets.getIngresos(), sheets.getEgresos()]);
     res.json({
-      ingresos: ingresos.filter(i => i.confirmado === false),
-      egresos: egresos.filter(e => e.confirmado === false),
+      ingresos: soloPropiosSiNoSuper(ingresos.filter(i => i.confirmado === false), req),
+      egresos: soloPropiosSiNoSuper(egresos.filter(e => e.confirmado === false), req),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
