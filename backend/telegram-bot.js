@@ -27,6 +27,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // 'gemini-flash-latest' apunta siempre al Flash vigente: evita el 404 cuando Google
 // retira un modelo pinneado (ej. gemini-2.5-flash quedó sin acceso para keys nuevas).
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+// Tope de espera por intento a Gemini (ms). Si tarda más, se corta y reintenta.
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 45000;
 
 // El bot está "activo" solo si puede hablar con Telegram y con la IA.
 const BOT_ACTIVO = Boolean(TOKEN && GEMINI_API_KEY);
@@ -130,9 +132,17 @@ async function interpretarConGemini(input, { fetchImpl = fetch } = {}) {
     for (let intento = 0; intento < 2; intento++) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI_API_KEY}`;
       let res;
+      // Tope de tiempo por intento: si Gemini está lento (saturado), no esperamos
+      // eternamente — cortamos y reintentamos/cambiamos de modelo. Evita el "colgado".
+      const ac = new AbortController();
+      const corte = setTimeout(() => ac.abort(), GEMINI_TIMEOUT_MS);
       try {
-        res = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: cuerpo });
-      } catch (e) { ultimoErr = e; break; }          // error de red: pasar al siguiente modelo
+        res = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: cuerpo, signal: ac.signal });
+      } catch (e) {
+        // AbortError = se pasó del tiempo → lo tratamos como "saturado" y reintentamos.
+        if (e.name === 'AbortError') { const err = new Error('Gemini timeout'); err.sobrecargado = true; ultimoErr = err; continue; }
+        ultimoErr = e; break;                          // error de red real: pasar al siguiente modelo
+      } finally { clearTimeout(corte); }
       if (res.ok) {
         const data = await res.json();
         const txt = (data?.candidates?.[0]?.content?.parts || [])
