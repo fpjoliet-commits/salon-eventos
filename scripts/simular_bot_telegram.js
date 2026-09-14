@@ -29,6 +29,10 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
       ext: { tipo: 'egreso', monto: 145000, moneda: 'ARS', categoria: 'Servicios', concepto: 'Factura de luz', cliente: null },
     },
     {
+      nombre: 'PAGO a empleado (Personal, con rol)',
+      ext: { tipo: 'egreso', monto: 40000, moneda: 'ARS', categoria: 'Personal', nombreEmpleado: 'Jamaica', rolPago: 'Ayudante de cocina', concepto: 'Pago a empleado', cliente: null },
+    },
+    {
       nombre: 'COBRO seña en dólares',
       ext: { tipo: 'ingreso', monto: 200, moneda: 'USD', tipoIngreso: 'Seña', formaPago: 'Efectivo', concepto: 'Seña', cliente: 'Perez Juan' },
     },
@@ -44,7 +48,8 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
     console.log(`\n▶ ${c.nombre}`);
     console.log(`   paso1: ${paso1.pendiente ? 'pidió confirmación ✓' : JSON.stringify(paso1)}`);
     console.log(`   paso2 (tras "sí"): tipo=${paso2.tipo} monto=${reg.monto} ${reg.moneda} confirmado=${reg.confirmado}` +
-                ` atribuido=${paso2.match ? paso2.match.apellidoNombre : '(ninguno)'}`);
+                ` atribuido=${paso2.match ? paso2.match.apellidoNombre : '(ninguno)'}` +
+                `${reg.nombreEmpleado ? ' empleado=' + reg.nombreEmpleado + '/' + reg.rolPago : ''}`);
   }
 
   // Caso extra: confirmar tocando el BOTÓN (callback_query) en vez de tipear.

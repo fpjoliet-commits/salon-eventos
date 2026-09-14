@@ -99,11 +99,14 @@ Devolvé SOLO un JSON válido, sin explicaciones ni markdown, con esta forma exa
   "formaPago": "Efectivo" | "Transferencia" | "Cheque" | "Mercado Pago",
   "tipoIngreso": "Seña" | "Saldo final" | "Otro",   // solo si tipo=ingreso
   "categoria": "Servicios" | "Bebidas" | "Personal" | "Evento" | "Mantenimiento",  // solo si tipo=egreso
+  "nombreEmpleado": string | null,  // solo si es pago a una persona: su nombre. Si no, null
+  "rolPago": string | null,         // rol/puesto de esa persona, ej "Mozo", "Ayudante de cocina", "Cocinero". Si no aplica, null
   "concepto": string,            // descripción corta, ej "Compra de bebidas"
   "cliente": string | null,      // nombre del cliente/evento si lo menciona, si no null
   "resumen": string              // frase corta para confirmar, ej "Gasto de $80.000 en bebidas"
 }
-Reglas: si dice "sueldo/mozo/cocinero" -> categoria "Personal". "luz/gas/agua" -> "Servicios".
+Reglas: si dice "sueldo/mozo/cocinero/ayudante/le pagué a <nombre>" -> categoria "Personal", y completá "nombreEmpleado" con la persona y "rolPago" con su puesto si lo dice. "luz/gas/agua" -> "Servicios".
+Para gastos que NO son a una persona (bebidas, luz, etc.) dejá nombreEmpleado y rolPago en null.
 Si no estás seguro del monto, poné 0. No inventes cliente si no lo nombran.`;
 
 async function interpretarConGemini(input, { fetchImpl = fetch } = {}) {
@@ -202,6 +205,8 @@ async function crearBorrador(sheets, ext, usuario, clientes) {
     fecha,
     concepto: ext.concepto || 'Gasto',
     categoria: ext.categoria || 'Servicios',
+    nombreEmpleado: ext.nombreEmpleado || '',
+    rolPago: ext.rolPago || '',
     monto, moneda,
     idEvento: match ? match.id : '',
     evento: match ? etiquetaEvento(match) : '',
@@ -307,9 +312,11 @@ function textoPreguntaConfirmar(ext, match) {
   const tag = esIngreso ? 'COBRO' : 'GASTO';
   const clase = esIngreso ? (ext.tipoIngreso || 'Otro') : (ext.categoria || 'General');
   const atrib = match ? `\n• Cliente/evento: ${match.apellidoNombre}` : '\n• Sin cliente asociado';
+  const persona = ext.nombreEmpleado
+    ? `\n• Empleado: ${ext.nombreEmpleado}${ext.rolPago ? ' (' + ext.rolPago + ')' : ''}` : '';
   return `🧾 Entendí un *${tag}*:\n` +
          `• Monto: $${Number(ext.monto).toLocaleString('es-AR')} ${ext.moneda === 'USD' ? 'USD' : 'ARS'}\n` +
-         `• ${clase}${ext.concepto ? ' — ' + ext.concepto : ''}${atrib}\n\n` +
+         `• ${clase}${ext.concepto ? ' — ' + ext.concepto : ''}${persona}${atrib}\n\n` +
          `¿Lo cargo? Tocá un botón 👇 (o respondé *sí* / *no*).`;
 }
 
