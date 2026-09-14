@@ -1031,6 +1031,15 @@ app.post('/api/stock-actual/actualizar', auth, superAdminOnly, async (req, res) 
 });
 
 
+// ── Bot de Telegram (carga de ingresos/egresos por audio → bandeja Por confirmar) ──
+const telegramBot = require('./telegram-bot');
+if (telegramBot.BOT_ACTIVO) {
+  app.use('/api', telegramBot.crearRouter(sheets));
+  console.log('🤖 Bot de Telegram activo (webhook en /api/webhook/telegram)');
+} else {
+  console.log('🤖 Bot de Telegram inactivo (faltan TELEGRAM_BOT_TOKEN o GEMINI_API_KEY)');
+}
+
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));

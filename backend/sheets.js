@@ -447,7 +447,10 @@ async function getIngresos() {
 
 async function addIngreso(data) {
   const id = generateId('ING');
-  const confirmado = data.cargadoPor === 'empleado' ? false : true;
+  // El bot manda confirmado:false explícito; si no viene, regla histórica (empleado = sin confirmar).
+  const confirmado = data.confirmado !== undefined
+    ? data.confirmado
+    : (data.cargadoPor === 'empleado' ? false : true);
   const ingreso = { ...data, id, confirmado, periodo: periodoDe(data.fecha) };
   if (!tieneCredenciales) {
     ingreso.rowIndex = memIngresos.length + 2;
