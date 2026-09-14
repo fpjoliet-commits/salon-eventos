@@ -198,13 +198,33 @@ function textoConfirmacion(borr) {
 
 /* ─────────────────────── Telegram API ───────────────────────── */
 
-async function sendText(chatId, text, { fetchImpl = fetch } = {}) {
+async function sendText(chatId, text, { fetchImpl = fetch, reply_markup } = {}) {
   if (!BOT_ACTIVO) return;
+  const body = { chat_id: chatId, text, parse_mode: 'Markdown' };
+  if (reply_markup) body.reply_markup = reply_markup;
   await fetchImpl(`${API}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
+    body: JSON.stringify(body),
   }).catch(e => console.error('[telegram] sendText:', e.message));
+}
+
+// Botones inline Sí / No para la confirmación.
+const TECLADO_SINO = {
+  inline_keyboard: [[
+    { text: '✅ Sí, cargar', callback_data: 'conf_si' },
+    { text: '❌ No', callback_data: 'conf_no' },
+  ]],
+};
+
+// Corta el "relojito" del botón después de tocarlo.
+async function answerCallback(cqId, { fetchImpl = fetch } = {}) {
+  if (!BOT_ACTIVO) return;
+  await fetchImpl(`${API}/answerCallbackQuery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callback_query_id: cqId }),
+  }).catch(e => console.error('[telegram] answerCallback:', e.message));
 }
 
 // Descarga un archivo de voz de Telegram y lo devuelve en base64.
@@ -244,7 +264,7 @@ function textoPreguntaConfirmar(ext, match) {
   return `🧾 Entendí un *${tag}*:\n` +
          `• Monto: $${Number(ext.monto).toLocaleString('es-AR')} ${ext.moneda === 'USD' ? 'USD' : 'ARS'}\n` +
          `• ${clase}${ext.concepto ? ' — ' + ext.concepto : ''}${atrib}\n\n` +
-         `¿Lo cargo? Respondé *sí* o *no*.`;
+         `¿Lo cargo? Tocá un botón 👇 (o respondé *sí* / *no*).`;
 }
 
 // Confirmación final después de cargar el borrador.
@@ -256,6 +276,25 @@ function textoCargado(borr) {
          `Quedó en *Por confirmar* del CRM para la confirmación final del admin.`;
 }
 
+// Carga el pendiente (usado por el botón "Sí" y por el "sí" tipeado).
+async function confirmarYCargar(sheets, chatId, usuario, enviar) {
+  const pend = getPend(chatId);
+  if (!pend) {
+    await enviar(chatId, 'No hay nada pendiente para confirmar. Mandá el movimiento de nuevo 🙂');
+    return { sin_pendiente: true };
+  }
+  const clientes = await sheets.getClientes().catch(() => []);
+  const borr = await crearBorrador(sheets, pend.ext, usuario, clientes);
+  clearPend(chatId);
+  await enviar(chatId, textoCargado(borr));
+  return borr;
+}
+async function cancelarPendiente(chatId, enviar) {
+  clearPend(chatId);
+  await enviar(chatId, 'Ok, lo descarté 👍 No cargué nada.');
+  return { cancelado: true };
+}
+
 /* ─────────────────── Orquestador de un update (testeable) ────────────────── */
 
 async function processUpdate(update, deps) {
@@ -263,7 +302,20 @@ async function processUpdate(update, deps) {
   const interpretar = deps.interpretar || interpretarConGemini;
   const enviar = deps.sendText || sendText;
   const bajarVoz = deps.descargarVoz || descargarVoz;
+  const responder = deps.answerCallback || answerCallback;
   const chatMap = deps.chatMap || CHAT_MAP;
+
+  // ── Toque de botón (Sí / No) ──
+  const cq = update?.callback_query;
+  if (cq) {
+    const chatId = String(cq.message?.chat?.id ?? '');
+    await responder(cq.id);                       // corta el relojito del botón
+    const usuario = chatMap[chatId];
+    if (!usuario) return { ignorado: 'chat_no_autorizado' };
+    if (cq.data === 'conf_si') return confirmarYCargar(sheets, chatId, usuario, enviar);
+    if (cq.data === 'conf_no') return cancelarPendiente(chatId, enviar);
+    return { ignorado: 'callback_desconocido' };
+  }
 
   const msg = update?.message || update?.edited_message;
   if (!msg) return { ignorado: 'sin_mensaje' };
@@ -280,18 +332,8 @@ async function processUpdate(update, deps) {
   const pend = getPend(chatId);
   const textoPlano = msg.text ? normalizar(msg.text) : '';
   if (pend) {
-    if (textoPlano && PALABRAS_SI.has(textoPlano)) {
-      const clientes = await sheets.getClientes().catch(() => []);
-      const borr = await crearBorrador(sheets, pend.ext, usuario, clientes);
-      clearPend(chatId);
-      await enviar(chatId, textoCargado(borr));
-      return borr;
-    }
-    if (textoPlano && PALABRAS_NO.has(textoPlano)) {
-      clearPend(chatId);
-      await enviar(chatId, 'Ok, lo descarté 👍 No cargué nada.');
-      return { cancelado: true };
-    }
+    if (textoPlano && PALABRAS_SI.has(textoPlano)) return confirmarYCargar(sheets, chatId, usuario, enviar);
+    if (textoPlano && PALABRAS_NO.has(textoPlano)) return cancelarPendiente(chatId, enviar);
     // Cualquier otra cosa: se descarta el pendiente y se interpreta el mensaje nuevo.
     clearPend(chatId);
   }
@@ -337,7 +379,7 @@ async function processUpdate(update, deps) {
   const clientes = await sheets.getClientes().catch(() => []);
   const match = ext.cliente ? matchCliente(ext.cliente, clientes) : null;
   setPend(chatId, ext);
-  await enviar(chatId, textoPreguntaConfirmar(ext, match));
+  await enviar(chatId, textoPreguntaConfirmar(ext, match), { reply_markup: TECLADO_SINO });
   return { pendiente: ext };
 }
 

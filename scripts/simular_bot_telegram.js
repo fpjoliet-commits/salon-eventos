@@ -47,6 +47,12 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
                 ` atribuido=${paso2.match ? paso2.match.apellidoNombre : '(ninguno)'}`);
   }
 
+  // Caso extra: confirmar tocando el BOTÓN (callback_query) en vez de tipear.
+  const depsBtn = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 33000, moneda: 'ARS', categoria: 'Mantenimiento', concepto: 'arreglo' }), descargarVoz: async () => '', answerCallback: async () => {} };
+  await bot.processUpdate(updateTexto('arreglo 33 mil'), depsBtn);
+  const rBtn = await bot.processUpdate({ update_id: 999, callback_query: { id: 'cb1', data: 'conf_si', message: { chat: { id: 111 } } } }, depsBtn);
+  console.log(`\n▶ Confirmar con BOTÓN: ${rBtn.ok ? 'cargó ✓ ($' + rBtn.registro.monto + ')' : 'FALLÓ'}`);
+
   // Caso extra: pide confirmación y el usuario dice "no" -> NO debe cargar nada.
   const depsNo = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 99999, moneda: 'ARS', categoria: 'Servicios', concepto: 'no cargar' }), descargarVoz: async () => '' };
   await bot.processUpdate(updateTexto('gasto trucho'), depsNo);
