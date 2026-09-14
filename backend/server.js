@@ -2,6 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const path = require('path');
 const sheets = require('./sheets');
 
@@ -50,11 +51,27 @@ if (!JWT_SECRET) {
 }
 const PORT = process.env.PORT || 3001;
 
+// Las variables de entorno guardan el HASH bcrypt de cada contraseña, no la
+// contraseña en texto plano. Para generar un hash: node backend/hash-password.js "miContraseña"
 const USERS = {
-  superadmin: { password: process.env.PASSWORD_SUPERADMIN, role: 'superadmin' },
-  admin: { password: process.env.PASSWORD_ADMIN, role: 'admin' },
-  empleado: { password: process.env.PASSWORD_EMPLEADO, role: 'operador' },
+  superadmin: { passwordHash: process.env.PASSWORD_SUPERADMIN, role: 'superadmin' },
+  admin: { passwordHash: process.env.PASSWORD_ADMIN, role: 'admin' },
+  empleado: { passwordHash: process.env.PASSWORD_EMPLEADO, role: 'operador' },
 };
+
+// Si algún hash falta o no tiene pinta de hash bcrypt (empieza con $2), avisamos
+// fuerte: probablemente quedó una contraseña vieja en texto plano sin migrar.
+for (const [usuario, u] of Object.entries(USERS)) {
+  if (!u.passwordHash) {
+    console.error(`❌ Falta la variable de entorno de contraseña para "${usuario}".`);
+    process.exit(1);
+  }
+  if (!u.passwordHash.startsWith('$2')) {
+    console.error(`❌ La contraseña de "${usuario}" no parece un hash bcrypt (¿quedó en texto plano?).`);
+    console.error('   Generá el hash con: node backend/hash-password.js "tuContraseña"');
+    process.exit(1);
+  }
+}
 
 function auth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
@@ -174,7 +191,7 @@ function loginRateLimited(ip) {
 }
 
 // Login
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   if (loginRateLimited(clientIp(req))) {
     return res.status(429).json({ error: 'Demasiados intentos. Esperá unos minutos e intentá de nuevo.' });
   }
@@ -182,9 +199,8 @@ app.post('/api/login', (req, res) => {
   const usuario = req.body.usuario?.toLowerCase();
   const user = USERS[usuario];
   if (!user) return res.status(401).json({ error: 'Usuario incorrecto' });
-  if (user.password !== password) {
-    return res.status(401).json({ error: 'Contraseña incorrecta' });
-  }
+  const ok = await bcrypt.compare(String(password || ''), user.passwordHash);
+  if (!ok) return res.status(401).json({ error: 'Contraseña incorrecta' });
   const token = jwt.sign({ usuario, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
   res.json({ token, usuario, role: user.role });
 });
@@ -694,6 +710,18 @@ app.get('/api/egresos', auth, adminOnly, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Bandeja "Por confirmar": ingresos y egresos que un humano todavia no valido.
+// Los ingresos cargados por 'empleado' y los egresos cargados por el bot nacen sin confirmar.
+app.get('/api/pendientes', auth, adminOnly, async (req, res) => {
+  try {
+    const [ingresos, egresos] = await Promise.all([sheets.getIngresos(), sheets.getEgresos()]);
+    res.json({
+      ingresos: ingresos.filter(i => i.confirmado === false),
+      egresos: egresos.filter(e => e.confirmado === false),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/egresos', auth, adminOnly, async (req, res) => {
   if (req.body.categoria === 'Materia Prima' && req.user.role !== 'superadmin')
     return res.status(403).json({ error: 'Solo el superadmin puede registrar Materia Prima' });
@@ -710,6 +738,14 @@ app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
     const rowIndex = parseInt(req.params.rowIndex);
     const { etiqueta } = await datosEvento(req.body.idEvento);
     res.json(await sheets.updateEgreso(rowIndex, { ...req.body, evento: etiqueta }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Confirmar un egreso borrador (cargado por el bot). Espejo de confirmar ingreso.
+app.put('/api/egresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) => {
+  try {
+    await sheets.confirmarEgreso(parseInt(req.params.rowIndex));
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -982,6 +1018,17 @@ app.post('/api/stock-actual/actualizar', auth, superAdminOnly, async (req, res) 
     res.status(500).json({ error: e.message });
   }
 });
+
+// ── Bot de WhatsApp ─────────────────────────────────────────────────────────
+// El router se monta siempre, pero solo responde de verdad si están las
+// variables de entorno WHATSAPP_* (ver docs/whatsapp-bot-setup.md).
+const whatsappBot = require('./whatsapp-bot');
+app.use('/api', whatsappBot.crearRouter(sheets));
+if (whatsappBot.BOT_ACTIVO) {
+  console.log('🤖 Bot de WhatsApp ACTIVO — webhook en /api/webhook/whatsapp');
+} else {
+  console.log('🤖 Bot de WhatsApp inactivo (faltan variables WHATSAPP_*)');
+}
 
 // Serve frontend — debe ir ÚLTIMO para no capturar rutas API
 app.get('/{*path}', (req, res) => {
