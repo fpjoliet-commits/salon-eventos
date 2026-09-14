@@ -6807,6 +6807,7 @@ const EGRESOS_NOTAS_OBLIGATORIAS = new Set(['Vajilla', 'Decoración', '(detalle 
 const EGRESOS_CATEGORIAS_DE_EVENTO = new Set(['Personal', 'Bebidas', 'Evento', 'Materia Prima']);
 
 let allEgresos = [];
+let allIngresos = [];
 let allEmpleados = [];
 let egresosCargados = false;
 
@@ -6831,15 +6832,106 @@ function populateEgrEventoSelect(selId = 'egr-evento') {
   const sel = $(selId);
   if (!sel) return;
   const prev = sel.value;
+  const placeholder = selId === 'edi-cliente' ? 'Sin asociar' : 'Seleccioná el evento...';
   const ordenados = [...allClientes]
     .filter(c => c.id)
     .sort((a, b) => (b.fechaEvento || '').localeCompare(a.fechaEvento || ''));
-  sel.innerHTML = '<option value="">Seleccioná el evento...</option>' +
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
     ordenados.map(c => {
       const f = c.fechaEvento ? ` — ${formatDate(c.fechaEvento)}` : '';
-      return `<option value="${esc(c.id)}">${esc(c.apellidoNombre || 'Sin nombre')}${f}</option>`;
+      const agas = c.nombreAgasajado ? ` · ${c.nombreAgasajado}` : '';
+      // data-search incluye al agasajado para poder buscar por el festejado.
+      const search = `${c.apellidoNombre || ''} ${c.nombreAgasajado || ''}`;
+      return `<option value="${esc(c.id)}" data-search="${esc(search)}">${esc(c.apellidoNombre || 'Sin nombre')}${esc(agas)}${f}</option>`;
     }).join('');
   sel.value = prev;
+  mejorarComboEvento(selId);
+  syncBuscador(selId);
+}
+
+/* Convierte un <select> de eventos en un buscador (typeahead) sin perder el
+   <select> como fuente de verdad: se oculta visualmente y un input filtra sus
+   opciones. Así todo el código que lee/escribe sel.value sigue igual. */
+function mejorarComboEvento(selId) {
+  const sel = $(selId);
+  if (!sel || sel.dataset.comboWired) { return; }
+  sel.dataset.comboWired = '1';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ev-combo';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  sel.classList.add('ev-combo-select-oculto');
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ev-combo-input';
+  input.autocomplete = 'off';
+  input.placeholder = selId === 'edi-cliente' ? 'Buscá el cliente…' : 'Buscá por cliente o agasajado…';
+  const lista = document.createElement('div');
+  lista.className = 'ev-combo-list';
+  lista.hidden = true;
+  wrap.appendChild(input);
+  wrap.appendChild(lista);
+  sel._buscador = input;
+
+  const norm = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  let activo = -1;
+
+  const cerrar = () => { lista.hidden = true; activo = -1; };
+  const opciones = () => [...sel.options].filter(o => o.value);   // sin el placeholder
+
+  const elegir = (val) => {
+    sel.value = val;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    syncBuscador(selId);
+    cerrar();
+  };
+
+  const render = () => {
+    const term = norm(input.value);
+    const matches = opciones().filter(o => !term || norm(o.dataset.search || o.textContent).includes(term));
+    activo = -1;
+    if (!matches.length) {
+      lista.innerHTML = `<div class="ev-combo-empty">Sin resultados</div>`;
+    } else {
+      lista.innerHTML = matches.slice(0, 40).map((o, i) =>
+        `<div class="ev-combo-item" role="option" data-val="${esc(o.value)}" data-i="${i}">${esc(o.textContent)}</div>`
+      ).join('') + (matches.length > 40 ? `<div class="ev-combo-more">Seguí escribiendo para afinar…</div>` : '');
+    }
+    lista.hidden = false;
+  };
+
+  input.addEventListener('input', () => { if (!input.value) elegir(''); else render(); });
+  input.addEventListener('focus', render);
+  input.addEventListener('blur', () => setTimeout(cerrar, 150));
+  input.addEventListener('keydown', e => {
+    const items = [...lista.querySelectorAll('.ev-combo-item')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (lista.hidden) return render();
+      activo += (e.key === 'ArrowDown' ? 1 : -1);
+      if (activo < 0) activo = items.length - 1;
+      if (activo >= items.length) activo = 0;
+      items.forEach((el, i) => el.classList.toggle('active', i === activo));
+      items[activo]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      if (!lista.hidden && items[activo]) { e.preventDefault(); elegir(items[activo].dataset.val); }
+    } else if (e.key === 'Escape') { cerrar(); }
+  });
+  lista.addEventListener('mousedown', e => {
+    const it = e.target.closest('.ev-combo-item');
+    if (it) { e.preventDefault(); elegir(it.dataset.val); }
+  });
+}
+
+// Refleja en el input del buscador el texto de la opción seleccionada del <select>.
+function syncBuscador(selId) {
+  const sel = $(selId);
+  const input = sel && sel._buscador;
+  if (!input) return;
+  const opt = sel.options[sel.selectedIndex];
+  input.value = (sel.value && opt) ? opt.textContent : '';
 }
 
 async function initEgresos() {
@@ -6909,17 +7001,30 @@ function setupEgresosForm() {
       const grupo = $('egr-evento-group');
       if (!grupo) return;
       grupo.classList.toggle('hidden', !esEvento);
-      $('egr-evento').required = esEvento;
-      if (!esEvento) $('egr-evento').value = '';
+      // Sin 'required' nativo: el <select> está oculto (no focuseable) y la
+      // validación del evento ya se hace en submitEgreso. Al cambiar, limpio el buscador.
+      if (!esEvento) { $('egr-evento').value = ''; syncBuscador('egr-evento'); }
     });
   });
 
   $('egr-repetir-fijos')?.addEventListener('click', repetirFijosMesPasado);
   $('egr-limpiar-filtros')?.addEventListener('click', () => {
-    ['egr-filtro-mes', 'egr-filtro-destino', 'egr-filtro-cat', 'egr-filtro-moneda']
+    ['egr-filtro-tipo', 'egr-filtro-mes', 'egr-filtro-destino', 'egr-filtro-cat', 'egr-filtro-moneda']
       .forEach(id => { if ($(id)) $(id).value = ''; });
     renderEgresos();
   });
+
+  // Toggle "ojito" del historial de movimientos: arranca oculto, un clic lo abre/cierra.
+  const movToggle = $('mov-toggle');
+  if (movToggle && !movToggle.dataset.wired) {
+    movToggle.dataset.wired = '1';
+    movToggle.addEventListener('click', () => {
+      const body = $('movimientos-body');
+      const abierto = !body.classList.toggle('hidden');   // toggle devuelve true si quedó hidden
+      movToggle.setAttribute('aria-expanded', String(abierto));
+      movToggle.querySelector('.mov-toggle-eye').textContent = abierto ? '👁️' : '👁️‍🗨️';
+    });
+  }
 
   $('egreso-form')?.addEventListener('submit', submitEgreso);
 }
@@ -7059,8 +7164,10 @@ async function loadEgresos() {
   hide('egresos-empty');
   hide('egresos-total-bar');
   try {
-    allEgresos = await apiFetch('/egresos');
+    const [egr, ing] = await Promise.all([apiFetch('/egresos'), apiFetch('/ingresos')]);
+    allEgresos = egr;
     allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    allIngresos = ing;
     renderEgresos();
   } catch (err) {
     const el = $('egresos-loading');
@@ -7070,18 +7177,35 @@ async function loadEgresos() {
 
 function renderEgresos() {
   hide('egresos-loading');
+  const filtTipo = $('egr-filtro-tipo')?.value || '';     // '' | 'ingreso' | 'egreso'
   const filtCat = $('egr-filtro-cat')?.value || '';
   const filtMoneda = $('egr-filtro-moneda')?.value || '';
   const filtMes = $('egr-filtro-mes')?.value || '';
   const filtDestino = $('egr-filtro-destino')?.value || '';
-  const lista = allEgresos.filter(e => {
-    if (e.confirmado === false) return false;   // los borradores viven en "Por confirmar", no en el historial
+  const mesDe = m => (m.periodo || (m.fecha || '').slice(0, 7));
+  // Los filtros de categoría/destino son propios de egresos: si están activos,
+  // los ingresos no aplican y se ocultan.
+  const soloEgresoPorFiltro = !!(filtCat || filtDestino);
+
+  // Egresos confirmados
+  const egr = (filtTipo === 'ingreso') ? [] : allEgresos.filter(e => {
+    if (e.confirmado === false) return false;
     if (filtCat && e.categoria !== filtCat) return false;
     if (filtMoneda && e.moneda !== filtMoneda) return false;
-    if (filtMes && (e.periodo || (e.fecha || '').slice(0, 7)) !== filtMes) return false;
+    if (filtMes && mesDe(e) !== filtMes) return false;
     if (filtDestino && (e.tipoCosto || 'Fijo') !== filtDestino) return false;
     return true;
-  });
+  }).map(e => ({ ...e, _tipo: 'egreso' }));
+
+  // Ingresos confirmados
+  const ing = (filtTipo === 'egreso' || soloEgresoPorFiltro) ? [] : allIngresos.filter(i => {
+    if (i.confirmado === false) return false;
+    if (filtMoneda && i.moneda !== filtMoneda) return false;
+    if (filtMes && mesDe(i) !== filtMes) return false;
+    return true;
+  }).map(i => ({ ...i, _tipo: 'ingreso' }));
+
+  const lista = [...egr, ...ing].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 
   if (!lista.length) {
     hide('egresos-table-wrap');
@@ -7093,42 +7217,75 @@ function renderEgresos() {
   show('egresos-table-wrap');
   hide('egresos-empty');
 
-  $('egresos-tbody').innerHTML = lista.map(e => {
-    const empInfo = e.nombreEmpleado
-      ? `<span class="egr-emp-name">${esc(e.nombreEmpleado)}</span>${e.rolPago ? ` <span class="egr-rol-badge">${esc(e.rolPago)}</span>` : ''}`
+  $('egresos-tbody').innerHTML = lista.map(m => {
+    const monto = parseFloat(m.monto) || 0;
+    if (m._tipo === 'ingreso') {
+      const clienteCell = m.cliente
+        ? `<span class="egr-evento-badge">${esc(m.cliente)}</span>`
+        : '<span class="mov-sincli">— sin cliente —</span>';
+      return `<tr class="mov-ingreso">
+        <td>${formatDate(m.fecha)}</td>
+        <td><span class="mov-tag mov-tag-in">Ingreso</span></td>
+        <td><span class="egr-cat-badge egr-cat-ingreso">${esc(m.tipoIngreso || 'Otro')}</span></td>
+        <td>${esc(m.notas || m.concepto || '—')}</td>
+        <td>—</td>
+        <td>${clienteCell}</td>
+        <td class="num-cell mov-monto-in">+ ${formatMoneda(monto, m.moneda)}</td>
+        <td class="egr-notas-cell">${esc(m.formaPago || '')}</td>
+        <td class="muted-cell">${esc(m.cargadoPor)}</td>
+        <td class="egr-acciones"></td>
+      </tr>`;
+    }
+    const empInfo = m.nombreEmpleado
+      ? `<span class="egr-emp-name">${esc(m.nombreEmpleado)}</span>${m.rolPago ? ` <span class="egr-rol-badge">${esc(m.rolPago)}</span>` : ''}`
       : '—';
     const acciones = isSuperAdmin()
-      ? `<button class="btn-egr-edit" data-row="${e.rowIndex}" title="Editar">✏️</button>
-         <button class="btn-egr-del" data-row="${e.rowIndex}" title="Borrar">🗑️</button>`
+      ? `<button class="btn-egr-edit" data-row="${m.rowIndex}" title="Editar">✏️</button>
+         <button class="btn-egr-del" data-row="${m.rowIndex}" title="Borrar">🗑️</button>`
       : '';
-    const eventoCell = e.idEvento
-      ? `<span class="egr-evento-badge">${esc(e.evento || e.idEvento)}</span>`
+    const eventoCell = m.idEvento
+      ? `<span class="egr-evento-badge">${esc(m.evento || m.idEvento)}</span>`
       : '<span class="egr-fijo-badge">Salón</span>';
-    return `<tr>
-      <td>${formatDate(e.fecha)}</td>
-      <td><span class="egr-cat-badge egr-cat-${(e.categoria||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z-]/g,'')}">${esc(e.categoria)}</span></td>
-      <td>${esc(e.concepto)}</td>
+    return `<tr class="mov-egreso">
+      <td>${formatDate(m.fecha)}</td>
+      <td><span class="mov-tag mov-tag-out">Egreso</span></td>
+      <td><span class="egr-cat-badge egr-cat-${(m.categoria||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z-]/g,'')}">${esc(m.categoria)}</span></td>
+      <td>${esc(m.concepto)}</td>
       <td>${empInfo}</td>
       <td>${eventoCell}</td>
-      <td class="num-cell">${formatMoneda(parseFloat(e.monto)||0, e.moneda)}</td>
-      <td class="egr-notas-cell">${esc(e.notas)}</td>
-      <td class="muted-cell">${esc(e.cargadoPor)}</td>
+      <td class="num-cell mov-monto-out">− ${formatMoneda(monto, m.moneda)}</td>
+      <td class="egr-notas-cell">${esc(m.notas)}</td>
+      <td class="muted-cell">${esc(m.cargadoPor)}</td>
       <td class="egr-acciones">${acciones}</td>
     </tr>`;
   }).join('');
 
-  const totalARS = lista.filter(e => e.moneda !== 'USD').reduce((s, e) => s + (parseFloat(e.monto)||0), 0);
-  const totalUSD = lista.filter(e => e.moneda === 'USD').reduce((s, e) => s + (parseFloat(e.monto)||0), 0);
+  // Totales: ingresos, egresos y neto (por moneda).
+  const suma = (arr, mon) => arr.filter(x => (mon === 'USD' ? x.moneda === 'USD' : x.moneda !== 'USD'))
+    .reduce((s, x) => s + (parseFloat(x.monto) || 0), 0);
+  const inARS = suma(ing, 'ARS'), egARS = suma(egr, 'ARS');
+  const inUSD = suma(ing, 'USD'), egUSD = suma(egr, 'USD');
+  const linea = (lbl, inV, egV, usd) => {
+    const fmt = usd
+      ? v => 'U$S ' + v.toLocaleString('es-AR', { minimumFractionDigits: 2 })
+      : v => formatMoney(v);
+    const parts = [];
+    if (inV > 0) parts.push(`<span class="mov-monto-in">+ ${fmt(inV)}</span>`);
+    if (egV > 0) parts.push(`<span class="mov-monto-out">− ${fmt(egV)}</span>`);
+    if (inV > 0 || egV > 0) {
+      const neto = inV - egV;
+      parts.push(`neto <strong class="${neto >= 0 ? 'mov-monto-in' : 'mov-monto-out'}">${neto < 0 ? '− ' : ''}${fmt(Math.abs(neto))}</strong>`);
+    }
+    return parts.length ? `<span class="mov-total-linea"><em>${lbl}</em> ${parts.join(' · ')}</span>` : '';
+  };
   const totalBar = $('egresos-total-bar');
-  let txt = `${lista.length} registros —`;
-  if (totalARS > 0) txt += ` <strong>${formatMoney(totalARS)}</strong>`;
-  if (totalUSD > 0) txt += `${totalARS > 0 ? ' +' : ''} <strong>U$S ${totalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})}</strong>`;
-  totalBar.innerHTML = txt;
+  totalBar.innerHTML = `<span class="mov-total-count">${lista.length} movimientos</span>` +
+    linea('ARS', inARS, egARS, false) + linea('USD', inUSD, egUSD, true);
   show('egresos-total-bar');
 }
 
 document.addEventListener('change', e => {
-  if (['egr-filtro-cat', 'egr-filtro-moneda', 'egr-filtro-mes', 'egr-filtro-destino']
+  if (['egr-filtro-tipo', 'egr-filtro-cat', 'egr-filtro-moneda', 'egr-filtro-mes', 'egr-filtro-destino']
       .includes(e.target.id)) renderEgresos();
 });
 
@@ -7275,6 +7432,7 @@ function openEditarIngreso(ingreso) {
   $('edi-forma').value = ingreso.formaPago || 'Efectivo';
   populateEgrEventoSelect('edi-cliente');
   $('edi-cliente').value = ingreso.idCliente || '';
+  syncBuscador('edi-cliente');
   $('edi-notas').value = ingreso.notas || '';
   hide('edi-error');
   show('modal-editar-ingreso');
@@ -7538,6 +7696,7 @@ function openEditarEgreso(egreso) {
   const esEvento = !!egreso.idEvento;
   document.querySelectorAll('input[name="ede-destino"]').forEach(r => { r.checked = r.value === (esEvento ? 'evento' : 'fijo'); });
   $('ede-evento').value = egreso.idEvento || '';
+  syncBuscador('ede-evento');
   $('ede-evento-group').classList.toggle('hidden', !esEvento);
 
   const esMateriaP = egreso.categoria === 'Materia Prima';

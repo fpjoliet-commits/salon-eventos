@@ -3723,3 +3723,49 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
   .pend-acciones { width: 100%; }
   .btn-pend-confirmar { flex: 1; }
 }
+
+/* ── Historial de movimientos: toggle ojito, tipos y buscador ── */
+.mov-toggle {
+  background: none; border: none; cursor: pointer;
+  font-size: inherit; font-weight: 700; color: inherit;
+  display: inline-flex; align-items: center; gap: .5rem; padding: 0;
+}
+.mov-toggle:hover { color: #2563eb; }
+.mov-toggle-eye { font-size: 1.15em; line-height: 1; }
+.movimientos-body { margin-top: .75rem; }
+
+.mov-tag {
+  display: inline-block; padding: .12rem .5rem; border-radius: 999px;
+  font-size: .75rem; font-weight: 700; white-space: nowrap;
+}
+.mov-tag-in { background: #dcfce7; color: #166534; }
+.mov-tag-out { background: #fee2e2; color: #991b1b; }
+.mov-monto-in { color: #16a34a; font-weight: 700; }
+.mov-monto-out { color: #dc2626; font-weight: 700; }
+.mov-sincli { color: #b45309; font-style: italic; font-size: .85em; }
+.egr-cat-ingreso { background: #dcfce7; color: #166534; }
+.mov-total-linea { margin-left: 1rem; }
+.mov-total-linea em { font-style: normal; color: #6b7280; font-weight: 600; margin-right: .25rem; }
+.mov-total-count { font-weight: 600; }
+tr.mov-ingreso td { background: rgba(22,163,74,.035); }
+
+/* Buscador (typeahead) sobre un <select> de eventos */
+.ev-combo { position: relative; }
+.ev-combo-select-oculto {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); border: 0;
+}
+.ev-combo-input {
+  width: 100%; padding: .55rem .7rem; border: 1px solid #cbd5e1;
+  border-radius: 8px; font-size: 1rem; box-sizing: border-box;
+}
+.ev-combo-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+.ev-combo-list {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 40;
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 8px;
+  margin-top: 2px; max-height: 260px; overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+.ev-combo-item { padding: .5rem .7rem; cursor: pointer; font-size: .95rem; }
+.ev-combo-item:hover, .ev-combo-item.active { background: #eff6ff; }
+.ev-combo-empty, .ev-combo-more { padding: .5rem .7rem; color: #6b7280; font-size: .85rem; }

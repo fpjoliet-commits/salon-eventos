@@ -715,6 +715,14 @@ app.get('/api/dashboard-data', auth, superAdminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Todos los ingresos confirmados (para el historial de movimientos del salón).
+app.get('/api/ingresos', auth, adminOnly, async (req, res) => {
+  try {
+    const ingresos = await sheets.getIngresos();
+    res.json(ingresos.filter(i => i.confirmado !== false));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Egresos
 app.get('/api/egresos', auth, adminOnly, async (req, res) => {
   try { res.json(await sheets.getEgresos()); }
