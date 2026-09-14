@@ -22,9 +22,14 @@ al resto de la app (arranca y avisa `🤖 Bot de Telegram inactivo`).
 
 Solo los chats habilitados pueden cargar (seguridad). Para saber el `chat_id`:
 
-1. Cada padre le escribe algo al bot (ej. "hola").
-2. Abrí en el navegador: `https://api.telegram.org/bot<TOKEN>/getUpdates`
-3. Buscá `"chat":{"id": 123456789 ...}`. Ese número es el chat de esa persona.
+**Forma fácil (recomendada):** la persona le escribe al bot (buscando `@joliet_mov_bot`
+o el link `https://t.me/<usuario_del_bot>`). Como todavía no está habilitada, el bot
+le responde con **su propio número de chat**. Te lo pasa y lo cargás. Sin webhook ni getUpdates.
+
+**Forma manual (con webhook activo, getUpdates viene vacío):** apagá el webhook con
+`https://api.telegram.org/bot<TOKEN>/deleteWebhook`, que la persona mande "hola",
+abrí `https://api.telegram.org/bot<TOKEN>/getUpdates`, buscá `"chat":{"id": 123456789 ...}`,
+y **volvé a registrar el webhook** con setWebhook (ver paso 5).
 
 Armá el mapa `chat_id:usuario` con los **usuarios del login del CRM**
 (`superadmin` = Fabio, `admin` = Mariana, `empleado` = Anita). ⚠️ Tiene que ser
