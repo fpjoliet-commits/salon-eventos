@@ -3732,6 +3732,7 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
 }
 .mov-toggle:hover { color: #2563eb; }
 .mov-toggle-eye { font-size: 1.15em; line-height: 1; }
+.mov-toggle-estado { font-size: .8rem; font-weight: 500; color: #6b7280; margin-left: .3rem; }
 .movimientos-body { margin-top: .75rem; }
 
 .mov-tag {

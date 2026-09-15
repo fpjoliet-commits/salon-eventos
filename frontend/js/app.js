@@ -7022,7 +7022,9 @@ function setupEgresosForm() {
       const body = $('movimientos-body');
       const abierto = !body.classList.toggle('hidden');   // toggle devuelve true si quedó hidden
       movToggle.setAttribute('aria-expanded', String(abierto));
-      movToggle.querySelector('.mov-toggle-eye').textContent = abierto ? '👁️' : '👁️‍🗨️';
+      movToggle.querySelector('.mov-toggle-eye').textContent = abierto ? '👁️' : '🙈';
+      const est = movToggle.querySelector('.mov-toggle-estado');
+      if (est) est.textContent = abierto ? '(tocá para ocultar)' : '(oculto — tocá para ver)';
     });
   }
 
@@ -7509,16 +7511,13 @@ document.addEventListener('click', async e => {
     return;
   }
 
-  // Descartar = borrar el borrador. Solo egresos se pueden borrar por ahora (ruta existente, superadmin).
-  if (tipo === 'ingreso') {
-    toast('Los cobros por confirmar todavía no se pueden descartar desde acá', 'error');
-    return;
-  }
-  if (!isSuperAdmin()) { toast('Solo el superadmin puede descartar', 'error'); return; }
-  if (!confirm('¿Descartar este borrador de gasto? No se puede deshacer.')) return;
+  // Descartar = borrar el borrador (cobro o gasto). Cada uno descarta lo suyo
+  // (la bandeja ya muestra solo los propios).
+  const queEs = tipo === 'ingreso' ? 'cobro' : 'gasto';
+  if (!confirm(`¿Descartar este borrador de ${queEs}? No se puede deshacer.`)) return;
   btn.disabled = true;
   try {
-    await apiFetch(`/egresos/${rowIndex}`, { method: 'DELETE' });
+    await apiFetch(`/${base}/${rowIndex}`, { method: 'DELETE' });
     toast('Borrador descartado');
     await loadPendientes();
   } catch (err) { btn.disabled = false; toast('Error: ' + err.message, 'error'); }

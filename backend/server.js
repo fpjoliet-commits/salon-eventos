@@ -95,20 +95,29 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
-// Visibilidad de movimientos. El superadmin (Lautaro/Fabio) ve TODO.
-// Un rol no-super ve lo que cargó con su propio usuario MÁS las etiquetas de
-// LABELS_VISIBLES: así Mariana entra como 'admin' y ve tanto lo cargado a mano
-// ('admin') como lo que mandó por el bot, etiquetado con su nombre ('Mariana').
-// La etiqueta (cargadoPor) es el "quién cargó" que se muestra; la visibilidad
-// se decide acá, separada de la etiqueta.
-const LABELS_VISIBLES = { admin: ['mariana'] };
-
-function soloPropiosSiNoSuper(items, req) {
-  if (req.user.role === 'superadmin') return items;
+// Qué etiquetas (cargadoPor) "posee" cada rol. cargadoPor es el nombre que se
+// MUESTRA (lo pone el bot: Lautaro/Fabio/Mariana; o el login a mano: superadmin/
+// admin/empleado). La visibilidad se decide acá, separada de la etiqueta.
+const ETIQUETAS_DE_ROL = {
+  superadmin: ['superadmin', 'lautaro', 'fabio'],
+  admin: ['admin', 'mariana'],
+  empleado: ['empleado', 'anita'],
+};
+function etiquetasPropias(req) {
   const yo = (req.user.usuario || '').toLowerCase();
-  const extra = (LABELS_VISIBLES[req.user.role] || []).map(s => s.toLowerCase());
-  const permitidos = new Set([yo, ...extra]);
-  return items.filter(m => permitidos.has((m.cargadoPor || '').toLowerCase()));
+  return new Set([yo, ...(ETIQUETAS_DE_ROL[req.user.role] || []).map(s => s.toLowerCase())]);
+}
+// HISTORIAL (confirmados): el superadmin ve TODO; el resto, solo lo suyo.
+function historialVisible(items, req) {
+  if (req.user.role === 'superadmin') return items;
+  const set = etiquetasPropias(req);
+  return items.filter(m => set.has((m.cargadoPor || '').toLowerCase()));
+}
+// POR CONFIRMAR (borradores): cada rol ve SOLO los suyos, superadmin incluido,
+// porque cada persona corrobora sus propios cobros/gastos. Sets disjuntos.
+function pendientesVisibles(items, req) {
+  const set = etiquetasPropias(req);
+  return items.filter(m => set.has((m.cargadoPor || '').toLowerCase()));
 }
 
 /* ===================== VALIDACIÓN DE ENTRADA =====================
@@ -329,6 +338,14 @@ app.post('/api/ingresos', auth, async (req, res) => {
 app.put('/api/ingresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) => {
   try {
     await sheets.confirmarIngreso(parseInt(req.params.rowIndex));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Descartar un cobro borrador desde la bandeja "Por confirmar".
+app.delete('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
+  try {
+    await sheets.deleteIngreso(parseInt(req.params.rowIndex));
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -735,13 +752,13 @@ app.get('/api/dashboard-data', auth, superAdminOnly, async (req, res) => {
 app.get('/api/ingresos', auth, adminOnly, async (req, res) => {
   try {
     const ingresos = await sheets.getIngresos();
-    res.json(soloPropiosSiNoSuper(ingresos.filter(i => i.confirmado !== false), req));
+    res.json(historialVisible(ingresos.filter(i => i.id && i.confirmado !== false), req));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Egresos
 app.get('/api/egresos', auth, adminOnly, async (req, res) => {
-  try { res.json(soloPropiosSiNoSuper(await sheets.getEgresos(), req)); }
+  try { res.json(historialVisible((await sheets.getEgresos()).filter(e => e.id), req)); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -751,8 +768,8 @@ app.get('/api/pendientes', auth, adminOnly, async (req, res) => {
   try {
     const [ingresos, egresos] = await Promise.all([sheets.getIngresos(), sheets.getEgresos()]);
     res.json({
-      ingresos: soloPropiosSiNoSuper(ingresos.filter(i => i.confirmado === false), req),
-      egresos: soloPropiosSiNoSuper(egresos.filter(e => e.confirmado === false), req),
+      ingresos: pendientesVisibles(ingresos.filter(i => i.id && i.confirmado === false), req),
+      egresos: pendientesVisibles(egresos.filter(e => e.id && e.confirmado === false), req),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

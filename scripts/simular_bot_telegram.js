@@ -91,6 +91,16 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
   const regAd = rAdic.registro || {};
   console.log(`▶ ADICIONAL mesa dulce: ${regAd.notas === 'Mesa dulce' ? 'concepto guardado ✓' : 'FALLÓ ✗'} atribuido=${rAdic.match ? rAdic.match.apellidoNombre : '(ninguno)'}`);
 
+  // ACLARACIÓN cobro/gasto: la IA no sabe el tipo (tipo=null) -> el bot pregunta
+  // con botones, se responde con el botón, y recién ahí pide confirmar.
+  const depsAcl = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: null, monto: 100000, moneda: 'ARS', concepto: 'Carrefour' }), descargarVoz: async () => '', answerCallback: async () => {} };
+  const a1 = await bot.processUpdate(updateTexto('100 mil Carrefour'), depsAcl);
+  const a2 = await bot.processUpdate({ update_id: 21, callback_query: { id: 'cbx', data: 'aclara:tipo:egreso', message: { chat: { id: 111 } } } }, depsAcl);
+  const a3 = await bot.processUpdate(updateTexto('sí'), depsAcl);
+  console.log(`\n▶ ACLARA cobro/gasto: ${a1.aclarando === 'tipo' ? 'preguntó ✓' : 'FALLÓ ✗'}` +
+              ` → tras botón "gasto": ${a2.pendiente ? 'pidió confirmar ✓' : 'FALLÓ ✗'}` +
+              ` → tras "sí": ${a3.tipo === 'egreso' && (a3.registro||{}).monto === 100000 ? 'cargó gasto ✓' : 'FALLÓ ✗'}`);
+
   // Chat NO habilitado: el bot debe responder con el chat_id para darlo de alta.
   const enviadosOnb = [];
   const depsOnb = { sheets, sendText: async (id, t) => enviadosOnb.push({ id, t }), chatMap, interpretar: async () => ({}), descargarVoz: async () => '' };

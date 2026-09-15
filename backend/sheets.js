@@ -488,6 +488,24 @@ async function confirmarIngreso(rowIndex) {
   });
 }
 
+// Borra (limpia) un ingreso — usado para descartar un borrador desde la bandeja.
+// Espejo de deleteEgreso: vacía la fila (A:P = 16 columnas) y conserva el rowIndex.
+async function deleteIngreso(rowIndex) {
+  if (!tieneCredenciales) {
+    const idx = memIngresos.findIndex(x => x.rowIndex === rowIndex);
+    if (idx !== -1) memIngresos[idx] = { rowIndex };
+    return { ok: true };
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Ingresos!A${rowIndex}:P${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [Array(16).fill('')] },
+  });
+  return { ok: true };
+}
+
 // Edita un ingreso (columnas B:P, sin tocar el id ni forzar confirmado).
 // El confirmado se preserva desde data: el modal manda el valor original, asi
 // un borrador editado sigue siendo borrador y uno confirmado sigue confirmado.
@@ -2421,7 +2439,7 @@ async function patchEvento(rowIndex, patch) {
 module.exports = {
   getPersonas, addPersona, updatePersona,
   getClientes, addCliente, updateCliente, deleteEvento, patchEvento,
-  getIngresos, addIngreso, confirmarIngreso, updateIngreso,
+  getIngresos, addIngreso, confirmarIngreso, updateIngreso, deleteIngreso,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,

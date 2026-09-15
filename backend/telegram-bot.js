@@ -95,7 +95,7 @@ const PROMPT_SISTEMA = `Sos un asistente que registra movimientos de dinero de u
 Te llega un mensaje (texto o audio) de un empleado describiendo un COBRO (entró plata) o un GASTO (salió plata).
 Devolvé SOLO un JSON válido, sin explicaciones ni markdown, con esta forma exacta:
 {
-  "tipo": "ingreso" | "egreso",
+  "tipo": "ingreso" | "egreso" | null,   // null SOLO si de verdad no se puede saber si entró o salió plata (te lo van a aclarar). No adivines a la fuerza.
   "monto": number,               // solo el número, sin puntos ni símbolos
   "moneda": "ARS" | "USD",       // "USD" si menciona dólares/verdes; si no, "ARS"
   "formaPago": "Efectivo" | "Transferencia" | "Cheque" | "Mercado Pago",
@@ -291,8 +291,8 @@ async function getPend(sheets, chatId) {
   await clearPend(sheets, chatId);
   return null;
 }
-async function setPend(sheets, chatId, ext) {
-  const e = { ext, ts: Date.now() };
+async function setPend(sheets, chatId, ext, faltante = '') {
+  const e = { ext, ts: Date.now(), faltante };
   _pend.set(chatId, e);
   if (sheets && sheets.setConfig) {
     try { await sheets.setConfig(claveConfig(chatId), JSON.stringify(e)); } catch { /* queda al menos en caché */ }
@@ -307,6 +307,28 @@ async function clearPend(sheets, chatId) {
 
 const PALABRAS_SI = new Set(['si', 'sii', 'sisi', 'dale', 'ok', 'oka', 'okey', 'confirmo', 'confirmar', 'cargalo', 'carga', 'cargá', 'va', 'listo', 'correcto', 'bien', 'perfecto']);
 const PALABRAS_NO = new Set(['no', 'nop', 'cancelar', 'cancela', 'borra', 'borralo', 'dejalo', 'anula', 'anular', 'mal']);
+const PALABRAS_COBRO = new Set(['cobro', 'ingreso', 'entro', 'entró', 'cobre', 'cobré', 'me pagaron', 'pagaron']);
+const PALABRAS_GASTO = new Set(['gasto', 'egreso', 'salio', 'salió', 'pague', 'pagué', 'compra', 'compre', 'compré']);
+
+// Botones para aclarar cobro vs gasto cuando la IA no lo pudo determinar sola.
+const TECLADO_TIPO = {
+  inline_keyboard: [[
+    { text: '🟢 Cobro (entró)', callback_data: 'aclara:tipo:ingreso' },
+    { text: '🔴 Gasto (salió)', callback_data: 'aclara:tipo:egreso' },
+  ]],
+};
+
+// Preguntas de aclaración: qué falta → texto + teclado. Se resuelven con un TOQUE,
+// sin volver a llamar a la IA (no gasta tokens de más).
+const PREGUNTAS = {
+  tipo: { texto: '🤔 Una sola cosa: ¿esto fue un *cobro* (entró plata) o un *gasto* (salió plata)?', teclado: TECLADO_TIPO },
+};
+
+// Primer dato que falta aclarar para poder registrar bien (o null si está todo).
+function primerFaltante(ext) {
+  if (ext.tipo !== 'ingreso' && ext.tipo !== 'egreso') return 'tipo';
+  return null;
+}
 
 // Pregunta de confirmación con el resumen de lo entendido.
 function textoPreguntaConfirmar(ext, match) {
@@ -355,6 +377,32 @@ async function cancelarPendiente(sheets, chatId, enviar) {
   return { cancelado: true };
 }
 
+// Con el ext (parcial o completo): si falta aclarar algo, lo pregunta con botones;
+// si está completo, muestra el resumen y pide la confirmación final (Sí/No).
+async function continuarConAclaraciones(sheets, chatId, enviar, ext) {
+  const falta = primerFaltante(ext);
+  if (falta) {
+    await setPend(sheets, chatId, ext, falta);
+    await enviar(chatId, PREGUNTAS[falta].texto, { reply_markup: PREGUNTAS[falta].teclado });
+    return { aclarando: falta };
+  }
+  const clientes = await sheets.getClientes().catch(() => []);
+  const match = ext.cliente ? matchCliente(ext.cliente, clientes) : null;
+  await setPend(sheets, chatId, ext);
+  await enviar(chatId, textoPreguntaConfirmar(ext, match), { reply_markup: TECLADO_SINO });
+  return { pendiente: ext };
+}
+
+// Aplica la respuesta de un botón de aclaración (callback "aclara:campo:valor").
+async function responderAclaracion(data, sheets, chatId, enviar) {
+  const pend = await getPend(sheets, chatId);
+  if (!pend) { await enviar(chatId, 'No hay nada pendiente. Reenviá el movimiento 🙂'); return { sin_pendiente: true }; }
+  const [, campo, valor] = data.split(':');
+  const ext = { ...pend.ext };
+  if (campo === 'tipo') ext.tipo = valor;
+  return continuarConAclaraciones(sheets, chatId, enviar, ext);
+}
+
 /* ─────────────────── Orquestador de un update (testeable) ────────────────── */
 
 async function processUpdate(update, deps) {
@@ -374,6 +422,7 @@ async function processUpdate(update, deps) {
     if (!usuario) return { ignorado: 'chat_no_autorizado' };
     if (cq.data === 'conf_si') return confirmarYCargar(sheets, chatId, usuario, enviar);
     if (cq.data === 'conf_no') return cancelarPendiente(sheets, chatId, enviar);
+    if (cq.data && cq.data.startsWith('aclara:')) return responderAclaracion(cq.data, sheets, chatId, enviar);
     return { ignorado: 'callback_desconocido' };
   }
 
@@ -397,6 +446,11 @@ async function processUpdate(update, deps) {
   const pend = await getPend(sheets, chatId);
   const textoPlano = msg.text ? normalizar(msg.text) : '';
   if (pend) {
+    // Si estábamos esperando que aclare cobro/gasto, aceptamos también la palabra tipeada.
+    if (pend.faltante === 'tipo' && textoPlano) {
+      if (PALABRAS_COBRO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...pend.ext, tipo: 'ingreso' });
+      if (PALABRAS_GASTO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...pend.ext, tipo: 'egreso' });
+    }
     if (textoPlano && PALABRAS_SI.has(textoPlano)) return confirmarYCargar(sheets, chatId, usuario, enviar);
     if (textoPlano && PALABRAS_NO.has(textoPlano)) return cancelarPendiente(sheets, chatId, enviar);
     // Cualquier otra cosa: se descarta el pendiente y se interpreta el mensaje nuevo.
@@ -443,12 +497,9 @@ async function processUpdate(update, deps) {
     return { ok: false, motivo: 'sin_monto' };
   }
 
-  // Se entendió: NO se carga todavía. Se guarda como pendiente y se pide confirmación.
-  const clientes = await sheets.getClientes().catch(() => []);
-  const match = ext.cliente ? matchCliente(ext.cliente, clientes) : null;
-  await setPend(sheets, chatId, ext);
-  await enviar(chatId, textoPreguntaConfirmar(ext, match), { reply_markup: TECLADO_SINO });
-  return { pendiente: ext };
+  // Se entendió el monto. Si falta aclarar algo (ej. cobro/gasto), lo pregunta con
+  // botones; si no, pide la confirmación final. Nada se carga hasta el "Sí".
+  return continuarConAclaraciones(sheets, chatId, enviar, ext);
 }
 
 /* ─────────────────────── Router de Express (webhook) ───────────────────────── */
