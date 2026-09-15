@@ -1755,6 +1755,8 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
   .sidebar-open .sidebar-backdrop { display: block; }
   .main-content { margin-left: 0; padding: 30px 34px; padding-top: 74px; }
   .demo-banner ~ #app .main-content { padding-top: 92px; }
+  /* Con el banner de demo (fijo arriba), bajamos la hamburguesa para que no lo tape */
+  .demo-banner ~ #app .menu-toggle { top: 46px; }
   .search-input { width: 240px; }
 }
 
@@ -2456,6 +2458,11 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 @media (max-width: 768px) {
   .egreso-form-row { grid-template-columns: 1fr; }
   .egresos-list-header { flex-direction: column; align-items: flex-start; }
+}
+
+/* Tablet en vertical (769–1024): 2 columnas en vez de 3 apretadas, campos más cómodos de tipear */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .egreso-form-row { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ===================== EGRESOS COCINA ===================== */
