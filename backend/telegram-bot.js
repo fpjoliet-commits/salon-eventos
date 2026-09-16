@@ -30,8 +30,25 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 // Tope de espera por intento a Gemini (ms). Si tarda más, se corta y reintenta.
 const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 45000;
 
-// El bot está "activo" solo si puede hablar con Telegram y con la IA.
-const BOT_ACTIVO = Boolean(TOKEN && GEMINI_API_KEY);
+// El bot está "activo" solo si puede hablar con Telegram y con la IA, Y si tiene
+// el secreto del webhook. Sin secreto, /api/webhook/telegram queda abierto:
+// cualquiera que conozca la URL puede postear updates falsos y meter borradores
+// en la contabilidad. Antes era opcional; ahora, sin secreto el bot no arranca
+// y la ruta ni siquiera se monta (falla cerrado, no abierto).
+const BOT_CONFIGURADO = Boolean(TOKEN && GEMINI_API_KEY);
+const BOT_ACTIVO = Boolean(BOT_CONFIGURADO && WEBHOOK_SECRET);
+
+if (BOT_CONFIGURADO && !WEBHOOK_SECRET) {
+  console.error('');
+  console.error('❌ BOT DE TELEGRAM DESACTIVADO — falta TELEGRAM_WEBHOOK_SECRET');
+  console.error('   El token y la API key están, pero sin secreto el webhook quedaría');
+  console.error('   abierto a cualquiera. Para reactivarlo:');
+  console.error('   1) Definí TELEGRAM_WEBHOOK_SECRET (inventá un texto largo).');
+  console.error('   2) Re-registrá el webhook en Telegram con ese mismo secreto:');
+  console.error('      https://api.telegram.org/bot<TOKEN>/setWebhook' +
+                '?url=https://salon-eventos.onrender.com/api/webhook/telegram&secret_token=<SECRETO>');
+  console.error('');
+}
 
 // Mapa chatId -> usuario del CRM. Solo estos chats pueden cargar (seguridad).
 function parsearChatMap(raw) {
@@ -272,7 +289,11 @@ async function descargarVoz(fileId, { fetchImpl = fetch } = {}) {
    El bot NO carga nada hasta que el usuario responde "sí". Así, si no confirma
    (o dice otra cosa), no se manda nada al sistema. Estado con vencimiento; si
    Render reinicia, se pierde el pendiente y se vuelve a mandar el movimiento. */
-const CONFIRM_TTL_MS = 30 * 60 * 1000;   // 30 min
+// Cuánto vive un borrador sin confirmar. Largo a propósito: los dueños mandan el
+// audio, salen del chat (tarda, cold start), y vuelven horas o al otro día a
+// confirmar/descartar — no queremos que para entonces "ya no haya nada". Como el
+// borrador es durable (Config), sobrevive reinicios; esto solo evita ghosts eternos.
+const CONFIRM_TTL_MS = (Number(process.env.BOT_PEND_TTL_DIAS) || 7) * 24 * 60 * 60 * 1000;
 const _pend = new Map();                  // caché en memoria: chatId -> { ext, ts }
 const claveConfig = chatId => 'botpend_' + chatId;
 
@@ -366,7 +387,22 @@ async function confirmarYCargar(sheets, chatId, usuario, enviar) {
     return { sin_pendiente: true };
   }
   const clientes = await sheets.getClientes().catch(() => []);
-  const borr = await crearBorrador(sheets, pend.ext, usuario, clientes);
+
+  // Si la escritura falla, el usuario tocó "Sí" y se queda esperando: sin este
+  // aviso creía que había quedado cargado. NO se borra el pendiente, así puede
+  // reintentar con un "sí" sin volver a dictar todo.
+  let borr;
+  try {
+    borr = await crearBorrador(sheets, pend.ext, usuario, clientes);
+  } catch (e) {
+    console.error('[telegram] crearBorrador:', e.message);
+    await enviar(chatId,
+      '⚠️ *No pude guardarlo* — hubo un problema con la planilla.\n\n' +
+      'No se cargó nada. Respondé *sí* para reintentar (me acuerdo del movimiento), ' +
+      'o cargalo a mano en el CRM.');
+    return { ok: false, error: e.message };
+  }
+
   await clearPend(sheets, chatId);
   await enviar(chatId, textoCargado(borr));
   return borr;
@@ -401,6 +437,14 @@ async function responderAclaracion(data, sheets, chatId, enviar) {
   const ext = { ...pend.ext };
   if (campo === 'tipo') ext.tipo = valor;
   return continuarConAclaraciones(sheets, chatId, enviar, ext);
+}
+
+// De dónde sacar el chat para avisar, venga el update como mensaje o como botón.
+function chatIdDe(update) {
+  const c = update?.message?.chat?.id
+         ?? update?.edited_message?.chat?.id
+         ?? update?.callback_query?.message?.chat?.id;
+  return c == null ? '' : String(c);
 }
 
 /* ─────────────────── Orquestador de un update (testeable) ────────────────── */
@@ -504,13 +548,45 @@ async function processUpdate(update, deps) {
 
 /* ─────────────────────── Router de Express (webhook) ───────────────────────── */
 
-// Anti-duplicados: Telegram reintenta. Recordamos los update_id ya procesados.
+/* Anti-duplicados: Telegram reintenta los updates que no recibieron un 200.
+   Antes la memoria de lo ya procesado era solo un Set en RAM, y Render duerme
+   el servicio todo el tiempo: la secuencia "llega el update → el server tarda
+   en despertar → Telegram reintenta → el server ya reinició y perdió el Set"
+   cargaba el movimiento DOS VECES. Ahora la lista vive también en la hoja
+   Config, así sobrevive a reinicios y redeploys.
+
+   Se marca como visto ANTES de procesar: si algo falla, preferimos perder el
+   reintento (el usuario recibe el aviso de error) antes que cargar dos veces
+   el mismo cobro. */
+const VISTOS_MAX = 100;               // alcanza de sobra para la ventana de reintentos
+const CLAVE_VISTOS = 'bot_updates_vistos';
 const _vistos = new Set();
-function yaVisto(id) {
+let _vistosHidratados = false;
+
+async function yaVisto(id, sheets) {
   if (id == null) return false;
+
+  if (!_vistosHidratados && sheets && sheets.getConfig) {
+    try {
+      const raw = (await sheets.getConfig())[CLAVE_VISTOS];
+      if (raw) JSON.parse(raw).forEach(x => _vistos.add(x));
+    } catch { /* Config inaccesible: seguimos solo con la memoria */ }
+    _vistosHidratados = true;
+  }
+
   if (_vistos.has(id)) return true;
   _vistos.add(id);
-  if (_vistos.size > 2000) _vistos.clear();
+
+  // El Set conserva el orden de inserción: nos quedamos con los más recientes.
+  if (_vistos.size > VISTOS_MAX) {
+    const recientes = [..._vistos].slice(-VISTOS_MAX);
+    _vistos.clear();
+    recientes.forEach(x => _vistos.add(x));
+  }
+  if (sheets && sheets.setConfig) {
+    try { await sheets.setConfig(CLAVE_VISTOS, JSON.stringify([..._vistos])); }
+    catch { /* al menos queda en memoria */ }
+  }
   return false;
 }
 
@@ -518,17 +594,26 @@ function crearRouter(sheets) {
   const router = express.Router();
 
   router.post('/webhook/telegram', async (req, res) => {
-    // Validación del secreto (si está configurado).
-    if (WEBHOOK_SECRET && req.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) {
+    // El secreto ya no es opcional: sin él el router ni se monta (ver BOT_ACTIVO).
+    if (req.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) {
       return res.sendStatus(401);
     }
     res.sendStatus(200); // respondemos rápido; procesamos después
+    const update = req.body;
     try {
-      const update = req.body;
-      if (yaVisto(update?.update_id)) return;
+      if (await yaVisto(update?.update_id, sheets)) return;
       await processUpdate(update, { sheets });
     } catch (e) {
+      // Red de seguridad: cualquier error no contemplado más adentro. Sin esto
+      // el usuario mandaba su audio y no recibía absolutamente nada.
       console.error('[telegram] error procesando update:', e.message);
+      const chatId = chatIdDe(update);
+      if (chatId) {
+        await sendText(chatId,
+          '⚠️ Tuve un problema y *no pude procesar el mensaje*. No se cargó nada.\n\n' +
+          'Reenvialo en un minuto, o cargalo a mano en el CRM.')
+          .catch(() => { /* si tampoco podemos avisar, ya quedó en el log */ });
+      }
     }
   });
 
@@ -537,15 +622,19 @@ function crearRouter(sheets) {
 
 module.exports = {
   BOT_ACTIVO,
+  BOT_CONFIGURADO,
   crearRouter,
   // Exportados para el simulador / tests:
   processUpdate,
   crearBorrador,
   matchCliente,
   parsearJSON,
+  chatIdDe,
   textoConfirmacion,
   interpretarConGemini,
   _chatMap: CHAT_MAP,
   // Solo para tests: simula un reinicio del server vaciando la caché en memoria.
   _vaciarCacheParaTest: () => _pend.clear(),
+  yaVisto,
+  _vaciarVistosParaTest: () => { _vistos.clear(); _vistosHidratados = false; },
 };
