@@ -258,13 +258,14 @@ async function sendText(chatId, text, { fetchImpl = fetch, reply_markup } = {}) 
   }).catch(e => console.error('[telegram] sendText:', e.message));
 }
 
-// Botones inline Sí / No para la confirmación.
-const TECLADO_SINO = {
+// Botones inline Sí / No para la confirmación. Llevan el ID del borrador, así cada
+// mensaje confirma/descarta SU propio movimiento (aunque haya varios pendientes).
+const tecladoSino = (draftId) => ({
   inline_keyboard: [[
-    { text: '✅ Sí, cargar', callback_data: 'conf_si' },
-    { text: '❌ No', callback_data: 'conf_no' },
+    { text: '✅ Sí, cargar', callback_data: 'conf_si:' + draftId },
+    { text: '❌ No', callback_data: 'conf_no:' + draftId },
   ]],
-};
+});
 
 // Corta el "relojito" del botón después de tocarlo.
 async function answerCallback(cqId, { fetchImpl = fetch } = {}) {
@@ -285,45 +286,59 @@ async function descargarVoz(fileId, { fetchImpl = fetch } = {}) {
   return Buffer.from(buf).toString('base64');
 }
 
-/* ─────────────────── Confirmación por Telegram (estado en memoria) ──────────
-   El bot NO carga nada hasta que el usuario responde "sí". Así, si no confirma
-   (o dice otra cosa), no se manda nada al sistema. Estado con vencimiento; si
-   Render reinicia, se pierde el pendiente y se vuelve a mandar el movimiento. */
-// Cuánto vive un borrador sin confirmar. Largo a propósito: los dueños mandan el
-// audio, salen del chat (tarda, cold start), y vuelven horas o al otro día a
-// confirmar/descartar — no queremos que para entonces "ya no haya nada". Como el
-// borrador es durable (Config), sobrevive reinicios; esto solo evita ghosts eternos.
+/* ─────────────────── Borradores pendientes por Telegram ──────────────────────
+   El bot NO carga nada hasta que el usuario toca "Sí". Pueden ACUMULARSE varios
+   borradores por chat: cada uno tiene su propio ID y sus propios botones, así el
+   dueño manda tres audios seguidos y confirma cada uno cuando quiere, en cualquier
+   orden, sin esperar. Cada borrador se guarda en su propia clave de Config
+   (botpend_<chatId>_<draftId>): es durable (sobrevive reinicios) y, al ser claves
+   separadas, confirmar uno mientras llega otro NO se pisan (sin race conditions). */
+// Cuánto vive un borrador sin confirmar (largo: mandan el audio, se van, vuelven
+// horas o al otro día). Como es durable, esto solo evita fantasmas eternos.
 const CONFIRM_TTL_MS = (Number(process.env.BOT_PEND_TTL_DIAS) || 7) * 24 * 60 * 60 * 1000;
-const _pend = new Map();                  // caché en memoria: chatId -> { ext, ts }
-const claveConfig = chatId => 'botpend_' + chatId;
+const _pend = new Map();                  // caché: 'botpend_<chatId>_<draftId>' -> entry
+const draftKey = (chatId, draftId) => `botpend_${chatId}_${draftId}`;
+const nuevoDraftId = () => 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 
-// El pendiente se GUARDA de forma durable en la hoja Config (clave-valor), no solo
-// en RAM. Así sobrevive a reinicios/redeploys y al dormido de Render: si tus padres
-// tardan en tocar "Sí", el pendiente sigue ahí. El Map es solo una caché rápida.
-async function getPend(sheets, chatId) {
-  let e = _pend.get(chatId);
-  if (!e && sheets && sheets.getConfig) {
-    try {
-      const raw = (await sheets.getConfig())[claveConfig(chatId)];
-      if (raw) e = JSON.parse(raw);
-    } catch { /* Config inaccesible: seguimos con lo que haya en caché */ }
+async function guardarDraft(sheets, chatId, draftId, ext, faltante = '') {
+  const e = { chatId, draftId, ext, ts: Date.now(), faltante };
+  _pend.set(draftKey(chatId, draftId), e);
+  if (sheets && sheets.setConfig) {
+    try { await sheets.setConfig(draftKey(chatId, draftId), JSON.stringify(e)); } catch { /* queda en caché */ }
   }
-  if (e && Date.now() - e.ts < CONFIRM_TTL_MS) { _pend.set(chatId, e); return e; }
-  await clearPend(sheets, chatId);
+  return e;
+}
+async function leerDraft(sheets, chatId, draftId) {
+  const key = draftKey(chatId, draftId);
+  let e = _pend.get(key);
+  if (!e && sheets && sheets.getConfig) {
+    try { const raw = (await sheets.getConfig())[key]; if (raw) e = JSON.parse(raw); } catch { /* Config inaccesible */ }
+  }
+  if (e && Date.now() - e.ts < CONFIRM_TTL_MS) { _pend.set(key, e); return e; }
+  if (e) await borrarDraft(sheets, chatId, draftId);
   return null;
 }
-async function setPend(sheets, chatId, ext, faltante = '') {
-  const e = { ext, ts: Date.now(), faltante };
-  _pend.set(chatId, e);
+async function borrarDraft(sheets, chatId, draftId) {
+  _pend.delete(draftKey(chatId, draftId));
   if (sheets && sheets.setConfig) {
-    try { await sheets.setConfig(claveConfig(chatId), JSON.stringify(e)); } catch { /* queda al menos en caché */ }
+    try { await sheets.setConfig(draftKey(chatId, draftId), ''); } catch { /* nada que hacer */ }
   }
 }
-async function clearPend(sheets, chatId) {
-  _pend.delete(chatId);
-  if (sheets && sheets.setConfig) {
-    try { await sheets.setConfig(claveConfig(chatId), ''); } catch { /* nada que hacer */ }
+// Borradores vigentes de un chat, del más nuevo al más viejo.
+async function listarDrafts(sheets, chatId) {
+  const prefijo = `botpend_${chatId}_`;
+  const mapa = new Map();
+  if (sheets && sheets.getConfig) {
+    try {
+      const cfg = await sheets.getConfig();
+      for (const k of Object.keys(cfg)) {
+        if (k.startsWith(prefijo) && cfg[k]) { try { mapa.set(k, JSON.parse(cfg[k])); } catch {} }
+      }
+    } catch { /* Config inaccesible: usamos la caché */ }
   }
+  for (const [k, e] of _pend) if (k.startsWith(prefijo)) mapa.set(k, e);
+  const now = Date.now();
+  return [...mapa.values()].filter(e => e && now - e.ts < CONFIRM_TTL_MS).sort((a, b) => b.ts - a.ts);
 }
 
 const PALABRAS_SI = new Set(['si', 'sii', 'sisi', 'dale', 'ok', 'oka', 'okey', 'confirmo', 'confirmar', 'cargalo', 'carga', 'cargá', 'va', 'listo', 'correcto', 'bien', 'perfecto']);
@@ -331,18 +346,18 @@ const PALABRAS_NO = new Set(['no', 'nop', 'cancelar', 'cancela', 'borra', 'borra
 const PALABRAS_COBRO = new Set(['cobro', 'ingreso', 'entro', 'entró', 'cobre', 'cobré', 'me pagaron', 'pagaron']);
 const PALABRAS_GASTO = new Set(['gasto', 'egreso', 'salio', 'salió', 'pague', 'pagué', 'compra', 'compre', 'compré']);
 
-// Botones para aclarar cobro vs gasto cuando la IA no lo pudo determinar sola.
-const TECLADO_TIPO = {
+// Botones para aclarar cobro vs gasto (llevan el ID del borrador).
+const tecladoTipo = (draftId) => ({
   inline_keyboard: [[
-    { text: '🟢 Cobro (entró)', callback_data: 'aclara:tipo:ingreso' },
-    { text: '🔴 Gasto (salió)', callback_data: 'aclara:tipo:egreso' },
+    { text: '🟢 Cobro (entró)', callback_data: `aclara:${draftId}:tipo:ingreso` },
+    { text: '🔴 Gasto (salió)', callback_data: `aclara:${draftId}:tipo:egreso` },
   ]],
-};
+});
 
-// Preguntas de aclaración: qué falta → texto + teclado. Se resuelven con un TOQUE,
-// sin volver a llamar a la IA (no gasta tokens de más).
+// Preguntas de aclaración: qué falta → texto + teclado (builder). Se resuelven con
+// un TOQUE, sin volver a llamar a la IA (no gasta tokens de más).
 const PREGUNTAS = {
-  tipo: { texto: '🤔 Una sola cosa: ¿esto fue un *cobro* (entró plata) o un *gasto* (salió plata)?', teclado: TECLADO_TIPO },
+  tipo: { texto: '🤔 Una sola cosa: ¿esto fue un *cobro* (entró plata) o un *gasto* (salió plata)?', teclado: tecladoTipo },
 };
 
 // Primer dato que falta aclarar para poder registrar bien (o null si está todo).
@@ -379,64 +394,64 @@ function textoCargado(borr) {
          `Quedó en *Por confirmar* del CRM para la confirmación final del admin.`;
 }
 
-// Carga el pendiente (usado por el botón "Sí" y por el "sí" tipeado).
-async function confirmarYCargar(sheets, chatId, usuario, enviar) {
-  const pend = await getPend(sheets, chatId);
-  if (!pend) {
-    await enviar(chatId, 'No hay nada pendiente para confirmar. Mandá el movimiento de nuevo 🙂');
+// Carga UN borrador (por su ID). Usado por el botón "Sí" y por el "sí" tipeado.
+async function confirmarYCargar(sheets, chatId, usuario, enviar, draftId) {
+  const draft = draftId ? await leerDraft(sheets, chatId, draftId) : null;
+  if (!draft) {
+    await enviar(chatId, 'Ese movimiento ya no está (lo confirmaste, lo descartaste, o pasó mucho tiempo). Si hace falta, reenvialo 🙂');
     return { sin_pendiente: true };
   }
   const clientes = await sheets.getClientes().catch(() => []);
 
   // Si la escritura falla, el usuario tocó "Sí" y se queda esperando: sin este
-  // aviso creía que había quedado cargado. NO se borra el pendiente, así puede
-  // reintentar con un "sí" sin volver a dictar todo.
+  // aviso creía que había quedado cargado. NO se borra el borrador, así puede
+  // reintentar tocando el botón otra vez sin volver a dictar todo.
   let borr;
   try {
-    borr = await crearBorrador(sheets, pend.ext, usuario, clientes);
+    borr = await crearBorrador(sheets, draft.ext, usuario, clientes);
   } catch (e) {
     console.error('[telegram] crearBorrador:', e.message);
     await enviar(chatId,
       '⚠️ *No pude guardarlo* — hubo un problema con la planilla.\n\n' +
-      'No se cargó nada. Respondé *sí* para reintentar (me acuerdo del movimiento), ' +
+      'No se cargó nada. Tocá *Sí* de nuevo para reintentar (me acuerdo del movimiento), ' +
       'o cargalo a mano en el CRM.');
     return { ok: false, error: e.message };
   }
 
-  await clearPend(sheets, chatId);
+  await borrarDraft(sheets, chatId, draftId);
   await enviar(chatId, textoCargado(borr));
   return borr;
 }
-async function cancelarPendiente(sheets, chatId, enviar) {
-  await clearPend(sheets, chatId);
+async function cancelarPendiente(sheets, chatId, enviar, draftId) {
+  if (draftId) await borrarDraft(sheets, chatId, draftId);
   await enviar(chatId, 'Ok, lo descarté 👍 No cargué nada.');
   return { cancelado: true };
 }
 
-// Con el ext (parcial o completo): si falta aclarar algo, lo pregunta con botones;
-// si está completo, muestra el resumen y pide la confirmación final (Sí/No).
-async function continuarConAclaraciones(sheets, chatId, enviar, ext) {
+// Con el ext (parcial o completo) y el ID del borrador: si falta aclarar algo, lo
+// pregunta con botones; si está completo, muestra el resumen y pide confirmación.
+async function continuarConAclaraciones(sheets, chatId, enviar, ext, draftId) {
   const falta = primerFaltante(ext);
   if (falta) {
-    await setPend(sheets, chatId, ext, falta);
-    await enviar(chatId, PREGUNTAS[falta].texto, { reply_markup: PREGUNTAS[falta].teclado });
-    return { aclarando: falta };
+    await guardarDraft(sheets, chatId, draftId, ext, falta);
+    await enviar(chatId, PREGUNTAS[falta].texto, { reply_markup: PREGUNTAS[falta].teclado(draftId) });
+    return { aclarando: falta, draftId };
   }
   const clientes = await sheets.getClientes().catch(() => []);
   const match = ext.cliente ? matchCliente(ext.cliente, clientes) : null;
-  await setPend(sheets, chatId, ext);
-  await enviar(chatId, textoPreguntaConfirmar(ext, match), { reply_markup: TECLADO_SINO });
-  return { pendiente: ext };
+  await guardarDraft(sheets, chatId, draftId, ext, '');
+  await enviar(chatId, textoPreguntaConfirmar(ext, match), { reply_markup: tecladoSino(draftId) });
+  return { pendiente: ext, draftId };
 }
 
-// Aplica la respuesta de un botón de aclaración (callback "aclara:campo:valor").
+// Aplica la respuesta de un botón de aclaración (callback "aclara:<draftId>:campo:valor").
 async function responderAclaracion(data, sheets, chatId, enviar) {
-  const pend = await getPend(sheets, chatId);
-  if (!pend) { await enviar(chatId, 'No hay nada pendiente. Reenviá el movimiento 🙂'); return { sin_pendiente: true }; }
-  const [, campo, valor] = data.split(':');
-  const ext = { ...pend.ext };
+  const [, draftId, campo, valor] = data.split(':');
+  const draft = draftId ? await leerDraft(sheets, chatId, draftId) : null;
+  if (!draft) { await enviar(chatId, 'Ese movimiento ya no está. Si hace falta, reenvialo 🙂'); return { sin_pendiente: true }; }
+  const ext = { ...draft.ext };
   if (campo === 'tipo') ext.tipo = valor;
-  return continuarConAclaraciones(sheets, chatId, enviar, ext);
+  return continuarConAclaraciones(sheets, chatId, enviar, ext, draftId);
 }
 
 // De dónde sacar el chat para avisar, venga el update como mensaje o como botón.
@@ -464,9 +479,10 @@ async function processUpdate(update, deps) {
     await responder(cq.id);                       // corta el relojito del botón
     const usuario = chatMap[chatId];
     if (!usuario) return { ignorado: 'chat_no_autorizado' };
-    if (cq.data === 'conf_si') return confirmarYCargar(sheets, chatId, usuario, enviar);
-    if (cq.data === 'conf_no') return cancelarPendiente(sheets, chatId, enviar);
-    if (cq.data && cq.data.startsWith('aclara:')) return responderAclaracion(cq.data, sheets, chatId, enviar);
+    const data = cq.data || '';
+    if (data.startsWith('conf_si:')) return confirmarYCargar(sheets, chatId, usuario, enviar, data.slice(8));
+    if (data.startsWith('conf_no:')) return cancelarPendiente(sheets, chatId, enviar, data.slice(8));
+    if (data.startsWith('aclara:')) return responderAclaracion(data, sheets, chatId, enviar);
     return { ignorado: 'callback_desconocido' };
   }
 
@@ -486,19 +502,26 @@ async function processUpdate(update, deps) {
     return { ignorado: 'chat_no_autorizado', chatId };
   }
 
-  // ── ¿Hay algo esperando confirmación en este chat? ──
-  const pend = await getPend(sheets, chatId);
+  // ── Respuesta corta (sí/no/cobro/gasto) tipeada: aplica al borrador MÁS RECIENTE.
+  // Los botones siguen siendo la forma precisa para cada movimiento; esto es el atajo
+  // por texto. Solo dispara si el mensaje es EXACTAMENTE una de esas palabras. ──
   const textoPlano = msg.text ? normalizar(msg.text) : '';
-  if (pend) {
-    // Si estábamos esperando que aclare cobro/gasto, aceptamos también la palabra tipeada.
-    if (pend.faltante === 'tipo' && textoPlano) {
-      if (PALABRAS_COBRO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...pend.ext, tipo: 'ingreso' });
-      if (PALABRAS_GASTO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...pend.ext, tipo: 'egreso' });
+  const esRespuestaCorta = textoPlano &&
+    (PALABRAS_SI.has(textoPlano) || PALABRAS_NO.has(textoPlano) ||
+     PALABRAS_COBRO.has(textoPlano) || PALABRAS_GASTO.has(textoPlano));
+  if (esRespuestaCorta) {
+    const drafts = await listarDrafts(sheets, chatId);
+    if (!drafts.length) {
+      await enviar(chatId, 'No hay ningún movimiento esperando confirmación 🙂 Mandame el cobro o gasto.');
+      return { ignorado: 'sin_pendiente_para_respuesta' };
     }
-    if (textoPlano && PALABRAS_SI.has(textoPlano)) return confirmarYCargar(sheets, chatId, usuario, enviar);
-    if (textoPlano && PALABRAS_NO.has(textoPlano)) return cancelarPendiente(sheets, chatId, enviar);
-    // Cualquier otra cosa: se descarta el pendiente y se interpreta el mensaje nuevo.
-    await clearPend(sheets, chatId);
+    const ultimo = drafts[0];
+    if (ultimo.faltante === 'tipo') {
+      if (PALABRAS_COBRO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...ultimo.ext, tipo: 'ingreso' }, ultimo.draftId);
+      if (PALABRAS_GASTO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...ultimo.ext, tipo: 'egreso' }, ultimo.draftId);
+    }
+    if (PALABRAS_SI.has(textoPlano)) return confirmarYCargar(sheets, chatId, usuario, enviar, ultimo.draftId);
+    if (PALABRAS_NO.has(textoPlano)) return cancelarPendiente(sheets, chatId, enviar, ultimo.draftId);
   }
 
   let input = null;
@@ -541,9 +564,10 @@ async function processUpdate(update, deps) {
     return { ok: false, motivo: 'sin_monto' };
   }
 
-  // Se entendió el monto. Si falta aclarar algo (ej. cobro/gasto), lo pregunta con
-  // botones; si no, pide la confirmación final. Nada se carga hasta el "Sí".
-  return continuarConAclaraciones(sheets, chatId, enviar, ext);
+  // Se entendió el monto. Es un movimiento NUEVO: le damos su propio ID y se suma a
+  // los que ya haya pendientes (no pisa a los anteriores). Si falta aclarar algo
+  // (ej. cobro/gasto) lo pregunta; si no, pide confirmación. Nada se carga hasta el "Sí".
+  return continuarConAclaraciones(sheets, chatId, enviar, ext, nuevoDraftId());
 }
 
 /* ─────────────────────── Router de Express (webhook) ───────────────────────── */

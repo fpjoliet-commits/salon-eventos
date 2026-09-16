@@ -55,16 +55,16 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
 
   // Caso extra: confirmar tocando el BOTÓN (callback_query) en vez de tipear.
   const depsBtn = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 33000, moneda: 'ARS', categoria: 'Mantenimiento', concepto: 'arreglo' }), descargarVoz: async () => '', answerCallback: async () => {} };
-  await bot.processUpdate(updateTexto('arreglo 33 mil'), depsBtn);
-  const rBtn = await bot.processUpdate({ update_id: 999, callback_query: { id: 'cb1', data: 'conf_si', message: { chat: { id: 111 } } } }, depsBtn);
+  const pBtn = await bot.processUpdate(updateTexto('arreglo 33 mil'), depsBtn);
+  const rBtn = await bot.processUpdate({ update_id: 999, callback_query: { id: 'cb1', data: 'conf_si:' + pBtn.draftId, message: { chat: { id: 111 } } } }, depsBtn);
   console.log(`\n▶ Confirmar con BOTÓN: ${rBtn.ok ? 'cargó ✓ ($' + rBtn.registro.monto + ')' : 'FALLÓ'}`);
 
   // Caso extra: REINICIO del server entre la pregunta y el "Sí".
   // El pendiente debe sobrevivir (está en Config), no perderse con la caché.
   const depsReinicio = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 50000, moneda: 'ARS', categoria: 'Servicios', concepto: 'internet' }), descargarVoz: async () => '', answerCallback: async () => {} };
-  await bot.processUpdate(updateTexto('internet 50 mil'), depsReinicio);
+  const pRe = await bot.processUpdate(updateTexto('internet 50 mil'), depsReinicio);
   bot._vaciarCacheParaTest();   // ← simula que Render reinició (RAM vacía)
-  const rRe = await bot.processUpdate({ update_id: 1001, callback_query: { id: 'cb2', data: 'conf_si', message: { chat: { id: 111 } } } }, depsReinicio);
+  const rRe = await bot.processUpdate({ update_id: 1001, callback_query: { id: 'cb2', data: 'conf_si:' + pRe.draftId, message: { chat: { id: 111 } } } }, depsReinicio);
   const regRe = rRe.registro || {};
   console.log(`\n▶ Confirmar tras REINICIO: ${regRe.monto ? 'recuperó el pendiente y cargó ✓ ($' + regRe.monto + ')' : 'FALLÓ (se perdió el pendiente) ✗'}`);
 
@@ -95,11 +95,23 @@ function updateTexto(texto) { return { update_id: Math.random(), message: { chat
   // con botones, se responde con el botón, y recién ahí pide confirmar.
   const depsAcl = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: null, monto: 100000, moneda: 'ARS', concepto: 'Carrefour' }), descargarVoz: async () => '', answerCallback: async () => {} };
   const a1 = await bot.processUpdate(updateTexto('100 mil Carrefour'), depsAcl);
-  const a2 = await bot.processUpdate({ update_id: 21, callback_query: { id: 'cbx', data: 'aclara:tipo:egreso', message: { chat: { id: 111 } } } }, depsAcl);
+  const a2 = await bot.processUpdate({ update_id: 21, callback_query: { id: 'cbx', data: 'aclara:' + a1.draftId + ':tipo:egreso', message: { chat: { id: 111 } } } }, depsAcl);
   const a3 = await bot.processUpdate(updateTexto('sí'), depsAcl);
   console.log(`\n▶ ACLARA cobro/gasto: ${a1.aclarando === 'tipo' ? 'preguntó ✓' : 'FALLÓ ✗'}` +
               ` → tras botón "gasto": ${a2.pendiente ? 'pidió confirmar ✓' : 'FALLÓ ✗'}` +
               ` → tras "sí": ${a3.tipo === 'egreso' && (a3.registro||{}).monto === 100000 ? 'cargó gasto ✓' : 'FALLÓ ✗'}`);
+
+  // MÚLTIPLES borradores en un mismo chat: dos mensajes seguidos crean dos borradores
+  // independientes; se confirma el PRIMERO por su ID (con el segundo aún pendiente) y
+  // después el segundo. Simula "mandó dos gastos sin esperar a confirmar el primero".
+  const depsM1 = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 11111, moneda: 'ARS', categoria: 'Servicios', concepto: 'gasto A' }), descargarVoz: async () => '', answerCallback: async () => {} };
+  const depsM2 = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 22222, moneda: 'ARS', categoria: 'Bebidas', concepto: 'gasto B' }), descargarVoz: async () => '', answerCallback: async () => {} };
+  const m1 = await bot.processUpdate(updateTexto('gasto A'), depsM1);
+  const m2 = await bot.processUpdate(updateTexto('gasto B'), depsM2);
+  const cA = await bot.processUpdate({ update_id: 301, callback_query: { id: 'cbA', data: 'conf_si:' + m1.draftId, message: { chat: { id: 111 } } } }, depsM1);
+  const cB = await bot.processUpdate({ update_id: 302, callback_query: { id: 'cbB', data: 'conf_si:' + m2.draftId, message: { chat: { id: 111 } } } }, depsM2);
+  const okMulti = m1.draftId && m2.draftId && m1.draftId !== m2.draftId && (cA.registro || {}).monto === 11111 && (cB.registro || {}).monto === 22222;
+  console.log(`\n▶ MÚLTIPLES borradores: A=$${(cA.registro || {}).monto} B=$${(cB.registro || {}).monto} ${okMulti ? '✓ dos borradores independientes, confirmados por separado' : '✗ FALLÓ'}`);
 
   // Chat NO habilitado: el bot debe responder con el chat_id para darlo de alta.
   const enviadosOnb = [];
