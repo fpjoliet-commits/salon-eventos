@@ -4377,6 +4377,9 @@ const RECORRIDO = {
 // Cada adicional elegido se presenta con una línea: qué es, sin sumarle
 // detalles de servicio inventados.
 const ADICIONALES_RELATO = {
+  'Sushiman':                       'Sushi preparado en el momento mientras llegan los invitados.',
+  'Música en vivo':                 'Un músico o dúo tocando durante la recepción.',
+  'Show o ambientación de fondo':   'Un número o una ambientación que acompaña la llegada.',
   'Candy Bar':                      'Mesa de golosinas para picar durante la fiesta.',
   'Diversos Shows':                 'Magia, danza, acróbatas o humor. El número se define según la temática.',
   'Cabina de Instagram':            'Un sector ambientado para las fotos de los invitados.',
@@ -5049,15 +5052,15 @@ function portadaImgFor(tipo) {
   // van SOLO en XV años. Mostrarle una quinceañera a alguien que viene por un
   // bautismo o un corporativo arruina la propuesta antes de empezar.
   const map = {
-    'XV años':     'img/propuesta/portada.jpeg',
-    'Boda':        'img/propuesta/mesa-elegante.jpeg',
-    'Cumpleaños':  'img/propuesta/fiesta.jpeg',
-    'Bautismo':    'img/propuesta/mesa-elegante.jpeg',
-    'Comunión':    'img/propuesta/mesa-elegante.jpeg',
-    'Egresados':   'img/propuesta/fiesta.jpeg',
-    'Corporativo': 'img/propuesta/mesa-elegante.jpeg',
+    'XV años':     'img/propuesta/joliet/mesa-centro.jpg',      // la única que dice "Mis XV"
+    'Boda':        'img/propuesta/joliet/casamiento-letras.jpg',
+    'Cumpleaños':  'img/propuesta/joliet/pista-a-pleno.jpg',
+    'Bautismo':    'img/propuesta/joliet/mesa-tematica.jpg',
+    'Comunión':    'img/propuesta/joliet/mesa-tematica.jpg',
+    'Egresados':   'img/propuesta/joliet/baile-grupo.jpg',
+    'Corporativo': 'img/propuesta/joliet/salon-montado.jpg',
   };
-  return map[tipo] || 'img/propuesta/salon.jpg.jpeg';
+  return map[tipo] || 'img/propuesta/joliet/fachada-noche.jpg';
 }
 
 function updatePortadaImage() {
@@ -5895,10 +5898,13 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   // Cada foto tiene su punto de mira: con un recorte tan apaisado, el centro
   // geométrico corta cabezas
   const encuadrePortada = {
-    'img/propuesta/mesa-elegante.jpeg': 'center 22%',
-    'img/propuesta/fiesta.jpeg':        'center 42%',
-    'img/propuesta/portada.jpeg':       'center 30%',
-    'img/propuesta/salon.jpg.jpeg':     'center 52%',
+    'img/propuesta/joliet/mesa-centro.jpg':       'center 42%',
+    'img/propuesta/joliet/casamiento-letras.jpg': 'center 38%',
+    'img/propuesta/joliet/pista-a-pleno.jpg':     'center 40%',
+    'img/propuesta/joliet/mesa-tematica.jpg':     'center 46%',
+    'img/propuesta/joliet/baile-grupo.jpg':       'center 34%',
+    'img/propuesta/joliet/salon-montado.jpg':     'center 52%',
+    'img/propuesta/joliet/fachada-noche.jpg':     'center 55%',
   };
   const imgPortada = portadaImgFor(d.tipoEvento);
   const posPortada = encuadrePortada[imgPortada] || 'center 40%';
@@ -6080,10 +6086,12 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
 
   // ---- Adicionales ----
   const ADIC_GRUPOS = [
-    { label: 'Para la recepción', items: ['Candy Bar'] },
-    { label: 'Entre platos & Shows', items: ['Diversos Shows', 'Robot de Luces', 'Música & Entretenimiento'] },
+    // Orden cronológico de la fiesta. El Candy Bar NO es de recepción: se
+    // habilita sobre el fin de fiesta, y va junto al cotillón.
+    { label: 'Para la recepción', items: ['Sushiman', 'Música en vivo', 'Show o ambientación de fondo'] },
     { label: 'Cabinas & Momentos', items: ['Cabina de Instagram', 'Cabina de Glitter', 'Cabina de Fotos'] },
-    { label: 'Decoración & Cotillón', items: ['Cotillón Premium', 'Cotillón Premium Personalizado'] },
+    { label: 'Entre platos & Shows', items: ['Diversos Shows', 'Robot de Luces', 'Música & Entretenimiento'] },
+    { label: 'Dulces & Cotillón', items: ['Candy Bar', 'Cotillón Premium', 'Cotillón Premium Personalizado'] },
   ];
   const adicGrupos = ADIC_GRUPOS.map(g => {
     const found = (d.adicionales||[]).filter(a => g.items.includes(a));

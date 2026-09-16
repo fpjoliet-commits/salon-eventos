@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
   <link rel="stylesheet" href="css/style.css?v=20260915a-mov">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260916b-share">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260916c-fotos">
   <link rel="stylesheet" href="css/ux.css?v=20260911k">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
@@ -1492,10 +1492,10 @@
       <!-- Pre-slide: datos de contacto antes de arrancar -->
       <div id="propuesta-preform" class="propuesta-preform hidden">
         <div class="preform-stage" aria-hidden="true">
-          <div class="preform-photo" style="background-image:url('img/propuesta/salon.jpg.jpeg')"></div>
-          <div class="preform-photo" style="background-image:url('img/propuesta/jardin-espacio.webp')"></div>
-          <div class="preform-photo" style="background-image:url('img/propuesta/mesa-elegante.jpeg')"></div>
-          <div class="preform-photo" style="background-image:url('img/propuesta/fiesta.jpeg')"></div>
+          <div class="preform-photo" style="background-image:url('img/propuesta/joliet/fachada-noche.jpg')"></div>
+          <div class="preform-photo" style="background-image:url('img/propuesta/joliet/salon-tematico.jpg')"></div>
+          <div class="preform-photo" style="background-image:url('img/propuesta/joliet/mesa-tematica.jpg')"></div>
+          <div class="preform-photo" style="background-image:url('img/propuesta/joliet/pista-a-pleno.jpg')"></div>
         </div>
         <div class="preform-overlay"></div>
         <div class="preform-content">
@@ -1538,8 +1538,8 @@
 
         <!-- Slide 1: Portada -->
         <div class="propuesta-slide propuesta-slide-portada" data-slide="1">
-          <div class="portada-photo" id="portada-photo" style="background-image:url('img/propuesta/salon.jpg.jpeg')"></div>
-          <div class="portada-photo-fg" id="portada-photo-fg" style="background-image:url('img/propuesta/salon.jpg.jpeg')"></div>
+          <div class="portada-photo" id="portada-photo" style="background-image:url('img/propuesta/joliet/fachada-noche.jpg')"></div>
+          <div class="portada-photo-fg" id="portada-photo-fg" style="background-image:url('img/propuesta/joliet/fachada-noche.jpg')"></div>
           <div class="portada-overlay"></div>
           <div class="portada-content">
             <img src="img/logo.png" alt="Joliet Eventos" class="propuesta-logo-img" onerror="this.style.display='none'">
@@ -1580,17 +1580,17 @@
           <h2 class="propuesta-slide-title">¿Dónde los recibimos?</h2>
           <div class="espacio-fork-grid" id="espacio-cards">
             <div class="propuesta-card espacio-card" data-value="Interior">
-              <div class="espacio-photo" style="background-image:url('img/propuesta/fiesta.jpeg')"></div>
+              <div class="espacio-photo" style="background-image:url('img/propuesta/joliet/salon-tematico.jpg')"></div>
               <span class="espacio-label">Salón interior</span>
               <span class="espacio-sub">Luces, bolas de espejo, ambiente único</span>
             </div>
             <div class="propuesta-card espacio-card" data-value="Jardín">
-              <div class="espacio-photo" style="background-image:url('img/propuesta/jardin-espacio.webp')"></div>
+              <div class="espacio-photo" style="background-image:url('img/propuesta/joliet/bar-jardin.jpg')"></div>
               <span class="espacio-label">Jardín</span>
               <span class="espacio-sub" id="espacio-jardin-sub">Al aire libre, entre el verde y las luces</span>
             </div>
             <div class="propuesta-card espacio-card" data-value="Combinado">
-              <div class="espacio-photo" style="background-image:url('img/propuesta/salon.jpg.jpeg');background-position:center 45%"></div>
+              <div class="espacio-photo" style="background-image:url('img/propuesta/joliet/portada-arco.jpg')"></div>
               <span class="espacio-label">Combinado</span>
               <span class="espacio-sub">Interior y jardín, lo mejor de los dos</span>
             </div>
@@ -1602,7 +1602,7 @@
           <h2 class="propuesta-slide-title">¿Cómo lo imaginás?</h2>
           <div class="estilo-fork-grid" id="estilo-cards">
             <div class="estilo-fork-card estilo-formal" data-estilo="Formal">
-              <div class="fork-photo" style="background-image:url('img/propuesta/mesa-elegante.jpeg');background-position:center 38%"></div>
+              <div class="fork-photo" style="background-image:url('img/propuesta/joliet/mesa-tematica.jpg')"></div>
               <div class="fork-overlay"></div>
               <div class="fork-content">
                 <div class="fork-tag">La experiencia completa</div>
@@ -1613,7 +1613,7 @@
               <div class="fork-check">✓</div>
             </div>
             <div class="estilo-fork-card estilo-americano" data-estilo="Americano">
-              <div class="fork-photo" style="background-image:url('img/propuesta/fiesta.jpeg')"></div>
+              <div class="fork-photo" style="background-image:url('img/propuesta/joliet/invitados-de-pie.jpg')"></div>
               <div class="fork-overlay"></div>
               <div class="fork-content">
                 <div class="fork-tag">Libre y festivo</div>
@@ -1714,88 +1714,123 @@
         <div class="propuesta-slide" data-slide="8">
           <h2 class="propuesta-slide-title">Hacelo único</h2>
           <p class="propuesta-slide-sub">Sumá lo que lo hace tuyo</p>
-          <div class="adicionales-grid">
-            <label class="adicional-card">
-              <input type="checkbox" value="Candy Bar">
-              <div class="adicional-inner">
-                <span class="adicional-ico">🍭</span>
-                <span class="adicional-name">Candy Bar</span>
-                <span class="adicional-desc">Para los que no pueden parar</span>
+          <div class="adicionales-grid adicionales-grupos">
+            <div class="adic-grupo">
+              <div class="adic-grupo-ph" style="background-image:url('img/propuesta/joliet/servicio-vertical-2.jpg')">
+                <span class="adic-grupo-k">Para la recepción</span>
               </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card has-photo">
-              <input type="checkbox" value="Diversos Shows">
-              <div class="adicional-photo" style="background-image:url('img/propuesta/shows.jpg')"></div>
-              <div class="adicional-inner adicional-overlay">
-                <span class="adicional-name">Diversos Shows</span>
-                <span class="adicional-desc">Magia, danza, acróbatas, humor — el momento que nadie se espera</span>
+              <label class="adicional-card">
+                <input type="checkbox" value="Sushiman">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Sushiman</span>
+                  <span class="adicional-desc">Preparado en el momento, mientras llegan los invitados</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Música en vivo">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Música en vivo</span>
+                  <span class="adicional-desc">Un músico o dúo durante la recepción</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Show o ambientación de fondo">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Show o ambientación de fondo</span>
+                  <span class="adicional-desc">Un número que acompaña la llegada</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+            </div>
+            <div class="adic-grupo">
+              <div class="adic-grupo-ph" style="background-image:url('img/propuesta/joliet/cabina-de-fotos.jpg')">
+                <span class="adic-grupo-k">Cabinas & Momentos</span>
               </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card">
-              <input type="checkbox" value="Cabina de Instagram">
-              <div class="adicional-inner">
-                <span class="adicional-ico">🤳</span>
-                <span class="adicional-name">Cabina de Instagram</span>
-                <span class="adicional-desc">El rincón que todos van a querer</span>
+              <label class="adicional-card">
+                <input type="checkbox" value="Cabina de Instagram">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Cabina de Instagram</span>
+                  <span class="adicional-desc">El rincón que todos van a querer</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Cabina de Glitter">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Cabina de Glitter</span>
+                  <span class="adicional-desc">Brillá toda la noche</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Cabina de Fotos">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Cabina de Fotos</span>
+                  <span class="adicional-desc">El recuerdo que se llevan a casa</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+            </div>
+            <div class="adic-grupo">
+              <div class="adic-grupo-ph" style="background-image:url('img/propuesta/joliet/show-en-la-pista.jpg')">
+                <span class="adic-grupo-k">Entre platos & Shows</span>
               </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card">
-              <input type="checkbox" value="Cabina de Glitter">
-              <div class="adicional-inner">
-                <span class="adicional-ico">✨</span>
-                <span class="adicional-name">Cabina de Glitter</span>
-                <span class="adicional-desc">Brillá toda la noche</span>
+              <label class="adicional-card">
+                <input type="checkbox" value="Diversos Shows">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Diversos Shows</span>
+                  <span class="adicional-desc">Magia, danza, acróbatas, humor — el momento que nadie se espera</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Robot de Luces">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Robot de Luces</span>
+                  <span class="adicional-desc">Un espectáculo que se mueve entre la gente</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Música &amp; Entretenimiento">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Música &amp; Entretenimiento</span>
+                  <span class="adicional-desc">DJ, bandas en vivo, cuarteto — múltiples propuestas</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+            </div>
+            <div class="adic-grupo">
+              <div class="adic-grupo-ph" style="background-image:url('img/propuesta/joliet/candy-bar.jpg')">
+                <span class="adic-grupo-k">Dulces & Cotillón</span>
               </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card">
-              <input type="checkbox" value="Cabina de Fotos">
-              <div class="adicional-inner">
-                <span class="adicional-ico">📸</span>
-                <span class="adicional-name">Cabina de Fotos</span>
-                <span class="adicional-desc">El recuerdo que se llevan a casa</span>
-              </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card">
-              <input type="checkbox" value="Robot de Luces">
-              <div class="adicional-inner">
-                <span class="adicional-ico">🤖</span>
-                <span class="adicional-name">Robot de Luces</span>
-                <span class="adicional-desc">Un espectáculo que se mueve entre la gente</span>
-              </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card has-photo">
-              <input type="checkbox" value="Música & Entretenimiento">
-              <div class="adicional-photo" style="background-image:url('img/propuesta/fiesta.jpeg')"></div>
-              <div class="adicional-inner adicional-overlay">
-                <span class="adicional-name">Música & Entretenimiento</span>
-                <span class="adicional-desc">DJ, bandas en vivo, cuarteto — múltiples propuestas</span>
-              </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card">
-              <input type="checkbox" value="Cotillón Premium">
-              <div class="adicional-inner">
-                <span class="adicional-ico">🎊</span>
-                <span class="adicional-name">Cotillón Premium</span>
-                <span class="adicional-desc">Selección de alta calidad · gorros, souvletas, serpentinas y mucho más</span>
-              </div>
-              <div class="adicional-check">✓</div>
-            </label>
-            <label class="adicional-card has-photo">
-              <input type="checkbox" value="Cotillón Premium Personalizado">
-              <div class="adicional-photo" style="background-image:url('img/propuesta/cotilon-personalizado.jpg')"></div>
-              <div class="adicional-inner adicional-overlay">
-                <span class="adicional-name">Cotillón Premium Personalizado</span>
-                <span class="adicional-desc">Todo lo anterior · temática a medida · coordinamos con nuestra decoradora</span>
-              </div>
-              <div class="adicional-check">✓</div>
-            </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Candy Bar">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Candy Bar</span>
+                  <span class="adicional-desc">Para los que no pueden parar</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Cotillón Premium">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Cotillón Premium</span>
+                  <span class="adicional-desc">Gorros, souvletas, serpentinas y mucho más</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+              <label class="adicional-card">
+                <input type="checkbox" value="Cotillón Premium Personalizado">
+                <div class="adicional-inner">
+                  <span class="adicional-name">Cotillón Premium Personalizado</span>
+                  <span class="adicional-desc">Temática a medida · coordinamos con nuestra decoradora</span>
+                </div>
+                <div class="adicional-check">✓</div>
+              </label>
+            </div>
           </div>
           <div class="foto-promo">📷 Fotógrafos y camarógrafos de nuestra cartera — consultanos</div>
           <div class="propuesta-todo-posible">Todo lo que imaginás, se puede hacer. Esta es una base — cualquier idea, show, decoración o servicio extra se puede sumar. No hay propuesta cerrada.</div>
@@ -1845,7 +1880,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260916b-share"></script>
+  <script src="js/app.js?v=20260916c-fotos"></script>
   <script src="js/propuesta-ui.js?v=20260911k-kb"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>

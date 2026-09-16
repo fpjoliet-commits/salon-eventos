@@ -603,6 +603,75 @@
   font-style: italic;
 }
 
+/* ---- Adicionales agrupados (slide 8) ----
+   Cuatro columnas, una por momento de la fiesta, en orden cronológico.
+   La foto va a nivel de GRUPO y no de ítem: de los 12 adicionales solo
+   cuatro tienen foto propia, y mezclar fichas con foto y fichas con ícono
+   se leía como que faltaban imágenes. Así los cuatro grupos tienen la suya
+   y no queda ningún hueco. La foto estira para ocupar lo que sobra, de modo
+   que las cuatro columnas cierran a la misma altura. */
+.adicionales-grupos {
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 1120px;
+  gap: 14px;
+  align-items: stretch;
+}
+.adic-grupo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 7px;
+}
+.adic-grupo-ph {
+  position: relative;
+  flex: 1;
+  min-height: 74px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+}
+.adic-grupo-ph::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(8,7,5,.92) 0%, rgba(8,7,5,.2) 62%, rgba(8,7,5,0) 100%);
+}
+.adic-grupo-k {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 2;
+  padding: 0 11px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.9);
+  line-height: 1.25;
+}
+/* Dentro de un grupo la ficha es una fila compacta, no un cuadro grande */
+.adicionales-grupos .adicional-card {
+  min-height: 0;
+  background: rgba(255,255,255,.03);
+}
+.adicionales-grupos .adicional-inner {
+  align-items: flex-start;
+  text-align: left;
+  padding: 9px 11px;
+  gap: 3px;
+}
+.adicionales-grupos .adicional-name { font-size: 12.5px; }
+.adicionales-grupos .adicional-desc { font-size: 10.5px; line-height: 1.3; }
+.adicionales-grupos .adicional-check {
+  top: 6px; right: 6px; width: 18px; height: 18px; font-size: 9.5px;
+}
+
+/* En vertical (tablet parada) no entran cuatro columnas: van de a dos */
+@media (max-width: 900px) {
+  .adicionales-grupos { grid-template-columns: repeat(2, 1fr); }
+  .adic-grupo-ph { min-height: 62px; }
+}
+
 /* ---- Adicionales grid (slide 8) ---- */
 .adicionales-grid {
   display: grid;
