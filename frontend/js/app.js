@@ -3268,7 +3268,7 @@ const MENU_COCINA = {
 const PASTAS_OPT = [
   'Tagliatelle', 'Sorrentinos de jamón y queso', 'Canelones de verdura y ricota',
   'Canelones de carne', 'Lasaña',
-  'Ravioloni de espinaca y parmesano', 'Agnolotis de pollo', 'Ñoquis de papa',
+  'Ravioloni de espinaca y parmesano', 'Agnolotis de pollo', 'Gnocchis de papa',
 ];
 const PASTAS_GOURMET_OPT = [
   'Sorrentinos de trucha y almendras', 'Fagotinnis de cordero y romero', 'Sorrentinos de salmón y philadelphia',
@@ -5239,7 +5239,7 @@ const PRIMER_PLATO_DATA = {
     { name: 'Lasaña' },
     { name: 'Ravioloni de espinaca y parmesano' },
     { name: 'Agnolotis de pollo' },
-    { name: 'Ñoquis de papa' },
+    { name: 'Gnocchis de papa' },
   ],
   pastasGourmet: [
     'Fetuccine Nero di sepia',
@@ -5753,6 +5753,9 @@ function buildPropuestaResumen() {
   const container = $('propuesta-resumen');
   if (!container) return;
 
+  // Botón compartir de vuelta en paso 1 (descargar) y panel oculto
+  resetBotonCompartir();
+
   const estilo = d.estilo || 'Formal';
   const gastroData = GASTRO_DATA[estilo];
   const isFormal = estilo === 'Formal';
@@ -5962,7 +5965,7 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   const recepcionHTML = `
     <div class="mb-sublbl">Canapés fríos</div>
     <ul class="mi">
-      ${mkRow('Bocado mediterráneo','Mozzarella, tomate cherry, albahaca y sal en escamas',['V','SC'])}
+      ${mkRow('Bocado mediterráneo','Mozzarella, tomate cherry, albahaca y sal en escamas',['V'])}
       ${mkRow('Jamón Imperial','Jamón natural, mayonesa de huevo de codorniz y pimentón dulce español')}
       ${mkRow('Palma Serrana','Crema de palmitos con virutas de jamón ibérico y toque de oliva')}
       ${mkRow('Azul y Nuez','Queso azul, nueces trituradas y miel',['V'])}
@@ -6114,7 +6117,7 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Propuesta · Joliet Eventos</title>
+<title>${esc(nombreArchivoPropuesta(d, tipo))}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -6382,7 +6385,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Maître, mozos, chef, barman y coordinadora general</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Mantelería a elección y centros de mesa incluidos</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Cristalería y cubertería completa</span></div>
-    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Agua, gaseosas, cerveza, vino, sidra y champagne</span></div>
+    <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Agua, gaseosas de primera marca, vino, sidra y champagne</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Bar de tragos para la recepción o ${diurno ? 'todo el evento' : 'toda la noche'}</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Iluminación de diseño y provisiones completas</span></div>
     <div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">Coordinación integral y seguimiento personalizado</span></div>
@@ -6667,6 +6670,142 @@ ${tipo === 'contrato' ? (() => {
   setTimeout(() => esperarYImprimir(), 400);
 }
 
+/* ---- Compartir la propuesta: arma el PDF y ofrece enviarla por
+   WhatsApp / Gmail al contacto cargado en el pre-form (nombre/tel/mail) ---- */
+
+// Normaliza un teléfono a formato WhatsApp (wa.me) para Argentina.
+// Devuelve solo dígitos con código de país 54 y el 9 de celular.
+function normalizarTelWhatsapp(tel) {
+  let n = String(tel || '').replace(/\D/g, '');
+  if (!n) return '';
+  if (n.startsWith('54')) {
+    // asegurar el 9 de celular después del 54
+    if (!n.startsWith('549')) n = '549' + n.slice(2);
+    return n;
+  }
+  n = n.replace(/^0/, '');          // saca el 0 de área
+  return '549' + n;                 // AR celular
+}
+
+// Mensaje pre-armado que acompaña el envío de la propuesta
+function mensajePropuesta(d) {
+  const nombre = (d.nombre || '').trim().split(/\s+/)[0] || '';
+  const evento = d.tipoEvento ? ` para ${d.tipoEvento}` : '';
+  const fecha = d.fecha ? ` del ${formatDate(d.fecha)}` : '';
+  const saludo = nombre ? `Hola ${nombre}! ` : 'Hola! ';
+  return `${saludo}Te comparto la propuesta${evento}${fecha} de Joliet Eventos. ` +
+         `Te adjunto el PDF con todos los detalles. Cualquier consulta quedamos a disposición.`;
+}
+
+// Nombre de archivo CLARO y único para el PDF (es el que sugiere el navegador
+// al guardar, porque sale del <title> de la ventana de impresión).
+// Ej: "Propuesta Joliet - Boda - Sofia y Juan - 2026-03-14"
+function nombreArchivoPropuesta(d, tipo) {
+  const pref = tipo === 'contrato' ? 'Contrato Joliet' : 'Propuesta Joliet';
+  const quien = [d.tipoEvento, (d.agasajado || d.nombre || '').trim()].filter(Boolean).join(' - ');
+  const partes = [pref, quien, d.fecha || ''].filter(Boolean).join(' - ');
+  return partes
+    .replace(/[\\/:*?"<>|]+/g, ' ')   // caracteres inválidos en nombres de archivo
+    .replace(/\s+/g, ' ')
+    .trim() || 'Propuesta Joliet Eventos';
+}
+
+// URLs de envío (mismo mensaje pre-armado)
+function waUrlPropuesta(d, tel) {
+  return `https://wa.me/${tel}?text=${encodeURIComponent(mensajePropuesta(d))}`;
+}
+function gmailUrlPropuesta(d, email) {
+  const su = `Propuesta Joliet Eventos${d.tipoEvento ? ' — ' + d.tipoEvento : ''}`;
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}` +
+         `&su=${encodeURIComponent(su)}&body=${encodeURIComponent(mensajePropuesta(d))}`;
+}
+
+// Muestra los botones de envío directo según los datos del contacto
+function renderPropuestaShare(d) {
+  const panel = $('prop-share-panel');
+  if (!panel) return;
+  const tel = normalizarTelWhatsapp(d.telefono);
+  const email = (d.gmail || '').trim();
+  const botones = [];
+
+  if (tel) {
+    botones.push(`<a class="btn-final btn-share btn-share-wa" href="${waUrlPropuesta(d, tel)}" target="_blank" rel="noopener">` +
+      `<span class="share-ico">📱</span> Enviar por WhatsApp<span class="share-dest">${esc(d.telefono)}</span></a>`);
+  }
+  if (email) {
+    botones.push(`<a class="btn-final btn-share btn-share-mail" href="${gmailUrlPropuesta(d, email)}" target="_blank" rel="noopener">` +
+      `<span class="share-ico">✉️</span> Enviar por Gmail<span class="share-dest">${esc(email)}</span></a>`);
+  }
+
+  panel.innerHTML =
+    `<div class="share-titulo">Adjuntá el PDF descargado y envialo a ${esc((d.nombre || '').trim() || 'tu cliente')}:</div>` +
+    `<div class="share-botones">${botones.join('')}</div>`;
+  panel.classList.remove('hidden');
+}
+
+// Deja el botón compartir en su estado inicial (paso 1)
+function resetBotonCompartir() {
+  const btn = $('btn-descargar-pdf');
+  if (!btn) return;
+  btn.dataset.step = '1';
+  delete btn.dataset.canal;
+  btn.textContent = '⬇ Descargar propuesta';
+  const panel = $('prop-share-panel');
+  if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
+}
+
+// Handler del botón — 2 pasos:
+//   Paso 1: descarga el PDF (nombre claro).
+//   Paso 2: te lleva a WhatsApp / Gmail con el archivo ya descargado para adjuntar.
+function compartirPropuesta() {
+  const btn = $('btn-descargar-pdf');
+  readPropuestaData();
+  const d = propuestaState.data;
+  const tel = normalizarTelWhatsapp(d.telefono);
+  const email = (d.gmail || '').trim();
+  const panel = $('prop-share-panel');
+  const step = btn?.dataset.step || '1';
+
+  // ----- PASO 1: descargar -----
+  if (step === '1') {
+    if (d.clienteId) { try { savePropuestaLocal(d.clienteId, { ...d }); } catch {} }
+    generatePropuestaPDF();   // abre la ventana del PDF con nombre de archivo claro
+
+    if (!tel && !email) {
+      if (panel) {
+        panel.innerHTML = `<div class="share-nota">✓ PDF listo para guardar. ` +
+          `Para enviarlo directo, cargá un teléfono o email en el contacto y volvé a intentar.</div>`;
+        panel.classList.remove('hidden');
+      }
+      if (btn) btn.textContent = '⬇ Descargar de nuevo';
+      return;
+    }
+
+    if (panel) {
+      panel.innerHTML = `<div class="share-nota">✓ Guardá el PDF que se abrió. ` +
+        `Después tocá <strong>Enviar</strong> y adjuntalo en el chat/mail.</div>`;
+      panel.classList.remove('hidden');
+    }
+    if (btn) {
+      btn.dataset.step = '2';
+      if (tel && email)  { btn.textContent = 'Enviar propuesta →'; btn.dataset.canal = 'ambos'; }
+      else if (tel)      { btn.textContent = 'Enviar por WhatsApp →'; btn.dataset.canal = 'wa'; }
+      else               { btn.textContent = 'Enviar por Gmail →'; btn.dataset.canal = 'mail'; }
+    }
+    return;
+  }
+
+  // ----- PASO 2: enviar -----
+  const canal = btn?.dataset.canal;
+  if (canal === 'wa' && tel)          { window.open(waUrlPropuesta(d, tel), '_blank', 'noopener'); }
+  else if (canal === 'mail' && email) { window.open(gmailUrlPropuesta(d, email), '_blank', 'noopener'); }
+  else {
+    // Ambos canales: mostrar las dos opciones para elegir
+    renderPropuestaShare(d);
+    panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
 // Listeners de propuesta (se registran una vez al cargar el DOM)
 (function initPropuestaListeners() {
   $('btn-prop-comenzar')?.addEventListener('click', () => goToPropuestaSlide(2));
@@ -6774,7 +6913,7 @@ ${tipo === 'contrato' ? (() => {
     $('preform-draft')?.classList.add('hidden');
   });
 
-  $('btn-descargar-pdf')?.addEventListener('click', generatePropuestaPDF);
+  $('btn-descargar-pdf')?.addEventListener('click', compartirPropuesta);
 
   // Pre-form: comenzar propuesta
   $('btn-preform-comenzar')?.addEventListener('click', startPropuestaSlides);
