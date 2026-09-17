@@ -4427,7 +4427,7 @@ function applyMomentoTheme() {
   set('prop-bebidas-detail', 'Agua · Gaseosas de primera marca · Vino · Sidra · Champagne');
   set('prop-bebidas-disclaimer', diurno ? '* Los licores durante el evento no están incluidos en el precio base'
                                          : '* Los licores durante la cena no están incluidos en el precio base');
-  set('prop-s9-title', diurno ? 'El banquete de tu día' : 'El banquete de tu noche');
+  set('prop-s9-title', (propuestaState.data.estilo === 'Americano') ? 'Las islas en vivo' : 'El primer plato');
 
   // Línea de confirmación del momento (bajo las cards de turno)
   const hint = document.getElementById('momento-hint');
@@ -4441,7 +4441,7 @@ function applyMomentoTheme() {
 
 const propuestaState = {
   current: 1,
-  total: 11,
+  total: 14,
   data: {
     nombre: '', telefono: '', gmail: '', clienteId: null,
     estilo: '', tipoEvento: '', agasajado: '', cumpleAnios: '', fecha: '', turno: '',
@@ -4449,6 +4449,7 @@ const propuestaState = {
     espacio: '', adicionales: [], gastroAdicionales: [],
     pastasSeleccionadas: [], pastasGourmetSeleccionadas: [],
     salsasSeleccionadas: [], salsasGourmetSeleccionadas: [],
+    barraNivel: 'Clásica',
     platoCentral: '', platoCentralCarne: [],
     pedidos: ''
   }
@@ -4928,6 +4929,8 @@ function startPropuestaWithSavedState(cliente, saved, opt = {}) {
   document.querySelectorAll('#view-propuesta .adicionales-grid input[type="checkbox"]').forEach(cb => {
     cb.checked = (saved.adicionales || []).includes(cb.value);
   });
+  const nivelBarra = document.querySelector(`input[name="barra-nivel"][value="${CSS.escape(saved.barraNivel || 'Clásica')}"]`);
+  if (nivelBarra) nivelBarra.checked = true;
 
   const arrancar = () => {
     hideEl($('propuesta-preform'));
@@ -4994,9 +4997,9 @@ function updatePropuestaNav() {
 }
 
 function goToPropuestaSlide(n) {
-  if (propuestaState.current === 9) {
+  if (propuestaState.current === 9 || propuestaState.current === 10) {
     propuestaState.data.gastroAdicionales = [];
-    document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
+    document.querySelectorAll(GASTRO_SEL + ' input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
       propuestaState.data.gastroAdicionales.push(cb.value);
     });
     const d = propuestaState.data;
@@ -5021,18 +5024,27 @@ function goToPropuestaSlide(n) {
   const slide = document.querySelector(`.propuesta-slide[data-slide="${n}"]`);
   if (slide) slide.classList.add('active');
   const container = document.querySelector('.propuesta-slides-container');
-  if (container) container.scrollTop = 0;
+  if (container) {
+    container.scrollTop = 0;
+    // Los pasos de foto grande sacan el margen del contenedor para ir a
+    // sangre. Se marca por clase y no con :has() para no depender del motor.
+    container.classList.toggle('plena', !!slide?.classList.contains('propuesta-slide-plena'));
+  }
   updatePropuestaNav();
   applyMomentoTheme();
   window.syncPropuestaGrupos?.();
   window.updatePropuestaScenery?.();
   readPropuestaData();
   savePropuestaDraft();
-  if (n === 3) checkFechaDisponible();
+  actualizarContadorAutor();
+  if (n === 4) checkFechaDisponible();
   if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
-  if (n === 9) buildGastroSlide();
-  if (n === 11) buildPropuestaResumen();
+  if (n === 8) buildRecepcionCarta();
+  // La carta se arma entera de una vez: el paso 9 y el 10 son dos vistas del
+  // mismo armado, asi que entrar por cualquiera de los dos la reconstruye.
+  if (n === 9 || n === 10) buildGastroSlide();
+  if (n === 14) buildPropuestaResumen();
   // El telon del cierre se enciende al llegar y se apaga al volver atras
   document.querySelector('.propuesta-kiosco')?.classList.toggle('en-final', n === 11);
 }
@@ -5052,8 +5064,8 @@ function portadaImgFor(tipo) {
   // van SOLO en XV años. Mostrarle una quinceañera a alguien que viene por un
   // bautismo o un corporativo arruina la propuesta antes de empezar.
   const map = {
-    'XV años':     'img/propuesta/joliet/mesa-centro.jpg',      // la única que dice "Mis XV"
-    'Boda':        'img/propuesta/joliet/casamiento-letras.jpg',
+    'XV años':     'img/propuesta/joliet/centro-de-mesa.jpg',
+    'Boda':        'img/propuesta/joliet/mesa-principal.jpg',
     'Cumpleaños':  'img/propuesta/joliet/pista-a-pleno.jpg',
     'Bautismo':    'img/propuesta/joliet/mesa-tematica.jpg',
     'Comunión':    'img/propuesta/joliet/mesa-tematica.jpg',
@@ -5220,18 +5232,63 @@ function readPropuestaData() {
   });
   // Solo si el paso de gastronomía está construido: si no, estaríamos
   // borrando lo elegido antes de que exista el HTML donde leerlo
-  if (document.querySelector('#gastro-slide-content input')) {
+  if (document.querySelector(GASTRO_SEL + ' input')) {
     d.gastroAdicionales = [];
-    document.querySelectorAll('#gastro-slide-content input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
+    document.querySelectorAll(GASTRO_SEL + ' input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
       d.gastroAdicionales.push(cb.value);
     });
   }
   const pp = (sel) => { const a = []; document.querySelectorAll(sel + ' input:checked:not([disabled])').forEach(cb => a.push(cb.value)); return a; };
   if ($('gastro-plato-central')) { d.pastasSeleccionadas = pp('#gastro-pasta-list'); d.pastasGourmetSeleccionadas = pp('#gastro-pasta-gourmet-list'); d.salsasSeleccionadas = pp('#gastro-salsa-list'); d.salsasGourmetSeleccionadas = pp('#gastro-salsa-gourmet-list'); d.platoCentral = document.querySelector('#gastro-plato-central input:checked')?.value || ''; d.platoCentralCarne = []; }
   d.pedidos = $('prop-pedidos')?.value?.trim() || '';
+  // La Barra Clasica va incluida; los otros dos niveles se cotizan aparte.
+  d.barraNivel = document.querySelector('input[name="barra-nivel"]:checked')?.value || 'Clásica';
 }
 
 /* ===== GASTRO SLIDE — dinámico por estilo ===== */
+
+/* ---- La recepcion ----
+   Es el unico tramo del menu que NO se elige: va igual en todos los eventos.
+   Vive aca, como dato, porque lo muestran dos lugares (el creador y el PDF) y
+   escribirlo dos veces garantiza que tarde o temprano digan cosas distintas. */
+const RECEPCION_DATA = [
+  { grupo: 'Canapés fríos', cols: 1, items: [
+    ['Bocado mediterráneo', 'Mozzarella, tomate cherry, albahaca y sal en escamas', ['V']],
+    ['Jamón Imperial', 'Jamón natural, mayonesa de huevo de codorniz y pimentón dulce español', []],
+    ['Palma Serrana', 'Crema de palmitos con virutas de jamón ibérico y toque de oliva', []],
+    ['Azul y Nuez', 'Queso azul, nueces trituradas y miel', ['V']],
+    ['Bosque y Queso', 'Champiñón fresco salteado con queso suave fundido', ['V']],
+  ]},
+  { grupo: 'Triples de miga', cols: 1, items: [
+    ['Variedad de triples de miga', '', []],
+  ]},
+  { grupo: 'Bruschettas', cols: 2, items: [
+    ['Braseada suave', 'Osobuco braseado en reducción de vino tinto y toque de romero', []],
+    ['Campo verde', 'Pollo al verdeo en mayonesa y queso fundido', []],
+    ['Delicia Ibérica', 'Jamón crudo, rúcula fresca, parmesano y reducción de aceto', []],
+    ['BBQ', 'Bondiola en lenta cocción desmenuzada con barbacoa de la casa', []],
+  ]},
+  { grupo: 'Brochettes & bocados calientes', cols: 2, items: [
+    ['Criolla de carne', 'Trozos de carne jugosa con morrón asado y cebolla a la parrilla', []],  // SC a confirmar con cocina
+    ['Criolla de pollo', 'Bocados de pollo grillados con cherry y vegetales asados', []],  // SC a confirmar con cocina
+    ['Italiana fría', 'Mozzarella y tomate con reducción de balsámico y hojas de albahaca', ['V']],
+    ['Bombitas de queso', 'Quesillo fundido en panizado crocante, servidas calientes', ['V']],
+    ['Daditos de mozzarella', '', ['V']],
+    ['Croquetitas de papa', '', ['V']],
+    ['Mini hamburguesas caseras', '', []],
+    ['Pollo frito Buffalo wings', '', []],
+  ]},
+  { grupo: 'Mini empanaditas', cols: 2, items: [
+    ['Fatay de carne', '', []],
+    ['Soles de calabaza y semillas grilladas', '', ['V']],
+    ['Canastitas de batata y almendra', '', ['V']],
+    ['Jamón y queso', '', []],
+    ['Cebolla y queso', '', ['V']],
+    ['Paquetitos de boniato y amapola', '', ['V']],
+    ['Pollo', '', []],
+    ['Fingers de zanahoria', '', ['V']],
+  ]},
+];
 
 const PRIMER_PLATO_DATA = {
   pastas: [
@@ -5266,6 +5323,31 @@ const PRIMER_PLATO_DATA = {
 
 // Lo que la casa pone siempre en el primer plato. Se deriva del dato, no
 // se escribe a mano, para que no se desincronice con PRIMER_PLATO_DATA.
+/* ---- Como se llama lo que el cliente suma por fuera de la base ----
+   "Adicionales" se lee como una factura: el cliente cuenta plata, no fiesta.
+   "Premium" resuelve eso pero deja al resto del menu en segunda division, y el
+   resto del menu es el 90% de lo que se sirve.
+   "De autor" nombra el trabajo y no el precio, y no arma una escalera: un plato
+   de autor no es mejor que un clasico, es otra cosa. Ademas se dice facil en
+   la mesa — "ya vamos tres de autor" — que es como lo cuenta Mariana.
+   Esta en una constante porque el nombre es una decision comercial y cambiarlo
+   no puede obligar a tocar diez archivos. */
+const SELLO = {
+  // El sello de los PLATOS que se cotizan aparte. "De autor" nombra el trabajo
+  // y no el precio, y no arma escalera: un plato de autor no es mejor que un
+  // clasico, es otra cosa.
+  badge:  'De autor',
+  label:  'DE AUTOR · a consultar',
+  // El nombre PARAGUAS, el que engloba todo lo que suman por fuera de la base
+  // —platos de autor, cabinas, shows, cotillon—. Tiene que servir tanto para
+  // unos sorrentinos de trucha como para un robot de luces, asi que no puede
+  // ser "de autor". Y no dice "adicionales" porque eso se lee como factura.
+  titulo: 'Su selección',
+  bajada: 'Lo que sumaron para que la fiesta se parezca a ustedes.',
+  // Lo que Mariana lee arriba mientras charla: una cantidad, sin signo peso.
+  contador: n => `Su selección · ${n}`,
+};
+
 const PASTAS_CASA = PRIMER_PLATO_DATA.pastas.filter(p => p.locked).map(p => p.name);
 
 const PLATO_CENTRAL_DATA = {
@@ -5344,6 +5426,65 @@ const GASTRO_DATA = {
   },
 };
 
+/* Los dos contenedores de la carta: el paso 9 (islas / primer plato) y el
+   paso 10 (mesa dulce). Se arman juntos, asi que todo lo que recorre lo
+   elegido tiene que mirar los dos. */
+const GASTRO_SEL = '#gastro-slide-content, #gastro-dulce-content';
+
+/* Cada pantalla de carta con la foto de lo que se esta mirando. El formal y el
+   americano no comen lo mismo, asi que tampoco muestran lo mismo. */
+function pintarFotosDeCarta(isAmericano) {
+  const J = 'img/propuesta/joliet/';
+  const poner = (id, archivo) => {
+    const el = $(id);
+    if (el) el.style.backgroundImage = `url('${J}${archivo}')`;
+  };
+  poner('carta-foto-platos', isAmericano ? 'pasta-en-fuente.jpg' : 'salida-principal.jpg');
+  poner('carta-foto-dulce', isAmericano ? 'mesa-de-postres.jpg' : 'panqueques-flambeados.jpg');
+}
+
+/* La recepcion no se elige: se muestra. Sale de RECEPCION_DATA, el mismo dato
+   que usa el PDF. */
+/* Cuenta lo elegido por fuera de la base: islas premium, pastas y salsas de
+   autor, el upgrade de la mesa dulce y los adicionales del evento. Se muestra
+   arriba para que Mariana no tenga que ir a buscarlo. */
+function actualizarContadorAutor() {
+  const el = $('autor-contador');
+  if (!el) return;
+  const sel = [
+    '#gastro-pasta-gourmet-list input:checked',
+    '#gastro-salsa-gourmet-list input:checked',
+    '#gastro-mesa-dulce-list input:checked',
+    '#view-propuesta .adicionales-grid input:checked',
+  ].join(', ');
+  let n = document.querySelectorAll(sel).length;
+  // Las islas premium viven mezcladas con las comunes: se cuentan por valor.
+  const data = GASTRO_DATA[propuestaState.data.estilo || 'Formal'];
+  const premium = new Set((data?.premium || []).map(i => i.value));
+  document.querySelectorAll('#gastro-slide-content .gastro-premium-row input:checked')
+    .forEach(cb => { if (premium.has(cb.value)) n++; });
+  el.hidden = n === 0;
+  el.textContent = SELLO.contador(n);
+}
+
+function buildRecepcionCarta() {
+  const cont = $('recepcion-carta');
+  if (!cont || cont.dataset.armada) return;
+  const DIETA = { V: 'Vegetariano', VG: 'Vegano', SC: 'Sin TACC' };
+  cont.innerHTML = RECEPCION_DATA.map(g => `
+    <div class="carta-grupo">
+      <div class="carta-grupo-k">${g.grupo}</div>
+      <div class="carta-items${g.cols === 2 ? ' carta-items-2' : ''}">
+        ${g.items.map(([n, d, t]) => `
+        <div class="carta-item">
+          <span class="carta-item-n">${n}${(t || []).map(x => `<span class="carta-dt">${DIETA[x] || x}</span>`).join('')}</span>
+          ${d ? `<span class="carta-item-d">${d}</span>` : ''}
+        </div>`).join('')}
+      </div>
+    </div>`).join('');
+  cont.dataset.armada = '1';
+}
+
 function buildGastroSlide() {
   const container = $('gastro-slide-content');
   if (!container) return;
@@ -5418,11 +5559,11 @@ function buildGastroSlide() {
       </div>
       <div class="gastro-section-label">PASTAS · Tagliatelle y sorrentinos incluidos · elegí hasta 5 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/5</span></div>
       <div class="gastro-menu-list" id="gastro-pasta-list">${pastaRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">PASTAS GOURMET · a consultar · cuentan en el límite de 4</div>
+      <div class="gastro-section-label gastro-section-label-premium">PASTAS ${SELLO.label}</div>
       <div class="gastro-menu-list" id="gastro-pasta-gourmet-list">${pastaGRows}</div>
       <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></div>
       <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">SALSAS GOURMET · a consultar · cuentan en el límite de 4</div>
+      <div class="gastro-section-label gastro-section-label-premium">SALSAS ${SELLO.label}</div>
       <div class="gastro-menu-list" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
     </div>
     <div class="gastro-subsection">
@@ -5470,7 +5611,7 @@ function buildGastroSlide() {
         </label>`).join('')}
       </div>` : '';
     const upgradeSection = md.upgrade ? `
-      <div class="gastro-section-label gastro-section-label-premium">UPGRADE · a consultar</div>
+      <div class="gastro-section-label gastro-section-label-premium">${SELLO.label}</div>
       <div class="gastro-islands-list" id="gastro-mesa-dulce-list">
         <label class="gastro-island-row">
           <input type="checkbox" value="${md.upgrade.value}">
@@ -5516,13 +5657,19 @@ function buildGastroSlide() {
       <div class="gastro-section-label">${data.islasLabel}</div>
       <div class="gastro-islands-list" id="gastro-extras-grid">${lockedHtml}${baseIslandsHtml}</div>
       ${!isAmericano ? `<p class="gastro-formal-extra-note" id="gastro-formal-extra-note" style="display:none">Una estación está incluida · las adicionales se presupuestan aparte</p>` : ''}
-      <div class="gastro-section-label gastro-section-label-premium">PREMIUM · a consultar</div>
+      <div class="gastro-section-label gastro-section-label-premium">${SELLO.label}</div>
       <div class="gastro-premium-list">${premiumHtml}</div>
-    </div>${primerPlatoHtml}${mesaDulceHtml}`;
+    </div>${primerPlatoHtml}`;
+
+  // La mesa dulce vive en el paso siguiente. Se pinta en el mismo armado para
+  // que los listeners y la restauracion de lo elegido corran una sola vez.
+  const dulce = $('gastro-dulce-content');
+  if (dulce) dulce.innerHTML = mesaDulceHtml;
+  pintarFotosDeCarta(isAmericano);
 
   const prev = propuestaState.data.gastroAdicionales || [];
   if (prev.length) {
-    container.querySelectorAll('input[type="checkbox"]:not([disabled])').forEach(cb => {
+    document.querySelectorAll(GASTRO_SEL + ' input[type="checkbox"]:not([disabled])').forEach(cb => {
       if (prev.includes(cb.value)) {
         cb.checked = true;
         cb.closest('.gastro-island-row, .gastro-premium-row')?.classList.add('selected');
@@ -5674,7 +5821,22 @@ function setupGastroEvents(isAmericano, maxBase) {
 }
 
 function setupFormalExtrasEvents() {
+  // El tope sugerido NO bloquea. Esto lo arma Mariana durante la charla y ella
+  // sabe que se puede y que no; que el sistema le trabe el dedo en la reunion es
+  // peor que pasarse. Lo que pasa del tope se marca como extra y se atenua.
   const MAX_PASTA = 5, MAX_SALSAS = 4;
+
+  // Marca como .extra todo lo elegido despues del tope, en orden de aparicion.
+  function marcarExtras(listIds, max) {
+    const filas = [];
+    listIds.forEach(id => $(id)?.querySelectorAll('.gastro-menu-row:not(.locked)').forEach(r => filas.push(r)));
+    let n = 0;
+    filas.forEach(r => {
+      const marcada = !!r.querySelector('input')?.checked;
+      if (marcada) n++;
+      r.classList.toggle('extra', marcada && n > max);
+    });
+  }
 
   function getPastaCount() {
     let n = 0;
@@ -5693,12 +5855,16 @@ function setupFormalExtrasEvents() {
     const c = getPastaCount();
     el.textContent = c + '/' + MAX_PASTA;
     el.style.color = c >= MAX_PASTA ? 'var(--gold-bright)' : '';
+    marcarExtras(['gastro-pasta-list', 'gastro-pasta-gourmet-list'], MAX_PASTA);
+    actualizarContadorAutor();
   }
   function updateSalsaCounter() {
     const el = $('gastro-salsa-counter'); if (!el) return;
     const c = getSalsaCount();
     el.textContent = c + '/' + MAX_SALSAS;
     el.style.color = c >= MAX_SALSAS ? 'var(--gold-bright)' : '';
+    marcarExtras(['gastro-salsa-list', 'gastro-salsa-gourmet-list'], MAX_SALSAS);
+    actualizarContadorAutor();
   }
 
   const addPastaListeners = (listId) => {
@@ -5706,7 +5872,6 @@ function setupFormalExtrasEvents() {
     list.querySelectorAll('.gastro-menu-row:not(.locked)').forEach(row => {
       row.addEventListener('click', () => {
         const inp = row.querySelector('input'); if (!inp || inp.disabled) return;
-        if (!inp.checked && getPastaCount() >= MAX_PASTA) return;
         inp.checked = !inp.checked;
         row.classList.toggle('selected', inp.checked);
         updatePastaCounter();
@@ -5721,7 +5886,6 @@ function setupFormalExtrasEvents() {
     list.querySelectorAll('.gastro-menu-row:not(.locked)').forEach(row => {
       row.addEventListener('click', () => {
         const inp = row.querySelector('input'); if (!inp || inp.disabled) return;
-        if (!inp.checked && getSalsaCount() >= MAX_SALSAS) return;
         inp.checked = !inp.checked;
         row.classList.toggle('selected', inp.checked);
         updateSalsaCounter();
@@ -5818,6 +5982,7 @@ function buildPropuestaResumen() {
     if (pastas.length) parts.push(`<div style="margin-top:8px"><span class="res-mini-label">Pastas</span><div class="res-islas" style="margin-top:4px">${tags(pastas)}</div></div>`);
     if (salsas.length) parts.push(`<div style="margin-top:6px"><span class="res-mini-label">Salsas</span><div class="res-islas" style="margin-top:4px">${tags(salsas)}</div></div>`);
     if (d.platoCentral) parts.push(`<div style="margin-top:6px"><span class="res-mini-label">Plato central</span><div class="res-islas" style="margin-top:4px"><span class="res-isla-tag">${esc(d.platoCentral)}</span></div></div>`);
+    if (d.barraNivel && d.barraNivel !== 'Clásica') parts.push(`<div style="margin-top:6px"><span class="res-mini-label">Barra</span><div class="res-islas" style="margin-top:4px"><span class="res-isla-tag res-isla-premium">${esc(d.barraNivel)} · a consultar</span></div></div>`);
     return parts.join('');
   })() : '';
 
@@ -5915,8 +6080,8 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   // Cada foto tiene su punto de mira: con un recorte tan apaisado, el centro
   // geométrico corta cabezas
   const encuadrePortada = {
-    'img/propuesta/joliet/mesa-centro.jpg':       'center 42%',
-    'img/propuesta/joliet/casamiento-letras.jpg': 'center 38%',
+    'img/propuesta/joliet/centro-de-mesa.jpg':    'center 45%',
+    'img/propuesta/joliet/mesa-principal.jpg':    'center 42%',
     'img/propuesta/joliet/pista-a-pleno.jpg':     'center 40%',
     'img/propuesta/joliet/mesa-tematica.jpg':     'center 46%',
     'img/propuesta/joliet/baile-grupo.jpg':       'center 34%',
@@ -5930,18 +6095,20 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   // El PDF casi siempre se envía, no se imprime: en vez de un blanco de
   // oficina toma el clima del evento que se acaba de armar. Noche: papel
   // noir con oro. Día: marfil cálido, la luz de la media tarde.
-  const pdfVars = diurno ? `
+  // SIEMPRE el papel claro. La version oscura era idea mia y Fabio la rechazo
+  // dos veces por lo mismo: "es muy dificil de leer". El PDF se lee en un
+  // telefono, a veces al sol, y a veces se imprime. El clima del evento lo dan
+  // las fotos, no el fondo.
+  // Papel claro, siempre. La version en negro era idea mia y Fabio la rechazo
+  // dos veces por el mismo motivo: "es muy dificil de leer". Este PDF se lee en
+  // un telefono, a veces al sol, y a veces se imprime. El clima del evento lo
+  // dan las fotos, no el fondo.
+  const pdfVars = `
     --shell:#E6DCCB;--paper:#FBF7EF;--warm:#F3EDE0;
     --ink:#1A1712;--ink-soft:#2A2620;--ink-dim:#5A5040;--muted:#8B8074;
     --gold:#9D7E3C;--gold-soft:#C9B27C;--hairline:#DCD3C3;--hairline-soft:rgba(216,207,192,.55);
     --stamp-bg:#14110B;--stamp-fg:#FBF7EF;--glow:rgba(196,153,62,.10);
     --dt-bg:rgba(0,0,0,.04);--dt-fg:#6B6154;--dt-bd:rgba(0,0,0,.10);
-  ` : `
-    --shell:#0A0806;--paper:#15120C;--warm:#1D1911;
-    --ink:#F2EBDD;--ink-soft:#DED5C3;--ink-dim:#B3A88F;--muted:#948872;
-    --gold:#D3AC5B;--gold-soft:#8E7539;--hairline:#332C1F;--hairline-soft:rgba(120,102,68,.32);
-    --stamp-bg:#F2EBDD;--stamp-fg:#15120C;--glow:rgba(211,172,91,.14);
-    --dt-bg:rgba(255,255,255,.05);--dt-fg:#9C907A;--dt-bd:rgba(255,255,255,.10);
   `;
 
 
@@ -5980,7 +6147,10 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   const mkRow = (name, desc = '', tags = []) => {
     let ts = tags.map(t => String(t).toUpperCase());
     if (ts.includes('VG')) ts = ts.filter(t => t !== 'V');
-    const tg = ts.map(t => `<span class="dt">${DIETA_LBL[t] || t}</span>`).join('');
+    // AUTOR no es una dieta: es el sello dorado. Va primero y con otro color.
+    const tg = ts.map(t => t === 'AUTOR'
+      ? `<span class="dt dt-autor">${SELLO.badge}</span>`
+      : `<span class="dt">${DIETA_LBL[t] || t}</span>`).join('');
     return `<li><div class="mi-info"><span class="mi-name">${esc(name)}${tg ? `&nbsp;${tg}` : ''}</span>${desc ? `<span class="mi-desc">${esc(desc)}</span>` : ''}</div></li>`;
   };
   const mkCard = (name, cat = '', desc = '') =>
@@ -5997,46 +6167,10 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
     : `<ul class="mi">${filasCasa}</ul>`;
 
   // ---- Recepción (contenido fijo, siempre igual) ----
-  const recepcionHTML = `
-    <div class="mb-sublbl">Canapés fríos</div>
-    <ul class="mi">
-      ${mkRow('Bocado mediterráneo','Mozzarella, tomate cherry, albahaca y sal en escamas',['V'])}
-      ${mkRow('Jamón Imperial','Jamón natural, mayonesa de huevo de codorniz y pimentón dulce español')}
-      ${mkRow('Palma Serrana','Crema de palmitos con virutas de jamón ibérico y toque de oliva')}
-      ${mkRow('Azul y Nuez','Queso azul, nueces trituradas y miel',['V'])}
-      ${mkRow('Bosque y Queso','Champiñón fresco salteado con queso suave fundido',['V'])}
-    </ul>
-    <div class="mb-sublbl">Triples de miga</div>
-    <ul class="mi">${mkRow('Variedad de triples de miga')}</ul>
-    <div class="mb-sublbl">Bruschettas</div>
-    <ul class="mi two-col">
-      ${mkRow('Braseada suave','Osobuco braseado en reducción de vino tinto y toque de romero')}
-      ${mkRow('Campo verde','Pollo al verdeo en mayonesa y queso fundido')}
-      ${mkRow('Delicia Ibérica','Jamón crudo, rúcula fresca, parmesano y reducción de aceto')}
-      ${mkRow('BBQ','Bondiola en lenta cocción desmenuzada con barbacoa de la casa')}
-    </ul>
-    <div class="mb-sublbl">Brochettes &amp; bocados calientes</div>
-    <ul class="mi two-col">
-      ${mkRow('Criolla de carne','Trozos de carne jugosa con morrón asado y cebolla a la parrilla',['SC'])}
-      ${mkRow('Criolla de pollo','Bocados de pollo grillados con cherry y vegetales asados',['SC'])}
-      ${mkRow('Italiana fría','Mozzarella y tomate con reducción de balsámico y hojas de albahaca',['V','SC'])}
-      ${mkRow('Bombitas de queso','Quesillo fundido en panizado crocante, servidas calientes',['V'])}
-      ${mkRow('Daditos de mozzarella','',['V','SC'])}
-      ${mkRow('Croquetitas de papa','',['V'])}
-      ${mkRow('Mini hamburguesas caseras')}
-      ${mkRow('Pollo frito Buffalo wings')}
-    </ul>
-    <div class="mb-sublbl">Mini empanaditas</div>
-    <ul class="mi two-col">
-      ${mkRow('Fatay de carne')}
-      ${mkRow('Soles de calabaza y semillas grilladas','',['V'])}
-      ${mkRow('Canastitas de batata y almendra','',['V'])}
-      ${mkRow('Jamón y queso')}
-      ${mkRow('Cebolla y queso','',['V'])}
-      ${mkRow('Paquetitos de boniato y amapola','',['V'])}
-      ${mkRow('Pollo')}
-      ${mkRow('Fingers de zanahoria','',['V'])}
-    </ul>`;
+  const recepcionHTML = RECEPCION_DATA.map(g =>
+    `<div class="mb-sublbl">${esc(g.grupo)}</div>` +
+    `<ul class="mi${g.cols === 2 ? ' two-col' : ''}">${g.items.map(([n, d, t]) => mkRow(n, d, t)).join('')}</ul>`
+  ).join('');
 
   // ---- Islas (solo las seleccionadas) ----
   const allIslaItems = [...(gastroData?.islas || []), ...allPremiumItems];
@@ -6051,11 +6185,16 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
       }).join('');
       const lockedVals = lockedIslas.map(i => i.value);
       const suyas = allShownIslas.filter(v => !lockedVals.includes(v));
-      const premiumRows = filasDe(regularFormalPremium);
-      const premiumBlock = premiumRows ? `<div class="mb-sublbl" style="margin-top:8px">A consultar</div><ul class="mi">${premiumRows}</ul>` : '';
+      // Las premium dejan de ir en un bloque gris aparte: tambien las eligieron
+      // ellos, asi que van con las suyas y se distinguen por el sello.
+      const filasAutor = vals => vals.map(v => {
+        const f = allIslaItems.find(i => i.value === v);
+        return f ? mkRow(f.name, f.desc || '', ['AUTOR']) : mkRow(v, '', ['AUTOR']);
+      }).join('');
+      const suyasRows = filasDe(suyas) + filasAutor(regularFormalPremium);
       return `<div class="mb"><div class="mb-head"><span class="mb-roman">ii</span><span class="mb-name">Estaciones de bienvenida</span><span class="mb-line"></span></div>
-        <div class="mb-sub">Una incluida · adicionales a consultar</div>
-        ${bloqueSuyoCasa(filasDe(suyas), filasDe(lockedVals))}${premiumBlock}</div>`;
+        <div class="mb-sub">Una incluida · las demás se cotizan aparte</div>
+        ${bloqueSuyoCasa(suyasRows, filasDe(lockedVals))}</div>`;
     } else {
       const cardsDe = vals => vals.map(v => {
         const f = allIslaItems.find(i => i.value === v);
@@ -6063,8 +6202,14 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
       }).join('');
       const lockedVals = lockedIslas.map(i => i.value);
       const suyas = allShownIslas.filter(v => !lockedVals.includes(v));
+      const esAutor = v => premiumValues.has(v);
+      const cardsSuyas = suyas.map(v => {
+        const f = allIslaItems.find(i => i.value === v);
+        const cat = [f?.cat, esAutor(v) ? SELLO.badge : ''].filter(Boolean).join(' · ');
+        return f ? mkCard(f.name, cat, f.desc || '') : mkCard(v, esAutor(v) ? SELLO.badge : '');
+      }).join('');
       const cards = suyas.length
-        ? `${LBL_SUYO}<div class="i-cards i-cards-yours">${cardsDe(suyas)}</div>${LBL_CASA}<div class="i-cards">${cardsDe(lockedVals)}</div>`
+        ? `${LBL_SUYO}<div class="i-cards i-cards-yours">${cardsSuyas}</div>${LBL_CASA}<div class="i-cards">${cardsDe(lockedVals)}</div>`
         : cardsDe(lockedVals);
       const extraCount = selectedIslas.length + selectedPremium.length;
       // Sin extras, "0 adicionales elegidas" solo señala una ausencia: mejor no decirlo
@@ -6079,13 +6224,17 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
 
   // ---- Primer plato + Plato central (solo Formal) ----
   const formalPlatoHTML = isFormal ? (() => {
-    const pastas = [...PASTAS_CASA, ...(d.pastasSeleccionadas||[]).filter(p=>!PASTAS_CASA.includes(p)), ...(d.pastasGourmetSeleccionadas||[])];
-    const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto'), ...(d.salsasGourmetSeleccionadas||[])];
+    const pastas = [...PASTAS_CASA, ...(d.pastasSeleccionadas||[]).filter(p=>!PASTAS_CASA.includes(p))];
+    const salsas = ['Filetto', ...(d.salsasSeleccionadas||[]).filter(s=>s!=='Filetto')];
+    const pastasAutor = d.pastasGourmetSeleccionadas || [];
+    const salsasAutor = d.salsasGourmetSeleccionadas || [];
     const platoCentral = d.platoCentral ? (PLATO_CENTRAL_DATA.opciones.find(p=>p.value===d.platoCentral) || {value:d.platoCentral,desc:''}) : null;
     // Lo bloqueado lo pone la casa; el resto lo marcaron ellos en el kiosco.
     const SALSA_CASA = 'Filetto';
-    const ppSuyas  = pastas.filter(p => !PASTAS_CASA.includes(p)).map(p=>mkRow(p)).join('');
-    const salSuyas = salsas.filter(x => x !== SALSA_CASA).map(x=>mkRow(x)).join('');
+    const ppSuyas  = pastas.filter(p => !PASTAS_CASA.includes(p)).map(p=>mkRow(p)).join('')
+                   + pastasAutor.map(p=>mkRow(p, '', ['AUTOR'])).join('');
+    const salSuyas = salsas.filter(x => x !== SALSA_CASA).map(x=>mkRow(x)).join('')
+                   + salsasAutor.map(x=>mkRow(x, '', ['AUTOR'])).join('');
     const ppRows  = bloqueSuyoCasa(ppSuyas,  PASTAS_CASA.map(p=>mkRow(p)).join(''));
     const salRows = bloqueSuyoCasa(salSuyas, mkRow(SALSA_CASA));
     const pcRow = platoCentral ? mkRow(platoCentral.value, platoCentral.desc||'') : mkRow('Plato central · a confirmar');
@@ -6104,7 +6253,7 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
         mkRow('Tarta de frutillas'),mkRow('Flan','',['SC']),mkRow('Isla flotante','',['SC']),
         mkRow('Mil Hojas'),mkRow('Brownies rellenos'),mkRow('Copas heladas','',['SC']),mkRow('Panqueques'),
       ].join('');
-      const miniCakesBlock = hasMiniCakes ? `<div class="mb-lbl-yours" style="margin-top:8px">Esto lo eligieron ustedes</div><ul class="mi">${mkRow('Mini Cakes Premium','Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones')}</ul>` : '';
+      const miniCakesBlock = hasMiniCakes ? `<div class="mb-lbl-yours" style="margin-top:8px">Esto lo eligieron ustedes</div><ul class="mi mi-yours">${mkRow('Mini Cakes Premium','Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones',['AUTOR'])}</ul>` : '';
       return `<div class="mb"><div class="mb-head"><span class="mb-roman">v</span><span class="mb-name">Mesa de dulces</span><span class="mb-line"></span></div>
         <div class="mb-sub">Pastelería artesanal Joliet · elaboración propia</div>
         <ul class="mi two-col">${jolietRows}</ul>${miniCakesBlock}
@@ -6274,12 +6423,10 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 .nxt-t{display:block;font-size:10.5px;font-weight:500;color:var(--ink);margin:3px 0 4px;letter-spacing:.01em}
 .nxt-d{display:block;font-size:9.5px;line-height:1.55;color:var(--ink-dim)}
 .cta{margin-top:11mm;text-align:center;background:var(--warm);border:1px solid var(--hairline);padding:9mm 10mm}
-.fecha-bloque{margin-top:16px;padding:15px 18px;border:1px solid var(--gold-soft);background:var(--glow);text-align:center;break-inside:avoid;page-break-inside:avoid}
-.fb-k{font-family:'Inter',sans-serif;font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted)}
-.fb-v{font-family:'Cormorant Garamond',serif;font-size:25px;color:var(--ink);margin-top:5px;line-height:1.25}
-.fb-estado{font-family:'Inter',sans-serif;font-size:7.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold-soft);border-radius:2px;padding:2px 6px;margin-left:9px;vertical-align:middle;white-space:nowrap}
-.fb-d{font-size:10px;line-height:1.55;color:var(--ink-dim);margin-top:7px;max-width:112mm;margin-left:auto;margin-right:auto}
-.antes-de{font-size:9px;color:var(--muted);text-align:center;margin-top:11px;letter-spacing:.02em}
+.nxt-fecha{background:var(--glow);border:1px solid var(--gold-soft)}
+.nxt-fecha .nxt-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nxt-v{display:block;font-family:'Cormorant Garamond',serif;font-size:19px;line-height:1.2;color:var(--ink);margin:2px 0 5px}
+.fb-estado{font-family:'Inter',sans-serif;font-size:7px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold-soft);border-radius:2px;padding:2px 5px;white-space:nowrap}
 .cta-k{font-size:8.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted)}
 .cta-v{font-family:'Cormorant Garamond',serif;font-size:23px;color:var(--ink);margin-top:7px;line-height:1.35}
 .cta-v small{display:block;font-family:'Inter',sans-serif;font-size:10.5px;color:var(--ink-dim);letter-spacing:.02em;margin-top:5px}
@@ -6290,6 +6437,7 @@ body{background:var(--shell);font-family:'Inter',sans-serif;color:var(--ink);pad
 .mb-lbl-house{font-family:'Inter',sans-serif;font-size:8px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:9px 0 4px}
 ul.mi-yours{background:var(--glow);border-left:2px solid var(--gold);padding-left:9px;padding-right:6px}
 .i-cards-yours{border-left:2px solid var(--gold);padding-left:9px}
+.dt-autor{background:var(--glow);color:var(--gold);border-color:var(--gold-soft);font-weight:700;letter-spacing:.08em}
 .dt{font-family:'Inter',sans-serif;font-size:7.5px;font-weight:500;letter-spacing:.05em;padding:1.5px 5px;border-radius:2px;vertical-align:middle;margin-left:4px;display:inline-block;line-height:1;background:var(--dt-bg);color:var(--dt-fg);border:1px solid var(--dt-bd)}
 /* ISLAND CARDS */
 .i-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
@@ -6422,10 +6570,10 @@ ul.mi-yours{background:var(--glow);border-left:2px solid var(--gold);padding-lef
   ${adicGrupos ? `
   <div class="stitle">
     <span class="snum">${adicSecNum}.</span>
-    <span class="sname">Adicionales elegidos</span>
+    <span class="sname">${SELLO.titulo}</span>
     <span class="srule"></span>
   </div>
-  <p class="sintro">Lo que sumó por fuera de la base, para que la fiesta se parezca a ustedes.</p>
+  <p class="sintro">${SELLO.bajada}</p>
   ${adicGrupos}` : ''}
 
   <div class="stitle">
@@ -6442,7 +6590,10 @@ ul.mi-yours{background:var(--glow);border-left:2px solid var(--gold);padding-lef
   <div class="svc-grid">${[
     ['La mesa', ['Vajilla de porcelana y plato de sitio', 'Cristalería y cubertería completa', 'Mantelería a elección y centros de mesa']],
     ['El equipo', ['Maître, mozos, chef y barman', 'Coordinadora general durante todo el evento', 'Seguimiento personalizado hasta el día']],
-    ['La barra', ['Agua, gaseosas de primera marca, vino, sidra y champagne', 'Bar de tragos (Barra Clásica) durante la recepción']],
+    ['La barra', ['Agua, gaseosas de primera marca, vino, sidra y champagne',
+      d.barraNivel && d.barraNivel !== 'Clásica'
+        ? `Bar de tragos durante la recepción · nivel ${d.barraNivel} (a consultar)`
+        : 'Bar de tragos (Barra Clásica) durante la recepción']],
     ['El salón', ['Iluminación de diseño', 'Provisiones completas']],
   ].map(([grupo, items]) => `<div class="svc-col"><div class="svc-k">${esc(grupo)}</div>${
     items.map(i => `<div class="svc-item"><span class="svc-chk"></span><span class="svc-lbl">${esc(i)}</span></div>`).join('')
@@ -6544,23 +6695,36 @@ ${tipo === 'contrato' ? (() => {
     <div class="cl-sig">Mariana Labarta<small>Coordinadora de Eventos · Joliet</small></div>
   </div>
 
-  <!-- El cierre es la fecha. Los dos primeros pasos no desaparecen: bajan a un
-       renglon al pie, porque son permiso para tomarse tiempo, no una accion.
-       Que la fecha este tentativa hasta la seña es verdad, no es una urgencia
-       inventada. -->
-  <div class="fecha-bloque">
-    <div class="fb-k">Su fecha</div>
-    <div class="fb-v">${esc(fechaLarga || 'A definir con ustedes')}${d.fecha ? '<span class="fb-estado">Tentativa</span>' : ''}</div>
-    <div class="fb-d">${d.fecha
-      ? 'La tenemos apartada para ustedes. Queda confirmada con la seña; hasta entonces sigue disponible para otra familia.'
-      : 'Cuando la tengan elegida la apartamos. Queda confirmada con la seña.'}</div>
+  <!-- Los tres pasos vuelven: a Fabio le parecen mas finos que el bloque suelto
+       y tiene razon, la grilla respira mejor. Lo que se conserva del analisis es
+       el peso: el tercer paso deja de ser un renglon igual a los otros dos y
+       pasa a ser la fecha con nombre y apellido, que es donde termina la
+       lectura. Y el contacto dice para que, no "cuando quieras". -->
+  <div class="nxt">
+    <div class="nxt-item">
+      <span class="nxt-n">01</span>
+      <span class="nxt-t">Lo revisan con calma</span>
+      <span class="nxt-d">Cualquier duda sobre lo que leyeron acá la respondemos por WhatsApp o por teléfono.</span>
+    </div>
+    <div class="nxt-item">
+      <span class="nxt-n">02</span>
+      <span class="nxt-t">Ajustamos lo que quieran</span>
+      <span class="nxt-d">Menú, adicionales, horarios: se cambia todo lo que necesiten antes de cerrar.</span>
+    </div>
+    <div class="nxt-item nxt-fecha">
+      <span class="nxt-n">03</span>
+      <span class="nxt-t">Su fecha${d.fecha ? '<span class="fb-estado">Tentativa</span>' : ''}</span>
+      <span class="nxt-v">${esc(fechaLarga || 'A definir con ustedes')}</span>
+      <span class="nxt-d">${d.fecha
+        ? 'La tenemos apartada para ustedes. Queda confirmada con la seña; hasta entonces sigue disponible para otra familia.'
+        : 'Cuando la tengan elegida la apartamos. Queda confirmada con la seña.'}</span>
+    </div>
   </div>
 
   <div class="cta">
     <div class="cta-k">${d.fecha ? 'Para confirmarla, escribinos' : 'Escribinos cuando quieras'}</div>
     <div class="cta-v">11 5424 0870<small>labartam@gmail.com · Juana Azurduy 531, Ciudad Tesei</small></div>
   </div>
-  <div class="antes-de">Antes de eso: lo revisan con calma · ajustamos menú, adicionales y horarios, todo lo que haga falta</div>
   <div class="pfoot"><span>Juana Azurduy 531 · Ciudad Tesei · 11 5424 0870 · labartam@gmail.com</span><span>Joliet Eventos · ${anio}</span></div>
 </div>`}
 
@@ -6647,11 +6811,18 @@ ${tipo === 'contrato' ? (() => {
           bs.insertBefore(ultimo, bs.firstChild);
           ultimo = bc.lastElementChild;
         }
-        // Un título no puede quedar solo al pie de la hoja
-        var cola = bc.lastElementChild;
-        if (cola && (cola.classList.contains('stitle') || cola.classList.contains('mb-head') ||
-                     cola.classList.contains('mb-sub') || cola.classList.contains('mb-sublbl'))) {
-          bs.insertBefore(cola, bs.firstChild);
+        // Ningun encabezado puede quedar colgando al pie de la hoja. Se
+        // arrastran TODOS los que hayan quedado al final, no solo el ultimo:
+        // una seccion empieza con titulo + bajada + rotulo del primer grupo.
+        var ENCABEZADOS = ['stitle', 'sintro', 'mb-head', 'mb-sub', 'mb-sublbl',
+                           'mb-lbl-yours', 'mb-lbl-house', 'add-group-label',
+                           'svc-frase', 'dt-legend'];
+        var esEncabezado = function (el) {
+          return !!el && ENCABEZADOS.some(function (c) { return el.classList.contains(c); });
+        };
+        var vueltas = 0;
+        while (esEncabezado(bc.lastElementChild) && bc.children.length > 1 && vueltas++ < 6) {
+          bs.insertBefore(bc.lastElementChild, bs.firstChild);
         }
         actual = siguiente;
       }

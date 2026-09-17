@@ -3391,3 +3391,252 @@
   .combo-avatar { width: 40px; height: 40px; }
   .preform-combo-clear { width: 32px; height: 32px; }
 }
+
+/* ============================================================
+   MAQUETA A SANGRE — el port del prototipo del Escritorio
+   ============================================================
+   El creador mostraba las fotos dentro de una caja de 900px centrada, con la
+   foto al 40% de brillo y tarjetas de 268px. En una tablet de 1280 eso deja
+   dos tercios de pantalla vacios y las fotos parecen estampillas. El
+   prototipo las lleva de borde a borde. Los pasos que van asi llevan la clase
+   .propuesta-slide-plena y el contenedor se marca .plena desde el JS.        */
+
+.propuesta-slides-container.plena { padding: 54px 0 0; }
+
+.propuesta-slide-plena {
+  max-width: none;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0;
+}
+.propuesta-slide-plena > .propuesta-slide-title {
+  margin: 0;
+  padding: 14px 26px 12px;
+  align-self: flex-start;
+  text-align: left;
+}
+.propuesta-slide-plena > .propuesta-slide-sub {
+  margin: -6px 0 10px;
+  padding: 0 26px;
+  align-self: flex-start;
+  text-align: left;
+}
+
+/* ---- Los paneles de espacio y de estilo ---- */
+.plena .espacio-fork-grid,
+.plena .estilo-fork-grid {
+  max-width: none;
+  margin: 0;
+  flex: 1;
+  gap: 2px;
+  min-height: 0;
+}
+.plena .espacio-card,
+.plena .estilo-fork-card {
+  min-height: 0;
+  height: 100%;
+  border-radius: 0;
+  border-left: 1px solid rgba(0,0,0,.55);
+  border-right: 0; border-top: 0; border-bottom: 0;
+}
+.plena .estilo-fork-card:hover { transform: none; }
+/* Con la foto a pantalla completa, el 40% de brillo la apagaba del todo. El
+   texto se sostiene con el degrade de abajo, no oscureciendo la foto entera. */
+.plena .espacio-photo { filter: brightness(.68) saturate(1.06); }
+.plena .espacio-card:hover .espacio-photo { filter: brightness(.82) saturate(1.12); }
+.plena .espacio-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.3) 42%, rgba(0,0,0,0) 72%);
+  pointer-events: none;
+}
+.plena .espacio-label,
+.plena .espacio-sub { position: relative; z-index: 2; }
+.plena .espacio-label { font-size: 27px; }
+.plena .espacio-card { padding: 0 0 26px 24px !important; }
+
+/* ---- Nuestra casa: el mosaico (paso 3, no se pregunta nada) ---- */
+.casa-galeria {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.casa-celda {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  filter: brightness(.78);
+  transition: filter .35s;
+}
+.casa-celda:hover { filter: brightness(1); }
+.casa-celda.casa-g1 { grid-row: 1 / 3; }   /* la vertical manda la composicion */
+.casa-cap {
+  position: absolute;
+  left: 14px; bottom: 11px;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.88);
+  text-shadow: 0 1px 6px rgba(0,0,0,.8);
+}
+.casa-pie {
+  padding: 13px 0;
+  margin: 0;
+  font-size: 11.5px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-align: center;
+}
+
+/* ---- Los numeros: fecha e invitados en una sola pantalla ---- */
+.numeros-fork {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 0 36px;
+  align-items: center;
+  width: 100%;
+  max-width: 840px;
+  margin: 0 auto;
+}
+.numeros-fork::before { display: none; }
+.numeros-col { min-width: 0; }
+.numeros-col + .numeros-col { border-left: 1px solid rgba(255,255,255,.1); padding-left: 36px; }
+.numeros-fork .propuesta-field-group { gap: 18px; }
+@media (max-width: 900px) {
+  .numeros-fork { grid-template-columns: 1fr; gap: 26px; }
+  .numeros-col + .numeros-col { border-left: 0; padding-left: 0; border-top: 1px solid rgba(255,255,255,.1); padding-top: 22px; }
+}
+
+/* ---- Las tres pantallas de carta ---- */
+.propuesta-slide-plena .carta-foto,
+.propuesta-slide-plena .exp-foto {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+/* La comida se ve mucho mejor nitida: el velo es lateral, no un blur encima.
+   La foto de la barra es la excepcion y va mas apagada, porque no es buena. */
+.propuesta-slide-plena .carta-foto::after,
+.propuesta-slide-plena .exp-foto::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(10,8,5,.95) 0%, rgba(10,8,5,.86) 46%, rgba(10,8,5,.42) 100%);
+}
+.propuesta-slide-plena .exp-foto { filter: brightness(.7); }
+.propuesta-slide-plena { position: relative; }
+.propuesta-slide-plena > * { position: relative; z-index: 1; }
+
+.carta-cuerpo,
+.exp-cuerpo {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 0 26px 22px;
+  text-align: left;
+}
+.carta-cuerpo::-webkit-scrollbar,
+.exp-cuerpo::-webkit-scrollbar { display: none; }
+
+.carta-grupo + .carta-grupo { margin-top: 15px; }
+.carta-grupo-k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(196,153,62,.28);
+}
+.carta-items { display: grid; gap: 7px 30px; margin-top: 9px; }
+.carta-items-2 { grid-template-columns: 1fr 1fr; }
+.carta-item { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.carta-item-n { font-size: 14.5px; color: rgba(255,255,255,.94); }
+.carta-item-d { font-size: 12px; line-height: 1.4; color: rgba(255,255,255,.6); }
+.carta-dt {
+  font-size: 9px;
+  letter-spacing: .05em;
+  padding: 1px 5px;
+  margin-left: 6px;
+  border-radius: 2px;
+  vertical-align: middle;
+  background: rgba(255,255,255,.07);
+  color: rgba(255,255,255,.62);
+  border: 1px solid rgba(255,255,255,.12);
+}
+@media (max-width: 900px) { .carta-items-2 { grid-template-columns: 1fr; } }
+
+/* ---- Los tres niveles de barra ---- */
+.barra-niveles { margin-top: 20px; }
+.barra-niveles-k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 9px;
+}
+.barra-niveles-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+.barra-nivel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 15px 13px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,.03);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .2s, background .2s;
+}
+.barra-nivel input { position: absolute; opacity: 0; pointer-events: none; }
+.barra-nivel:hover { background: rgba(255,255,255,.06); }
+.barra-nivel:has(input:checked) { border-color: var(--gold); background: rgba(196,153,62,.1); }
+.barra-nivel-n { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: rgba(255,255,255,.95); }
+.barra-nivel-d { font-size: 11.5px; color: rgba(255,255,255,.62); }
+/* Ninguno de los tres tiene que parecer el malo: el que va incluido se marca
+   en dorado, los otros dicen "a consultar" sin connotacion. */
+.barra-nivel-p { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: rgba(255,255,255,.5); margin-top: 3px; }
+.nivel-incluido .barra-nivel-p { color: var(--gold); font-weight: 700; }
+@media (max-width: 760px) { .barra-niveles-row { grid-template-columns: 1fr; } }
+
+.exp-cuerpo .incluido-section { margin: 0; }
+
+/* Lo elegido por encima del tope sugerido: no se bloquea, se destiñe. Mariana
+   sabe que entra y que no; el sistema solo avisa. */
+.gastro-menu-row.extra { opacity: .62; }
+.gastro-menu-row.extra .gastro-menu-name::after {
+  content: ' · extra';
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: var(--gold);
+  opacity: .85;
+}
+
+/* Lo que llevan elegido por fuera de la base. Se ve en la tele, asi que dice
+   una cantidad y nada mas: ni "$", ni "extras", ni nada que suene a factura. */
+.autor-contador {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid rgba(196,153,62,.45);
+  background: rgba(196,153,62,.1);
+  border-radius: 999px;
+  padding: 5px 13px;
+  white-space: nowrap;
+}
+.autor-contador[hidden] { display: none; }
+/* En el creador, lo de autor tambien lleva el dorado. */
+.gastro-section-label-premium { color: var(--gold); }
