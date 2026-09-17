@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
   <link rel="stylesheet" href="css/style.css?v=20260915a-mov">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260916c-fotos">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260916d-fecha">
   <link rel="stylesheet" href="css/ux.css?v=20260911k">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
@@ -1575,8 +1575,29 @@
           </div>
         </div>
 
-        <!-- Slide 3: El espacio -->
+        <!-- Slide 3: La fecha (antes del espacio: el mes decide si el jardin entra o no) -->
         <div class="propuesta-slide" data-slide="3">
+          <h2 class="propuesta-slide-title">¿Cuándo es?</h2>
+          <div class="propuesta-field-group">
+            <div class="propuesta-field-big">
+              <label>La fecha</label>
+              <input type="date" id="prop-fecha" class="propuesta-input propuesta-input-big">
+              <div class="fecha-estado" id="fecha-estado"></div>
+            </div>
+            <div class="propuesta-field-big">
+              <label>El turno</label>
+              <div class="propuesta-cards-row" id="turno-cards">
+                <div class="propuesta-card turno-card" data-value="Almuerzo"><span class="turno-emoji">🌞</span><span class="turno-main">Almuerzo</span><span class="turno-sub">Brunch · mediodía</span></div>
+                <div class="propuesta-card turno-card" data-value="Tarde"><span class="turno-emoji">🌇</span><span class="turno-main">Tarde</span><span class="turno-sub">Merienda · media tarde</span></div>
+                <div class="propuesta-card turno-card" data-value="Noche"><span class="turno-emoji">🌙</span><span class="turno-main">Noche</span><span class="turno-sub">Cena · velada</span></div>
+              </div>
+              <div class="momento-hint" id="momento-hint"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 4: El espacio -->
+        <div class="propuesta-slide" data-slide="4">
           <h2 class="propuesta-slide-title">¿Dónde los recibimos?</h2>
           <div class="espacio-fork-grid" id="espacio-cards">
             <div class="propuesta-card espacio-card" data-value="Interior">
@@ -1597,8 +1618,8 @@
           </div>
         </div>
 
-        <!-- Slide 4: Estilo — FORK Formal / Americano -->
-        <div class="propuesta-slide" data-slide="4">
+        <!-- Slide 5: Estilo — FORK Formal / Americano -->
+        <div class="propuesta-slide" data-slide="5">
           <h2 class="propuesta-slide-title">¿Cómo lo imaginás?</h2>
           <div class="estilo-fork-grid" id="estilo-cards">
             <div class="estilo-fork-card estilo-formal" data-estilo="Formal">
@@ -1621,27 +1642,6 @@
                 <div class="fork-desc">Islas en vivo, movimiento, todos disfrutando a su ritmo desde el primer momento</div>
               </div>
               <div class="fork-check">✓</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Slide 5: La fecha -->
-        <div class="propuesta-slide" data-slide="5">
-          <h2 class="propuesta-slide-title">¿Cuándo es?</h2>
-          <div class="propuesta-field-group">
-            <div class="propuesta-field-big">
-              <label>La fecha</label>
-              <input type="date" id="prop-fecha" class="propuesta-input propuesta-input-big">
-              <div class="fecha-estado" id="fecha-estado"></div>
-            </div>
-            <div class="propuesta-field-big">
-              <label>El turno</label>
-              <div class="propuesta-cards-row" id="turno-cards">
-                <div class="propuesta-card turno-card" data-value="Almuerzo"><span class="turno-emoji">🌞</span><span class="turno-main">Almuerzo</span><span class="turno-sub">Brunch · mediodía</span></div>
-                <div class="propuesta-card turno-card" data-value="Tarde"><span class="turno-emoji">🌇</span><span class="turno-main">Tarde</span><span class="turno-sub">Merienda · media tarde</span></div>
-                <div class="propuesta-card turno-card" data-value="Noche"><span class="turno-emoji">🌙</span><span class="turno-main">Noche</span><span class="turno-sub">Cena · velada</span></div>
-              </div>
-              <div class="momento-hint" id="momento-hint"></div>
             </div>
           </div>
         </div>
@@ -1692,12 +1692,12 @@
               <div class="incluido-item">
                 <span class="inc-ico">🍷</span>
                 <span class="inc-name" id="prop-bebidas-name">Bebidas de cena</span>
-                <span class="inc-detail" id="prop-bebidas-detail">Agua · Gaseosas · Cerveza · Vino · Sidra · Champagne</span>
+                <span class="inc-detail" id="prop-bebidas-detail">Agua · Gaseosas de primera marca · Vino · Sidra · Champagne</span>
               </div>
               <div class="incluido-item">
                 <span class="inc-ico">🍸</span>
                 <span class="inc-name">Bar de tragos</span>
-                <span class="inc-detail">Para la recepción o toda la noche — ¡Consultá opciones!</span>
+                <span class="inc-detail">Barra Clásica durante la recepción · extenderla es adicional</span>
               </div>
               <div class="incluido-item">
                 <span class="inc-ico">✦</span>
@@ -1880,7 +1880,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260916c-fotos"></script>
+  <script src="js/app.js?v=20260916d-fecha"></script>
   <script src="js/propuesta-ui.js?v=20260911k-kb"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>
