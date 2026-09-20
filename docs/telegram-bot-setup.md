@@ -46,7 +46,7 @@ TELEGRAM_CHAT_MAP=123456789:superadmin,987654321:admin
 TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
 GEMINI_API_KEY=AIza...
 TELEGRAM_CHAT_MAP=123456789:fabio,987654321:mariana
-TELEGRAM_WEBHOOK_SECRET=algo-secreto-que-inventes   # opcional pero recomendado
+TELEGRAM_WEBHOOK_SECRET=algo-secreto-que-inventes   # OBLIGATORIO
 # GEMINI_MODEL=gemini-flash-latest                      # opcional
 ```
 
@@ -58,6 +58,15 @@ Telegram tiene que saber a qué URL mandar los mensajes. Abrí en el navegador
 ```
 https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://salon-eventos.onrender.com/api/webhook/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>
 ```
+
+> ⚠️ **`TELEGRAM_WEBHOOK_SECRET` es obligatorio.** Sin él, `/api/webhook/telegram`
+> quedaría abierto: cualquiera que conozca la URL podría mandar movimientos falsos
+> y meterlos en la contabilidad. Si falta, **el bot no arranca** y el arranque del
+> servidor lo avisa en el log con las instrucciones para reactivarlo.
+>
+> El secreto que pongas en la variable de entorno y el `secret_token` del enlace de
+> arriba **tienen que ser el mismo texto**. Si cambiás uno, cambiá el otro y volvé a
+> registrar el webhook, o Telegram va a recibir 401 en cada mensaje.
 
 Debe responder `{"ok":true,...}`. Listo: mandá un audio de prueba y fijate que aparezca
 en **Por confirmar** del CRM.

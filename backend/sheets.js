@@ -435,14 +435,18 @@ function ingresoToRow(i) {
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
+// Descarta filas sin id, igual que getEgresos: son huecos que deja deleteIngreso
+// (vacía la fila en vez de borrarla, para no correr los rowIndex) o filas
+// escritas a medias. El rowIndex se calcula ANTES de filtrar, así sigue
+// apuntando a la fila real de la planilla.
 async function getIngresos() {
-  if (!tieneCredenciales) return memIngresos;
+  if (!tieneCredenciales) return memIngresos.filter(i => i.id);
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: 'Ingresos!A2:P',
   });
-  return (res.data.values || []).map((row, i) => rowToIngreso(row, i));
+  return (res.data.values || []).map((row, i) => rowToIngreso(row, i)).filter(i => i.id);
 }
 
 async function addIngreso(data) {

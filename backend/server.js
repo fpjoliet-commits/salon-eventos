@@ -98,15 +98,29 @@ function superAdminOnly(req, res, next) {
 // Qué etiquetas (cargadoPor) "posee" cada rol. cargadoPor es el nombre que se
 // MUESTRA (lo pone el bot: Lautaro/Fabio/Mariana; o el login a mano: superadmin/
 // admin/empleado). La visibilidad se decide acá, separada de la etiqueta.
+// OJO: las claves son el ROL (req.user.role), no el nombre de usuario. El
+// usuario "empleado" tiene rol 'operador'; con la clave 'empleado' esto nunca
+// matcheaba.
 const ETIQUETAS_DE_ROL = {
   superadmin: ['superadmin', 'lautaro', 'fabio'],
   admin: ['admin', 'mariana'],
-  empleado: ['empleado', 'anita'],
+  operador: ['empleado', 'anita'],
 };
 function etiquetasPropias(req) {
   const yo = (req.user.usuario || '').toLowerCase();
   return new Set([yo, ...(ETIQUETAS_DE_ROL[req.user.role] || []).map(s => s.toLowerCase())]);
 }
+
+// La bandeja "Por confirmar" es adminOnly: solo admin y superadmin llegan.
+// Entonces un borrador es HUÉRFANO si su etiqueta no pertenece a ninguno de
+// esos dos roles — nadie lo va a ver nunca y nadie lo va a poder confirmar.
+// Pasa con Anita (rol operador, sin acceso a la bandeja) y con cualquiera que
+// se sume a TELEGRAM_CHAT_MAP sin estar acá. Antes quedaban cargados en la
+// planilla como confirmado=false, invisibles para todos, para siempre.
+const ETIQUETAS_CON_ACCESO = new Set(
+  [...ETIQUETAS_DE_ROL.superadmin, ...ETIQUETAS_DE_ROL.admin].map(s => s.toLowerCase())
+);
+const esHuerfano = m => !ETIQUETAS_CON_ACCESO.has((m.cargadoPor || '').toLowerCase());
 // HISTORIAL (confirmados): el superadmin ve TODO; el resto, solo lo suyo.
 function historialVisible(items, req) {
   if (req.user.role === 'superadmin') return items;
@@ -115,9 +129,13 @@ function historialVisible(items, req) {
 }
 // POR CONFIRMAR (borradores): cada rol ve SOLO los suyos, superadmin incluido,
 // porque cada persona corrobora sus propios cobros/gastos. Sets disjuntos.
+// El superadmin, además de los suyos, ve los huérfanos: es la red de seguridad
+// para que ningún borrador quede sin dueño y sin poder confirmarse.
 function pendientesVisibles(items, req) {
   const set = etiquetasPropias(req);
-  return items.filter(m => set.has((m.cargadoPor || '').toLowerCase()));
+  const esSuper = req.user.role === 'superadmin';
+  return items.filter(m =>
+    set.has((m.cargadoPor || '').toLowerCase()) || (esSuper && esHuerfano(m)));
 }
 
 /* ===================== VALIDACIÓN DE ENTRADA =====================
@@ -323,7 +341,30 @@ async function datosEvento(idEvento) {
   } catch { return { cliente: '', fechaEvento: '', etiqueta: '' }; }
 }
 
+/* Un cuerpo vacío o incompleto acá escribía igual una fila en la planilla: id
+   generado, todo lo demás en blanco y confirmado=true. Esas filas fantasma
+   pasaban los filtros del historial y se veían como "Ingreso / Otro / $0".
+   Era el único endpoint de dinero sin validar. */
+function validarIngreso(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return 'Cuerpo del pedido inválido';
+  }
+  const monto = parseFloat(body.monto);
+  if (!Number.isFinite(monto) || monto <= 0) {
+    return 'El cobro necesita un monto mayor a 0';
+  }
+  if (!esFechaISO(body.fecha) || !body.fecha) {
+    return 'El cobro necesita una fecha válida (AAAA-MM-DD)';
+  }
+  if (body.moneda && !['ARS', 'USD'].includes(body.moneda)) {
+    return `Moneda inválida: "${body.moneda}"`;
+  }
+  return null;
+}
+
 app.post('/api/ingresos', auth, async (req, res) => {
+  const error = validarIngreso(req.body);
+  if (error) return res.status(400).json({ error });
   try {
     const { cliente, fechaEvento } = await datosEvento(req.body.idCliente);
     const ingreso = await sheets.addIngreso({
@@ -1077,6 +1118,9 @@ const telegramBot = require('./telegram-bot');
 if (telegramBot.BOT_ACTIVO) {
   app.use('/api', telegramBot.crearRouter(sheets));
   console.log('🤖 Bot de Telegram activo (webhook en /api/webhook/telegram)');
+} else if (telegramBot.BOT_CONFIGURADO) {
+  // El detalle de qué falta y cómo arreglarlo ya lo imprimió telegram-bot.js.
+  console.log('🤖 Bot de Telegram inactivo (ver el aviso de arriba)');
 } else {
   console.log('🤖 Bot de Telegram inactivo (faltan TELEGRAM_BOT_TOKEN o GEMINI_API_KEY)');
 }
