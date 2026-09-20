@@ -277,32 +277,40 @@
     };
     const clima = porEvento[d.tipoEvento] ? porEvento[d.tipoEvento]() : '';
 
+    // OJO: estos numeros son los pasos del creador, y el creador paso de 11
+    // pasos a 14. Cuando se reordena un paso hay que tocar tambien esta tabla,
+    // si no la escenografia queda pegada al paso equivocado — pasó: la luna
+    // salia en "Donde los recibimos" en vez de en la eleccion del turno.
     switch (n) {
       case 1:  // Portada
         return clima || field(10, 'sc-rise sc-oro', DESTELLO, { size: [8, 18], dur: [12, 20] });
       case 2:  // Qué festejamos — acá se ve el efecto de elegir
         return clima;
-      case 3:  // Dónde los recibimos
+      case 3:  // Nuestra casa — la foto manda, nada encima
+        return '';
+      case 4:  // Los números — con el turno sale el sol o la luna
+        return (!d.turno ? '' : diurno ? SOL : LUNA) + clima;
+      case 5:  // Dónde los recibimos
         return (d.espacio === 'Interior'  ? ESPEJOS
              :  d.espacio === 'Jardín'    ? FOLLAJE
              :  d.espacio === 'Combinado' ? ESPEJOS + FOLLAJE
              :  '') + clima;
-      case 4:  // Cómo lo imaginás
+      case 6:  // Cómo lo imaginás
         return clima;
-      case 5:  // Cuándo es — sale el sol o la luna
-        return (!d.turno ? '' : diurno ? SOL : LUNA) + clima;
-      case 6:  // Cuántos van a ser
-        return clima || field(10, 'sc-rise sc-oro', BURBUJA, { size: [10, 22], dur: [12, 20] });
       case 7:  // El recorrido
         return HILO + clima;
-      case 8:  // Hacelo único
+      case 8:  // La recepción
+      case 9:  // El primer plato / las islas
+      case 10: // La mesa dulce
+        return VAPOR;
+      case 11: // La experiencia Joliet — la foto de la barra ya carga bastante
+        return '';
+      case 12: // Hacelo único
         return field(14, 'sc-fall sc-confeti', CONFETI, { size: [8, 16], dur: [6, 12] })
              + field(6, 'sc-rise sc-oro', NOTA, { size: [16, 28], dur: [13, 20] });
-      case 9:  // El banquete
-        return VAPOR;
-      case 10: // Algo más
+      case 13: // Algo más
         return clima;
-      case 11: // Tu propuesta está lista
+      case 14: // Tu propuesta está lista
         return BRINDIS
              + field(18, 'sc-fall sc-oro', CONFETI, { size: [8, 18], dur: [7, 13] })
              + field(8, 'sc-rise sc-oro', DESTELLO, { size: [10, 22], dur: [11, 18] });

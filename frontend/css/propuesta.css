@@ -3640,3 +3640,558 @@
 .autor-contador[hidden] { display: none; }
 /* En el creador, lo de autor tambien lleva el dorado. */
 .gastro-section-label-premium { color: var(--gold); }
+
+/* ============================================================
+   CORRECCIONES 20/09 — sobre las capturas de Fabio
+   ============================================================ */
+
+/* LA PORTADA. Estaba en una tarjeta de 1180px con aspect-ratio 3/2, asi que
+   al pasar del preform (que va a sangre) la misma foto se achicaba y se
+   corria de lugar. Ahora las dos ocupan la pantalla igual. */
+.propuesta-slides-container.plena-full { padding: 0; }
+.propuesta-slide-plena.propuesta-slide-portada {
+  /* Se apoya en el contenedor, que es position:relative, en vez de depender de
+     flex: con height:auto las dos capas de foto (que son absolutas) colapsaban
+     a cero y la pantalla quedaba vacia. */
+  position: absolute !important;
+  inset: 0;
+  flex: none !important;
+  width: auto !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: auto !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+/* A pantalla completa ya no hace falta el truco del fondo desenfocado para
+   rellenar el marco: la foto cubre. */
+.propuesta-slide-plena.propuesta-slide-portada .portada-photo-fg {
+  background-size: cover;
+  animation: none;
+}
+.propuesta-slide-plena.propuesta-slide-portada .portada-photo { display: none; }
+
+/* LOS NUMEROS estaban rotos: la grilla declaraba TRES columnas (1fr 1px 1fr)
+   y el paso tiene DOS hijos, asi que la segunda columna caia en la pista de
+   1px. De ahi el cuadradito en vez del campo de fecha, los turnos apilados y
+   el texto saliendo palabra por palabra. */
+.numeros-fork {
+  grid-template-columns: 1fr 1fr;
+  gap: 0 48px;
+  max-width: 920px;
+}
+.numeros-fork .propuesta-cards-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.numeros-fork .momento-hint { min-height: 34px; }
+
+/* Las bajadas de los espacios se cortaban contra el borde de la foto */
+.plena .espacio-card { padding: 0 22px 28px !important; }
+.plena .espacio-sub { max-width: 34ch; opacity: .85; }
+
+/* LOS ADICIONALES: las cuatro columnas en una sola fila y a todo el ancho.
+   Antes heredaban el tope de 900px del paso y se partian en dos filas. */
+.plena .adicionales-grupos {
+  max-width: none;
+  width: 100%;
+  grid-template-columns: repeat(4, 1fr);
+  flex: 1;
+  min-height: 0;
+  padding: 0 24px 14px;
+  gap: 16px;
+}
+.plena .adic-grupo-ph { min-height: 96px; }
+
+/* LA EXPERIENCIA JOLIET: el contenido caia sobre la parte clara de la foto y
+   no se leia. El velo pasa a cubrir toda la hoja, no solo el costado. */
+.propuesta-slide-plena .exp-foto::after {
+  background: linear-gradient(90deg, rgba(10,8,5,.95) 0%, rgba(10,8,5,.9) 55%, rgba(10,8,5,.8) 100%);
+}
+.exp-cuerpo { max-width: 1280px; margin: 0 auto; }
+.exp-cuerpo .incluido-grid { grid-template-columns: repeat(3, 1fr); }
+
+/* LA RECEPCION. Era un muro de texto a 1900px de ancho y no se parecia a
+   ninguna otra pantalla. Se acota, se achica y los grupos van de a dos, con
+   la misma ficha oscura de borde fino que usa el resto del kiosco. */
+/* Solo cuando el paso muestra el listado fijo (americano). Con las
+   estaciones adentro, la columna es angosta y las fichas van una abajo de
+   la otra: ver [data-estaciones] mas abajo. */
+#recepcion-carta:not([data-estaciones]) {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 30px;
+  align-content: start;
+}
+#recepcion-carta[data-estaciones] { display: block; max-width: none; }
+#recepcion-carta .carta-grupo {
+  margin-top: 0;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,.025);
+  padding: 12px 15px 13px;
+}
+#recepcion-carta .carta-grupo-k { border-bottom-color: rgba(196,153,62,.22); }
+#recepcion-carta .carta-items { gap: 5px 24px; margin-top: 8px; }
+#recepcion-carta .carta-item-n { font-size: 13px; }
+#recepcion-carta .carta-item-d { font-size: 11px; line-height: 1.35; opacity: .85; }
+/* Los dos grupos largos ocupan las dos columnas y se abren adentro */
+#recepcion-carta:not([data-estaciones]) .carta-grupo:nth-child(4),
+#recepcion-carta:not([data-estaciones]) .carta-grupo:nth-child(5) { grid-column: 1 / -1; }
+@media (max-width: 1100px) {
+  #recepcion-carta { grid-template-columns: 1fr; }
+  #recepcion-carta .carta-grupo:nth-child(4),
+  #recepcion-carta .carta-grupo:nth-child(5) { grid-column: auto; }
+}
+
+/* ---- La experiencia Joliet: la version del prototipo ----
+   Tres grupos que se recuerdan en vez de ocho renglones sueltos, y arriba la
+   frase que convierte la lista en un argumento. */
+.inc-h {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(26px, 3vw, 40px);
+  line-height: 1.1;
+  color: #fff;
+  text-align: center;
+}
+.inc-a {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(14px, 1.3vw, 18px);
+  color: var(--gold);
+  text-align: center;
+  margin-top: 7px;
+}
+.inc-regla { width: 64px; height: 1px; background: var(--gold-soft); margin: 16px auto 20px; opacity: .6; }
+.inc-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px 38px; }
+.inc-k {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(196,153,62,.3);
+  margin-bottom: 10px;
+}
+.inc-i {
+  position: relative;
+  padding-left: 15px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: rgba(255,255,255,.9);
+}
+.inc-i + .inc-i { margin-top: 7px; }
+.inc-i::before {
+  content: '';
+  position: absolute;
+  left: 0; top: .62em;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.inc-nota {
+  font-size: 11px;
+  font-style: italic;
+  color: rgba(255,255,255,.45);
+  text-align: center;
+  margin-top: 14px;
+}
+@media (max-width: 900px) { .inc-cols { grid-template-columns: 1fr; gap: 18px; } }
+
+/* ============================================================
+   PORT DEL PROTOTIPO — TANDA 1
+   ------------------------------------------------------------
+   Decisiones de Fabio sobre la comparativa del 20/09/2026
+   (ver "COMPARATIVA - creador slide por slide.html" en el
+   Escritorio). Lo que se porta es la estetica y el armado; lo
+   que ya funcionaba —contador, menu infantil, disponibilidad
+   de fecha, de autor, plato central, guardar y PDF— se queda.
+   ============================================================ */
+
+/* ---- Portada: la volanta y el tamano del titulo ----
+   El armado a sangre ya estaba resuelto mas arriba ("CORRECCIONES 20/09").
+   Aca va solo lo que suma el prototipo: la volanta dorada arriba del titulo,
+   el titulo mas grande y el texto apoyado abajo, sobre la parte oscura. */
+.plena-full .portada-content { padding: 0 32px 11vh !important; justify-content: flex-end; }
+/* LA PORTADA SALIA SIN FOTO. El armado a sangre le pone position:relative a
+   todos los hijos del paso para que queden por encima del fondo, y las dos
+   capas de foto de la portada son absolutas con inset:0: al volverse
+   relativas colapsaban a 0x0 y solo quedaba el fondo del kiosco. */
+.propuesta-slide-plena > .portada-photo,
+.propuesta-slide-plena > .portada-photo-fg,
+.propuesta-slide-plena > .portada-overlay { position: absolute; inset: 0; }
+/* La foto del evento cambia con el tipo de evento y no todas son de noche:
+   la de un XV puede entrar clarisima y comerse el titulo. Se apoya el texto
+   bajando la foto, no tapandola con mas velo. */
+.plena-full .portada-photo-fg { filter: brightness(.66) saturate(1.06); }
+.portada-kick {
+  font-size: 12px;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 14px;
+}
+.plena-full .propuesta-main-title { font-size: clamp(36px, 6.2vw, 74px) !important; }
+.plena-full .propuesta-subtitle { margin-bottom: 0 !important; }
+
+/* ---- Foto de fondo velada, para los pasos que son pregunta ----
+   La foto no se mira: da clima y color detras de lo que hay que contestar.
+   Por eso va desenfocada y con un velo parejo encima. */
+.slide-con-foto { position: relative; }
+.slide-con-foto > *:not(.slide-foto) { position: relative; z-index: 1; }
+.slide-foto {
+  position: absolute;
+  inset: -5%;
+  z-index: 0;
+  background-size: cover;
+  background-position: center 42%;
+  filter: blur(6px) saturate(.85) brightness(.8);
+  transform: scale(1.07);
+  pointer-events: none;
+}
+.slide-foto::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 9, 6, .8);
+}
+
+/* ---- Los numeros: dos campos grandes, nada mas ---- */
+.campo-k {
+  font-size: 12px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 500;
+  text-align: center;
+  display: block;
+  margin-bottom: 10px;
+}
+.slide-con-foto .numeros-fork { max-width: 980px; }
+/* Los botones del contador dejan de ser dos pelotas grises al lado del
+   numero: se corren a los costados y solo se notan cuando se los busca. */
+.slide-con-foto .propuesta-counter { gap: 10px; }
+.slide-con-foto .counter-btn {
+  width: 42px; height: 42px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.16);
+  color: rgba(255,255,255,.65);
+  font-size: 20px;
+}
+.slide-con-foto .counter-display {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(54px, 9vh, 92px);
+  line-height: 1;
+  min-width: 3.2ch;
+  border-bottom: 1px solid rgba(255,255,255,.25);
+  padding-bottom: 8px;
+}
+.slide-con-foto .propuesta-counter-hint {
+  font-size: 14px;
+  letter-spacing: .04em;
+  text-transform: none;
+  color: rgba(255,255,255,.62);
+  margin-top: 10px;
+}
+.slide-con-foto .propuesta-input-big {
+  font-size: clamp(28px, 4.6vh, 44px) !important;
+  text-align: center;
+  background: none !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255,255,255,.25) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 4px 0 10px !important;
+  max-width: 320px;
+}
+.slide-con-foto .propuesta-input-big:focus { border-bottom-color: var(--gold) !important; }
+/* El rotulo dorado pisa al gris de 9px del formulario comun */
+.slide-con-foto .campo-k,
+.slide-con-foto .propuesta-field-big label.campo-k {
+  font-size: 12px;
+  letter-spacing: .26em;
+  color: var(--gold);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+/* El paso queda centrado en la pantalla, con el titulo arriba a la izquierda */
+.slide-con-foto .numeros-fork {
+  flex: 1;
+  align-content: center;
+  align-self: center;
+}
+/* El turno no necesita emoji ni bajada: abajo ya hay una linea que cuenta
+   como se vive ese momento, y esta pantalla se espeja a la tele. */
+.slide-con-foto .turno-card .turno-emoji,
+.slide-con-foto .turno-card .turno-sub { display: none; }
+.slide-con-foto .turno-card {
+  padding: 12px 24px;
+  border-radius: 2px;
+  min-width: 0;
+}
+.slide-con-foto .turno-main { font-size: 15px; }
+.slide-con-foto #turno-cards { gap: 12px; justify-content: center; }
+
+/* ---- El recorrido como linea de tiempo ---- */
+.recorrido-tl {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 26px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  text-align: left;
+}
+.tl-r {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.tl-r:last-child { border-bottom: none; }
+.tl-n {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--gold);
+  flex: 0 0 40px;
+  text-align: right;
+}
+.tl-t {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 25px;
+  color: rgba(255,255,255,.96);
+  flex: 0 0 auto;
+}
+.tl-l { flex: 1; height: 1px; background: rgba(255,255,255,.09); margin: 0 12px; }
+.tl-d {
+  font-size: 13.5px;
+  color: rgba(255,255,255,.58);
+  text-align: right;
+  max-width: 52%;
+}
+@media (max-width: 900px) {
+  .tl-r { flex-wrap: wrap; gap: 8px 14px; }
+  .tl-l { display: none; }
+  .tl-d { text-align: left; max-width: none; flex: 1 0 100%; padding-left: 60px; }
+}
+
+/* ---- ¿Algo mas?: el cuadro de texto sobre la foto ---- */
+.slide-con-foto .propuesta-textarea {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 23px;
+  line-height: 1.6;
+  min-height: 26vh;
+  max-width: 900px;
+  padding: 20px 24px;
+}
+.slide-con-foto .propuesta-textarea::placeholder { font-style: italic; }
+
+/* ---- El cierre: el telon deja ver algo mas de la foto ----
+   Seguia siendo clima y no ilustracion, pero a 18px de desenfoque no se
+   entendia que era una fiesta. */
+.final-fondo { filter: blur(9px) saturate(1.15); }
+
+/* ============================================================
+   PORT DEL PROTOTIPO — TANDA 2 (pasos 2, 3, 5 y 6)
+   ============================================================ */
+
+/* ---- La tilde de lo elegido, sobre la foto ----
+   Con la foto a sangre el borde dorado casi no se ve: hace falta una marca
+   que se lea desde la tele, a tres metros. */
+.espacio-tick {
+  position: absolute;
+  top: 18px; right: 18px;
+  z-index: 3;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #15110a;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 700;
+}
+.espacio-card.selected .espacio-tick { display: flex; }
+
+/* Lo no elegido se apaga de verdad: sobre una foto a pantalla completa, medio
+   punto de opacidad no alcanza para que se note cual quedo elegida. */
+#espacio-cards.has-pick .propuesta-card:not(.selected),
+#estilo-cards.has-pick .estilo-fork-card:not(.selected) {
+  opacity: 1;
+  filter: grayscale(.72) brightness(.45);
+}
+#espacio-cards.has-pick .propuesta-card:not(.selected):hover,
+#estilo-cards.has-pick .estilo-fork-card:not(.selected):hover {
+  filter: grayscale(.2) brightness(.8);
+}
+
+/* ---- El nombre del espacio, mas grande sobre la foto ---- */
+.plena .espacio-sub { font-size: 12.5px; color: rgba(255,255,255,.72); }
+/* Los nombres de los paneles caian justo detras de la barra de navegacion,
+   que flota encima de la foto: suben por arriba de los botones. */
+.plena .espacio-card { padding-bottom: 88px !important; }
+.plena .estilo-fork-card .fork-content { padding-bottom: 74px; }
+
+/* ============================================================
+   PORT DEL PROTOTIPO — TANDA 3: LA CARTA VIVA (pasos 8, 9 y 10)
+   ------------------------------------------------------------
+   A la izquierda la carta del evento, que se escribe sola mientras eligen;
+   a la derecha lo que hay para elegir. El cliente deja de ver un formulario
+   y ve su menu tomando forma.
+   ============================================================ */
+.carta-doble {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1.32fr 1fr;
+}
+/* Arranca arriba y no centrada: con seis lineas y la pantalla de una tablet,
+   centrar hacia que la primera linea quedara arriba del borde. Si no entra,
+   scrollea sin barra a la vista. */
+.carta-viva {
+  padding: 10px 34px 26px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  text-align: left;
+  min-width: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.carta-viva::-webkit-scrollbar { display: none; }
+.cv-k {
+  font-size: 11px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.cv-h {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 1;
+  color: rgba(255,255,255,.97);
+  margin: 8px 0 18px;
+}
+.cv-ln {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  transition: background .3s, color .3s;
+}
+.cv-ln:last-child { border-bottom: none; }
+.cv-n {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--gold);
+  flex: 0 0 26px;
+}
+.cv-t {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 19.5px;
+  line-height: 1.25;
+  color: rgba(255,255,255,.95);
+  flex: 1;
+}
+/* Lo ultimo que eligieron se prende un momento: se ve que ESO que acaban de
+   tocar entro en la carta. */
+.cv-nuevo {
+  background: rgba(196,153,62,.16);
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  border-bottom-color: rgba(196,153,62,.3);
+}
+.cv-nuevo .cv-t { color: var(--gold-bright); }
+/* Lo que falta elegir: en gris y en italica, sin cartel de error */
+.cv-espera { opacity: .3; }
+.cv-espera .cv-t { font-style: italic; font-size: 18px; }
+
+/* La columna de la derecha: es la que scrollea, no la carta */
+.carta-doble .carta-cuerpo {
+  background: rgba(8,7,5,.55);
+  border-left: 1px solid rgba(255,255,255,.1);
+  padding: 14px 22px 26px;
+}
+@media (max-width: 900px) {
+  .carta-doble { grid-template-columns: 1fr; }
+  .carta-viva { display: none; }
+}
+
+/* ---- El sello de lo de autor, al lado del plato ----
+   Antes lo de autor vivia en un bloque aparte debajo de un rotulo "a
+   consultar", y ahi parecia el apartado de las cosas caras. Adentro de la
+   lista, con el sello al lado, es una opcion mas que se elige por gusto. */
+.sello-autor {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border: 1px solid rgba(196,153,62,.5);
+  border-radius: 999px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* Las dos listas quedan pegadas: se leen como una sola */
+.gastro-islands-list + .gastro-islands-list { margin-top: 0; }
+/* La pantalla no crece: la carta se queda quieta y scrollea la columna de la
+   derecha, que es la unica que puede tener mas filas de las que entran. */
+.propuesta-slide-plena .carta-doble { height: 100%; min-height: 0; }
+.carta-doble > .carta-viva { padding-bottom: 78px; }
+.carta-doble > .carta-cuerpo {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 76px;
+}
+.carta-doble .gastro-islands-section,
+.carta-doble #gastro-slide-content,
+.carta-doble #gastro-dulce-content { max-width: none; }
+
+/* ============================================================
+   PORT DEL PROTOTIPO — TANDA 4 (pasos 11 y 12)
+   ============================================================ */
+
+/* ---- La experiencia Joliet: el bloque, centrado ----
+   Quedaba todo arriba y sobraban 200px de foto vacia abajo. */
+.propuesta-slide-plena .exp-cuerpo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 76px;
+}
+
+/* ---- Lo que suman: que la pagina se use entera ----
+   El encabezado se comia una franja de 130px arriba y las fotos de grupo
+   eran fijas y altas, asi que las fichas quedaban apretadas abajo y el pie
+   terminaba debajo de la barra de navegacion. Ahora el encabezado es una
+   linea y la foto se queda con lo que sobra. */
+.propuesta-slide-plena .adicionales-grupos ~ .foto-promo,
+.propuesta-slide-plena .adicionales-grupos ~ .propuesta-todo-posible { position: relative; z-index: 2; }
+.plena > .propuesta-slide-title + .propuesta-slide-sub { margin: -8px 0 6px; }
+.plena .adicionales-grupos { padding-bottom: 6px; }
+.plena .adic-grupo-ph { min-height: 70px; }
+.plena .adic-grupo { gap: 6px; }
+/* El pie sube por encima de los botones */
+.propuesta-slide-plena .foto-promo { margin-top: 4px; }
+.propuesta-slide-plena .propuesta-todo-posible { margin-bottom: 64px; }
+/* En el americano el paso 8 sigue mostrando el listado fijo de la recepcion,
+   pero ahora comparte la pantalla con la carta: una sola columna. */
+.carta-doble #recepcion-carta:not([data-estaciones]) { grid-template-columns: 1fr; max-width: none; }
+.carta-doble #recepcion-carta:not([data-estaciones]) .carta-grupo:nth-child(4),
+.carta-doble #recepcion-carta:not([data-estaciones]) .carta-grupo:nth-child(5) { grid-column: auto; }

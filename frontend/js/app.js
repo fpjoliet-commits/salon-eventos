@@ -4659,13 +4659,13 @@ function preFillPropuestaFromCliente(cliente) {
   d.gmail = cliente.gmail || '';
   const gi = $('prop-contacto-gmail'); if (gi) gi.value = d.gmail;
 
-  const sinAgasajado = ['Corporativo', 'Otro'];
   if (cliente.tipoEvento) {
     d.tipoEvento = cliente.tipoEvento;
     document.querySelectorAll('#evento-cards .propuesta-card').forEach(c =>
       c.classList.toggle('selected', c.dataset.value === cliente.tipoEvento));
-    const agRow = $('agasajado-row');
-    if (agRow) agRow.style.display = sinAgasajado.includes(cliente.tipoEvento) ? 'none' : '';
+    // Viniendo de un cliente ya cargado, la pregunta del paso 2 tambien tiene
+    // que ser la del evento: si no, quedaba el rotulo generico.
+    aplicarRotuloAgasajado(cliente.tipoEvento);
     updatePortadaImage();
   }
   if (cliente.fechaEvento) {
@@ -4921,9 +4921,7 @@ function startPropuestaWithSavedState(cliente, saved, opt = {}) {
   if (miCb) { miCb.checked = !!saved.menuInfantil; }
   const infRow = document.getElementById('infantil-count-row');
   if (infRow) infRow.style.display = saved.menuInfantil ? '' : 'none';
-  const sinAgasajado = ['Corporativo', 'Otro'];
-  const agRow = document.getElementById('agasajado-row');
-  if (agRow) agRow.style.display = sinAgasajado.includes(saved.tipoEvento) ? 'none' : '';
+  aplicarRotuloAgasajado(saved.tipoEvento);
   const cumpleRow = document.getElementById('cumple-anios-row');
   if (cumpleRow) cumpleRow.style.display = saved.tipoEvento === 'Cumpleaños' ? '' : 'none';
   document.querySelectorAll('#view-propuesta .adicionales-grid input[type="checkbox"]').forEach(cb => {
@@ -4951,19 +4949,39 @@ function startPropuestaWithSavedState(cliente, saved, opt = {}) {
   setTimeout(arrancar, 60);
 }
 
+/* El recorrido va como linea de tiempo: un renglon por momento, con
+   numeracion romana. Es una lista de orden, no un mosaico de fichas — se lee
+   de arriba a abajo igual que se vive la noche.
+   La foto de fondo cambia con el estilo. El americano usa una suplente:
+   todavia no hay foto propia de las islas en vivo. */
+const RECORRIDO_FOTO = {
+  Formal:    'img/propuesta/joliet/salida-principal.jpg',
+  Americano: 'img/propuesta/joliet/arroz-en-olla-2.jpg',
+};
+const ROMANOS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
 function buildRecorrido() {
   const estilo = propuestaState.data.estilo || 'Formal';
   const pasos = RECORRIDO[estilo] || RECORRIDO.Formal;
-  const isFormal = estilo === 'Formal';
   const container = document.getElementById('recorrido-container');
   if (!container) return;
+
+  const foto = $('recorrido-foto');
+  if (foto) foto.style.backgroundImage = `url('${RECORRIDO_FOTO[estilo] || RECORRIDO_FOTO.Formal}')`;
+
+  // El titulo acompaña al turno: de noche es una noche, al mediodia es un dia
+  const titulo = $('prop-s7-title');
+  if (titulo) {
+    const turno = propuestaState.data.turno;
+    titulo.textContent = `El recorrido de su ${turno && turno !== 'Noche' ? 'día' : 'noche'}`;
+  }
+
   container.innerHTML = pasos.map((p, i) => `
-    <div class="recorrido-step ${isFormal ? 'recorrido-step-formal' : ''}">
-      <div class="recorrido-num">${i + 1}</div>
-      <div class="recorrido-info">
-        <div class="recorrido-name">${p.nombre}</div>
-        <div class="recorrido-desc">${p.desc}</div>
-      </div>
+    <div class="tl-r">
+      <span class="tl-n">${ROMANOS[i] || i + 1}</span>
+      <span class="tl-t">${p.nombre}</span>
+      <span class="tl-l"></span>
+      <span class="tl-d">${p.relato || p.desc}</span>
     </div>
   `).join('');
 }
@@ -4999,7 +5017,7 @@ function updatePropuestaNav() {
 function goToPropuestaSlide(n) {
   if (propuestaState.current === 9 || propuestaState.current === 10) {
     propuestaState.data.gastroAdicionales = [];
-    document.querySelectorAll(GASTRO_SEL + ' input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
+    document.querySelectorAll(gastroSel('input[type="checkbox"]:checked:not([disabled])')).forEach(cb => {
       propuestaState.data.gastroAdicionales.push(cb.value);
     });
     const d = propuestaState.data;
@@ -5029,6 +5047,8 @@ function goToPropuestaSlide(n) {
     // Los pasos de foto grande sacan el margen del contenedor para ir a
     // sangre. Se marca por clase y no con :has() para no depender del motor.
     container.classList.toggle('plena', !!slide?.classList.contains('propuesta-slide-plena'));
+    // La portada es foto pura: tampoco deja el margen de la barra de arriba.
+    container.classList.toggle('plena-full', !!slide?.classList.contains('propuesta-slide-portada'));
   }
   updatePropuestaNav();
   applyMomentoTheme();
@@ -5040,13 +5060,17 @@ function goToPropuestaSlide(n) {
   if (n === 4) checkFechaDisponible();
   if (n === 1) updatePortadaImage();
   if (n === 7) buildRecorrido();
-  if (n === 8) buildRecepcionCarta();
+  // Los tres pasos de menu se arman juntos: en el formal las estaciones van
+  // en el 8 y el primer plato en el 9, asi que entrar por cualquiera de los
+  // tres tiene que dejar los tres armados.
+  if (n >= 8 && n <= 10) { buildGastroSlide(); buildRecepcionCarta(); pintarCartaViva(); }
   // La carta se arma entera de una vez: el paso 9 y el 10 son dos vistas del
   // mismo armado, asi que entrar por cualquiera de los dos la reconstruye.
-  if (n === 9 || n === 10) buildGastroSlide();
+
   if (n === 14) buildPropuestaResumen();
   // El telon del cierre se enciende al llegar y se apaga al volver atras
-  document.querySelector('.propuesta-kiosco')?.classList.toggle('en-final', n === 11);
+  // Iba con 11 de cuando el creador tenia 11 pasos: nunca llegaba a encenderse
+  document.querySelector('.propuesta-kiosco')?.classList.toggle('en-final', n === 14);
 }
 
 // Una sola fuente de verdad para la foto del evento: la que se ve en pantalla
@@ -5073,6 +5097,33 @@ function portadaImgFor(tipo) {
     'Corporativo': 'img/propuesta/joliet/salon-montado.jpg',
   };
   return map[tipo] || 'img/propuesta/joliet/fachada-noche.jpg';
+}
+
+/* ¿A quien festejamos? No es lo mismo en una boda que en un bautismo: la
+   pregunta cambia con el evento y adentro del campo va un ejemplo, asi
+   Mariana no tiene que explicar que se espera que escriba. En Corporativo y
+   en Otro tambien se pregunta: antes el campo desaparecia y el nombre del
+   evento se perdia. */
+const ROTULO_AGASAJADO = {
+  'Boda': ['¿Quiénes se casan?', 'Silvina y Damián'],
+  'XV años': ['¿Quién cumple los XV?', 'Julieta'],
+  'Cumpleaños': ['¿Quién cumple?', 'Rubén'],
+  'Bautismo': ['¿A quién bautizamos?', 'Tomás'],
+  'Comunión': ['¿Quién toma la comunión?', 'Tomás'],
+  'Egresados': ['¿Qué promoción es?', 'Promo 2027'],
+  'Corporativo': ['¿Qué empresa es?', 'Grupo Andes'],
+  'Otro': ['¿A quién festejamos?', ''],
+};
+
+function aplicarRotuloAgasajado(tipo) {
+  const row = document.getElementById('agasajado-row');
+  if (!row) return;
+  row.style.display = tipo ? '' : 'none';
+  const [rotulo, ejemplo] = ROTULO_AGASAJADO[tipo] || ['¿A quién festejamos?', ''];
+  const label = row.querySelector('label');
+  if (label) label.textContent = rotulo;
+  const input = document.getElementById('prop-agasajado');
+  if (input) input.placeholder = ejemplo || 'Nombre...';
 }
 
 function updatePortadaImage() {
@@ -5232,9 +5283,9 @@ function readPropuestaData() {
   });
   // Solo si el paso de gastronomía está construido: si no, estaríamos
   // borrando lo elegido antes de que exista el HTML donde leerlo
-  if (document.querySelector(GASTRO_SEL + ' input')) {
+  if (document.querySelector(gastroSel('input'))) {
     d.gastroAdicionales = [];
-    document.querySelectorAll(GASTRO_SEL + ' input[type="checkbox"]:checked:not([disabled])').forEach(cb => {
+    document.querySelectorAll(gastroSel('input[type="checkbox"]:checked:not([disabled])')).forEach(cb => {
       d.gastroAdicionales.push(cb.value);
     });
   }
@@ -5386,7 +5437,7 @@ const GASTRO_DATA = {
     ],
     mesaDulce: {
       included: { name: 'Pastelería Joliet', desc: 'Lemon pie · Cheese cake · Chocotorta · Torta África · Tarta de frutillas · Flan · Isla flotante · Mil Hojas · Brownies rellenos · Copas heladas · Panqueques' },
-      upgrade: { value: 'Mini Cakes Premium', name: 'Mini Cakes Premium', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones' },
+      upgrade: { value: 'Mini Cakes Petit Gâteaux', name: 'Mini Cakes Petit Gâteaux', desc: 'Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones' },
     },
     mode: 'multi',
   },
@@ -5429,7 +5480,12 @@ const GASTRO_DATA = {
 /* Los dos contenedores de la carta: el paso 9 (islas / primer plato) y el
    paso 10 (mesa dulce). Se arman juntos, asi que todo lo que recorre lo
    elegido tiene que mirar los dos. */
-const GASTRO_SEL = '#gastro-slide-content, #gastro-dulce-content';
+const GASTRO_CONTS = ['#recepcion-carta', '#gastro-slide-content', '#gastro-dulce-content'];
+/* OJO: hay que expandir el sufijo contenedor por contenedor. Concatenar
+   " input[...]" a una lista separada por comas se lo pega SOLO al ultimo, y
+   los otros dos quedan matcheando el div contenedor: de ahi salian valores
+   vacios en lo elegido. */
+const gastroSel = suf => GASTRO_CONTS.map(c => c + ' ' + suf).join(', ');
 
 /* Cada pantalla de carta con la foto de lo que se esta mirando. El formal y el
    americano no comen lo mismo, asi que tampoco muestran lo mismo. */
@@ -5461,15 +5517,94 @@ function actualizarContadorAutor() {
   // Las islas premium viven mezcladas con las comunes: se cuentan por valor.
   const data = GASTRO_DATA[propuestaState.data.estilo || 'Formal'];
   const premium = new Set((data?.premium || []).map(i => i.value));
-  document.querySelectorAll('#gastro-slide-content .gastro-premium-row input:checked')
+  document.querySelectorAll('.gastro-premium-row input:checked')
     .forEach(cb => { if (premium.has(cb.value)) n++; });
   el.hidden = n === 0;
   el.textContent = SELLO.contador(n);
 }
 
+/* ============================================================
+   LA CARTA VIVA — la columna izquierda de los tres pasos de menu
+   ------------------------------------------------------------
+   Mientras eligen, la carta del evento se va escribiendo al lado. El cliente
+   no ve una lista de opciones con tildes: ve SU menu tomando forma. Lo que
+   todavia no eligieron queda en gris y en italica, asi se entiende que
+   falta algo sin que nadie tenga que decirlo.
+   ============================================================ */
+function cartaVivaLineas() {
+  const d = propuestaState.data;
+  const isFormal = (d.estilo || 'Formal') !== 'Americano';
+  const gd = GASTRO_DATA[isFormal ? 'Formal' : 'Americano'];
+  const elegidos = d.gastroAdicionales || [];
+  const nombresDe = (lista) => elegidos
+    .map(v => (lista || []).find(i => i.value === v))
+    .filter(Boolean)
+    .map(i => i.name);
+
+  const L = [];
+  L.push(['I', 'Recepción · canapés, bruschettas y bocados calientes', false]);
+
+  if (isFormal) {
+    const est = [...nombresDe(gd.islas), ...nombresDe(gd.premium)];
+    L.push(['II', est.length ? `Estación · ${est.join(' · ')}` : 'Una estación de bienvenida…', !est.length]);
+    const pastas = [...PASTAS_CASA, ...(d.pastasSeleccionadas || []), ...(d.pastasGourmetSeleccionadas || [])];
+    L.push(['III', `Pastas · ${pastas.join(' · ')}`, false]);
+    const salsas = ['Filetto', ...(d.salsasSeleccionadas || []), ...(d.salsasGourmetSeleccionadas || [])];
+    L.push(['IV', `Salsas · ${salsas.join(' · ')}`, false]);
+    L.push(['V', d.platoCentral ? `Plato central · ${d.platoCentral}` : 'El plato central…', !d.platoCentral]);
+    const dulce = [gd.mesaDulce.included.name, ...nombresDe([gd.mesaDulce.upgrade])];
+    L.push(['VI', `${dulce.join(' · ')} y Torta Homenaje`, false]);
+  } else {
+    const fija = gd.islas.filter(i => i.locked).map(i => i.name);
+    L.push(['II', `Islas · ${fija.join(' · ')}`, false]);
+    const otras = [...nombresDe(gd.islas.filter(i => !i.locked)), ...nombresDe(gd.premium)];
+    L.push(['III', otras.length ? `Islas · ${otras.join(' · ')}` : 'Hasta dos islas más…', !otras.length]);
+    const postres = (d.gastroAdicionales || []).filter(v =>
+      (gd.mesaDulce.postres || []).some(p => p.name === v));
+    L.push(['IV', postres.length ? `Postre · ${postres.join(' · ')}` : 'El postre…', !postres.length]);
+    L.push(['V', 'Torta Homenaje', false]);
+  }
+  return L;
+}
+
+function pintarCartaViva() {
+  const conts = document.querySelectorAll('#view-propuesta [data-carta-viva]');
+  if (!conts.length) return;
+  const d = propuestaState.data;
+  const L = cartaVivaLineas();
+  // Se resalta la ultima linea ya escrita: es donde entro lo que acaban de
+  // elegir. Va por indice real y no por posicion dentro de las completas,
+  // porque las lineas en espera quedan salteadas en el medio.
+  let ult = -1;
+  L.forEach(([, , espera], k) => { if (!espera) ult = k; });
+  const encabezado = [d.fecha ? formatDate(d.fecha) : '', d.agasajado].filter(Boolean).join(' · ') || 'Su evento';
+  const cuando = d.turno && d.turno !== 'Noche' ? 'día' : 'noche';
+  const cuerpo = L.map(([n, t, espera], k) =>
+    `<div class="cv-ln${espera ? ' cv-espera' : (k === ult && k > 0 ? ' cv-nuevo' : '')}">
+       <span class="cv-n">${n}</span><span class="cv-t">${esc(t)}</span>
+     </div>`).join('');
+  conts.forEach(c => {
+    c.innerHTML = `<div class="cv-k">${esc(encabezado)}</div>
+      <div class="cv-h">La carta de su ${cuando}</div>${cuerpo}`;
+  });
+}
+
+/* La carta se repinta despues de cualquier click dentro de los pasos de menu.
+   Va por delegacion y no enganchada a cada handler: los tres pasos arman sus
+   filas por JS y aparecen y desaparecen segun el estilo, asi que atarse a
+   cada uno era garantizar que alguno quedara sin actualizar. El setTimeout
+   es para leer DESPUES de que el handler propio marco el check. */
+document.addEventListener('click', e => {
+  if (!e.target.closest('#view-propuesta .carta-doble')) return;
+  setTimeout(() => { readPropuestaData(); pintarCartaViva(); }, 0);
+});
+
+/* El detalle fijo de la recepcion. En el formal el paso 8 se usa para elegir
+   la estacion de bienvenida (lo arma buildGastroSlide), asi que este listado
+   solo se pinta cuando el paso queda libre: en el americano. */
 function buildRecepcionCarta() {
   const cont = $('recepcion-carta');
-  if (!cont || cont.dataset.armada) return;
+  if (!cont || cont.dataset.armada || cont.dataset.estaciones) return;
   const DIETA = { V: 'Vegetariano', VG: 'Vegano', SC: 'Sin TACC' };
   cont.innerHTML = RECEPCION_DATA.map(g => `
     <div class="carta-grupo">
@@ -5530,7 +5665,7 @@ function buildGastroSlide() {
       <input type="checkbox" value="${p.value}">
       <div class="premium-row-indicator">✓</div>
       <div class="premium-row-body">
-        <span class="premium-row-name">${p.name}</span>
+        <span class="premium-row-name">${p.name}<span class="sello-autor">${SELLO.badge}</span></span>
         <span class="premium-row-desc">${p.desc}</span>
       </div>
     </label>`).join('');
@@ -5544,11 +5679,11 @@ function buildGastroSlide() {
     const pastaRows = ppd.pastas.map(p => `
       <label class="gastro-menu-row${p.locked ? ' locked' : ''}"><input type="checkbox" value="${p.name}"${p.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p.name}${p.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
     const pastaGRows = ppd.pastasGourmet.map(p => `
-      <label class="gastro-menu-row"><input type="checkbox" value="${p}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p}</span></label>`).join('');
+      <label class="gastro-menu-row"><input type="checkbox" value="${p}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p}<span class="sello-autor">${SELLO.badge}</span></span></label>`).join('');
     const salsaRows = ppd.salsas.map(s => `
       <label class="gastro-menu-row${s.locked ? ' locked' : ''}"><input type="checkbox" value="${s.name}"${s.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s.name}${s.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
     const salsaGRows = ppd.salsasGourmet.map(s => `
-      <label class="gastro-menu-row"><input type="checkbox" value="${s}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s}</span></label>`).join('');
+      <label class="gastro-menu-row"><input type="checkbox" value="${s}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s}<span class="sello-autor">${SELLO.badge}</span></span></label>`).join('');
     const centralRows = PLATO_CENTRAL_DATA.opciones.map(p => `
       <label class="gastro-plato-row"><input type="radio" name="plato-central" value="${p.value}"><div class="gastro-plato-indicator">✓</div><div class="gastro-plato-body"><div class="gastro-plato-header"><div class="gastro-plato-name">${p.value}</div><span class="gastro-plato-tipo">${p.tipo}</span></div><div class="gastro-plato-desc">${p.desc}</div></div></label>`).join('');
     return `
@@ -5559,12 +5694,10 @@ function buildGastroSlide() {
       </div>
       <div class="gastro-section-label">PASTAS · Tagliatelle y sorrentinos incluidos · elegí hasta 5 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/5</span></div>
       <div class="gastro-menu-list" id="gastro-pasta-list">${pastaRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">PASTAS ${SELLO.label}</div>
       <div class="gastro-menu-list" id="gastro-pasta-gourmet-list">${pastaGRows}</div>
       <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></div>
       <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
-      <div class="gastro-section-label gastro-section-label-premium">SALSAS ${SELLO.label}</div>
-      <div class="gastro-menu-list" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
+      <div class="gastro-menu-grid" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
     </div>
     <div class="gastro-subsection">
       <div class="gastro-subsection-header">
@@ -5611,21 +5744,20 @@ function buildGastroSlide() {
         </label>`).join('')}
       </div>` : '';
     const upgradeSection = md.upgrade ? `
-      <div class="gastro-section-label gastro-section-label-premium">${SELLO.label}</div>
       <div class="gastro-islands-list" id="gastro-mesa-dulce-list">
         <label class="gastro-island-row">
           <input type="checkbox" value="${md.upgrade.value}">
           <div class="island-row-indicator">✓</div>
           <div class="island-row-body">
             <div class="island-row-header">
-              <span class="island-row-name">${md.upgrade.name}</span>
+              <span class="island-row-name">${md.upgrade.name}<span class="sello-autor">${SELLO.badge}</span></span>
             </div>
             <div class="island-row-desc">${md.upgrade.desc}</div>
           </div>
         </label>
       </div>` : '';
     const sub = md.upgrade
-      ? 'Pastelería artesanal de elaboración propia · upgrade premium disponible'
+      ? 'Pastelería artesanal de elaboración propia · la Pastelería Joliet va incluida'
       : md.locked
         ? `Pastelería artesanal · elegí el postre ${esDiurno() ? 'del evento' : 'de la noche'}`
         : 'Pastelería artesanal de elaboración propia';
@@ -5646,8 +5778,12 @@ function buildGastroSlide() {
     </div>`;
   })();
 
-  container.innerHTML = `
-    <div class="gastro-incluido">${pillarsHtml}</div>
+  /* Lo de autor NO va en un bloque gris abajo con su propio rotulo: va en la
+     misma lista, con el sello al lado del plato. Segregado parecia el
+     apartado de las cosas caras; adentro es una opcion mas que eligen por
+     gusto. El contenedor sigue siendo otro solo para no tocar como se lee
+     lo elegido. */
+  const islasHtml = `
     <div class="gastro-islands-section">
       <div class="gastro-section-header">
         <div class="gastro-section-title">${data.islasTitle}</div>
@@ -5656,10 +5792,21 @@ function buildGastroSlide() {
       </div>
       <div class="gastro-section-label">${data.islasLabel}</div>
       <div class="gastro-islands-list" id="gastro-extras-grid">${lockedHtml}${baseIslandsHtml}</div>
-      ${!isAmericano ? `<p class="gastro-formal-extra-note" id="gastro-formal-extra-note" style="display:none">Una estación está incluida · las adicionales se presupuestan aparte</p>` : ''}
-      <div class="gastro-section-label gastro-section-label-premium">${SELLO.label}</div>
-      <div class="gastro-premium-list">${premiumHtml}</div>
-    </div>${primerPlatoHtml}`;
+      <div class="gastro-islands-list gastro-premium-list">${premiumHtml}</div>
+      ${!isAmericano ? `<p class="gastro-formal-extra-note" id="gastro-formal-extra-note" style="display:none">Una estación está incluida · las demás se presupuestan aparte</p>` : ''}
+    </div>`;
+
+  /* En el formal las estaciones son el momento de la recepcion: viven en el
+     paso 8, al lado de la carta, y el paso 9 queda para el primer plato. */
+  const recepcion = $('recepcion-carta');
+  if (!isAmericano && recepcion) {
+    recepcion.innerHTML = islasHtml;
+    recepcion.dataset.estaciones = '1';
+    container.innerHTML = primerPlatoHtml;
+  } else {
+    if (recepcion) delete recepcion.dataset.estaciones;
+    container.innerHTML = islasHtml + primerPlatoHtml;
+  }
 
   // La mesa dulce vive en el paso siguiente. Se pinta en el mismo armado para
   // que los listeners y la restauracion de lo elegido corran una sola vez.
@@ -5669,7 +5816,7 @@ function buildGastroSlide() {
 
   const prev = propuestaState.data.gastroAdicionales || [];
   if (prev.length) {
-    document.querySelectorAll(GASTRO_SEL + ' input[type="checkbox"]:not([disabled])').forEach(cb => {
+    document.querySelectorAll(gastroSel('input[type="checkbox"]:not([disabled])')).forEach(cb => {
       if (prev.includes(cb.value)) {
         cb.checked = true;
         cb.closest('.gastro-island-row, .gastro-premium-row')?.classList.add('selected');
@@ -5707,10 +5854,10 @@ function buildGastroSlide() {
 
 function updateAmericanoIslandVisuals(maxBase) {
   const grid = $('gastro-extras-grid');
-  const content = $('gastro-slide-content');
-  if (!grid || !content) return;
+  const zona = grid?.closest('.gastro-islands-section');
+  if (!grid || !zona) return;
   const islaRows = Array.from(grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)'));
-  const premiumRows = Array.from(content.querySelectorAll('.gastro-premium-row'));
+  const premiumRows = Array.from(zona.querySelectorAll('.gastro-premium-row'));
   const allRows = [...islaRows, ...premiumRows];
   const selectedRows = allRows.filter(r => r.querySelector('input[type="checkbox"]').checked);
   allRows.forEach(row => {
@@ -5750,10 +5897,10 @@ function setupGastroEvents(isAmericano, maxBase) {
     row.addEventListener('click', () => {
       const cb = row.querySelector('input[type="checkbox"]');
       if (isAmericano) {
-        const content = $('gastro-slide-content');
+        const zona = grid.closest('.gastro-islands-section');
         const allRows = [
           ...Array.from(grid.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)')),
-          ...Array.from(content?.querySelectorAll('.gastro-premium-row') || []),
+          ...Array.from(zona?.querySelectorAll('.gastro-premium-row') || []),
         ];
         const currentSelected = allRows.filter(r => r.querySelector('input[type="checkbox"]').checked).length;
         if (!cb.checked && currentSelected >= maxBase + 1) return;
@@ -5768,14 +5915,14 @@ function setupGastroEvents(isAmericano, maxBase) {
     });
   });
 
-  $('gastro-slide-content')?.querySelectorAll('.gastro-premium-row').forEach(row => {
+  grid.closest('.gastro-islands-section')?.querySelectorAll('.gastro-premium-row').forEach(row => {
     row.addEventListener('click', () => {
       const cb = row.querySelector('input[type="checkbox"]');
       if (isAmericano) {
-        const content = $('gastro-slide-content');
+        const zona = grid.closest('.gastro-islands-section');
         const allRows = [
           ...Array.from(grid?.querySelectorAll('.gastro-island-row:not(.gastro-island-locked)') || []),
-          ...Array.from(content?.querySelectorAll('.gastro-premium-row') || []),
+          ...Array.from(zona?.querySelectorAll('.gastro-premium-row') || []),
         ];
         const currentSelected = allRows.filter(r => r.querySelector('input[type="checkbox"]').checked).length;
         if (!cb.checked && currentSelected >= maxBase + 1) return;
@@ -5855,7 +6002,7 @@ function setupFormalExtrasEvents() {
     const c = getPastaCount();
     el.textContent = c + '/' + MAX_PASTA;
     el.style.color = c >= MAX_PASTA ? 'var(--gold-bright)' : '';
-    marcarExtras(['gastro-pasta-list', 'gastro-pasta-gourmet-list'], MAX_PASTA);
+    marcarExtras(['gastro-pasta-list', 'gastro-pasta-gourmet-list'], MAX_PASTA);
     actualizarContadorAutor();
   }
   function updateSalsaCounter() {
@@ -5863,7 +6010,7 @@ function setupFormalExtrasEvents() {
     const c = getSalsaCount();
     el.textContent = c + '/' + MAX_SALSAS;
     el.style.color = c >= MAX_SALSAS ? 'var(--gold-bright)' : '';
-    marcarExtras(['gastro-salsa-list', 'gastro-salsa-gourmet-list'], MAX_SALSAS);
+    marcarExtras(['gastro-salsa-list', 'gastro-salsa-gourmet-list'], MAX_SALSAS);
     actualizarContadorAutor();
   }
 
@@ -6174,8 +6321,9 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
 
   // ---- Islas (solo las seleccionadas) ----
   const allIslaItems = [...(gastroData?.islas || []), ...allPremiumItems];
-  const regularFormalPremium = isFormal ? selectedPremium.filter(v => v !== 'Mini Cakes Premium') : [];
-  const hasMiniCakes = isFormal && selectedPremium.includes('Mini Cakes Premium');
+  const UPGRADE_DULCE = GASTRO_DATA.Formal.mesaDulce.upgrade;
+  const regularFormalPremium = isFormal ? selectedPremium.filter(v => v !== UPGRADE_DULCE.value) : [];
+  const hasMiniCakes = isFormal && selectedPremium.includes(UPGRADE_DULCE.value);
 
   const islasSectionHTML = allShownIslas.length ? (() => {
     if (isFormal) {
@@ -6253,7 +6401,7 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
         mkRow('Tarta de frutillas'),mkRow('Flan','',['SC']),mkRow('Isla flotante','',['SC']),
         mkRow('Mil Hojas'),mkRow('Brownies rellenos'),mkRow('Copas heladas','',['SC']),mkRow('Panqueques'),
       ].join('');
-      const miniCakesBlock = hasMiniCakes ? `<div class="mb-lbl-yours" style="margin-top:8px">Esto lo eligieron ustedes</div><ul class="mi mi-yours">${mkRow('Mini Cakes Premium','Todas las variedades de la pastelería Joliet en formato mini, con diferentes presentaciones y terminaciones',['AUTOR'])}</ul>` : '';
+      const miniCakesBlock = hasMiniCakes ? `<div class="mb-lbl-yours" style="margin-top:8px">Esto lo eligieron ustedes</div><ul class="mi mi-yours">${mkRow(UPGRADE_DULCE.name, UPGRADE_DULCE.desc, ['AUTOR'])}</ul>` : '';
       return `<div class="mb"><div class="mb-head"><span class="mb-roman">v</span><span class="mb-name">Mesa de dulces</span><span class="mb-line"></span></div>
         <div class="mb-sub">Pastelería artesanal Joliet · elaboración propia</div>
         <ul class="mi two-col">${jolietRows}</ul>${miniCakesBlock}
@@ -7070,9 +7218,7 @@ function compartirPropuesta() {
       card.classList.add('selected');
       propuestaState.data.tipoEvento = card.dataset.value;
       updatePortadaImage();
-      const sinAgasajado = ['Corporativo', 'Otro'];
-      const agRow = $('agasajado-row');
-      if (agRow) agRow.style.display = sinAgasajado.includes(card.dataset.value) ? 'none' : '';
+      aplicarRotuloAgasajado(card.dataset.value);
       const cumpleRow = $('cumple-anios-row');
       if (cumpleRow) cumpleRow.style.display = card.dataset.value === 'Cumpleaños' ? '' : 'none';
     });

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
   <link rel="stylesheet" href="css/style.css?v=20260915a-mov">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260917c-autor">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260920a-fixes">
   <link rel="stylesheet" href="css/ux.css?v=20260911k">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
@@ -1541,15 +1541,17 @@
       <div class="propuesta-slides-container">
 
         <!-- Slide 1: Portada -->
-        <div class="propuesta-slide propuesta-slide-portada" data-slide="1">
+        <div class="propuesta-slide propuesta-slide-plena propuesta-slide-portada" data-slide="1">
           <div class="portada-photo" id="portada-photo" style="background-image:url('img/propuesta/joliet/fachada-noche.jpg')"></div>
           <div class="portada-photo-fg" id="portada-photo-fg" style="background-image:url('img/propuesta/joliet/fachada-noche.jpg')"></div>
           <div class="portada-overlay"></div>
+          <!-- Sin logo y sin boton "Comenzar": la portada es foto pura y se
+               avanza con el Siguiente de abajo, como el resto de los pasos.
+               El logo ya esta en la puerta del salon, que es la foto. -->
           <div class="portada-content">
-            <img src="img/logo.png" alt="Joliet Eventos" class="propuesta-logo-img" onerror="this.style.display='none'">
+            <div class="portada-kick">Joliet Eventos</div>
             <h1 class="propuesta-main-title" id="prop-portada-title">El evento que<br>van a recordar siempre</h1>
             <p class="propuesta-subtitle">Contanos cómo la imaginás</p>
-            <button class="btn-propuesta-primary" id="btn-prop-comenzar">Comenzar →</button>
           </div>
         </div>
 
@@ -1588,10 +1590,10 @@
         <div class="propuesta-slide propuesta-slide-plena" data-slide="3">
           <h2 class="propuesta-slide-title">Nuestra casa</h2>
           <div class="casa-galeria">
-            <div class="casa-celda casa-g1" style="background-image:url('img/propuesta/joliet/portada-arco.jpg')"><span class="casa-cap">El arco</span></div>
-            <div class="casa-celda casa-g2" style="background-image:url('img/propuesta/joliet/mesa-principal.jpg')"><span class="casa-cap">La mesa principal</span></div>
+            <div class="casa-celda casa-g1" style="background-image:url('img/propuesta/joliet/portada-arco.jpg')"><span class="casa-cap">La entrada</span></div>
+            <div class="casa-celda casa-g2" style="background-image:url('img/propuesta/joliet/casamiento-letras.jpg')"><span class="casa-cap">El centro de la escena</span></div>
             <div class="casa-celda casa-g3" style="background-image:url('img/propuesta/joliet/living-recepcion.jpg')"><span class="casa-cap">El living</span></div>
-            <div class="casa-celda casa-g4" style="background-image:url('img/propuesta/joliet/mesa-dulce-tematica.jpg')"><span class="casa-cap">La mesa dulce</span></div>
+            <div class="casa-celda casa-g4" style="background-image:url('img/propuesta/joliet/mesa-dulce-tematica.jpg')"><span class="casa-cap">La ambientación</span></div>
             <div class="casa-celda casa-g5" style="background-image:url('img/propuesta/joliet/servicio-vertical.jpg')"><span class="casa-cap">El equipo</span></div>
           </div>
           <p class="casa-pie">Juana Azurduy 531 · Ciudad Tesei</p>
@@ -1600,17 +1602,19 @@
         <!-- Slide 4: Los numeros. Fecha e invitados son dos preguntas de quince
              segundos: juntas en una pantalla en vez de dos seguidas. Va ANTES
              del espacio porque el mes decide si el jardin entra o no. -->
-        <div class="propuesta-slide" data-slide="4">
+        <div class="propuesta-slide propuesta-slide-plena slide-con-foto" data-slide="4">
+          <div class="slide-foto" style="background-image:url('img/propuesta/joliet/centro-de-mesa.jpg')"></div>
           <h2 class="propuesta-slide-title">Los números</h2>
           <div class="numeros-fork">
             <div class="numeros-col">
+          <div class="campo-k">Invitados</div>
           <div class="propuesta-counter">
             <button class="counter-btn" id="counter-minus">−</button>
             <div class="counter-display" id="prop-invitados-display">100</div>
             <button class="counter-btn" id="counter-plus">+</button>
           </div>
           <input type="hidden" id="prop-invitados" value="100">
-          <div class="propuesta-counter-hint">invitados</div>
+          <div class="propuesta-counter-hint">personas</div>
           <div class="propuesta-checkbox-row">
             <label class="propuesta-checkbox-label">
               <input type="checkbox" id="prop-menu-infantil">
@@ -1625,12 +1629,12 @@
             <div class="numeros-col">
           <div class="propuesta-field-group">
             <div class="propuesta-field-big">
-              <label>La fecha</label>
+              <label class="campo-k">La fecha</label>
               <input type="date" id="prop-fecha" class="propuesta-input propuesta-input-big">
               <div class="fecha-estado" id="fecha-estado"></div>
             </div>
             <div class="propuesta-field-big">
-              <label>El turno</label>
+              <label class="campo-k">El turno</label>
               <div class="propuesta-cards-row" id="turno-cards">
                 <div class="propuesta-card turno-card" data-value="Almuerzo"><span class="turno-emoji">🌞</span><span class="turno-main">Almuerzo</span><span class="turno-sub">Brunch · mediodía</span></div>
                 <div class="propuesta-card turno-card" data-value="Tarde"><span class="turno-emoji">🌇</span><span class="turno-main">Tarde</span><span class="turno-sub">Merienda · media tarde</span></div>
@@ -1646,20 +1650,25 @@
         <div class="propuesta-slide propuesta-slide-plena" data-slide="5">
           <h2 class="propuesta-slide-title">¿Dónde los recibimos?</h2>
           <div class="espacio-fork-grid" id="espacio-cards">
+            <!-- El Combinado va al medio a proposito: es el que se elige mas
+                 y es el que mejor cuenta la casa entera. -->
             <div class="propuesta-card espacio-card" data-value="Interior">
               <div class="espacio-photo" style="background-image:url('img/propuesta/joliet/salon-tematico.jpg')"></div>
-              <span class="espacio-label">Salón interior</span>
+              <div class="espacio-tick">✓</div>
+              <span class="espacio-label">Interior</span>
               <span class="espacio-sub">Luces, bolas de espejo, ambiente único</span>
-            </div>
-            <div class="propuesta-card espacio-card" data-value="Jardín">
-              <div class="espacio-photo" style="background-image:url('img/propuesta/joliet/bar-jardin.jpg')"></div>
-              <span class="espacio-label">Jardín</span>
-              <span class="espacio-sub" id="espacio-jardin-sub">Al aire libre, entre el verde y las luces</span>
             </div>
             <div class="propuesta-card espacio-card" data-value="Combinado">
               <div class="espacio-photo" style="background-image:url('img/propuesta/joliet/portada-arco.jpg')"></div>
+              <div class="espacio-tick">✓</div>
               <span class="espacio-label">Combinado</span>
               <span class="espacio-sub">Interior y jardín, lo mejor de los dos</span>
+            </div>
+            <div class="propuesta-card espacio-card" data-value="Jardín">
+              <div class="espacio-photo" style="background-image:url('img/propuesta/joliet/bar-jardin.jpg')"></div>
+              <div class="espacio-tick">✓</div>
+              <span class="espacio-label">Jardín</span>
+              <span class="espacio-sub" id="espacio-jardin-sub">Al aire libre, entre el verde y las luces</span>
             </div>
           </div>
         </div>
@@ -1695,19 +1704,28 @@
 
         <!-- Slide 6: Invitados -->
 
-        <div class="propuesta-slide" data-slide="7">
-          <h2 class="propuesta-slide-title" id="prop-s7-title">Así va a vivirse esa noche</h2>
-          <div id="recorrido-container" class="recorrido-grid"></div>
+        <!-- Slide 7: el recorrido, como linea de tiempo sobre la foto.
+             Antes eran fichas numeradas en grilla; el orden de la noche se lee
+             mejor en renglones, uno abajo del otro, que en un mosaico. -->
+        <div class="propuesta-slide propuesta-slide-plena slide-con-foto" data-slide="7">
+          <div class="slide-foto" id="recorrido-foto"></div>
+          <h2 class="propuesta-slide-title" id="prop-s7-title">El recorrido de su noche</h2>
+          <div id="recorrido-container" class="recorrido-tl"></div>
         </div>
 
         <!-- Slide 8: Adicionales -->
 
-        <!-- Slide 8: La recepcion. Solo se mira: el menu de recepcion es fijo. -->
+        <!-- Slide 8: La recepcion. A la izquierda la carta del evento, que se
+             va llenando con lo que eligen; a la derecha lo que se elige acá.
+             En el formal eso son las estaciones de bienvenida (antes estaban
+             arriba del paso 9, lejos del momento que nombran). -->
         <div class="propuesta-slide propuesta-slide-plena" data-slide="8">
           <h2 class="propuesta-slide-title">La recepción</h2>
-          <p class="propuesta-slide-sub">Va igual en todos los eventos · no hay que elegir nada</p>
           <div class="carta-foto" style="background-image:url('img/propuesta/joliet/recepcion-bocados.jpg')"></div>
-          <div class="carta-cuerpo" id="recepcion-carta"></div>
+          <div class="carta-doble">
+            <div class="carta-viva" data-carta-viva></div>
+            <div class="carta-cuerpo" id="recepcion-carta"></div>
+          </div>
         </div>
 
         <!-- Slide 9: el plato central del evento. Formal = pastas + principal;
@@ -1715,87 +1733,84 @@
         <div class="propuesta-slide propuesta-slide-plena" data-slide="9">
           <h2 class="propuesta-slide-title" id="prop-s9-title">El primer plato</h2>
           <div class="carta-foto" id="carta-foto-platos"></div>
-          <div class="carta-cuerpo" id="gastro-slide-content"></div>
+          <div class="carta-doble">
+            <div class="carta-viva" data-carta-viva></div>
+            <div class="carta-cuerpo" id="gastro-slide-content"></div>
+          </div>
         </div>
 
         <!-- Slide 10: la mesa dulce. -->
         <div class="propuesta-slide propuesta-slide-plena" data-slide="10">
           <h2 class="propuesta-slide-title">La mesa dulce</h2>
           <div class="carta-foto" id="carta-foto-dulce"></div>
-          <div class="carta-cuerpo" id="gastro-dulce-content"></div>
+          <div class="carta-doble">
+            <div class="carta-viva" data-carta-viva></div>
+            <div class="carta-cuerpo" id="gastro-dulce-content"></div>
+          </div>
         </div>
 
-        <!-- Slide 11: lo que ya esta incluido. Estaba enterrado dentro del paso
-             del recorrido; es el argumento de valor y merece su pantalla.
-             Los tres niveles de barra: ninguno tiene que parecer malo. -->
+        <!-- Slide 11: La experiencia Joliet.
+             Es el argumento de valor, y hasta el port vivia enterrado adentro
+             del paso del recorrido, en seis fichas con emoji. Esta es la
+             version del prototipo, que es la que quedo acordada: una
+             afirmacion, tres columnas que se recuerdan y los tres niveles de
+             barra. La frase no compara con nadie: nombrar a los otros salones
+             hace que el cliente piense en los otros salones. -->
         <div class="propuesta-slide propuesta-slide-plena" data-slide="11">
           <h2 class="propuesta-slide-title">La experiencia Joliet</h2>
-          <p class="propuesta-slide-sub">Una sola propuesta, con todo lo que la fiesta necesita. Así trabajamos desde siempre.</p>
           <div class="exp-foto" style="background-image:url('img/propuesta/joliet/bar-jardin-original.jpg')"></div>
           <div class="exp-cuerpo">
-          <div class="incluido-section">
-            <div class="incluido-section-title">La experiencia Joliet</div>
-            <div class="incluido-grid">
-              <div class="incluido-item">
-                <span class="inc-ico">🥂</span>
-                <span class="inc-name">La mesa que sorprende</span>
-                <span class="inc-detail">Plato de sitio · Cubertería PATRY</span>
+            <div class="inc-h">Todo esto ya está incluido</div>
+            <div class="inc-a">Una sola propuesta, con todo lo que la fiesta necesita. Así trabajamos desde siempre.</div>
+            <div class="inc-regla"></div>
+            <div class="inc-cols">
+              <div class="inc-col">
+                <div class="inc-k">La mesa</div>
+                <div class="inc-i">Vajilla de porcelana y plato de sitio</div>
+                <div class="inc-i">Cristalería y cubertería completa</div>
+                <div class="inc-i">Mantelería a elección y centros de mesa</div>
               </div>
-              <div class="incluido-item">
-                <span class="inc-ico">🌸</span>
-                <span class="inc-name">El escenario que imaginaste</span>
-                <span class="inc-detail">Mantelería a elección · Centro de mesa incluido o personalizado</span>
+              <div class="inc-col">
+                <div class="inc-k">El servicio</div>
+                <div class="inc-i">Maître, mozos, chef y barman</div>
+                <div class="inc-i">Coordinadora general durante todo el evento</div>
+                <div class="inc-i">Seguimiento personalizado hasta el día</div>
               </div>
-              <div class="incluido-item">
-                <span class="inc-ico">🤵</span>
-                <span class="inc-name">Un equipo para vos</span>
-                <span class="inc-detail">Maître · Mozos · Chef · Barman · Coordinadora general</span>
-              </div>
-              <div class="incluido-item">
-                <span class="inc-ico">🍷</span>
-                <span class="inc-name" id="prop-bebidas-name">Bebidas de cena</span>
-                <span class="inc-detail" id="prop-bebidas-detail">Agua · Gaseosas de primera marca · Vino · Sidra · Champagne</span>
-              </div>
-              <div class="incluido-item">
-                <span class="inc-ico">🍸</span>
-                <span class="inc-name">Bar de tragos</span>
-                <span class="inc-detail">Barra Clásica durante la recepción · extenderla es adicional</span>
-              </div>
-              <div class="incluido-item">
-                <span class="inc-ico">✦</span>
-                <span class="inc-name">Cada detalle pensado</span>
-                <span class="inc-detail">Iluminación de diseño · Cristalería · Provisiones · Nada falta</span>
+              <div class="inc-col">
+                <div class="inc-k">La barra y el salón</div>
+                <div class="inc-i" id="prop-bebidas-detail">Agua, gaseosas de primera marca, vino, sidra y champagne</div>
+                <div class="inc-i">Barra Clásica durante la recepción</div>
+                <div class="inc-i">Iluminación de diseño y provisiones completas</div>
               </div>
             </div>
-            <div class="incluido-disclaimer" id="prop-bebidas-disclaimer">* Los licores durante la cena no están incluidos en el precio base</div>
-          </div>
             <div class="barra-niveles">
               <div class="barra-niveles-k">El nivel de la barra</div>
               <div class="barra-niveles-row">
-              <label class="barra-nivel nivel-incluido">
-                <input type="radio" name="barra-nivel" value="Clásica" checked>
-                <span class="barra-nivel-n">Clásica</span>
-                <span class="barra-nivel-d">Nuestra selección de siempre</span>
-                <span class="barra-nivel-p">INCLUIDA</span>
-              </label>
-              <label class="barra-nivel">
-                <input type="radio" name="barra-nivel" value="Reserva">
-                <span class="barra-nivel-n">Reserva</span>
-                <span class="barra-nivel-d">Etiquetas seleccionadas</span>
-                <span class="barra-nivel-p">A consultar</span>
-              </label>
-              <label class="barra-nivel">
-                <input type="radio" name="barra-nivel" value="Gran Reserva">
-                <span class="barra-nivel-n">Gran Reserva</span>
-                <span class="barra-nivel-d">Etiquetas premium e importadas</span>
-                <span class="barra-nivel-p">A consultar</span>
-              </label>
+                <label class="barra-nivel nivel-incluido">
+                  <input type="radio" name="barra-nivel" value="Clásica" checked>
+                  <span class="barra-nivel-n">Clásica</span>
+                  <span class="barra-nivel-d">Nuestra selección de siempre</span>
+                  <span class="barra-nivel-p">Incluida</span>
+                </label>
+                <label class="barra-nivel">
+                  <input type="radio" name="barra-nivel" value="Reserva">
+                  <span class="barra-nivel-n">Reserva</span>
+                  <span class="barra-nivel-d">Etiquetas seleccionadas</span>
+                  <span class="barra-nivel-p">A consultar</span>
+                </label>
+                <label class="barra-nivel">
+                  <input type="radio" name="barra-nivel" value="Gran Reserva">
+                  <span class="barra-nivel-n">Gran Reserva</span>
+                  <span class="barra-nivel-d">Etiquetas premium e importadas</span>
+                  <span class="barra-nivel-p">A consultar</span>
+                </label>
               </div>
             </div>
+            <div class="inc-nota" id="prop-bebidas-disclaimer">* Los licores durante la cena no están incluidos en el precio base</div>
           </div>
         </div>
 
-        <div class="propuesta-slide" data-slide="12">
+        <div class="propuesta-slide propuesta-slide-plena" data-slide="12">
           <h2 class="propuesta-slide-title">Hacelo único</h2>
           <p class="propuesta-slide-sub">Sumá lo que lo hace tuyo</p>
           <div class="adicionales-grid adicionales-grupos">
@@ -1922,10 +1937,11 @@
 
         <!-- Slide 9: El banquete de tu noche — contenido dinámico por buildGastroSlide() -->
 
-        <div class="propuesta-slide" data-slide="13">
+        <div class="propuesta-slide slide-con-foto" data-slide="13">
+          <div class="slide-foto" style="background-image:url('img/propuesta/joliet/postre-joliet.jpg')"></div>
           <h2 class="propuesta-slide-title">¿Algo más?</h2>
-          <p class="propuesta-slide-sub">Ideas, detalles, pedidos especiales</p>
-          <textarea id="prop-pedidos" class="propuesta-textarea" placeholder="Escribí acá..."></textarea>
+          <p class="propuesta-slide-sub">Lo anotamos todo</p>
+          <textarea id="prop-pedidos" class="propuesta-textarea" placeholder="Ideas, detalles, pedidos especiales…"></textarea>
         </div>
 
         <!-- Slide 11: el cierre.
@@ -1959,8 +1975,8 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260917c-autor"></script>
-  <script src="js/propuesta-ui.js?v=20260911k-kb"></script>
+  <script src="js/app.js?v=20260920a-fixes"></script>
+  <script src="js/propuesta-ui.js?v=20260920a-fixes"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>
 </body>
