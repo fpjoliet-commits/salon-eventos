@@ -4183,3 +4183,57 @@
 /* El puntito de un paso que no va en este evento (el plato central en el
    americano) no ocupa lugar. */
 .propuesta-dot[hidden] { display: none !important; }
+
+/* ---- ¿Algo mas?: la foto a sangre, el contenido al centro ----
+   Iba en un paso de 900px de ancho, asi que la foto se veia como un cuadro
+   en el medio de la pantalla. Ahora es a sangre como los demas pasos con
+   foto, pero el titulo y el cuadro de texto siguen centrados. */
+/* Con !important: el armado a sangre fija el contenido arriba desde varias
+   reglas, y este es el unico paso a sangre que va centrado. */
+.propuesta-slide-plena.slide-centrada { justify-content: center !important; align-items: center; padding-bottom: 60px; }
+.propuesta-slide-plena.slide-centrada > .propuesta-slide-title,
+.propuesta-slide-plena.slide-centrada > .propuesta-slide-sub {
+  align-self: center;
+  text-align: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.propuesta-slide-plena.slide-centrada > .propuesta-textarea { width: min(900px, 90%); }
+
+/* ---- El cierre arrancaba cortado arriba ----
+   Con la carta completa el resumen es mas alto que la pantalla, y centrado
+   se desbordaba para los dos lados: "Preparada para" quedaba debajo de la
+   barra. Arriba y con scroll, nunca se corta. */
+.propuesta-slide-final { justify-content: flex-start !important; padding-top: 6px; }
+
+/* ---- Los dos canales ---- */
+.share-botones { gap: 14px; }
+.btn-share {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 190px;
+  padding: 14px 22px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.92);
+  text-decoration: none;
+  transition: background .2s, border-color .2s, transform .15s;
+}
+.btn-share:hover { background: rgba(255,255,255,.1); }
+.btn-share:active { transform: scale(.97); }
+.btn-share-wa:hover  { border-color: rgba(37,211,102,.6); }
+.btn-share-mail:hover { border-color: rgba(234,67,53,.55); }
+.share-logo { width: 30px; height: 30px; display: block; }
+.share-nom { font-size: 14px; font-weight: 600; letter-spacing: .02em; }
+.btn-share .share-dest { font-size: 11px; opacity: .55; margin: 0; }
+.prop-share-panel .share-nota { margin-top: 10px; font-size: 11.5px; }
+.final-hint strong { color: rgba(255,255,255,.7); font-weight: 600; }
+/* Los canales aparecen al pie: el paso deja lugar para que no queden debajo
+   de los puntitos y los botones de navegacion. */
+.propuesta-slide-final { padding-bottom: 92px; }
+.propuesta-slide-final .final-acciones { margin-top: 22px; }
+.btn-share { padding: 11px 22px 10px; gap: 4px; }
+.share-logo { width: 26px; height: 26px; }

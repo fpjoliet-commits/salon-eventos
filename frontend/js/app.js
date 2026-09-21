@@ -4745,8 +4745,8 @@ async function guardarClientePropuesta() {
   // pero igual hay que bajar el PDF: es lo que despues se adjunta.
   if (d.clienteId) {
     try { savePropuestaLocal(d.clienteId, { ...d }); } catch (e) {}
-    descargarYHabilitarCompartir();
-    return;
+    descargarPropuesta();
+    return true;
   }
   const statusEl = $('prop-guardar-status');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
@@ -4769,12 +4769,14 @@ async function guardarClientePropuesta() {
     d.clienteId = nuevo.id;
     try { savePropuestaLocal(d.clienteId, { ...d }); } catch (e) {}
     if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = false; }
-    if (statusEl) { statusEl.textContent = '¡Listo! Queda en la agenda.'; statusEl.style.display = ''; }
+    if (statusEl) statusEl.textContent = '';
     loadClientes();
-    descargarYHabilitarCompartir();
+    descargarPropuesta();
+    return true;
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
-    if (statusEl) { statusEl.textContent = 'Error al guardar. Intentá de nuevo.'; statusEl.style.display = ''; }
+    if (statusEl) { statusEl.textContent = 'No se pudo guardar. Probá de nuevo.'; statusEl.style.display = ''; }
+    return false;
   }
 }
 
@@ -6188,6 +6190,14 @@ function buildPropuestaResumen() {
   const momentos = (gastroData?.pillars || []).map(p => p.label.replace('<br>', ' '));
   const platosLineas = isFormal
     ? [
+        /* En el orden en que se vive la noche. Y sin fila "Premium": lo de
+           autor va con su momento (una estacion de autor es una estacion), no
+           apartado en un renglon que se lee como el de las cosas caras. */
+        (() => {
+          const upg = gastroData?.mesaDulce?.upgrade?.name;
+          const est = [...islaNames, ...premiumNames.filter(n => n !== upg)];
+          return est.length ? linea('Estaciones', est.join(' · ')) : '';
+        })(),
         (() => {
           const ps = ['Tagliatelle cortados a cuchillo',
             ...(d.pastasSeleccionadas || []).filter(x => x !== 'Tagliatelle cortados a cuchillo'),
@@ -6200,8 +6210,11 @@ function buildPropuestaResumen() {
           return ss.length ? linea('Salsas', ss.join(' · ')) : '';
         })(),
         d.platoCentral ? linea('Plato central', d.platoCentral) : '',
-        islaNames.length ? linea('Estaciones', islaNames.join(' · ')) : '',
-        premiumNames.length ? linea('Premium', premiumNames.join(' · ')) : '',
+        (() => {
+          const upg = gastroData?.mesaDulce?.upgrade?.name;
+          return upg && premiumNames.includes(upg)
+            ? linea('Mesa dulce', `${gastroData.mesaDulce.included.name} · ${upg}`) : '';
+        })(),
       ]
     : [
         [...islaNames, ...premiumNames].length
@@ -7132,81 +7145,81 @@ function gmailUrlPropuesta(d, email) {
          `&su=${encodeURIComponent(su)}&body=${encodeURIComponent(mensajePropuesta(d))}`;
 }
 
-// Muestra los botones de envío directo según los datos del contacto
+/* Los logos van dibujados y no como emoji: no hay emoji de WhatsApp ni de
+   Gmail, y el sobre o el telefonito genericos no se reconocen de un vistazo. */
+const LOGO_WA = '<svg class="share-logo" viewBox="0 0 24 24" aria-hidden="true">' +
+  '<path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/>' +
+  '<path fill="#fff" d="M17.3 14.3c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.3.2-.6.1' +
+  '-.3-.1-1.2-.4-2.2-1.4-.8-.7-1.4-1.6-1.5-1.9-.2-.3 0-.4.1-.6l.4-.5.3-.5c.1-.2 0-.4 0-.5l-.9-2.1' +
+  'c-.2-.5-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3 2.4 1 2.9.8' +
+  ' 3.4.7.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.3z"/></svg>';
+const LOGO_GMAIL = '<svg class="share-logo" viewBox="0 0 24 24" aria-hidden="true">' +
+  '<path fill="#4285F4" d="M2 7v11.5A1.5 1.5 0 0 0 3.5 20H6v-9.6z"/>' +
+  '<path fill="#34A853" d="M18 10.4V20h2.5a1.5 1.5 0 0 0 1.5-1.5V7z"/>' +
+  '<path fill="#EA4335" d="M6 10.4 12 15l6-4.6V5.2L12 9.8 6 5.2z"/>' +
+  '<path fill="#C5221F" d="M2 5.2V7l4 3.4V5.2L4.4 4A1.5 1.5 0 0 0 2 5.2z"/>' +
+  '<path fill="#FBBC04" d="M18 5.2v5.2L22 7V5.2A1.5 1.5 0 0 0 19.6 4z"/></svg>';
+
 function renderPropuestaShare(d) {
   const panel = $('prop-share-panel');
   if (!panel) return;
   const tel = normalizarTelWhatsapp(d.telefono);
   const email = (d.gmail || '').trim();
   const botones = [];
-
   if (tel) {
-    botones.push(`<a class="btn-final btn-share btn-share-wa" href="${waUrlPropuesta(d, tel)}" target="_blank" rel="noopener">` +
-      `<span class="share-ico">📱</span> Enviar por WhatsApp<span class="share-dest">${esc(d.telefono)}</span></a>`);
+    botones.push(`<a class="btn-share btn-share-wa" href="${waUrlPropuesta(d, tel)}" target="_blank" rel="noopener">` +
+      `${LOGO_WA}<span class="share-nom">WhatsApp</span><span class="share-dest">${esc(d.telefono)}</span></a>`);
   }
   if (email) {
-    botones.push(`<a class="btn-final btn-share btn-share-mail" href="${gmailUrlPropuesta(d, email)}" target="_blank" rel="noopener">` +
-      `<span class="share-ico">✉️</span> Enviar por Gmail<span class="share-dest">${esc(email)}</span></a>`);
+    botones.push(`<a class="btn-share btn-share-mail" href="${gmailUrlPropuesta(d, email)}" target="_blank" rel="noopener">` +
+      `${LOGO_GMAIL}<span class="share-nom">Gmail</span><span class="share-dest">${esc(email)}</span></a>`);
   }
-
-  const archivo = nombreArchivoPropuesta(d) + '.pdf';
-  panel.innerHTML =
-    `<div class="share-titulo">Adjuntá <strong>${esc(archivo)}</strong> y envialo a ` +
-    `${esc((d.nombre || '').trim() || 'tu cliente')}:</div>` +
-    `<div class="share-botones">${botones.join('')}</div>`;
+  panel.innerHTML = `<div class="share-botones">${botones.join('')}</div>` +
+    `<div class="share-nota">El mensaje ya va escrito · adjuntá el PDF</div>`;
   panel.classList.remove('hidden');
 }
 
-/* Guardar baja el PDF y habilita Compartir. El orden no es un capricho:
-   ni WhatsApp Web ni Gmail pueden adjuntar un archivo desde la pagina, asi
-   que el PDF tiene que estar en Descargas ANTES de abrir el chat, y con un
-   nombre que se encuentre de una. */
-function descargarYHabilitarCompartir() {
+/* Bajar el PDF. Va siempre antes de abrir el chat: ni WhatsApp Web ni
+   Gmail pueden adjuntar un archivo desde una pagina, asi que el PDF tiene
+   que estar en Descargas, y con un nombre que se encuentre de una. */
+function descargarPropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
   generatePropuestaPDF();   // el navegador sugiere el nombre del <title>
-
-  const archivo = nombreArchivoPropuesta(d) + '.pdf';
-  const compartir = $('btn-compartir-propuesta');
-  if (compartir) {
-    compartir.disabled = false;
-    compartir.classList.add('btn-final-fuerte');
-  }
   const hint = $('prop-final-hint');
   if (hint) {
-    hint.innerHTML = 'Se descargó <strong>' + esc(archivo) + '</strong> · ' +
-      'tocá Compartir y adjuntalo en el chat o en el mail';
+    hint.innerHTML = '✓ En Descargas: <strong>' +
+      esc(nombreArchivoPropuesta(d)) + '.pdf</strong>';
   }
 }
 
-// Deja el cierre en su estado inicial: Compartir apagado hasta que se guarde
+// Deja el cierre como recien llegado: sin estado y sin los canales abiertos
 function resetBotonCompartir() {
-  const compartir = $('btn-compartir-propuesta');
-  if (compartir) {
-    compartir.disabled = true;
-    compartir.classList.remove('btn-final-fuerte');
-  }
   const hint = $('prop-final-hint');
-  if (hint) hint.textContent = 'Guardar lo deja en la agenda y descarga el PDF · después se habilita Compartir';
+  if (hint) hint.textContent = '';
   const panel = $('prop-share-panel');
   if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
 }
 
-/* Compartir: abre WhatsApp Web con el telefono que cargaron en el form, o
-   Gmail con el mail de ese cliente, los dos con el mensaje ya escrito. El
-   PDF se adjunta a mano: es el que se acaba de bajar. */
-function compartirPropuesta() {
+/* Compartir es un solo toque. Si todavia no se guardo, guarda y baja el PDF
+   primero —sin eso no hay nada que adjuntar— y enseguida muestra los dos
+   canales. Antes eran tres toques y dos carteles de instrucciones. */
+async function compartirPropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
   const panel = $('prop-share-panel');
   if (!panel) return;
 
+  const yaBajado = !!$('prop-final-hint')?.textContent;
+  if (!yaBajado) {
+    const ok = await guardarClientePropuesta();
+    if (ok === false) return;   // el error ya se mostro abajo
+  }
+
   const tel = normalizarTelWhatsapp(d.telefono);
   const email = (d.gmail || '').trim();
-
   if (!tel && !email) {
-    panel.innerHTML = '<div class="share-nota">Este cliente no tiene teléfono ni mail cargado. ' +
-      'Cargalos en su ficha y el envío se arma solo.</div>';
+    panel.innerHTML = '<div class="share-nota">Falta el teléfono o el mail del cliente.</div>';
     panel.classList.remove('hidden');
     return;
   }
