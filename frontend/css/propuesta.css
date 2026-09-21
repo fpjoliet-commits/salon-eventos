@@ -2784,30 +2784,6 @@
 @keyframes scDraw   { to { stroke-dashoffset: 0; } }
 @keyframes scThread { from { opacity: .5; } to { opacity: 1; } }
 
-/* ---------- El brindis final ---------- */
-.sc-brindis {
-  position: absolute;
-  left: 50%;
-  bottom: 6%;
-  width: min(52vw, 520px);
-  transform: translateX(-50%);
-  color: rgba(255, 222, 158, .75);
-  opacity: .5;
-}
-.sc-brindis svg { height: auto; }
-.sc-copa-izq { transform-origin: 73px 92px; animation: scClinkL 4.6s ease-in-out infinite; }
-.sc-copa-der { transform-origin: 127px 92px; animation: scClinkR 4.6s ease-in-out infinite; }
-@keyframes scClinkL {
-  0%, 60%, 100% { transform: rotate(0); }
-  22%           { transform: rotate(9deg) translateX(6px); }
-  30%           { transform: rotate(6deg) translateX(3px); }
-}
-@keyframes scClinkR {
-  0%, 60%, 100% { transform: rotate(0); }
-  22%           { transform: rotate(-9deg) translateX(-6px); }
-  30%           { transform: rotate(-6deg) translateX(-3px); }
-}
-
 /* ---------- Modo diurno: la escenografía toma la luz cálida ---------- */
 .propuesta-kiosco.diurno .sc-oro     { color: rgba(255, 210, 140, .8); }
 .propuesta-kiosco.diurno .sc-stars i { background: rgba(255, 240, 205, .9); }
@@ -4195,3 +4171,15 @@
 .carta-doble #recepcion-carta:not([data-estaciones]) { grid-template-columns: 1fr; max-width: none; }
 .carta-doble #recepcion-carta:not([data-estaciones]) .carta-grupo:nth-child(4),
 .carta-doble #recepcion-carta:not([data-estaciones]) .carta-grupo:nth-child(5) { grid-column: auto; }
+
+/* ============================================================
+   CORRECCIONES 21/09 — sobre la primera pasada en la tablet
+   ============================================================ */
+
+/* El contador de invitados quedaba pegado a la izquierda mientras el rotulo
+   y el "personas" iban centrados: los tres van al centro de su columna. */
+.slide-con-foto .propuesta-counter { justify-content: center; }
+
+/* El puntito de un paso que no va en este evento (el plato central en el
+   americano) no ocupa lugar. */
+.propuesta-dot[hidden] { display: none !important; }

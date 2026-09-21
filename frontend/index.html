@@ -1739,8 +1739,21 @@
           </div>
         </div>
 
-        <!-- Slide 10: la mesa dulce. -->
+        <!-- Slide 10: el plato central. Vive aparte del primer plato porque
+             son dos momentos distintos de la noche y cada uno tiene su foto:
+             juntos, la pasta y el plato competian en la misma pantalla.
+             En el americano este paso no existe: las islas SON el principal. -->
         <div class="propuesta-slide propuesta-slide-plena" data-slide="10">
+          <h2 class="propuesta-slide-title">El plato central</h2>
+          <div class="carta-foto" id="carta-foto-central"></div>
+          <div class="carta-doble">
+            <div class="carta-viva" data-carta-viva></div>
+            <div class="carta-cuerpo" id="gastro-central-content"></div>
+          </div>
+        </div>
+
+        <!-- Slide 11: la mesa dulce. -->
+        <div class="propuesta-slide propuesta-slide-plena" data-slide="11">
           <h2 class="propuesta-slide-title">La mesa dulce</h2>
           <div class="carta-foto" id="carta-foto-dulce"></div>
           <div class="carta-doble">
@@ -1756,7 +1769,7 @@
              afirmacion, tres columnas que se recuerdan y los tres niveles de
              barra. La frase no compara con nadie: nombrar a los otros salones
              hace que el cliente piense en los otros salones. -->
-        <div class="propuesta-slide propuesta-slide-plena" data-slide="11">
+        <div class="propuesta-slide propuesta-slide-plena" data-slide="12">
           <h2 class="propuesta-slide-title">La experiencia Joliet</h2>
           <div class="exp-foto" style="background-image:url('img/propuesta/joliet/bar-jardin-original.jpg')"></div>
           <div class="exp-cuerpo">
@@ -1810,7 +1823,7 @@
           </div>
         </div>
 
-        <div class="propuesta-slide propuesta-slide-plena" data-slide="12">
+        <div class="propuesta-slide propuesta-slide-plena" data-slide="13">
           <h2 class="propuesta-slide-title">Hacelo único</h2>
           <p class="propuesta-slide-sub">Sumá lo que lo hace tuyo</p>
           <div class="adicionales-grid adicionales-grupos">
@@ -1937,7 +1950,7 @@
 
         <!-- Slide 9: El banquete de tu noche — contenido dinámico por buildGastroSlide() -->
 
-        <div class="propuesta-slide slide-con-foto" data-slide="13">
+        <div class="propuesta-slide slide-con-foto" data-slide="14">
           <div class="slide-foto" style="background-image:url('img/propuesta/joliet/postre-joliet.jpg')"></div>
           <h2 class="propuesta-slide-title">¿Algo más?</h2>
           <p class="propuesta-slide-sub">Lo anotamos todo</p>
@@ -1949,13 +1962,16 @@
              mientras se sigue conversando. Las acciones van al pie, discretas,
              porque el PDF casi siempre se manda despues de la reunion. -->
 
-        <div class="propuesta-slide propuesta-slide-final" data-slide="14">
+        <div class="propuesta-slide propuesta-slide-final" data-slide="15">
           <div class="propuesta-resumen" id="propuesta-resumen"></div>
+          <!-- Dos acciones y nada mas: Guardar deja el cliente en la agenda y
+               baja el PDF; Compartir recien se habilita despues, porque sin el
+               archivo bajado no hay nada para adjuntar en el chat. -->
           <div id="prop-guardar-wrap" class="final-acciones">
-            <button class="btn-final" id="btn-guardar-cliente-propuesta">Guardar</button>
-            <button class="btn-final btn-final-fuerte" id="btn-descargar-pdf">⬇ Descargar propuesta</button>
+            <button class="btn-final btn-final-fuerte" id="btn-guardar-cliente-propuesta">Guardar</button>
+            <button class="btn-final" id="btn-compartir-propuesta" disabled>Compartir</button>
           </div>
-          <div class="final-hint">Guardar lo deja anotado en la agenda · Paso 1: descargá el PDF · Paso 2: tocá de nuevo y se abre WhatsApp o mail para adjuntarlo</div>
+          <div class="final-hint" id="prop-final-hint">Guardar lo deja en la agenda y descarga el PDF · después se habilita Compartir</div>
           <div id="prop-share-panel" class="prop-share-panel hidden"></div>
           <div id="prop-guardar-status"></div>
         </div>

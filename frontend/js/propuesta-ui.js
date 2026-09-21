@@ -235,21 +235,6 @@
     </div>`;
 
   // Copas que brindan al final
-  const BRINDIS = `
-    <div class="sc-brindis">
-      <svg viewBox="0 0 200 120">
-        <g class="sc-copa sc-copa-izq">
-          <path d="M56 18h34l-6 26a11 11 0 0 1-22 0z" fill="currentColor" opacity=".35"/>
-          <path d="M73 55v34" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-          <path d="M60 92h26" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-        </g>
-        <g class="sc-copa sc-copa-der">
-          <path d="M110 18h34l-6 26a11 11 0 0 1-22 0z" fill="currentColor" opacity=".35"/>
-          <path d="M127 55v34" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-          <path d="M114 92h26" stroke="currentColor" stroke-width="2.5" opacity=".4"/>
-        </g>
-      </svg>
-    </div>`;
 
   // El recorrido: una línea de oro que se dibuja sola, como el hilo de la noche
   const HILO = `
@@ -290,30 +275,29 @@
         return '';
       case 4:  // Los números — con el turno sale el sol o la luna
         return (!d.turno ? '' : diurno ? SOL : LUNA) + clima;
-      case 5:  // Dónde los recibimos
-        return (d.espacio === 'Interior'  ? ESPEJOS
-             :  d.espacio === 'Jardín'    ? FOLLAJE
-             :  d.espacio === 'Combinado' ? ESPEJOS + FOLLAJE
-             :  '') + clima;
+      case 5:  // Dónde los recibimos — la foto ya es el salón y el jardín:
+               // la bola de espejos y el follaje dibujados competían con ella
+        return '';
       case 6:  // Cómo lo imaginás
         return clima;
       case 7:  // El recorrido
         return HILO + clima;
       case 8:  // La recepción
       case 9:  // El primer plato / las islas
-      case 10: // La mesa dulce
+      case 10: // El plato central
+      case 11: // La mesa dulce
         return VAPOR;
-      case 11: // La experiencia Joliet — la foto de la barra ya carga bastante
+      case 12: // La experiencia Joliet — la foto de la barra ya carga bastante
         return '';
-      case 12: // Hacelo único
+      case 13: // Hacelo único
         return field(14, 'sc-fall sc-confeti', CONFETI, { size: [8, 16], dur: [6, 12] })
              + field(6, 'sc-rise sc-oro', NOTA, { size: [16, 28], dur: [13, 20] });
-      case 13: // Algo más
+      case 14: // Algo más
         return clima;
-      case 14: // Tu propuesta está lista
-        return BRINDIS
-             + field(18, 'sc-fall sc-oro', CONFETI, { size: [8, 18], dur: [7, 13] })
-             + field(8, 'sc-rise sc-oro', DESTELLO, { size: [10, 22], dur: [11, 18] });
+      case 15: // El cierre — sin copas dibujadas ni confeti: la foto del
+               // evento con el nombre encima alcanza, y el dibujo de las dos
+               // copas al entrar se veía como un error
+        return '';
       default:
         return clima;
     }

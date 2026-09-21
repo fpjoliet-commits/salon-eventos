@@ -4441,7 +4441,7 @@ function applyMomentoTheme() {
 
 const propuestaState = {
   current: 1,
-  total: 14,
+  total: 15,
   data: {
     nombre: '', telefono: '', gmail: '', clienteId: null,
     estilo: '', tipoEvento: '', agasajado: '', cumpleAnios: '', fecha: '', turno: '',
@@ -4727,20 +4727,27 @@ function startPropuestaFromCliente(cliente) {
 function actualizarBtnGuardar() {
   const btn = $('btn-guardar-cliente-propuesta');
   if (!btn) return;
+  // Nunca se bloquea: aunque el cliente ya este en la agenda, este boton es
+  // el que baja el PDF, y bajarlo dos veces tiene que poder hacerse.
   if (propuestaState.data.clienteId) {
-    btn.textContent = '✓ Ya lo tenemos guardado';
-    btn.disabled = true;
+    btn.textContent = 'Guardar y descargar';
   } else {
     btn.textContent = 'Guardar';
-    btn.disabled = false;
   }
+  btn.disabled = false;
 }
 
 async function guardarClientePropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
-  if (d.clienteId) return;
   const btn = $('btn-guardar-cliente-propuesta');
+  // Si el cliente ya existe (se entro desde su ficha) no se crea de nuevo,
+  // pero igual hay que bajar el PDF: es lo que despues se adjunta.
+  if (d.clienteId) {
+    try { savePropuestaLocal(d.clienteId, { ...d }); } catch (e) {}
+    descargarYHabilitarCompartir();
+    return;
+  }
   const statusEl = $('prop-guardar-status');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
   try {
@@ -4760,9 +4767,11 @@ async function guardarClientePropuesta() {
       }
     });
     d.clienteId = nuevo.id;
-    if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = true; }
+    try { savePropuestaLocal(d.clienteId, { ...d }); } catch (e) {}
+    if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = false; }
     if (statusEl) { statusEl.textContent = '¡Listo! Queda en la agenda.'; statusEl.style.display = ''; }
     loadClientes();
+    descargarYHabilitarCompartir();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
     if (statusEl) { statusEl.textContent = 'Error al guardar. Intentá de nuevo.'; statusEl.style.display = ''; }
@@ -4993,6 +5002,8 @@ function buildPropuestaDots() {
   for (let i = 1; i <= propuestaState.total; i++) {
     const dot = document.createElement('div');
     dot.className = 'propuesta-dot' + (i === propuestaState.current ? ' active' : '');
+    dot.dataset.paso = i;
+    if (!pasoVaEnEsteEvento(i)) dot.hidden = true;
     container.appendChild(dot);
   }
 }
@@ -5007,6 +5018,7 @@ function updatePropuestaNav() {
   document.querySelectorAll('.propuesta-dot').forEach((dot, i) => {
     dot.classList.toggle('active', i + 1 === propuestaState.current);
     dot.classList.toggle('done', i + 1 < propuestaState.current);
+    dot.hidden = !pasoVaEnEsteEvento(i + 1);
   });
 
   const prev = $('btn-prop-prev'); if (prev) prev.disabled = propuestaState.current === 1;
@@ -5014,8 +5026,22 @@ function updatePropuestaNav() {
   if (next) next.style.visibility = propuestaState.current === propuestaState.total ? 'hidden' : '';
 }
 
+/* En el americano las islas SON el plato central, asi que ese paso no va.
+   En vez de armar dos recorridos distintos, el paso queda pero se saltea:
+   el boton pasa de largo y su puntito no se dibuja. */
+function pasoVaEnEsteEvento(n) {
+  if (n === 10) return (propuestaState.data.estilo || 'Formal') !== 'Americano';
+  return true;
+}
+
+function pasoSiguiente(desde, paso) {
+  let n = desde + paso;
+  while (n > 1 && n < propuestaState.total && !pasoVaEnEsteEvento(n)) n += paso;
+  return Math.max(1, Math.min(propuestaState.total, n));
+}
+
 function goToPropuestaSlide(n) {
-  if (propuestaState.current === 9 || propuestaState.current === 10) {
+  if (propuestaState.current >= 8 && propuestaState.current <= 11) {
     propuestaState.data.gastroAdicionales = [];
     document.querySelectorAll(gastroSel('input[type="checkbox"]:checked:not([disabled])')).forEach(cb => {
       propuestaState.data.gastroAdicionales.push(cb.value);
@@ -5063,14 +5089,14 @@ function goToPropuestaSlide(n) {
   // Los tres pasos de menu se arman juntos: en el formal las estaciones van
   // en el 8 y el primer plato en el 9, asi que entrar por cualquiera de los
   // tres tiene que dejar los tres armados.
-  if (n >= 8 && n <= 10) { buildGastroSlide(); buildRecepcionCarta(); pintarCartaViva(); }
+  if (n >= 8 && n <= 11) { buildGastroSlide(); buildRecepcionCarta(); pintarCartaViva(); }
   // La carta se arma entera de una vez: el paso 9 y el 10 son dos vistas del
   // mismo armado, asi que entrar por cualquiera de los dos la reconstruye.
 
-  if (n === 14) buildPropuestaResumen();
+  if (n === 15) buildPropuestaResumen();
   // El telon del cierre se enciende al llegar y se apaga al volver atras
   // Iba con 11 de cuando el creador tenia 11 pasos: nunca llegaba a encenderse
-  document.querySelector('.propuesta-kiosco')?.classList.toggle('en-final', n === 14);
+  document.querySelector('.propuesta-kiosco')?.classList.toggle('en-final', n === 15);
 }
 
 // Una sola fuente de verdad para la foto del evento: la que se ve en pantalla
@@ -5480,7 +5506,8 @@ const GASTRO_DATA = {
 /* Los dos contenedores de la carta: el paso 9 (islas / primer plato) y el
    paso 10 (mesa dulce). Se arman juntos, asi que todo lo que recorre lo
    elegido tiene que mirar los dos. */
-const GASTRO_CONTS = ['#recepcion-carta', '#gastro-slide-content', '#gastro-dulce-content'];
+const GASTRO_CONTS = ['#recepcion-carta', '#gastro-slide-content',
+                      '#gastro-central-content', '#gastro-dulce-content'];
 /* OJO: hay que expandir el sufijo contenedor por contenedor. Concatenar
    " input[...]" a una lista separada por comas se lo pega SOLO al ultimo, y
    los otros dos quedan matcheando el div contenedor: de ahi salian valores
@@ -5495,7 +5522,10 @@ function pintarFotosDeCarta(isAmericano) {
     const el = $(id);
     if (el) el.style.backgroundImage = `url('${J}${archivo}')`;
   };
-  poner('carta-foto-platos', isAmericano ? 'pasta-en-fuente.jpg' : 'salida-principal.jpg');
+  // Una foto por momento: la pasta en el primer plato, el plato servido en
+  // el central. Antes los dos momentos compartian pantalla y una sola foto.
+  poner('carta-foto-platos', 'pasta-en-fuente.jpg');
+  poner('carta-foto-central', 'plato-servido.jpg');
   poner('carta-foto-dulce', isAmericano ? 'mesa-de-postres.jpg' : 'panqueques-flambeados.jpg');
 }
 
@@ -5674,6 +5704,23 @@ function buildGastroSlide() {
     ? `<div class="gastro-counter" id="gastro-base-counter"><span id="gastro-base-count">0</span> / 2 adicionales elegidas</div>`
     : '';
 
+  /* El primer plato y el plato central son dos pantallas: la pasta y el
+     plato tienen cada uno su foto y su momento. */
+  const platoCentralHtml = !isAmericano ? (() => {
+    const centralRows = PLATO_CENTRAL_DATA.opciones.map(p => `
+      <label class="gastro-plato-row"><input type="radio" name="plato-central" value="${p.value}"><div class="gastro-plato-indicator">✓</div><div class="gastro-plato-body"><div class="gastro-plato-header"><div class="gastro-plato-name">${p.value}</div><span class="gastro-plato-tipo">${p.tipo}</span></div><div class="gastro-plato-desc">${p.desc}</div></div></label>`).join('');
+    return `
+    <div class="gastro-subsection">
+      <div class="gastro-subsection-header">
+        <div class="gastro-section-title">Plato central</div>
+        <div class="gastro-section-sub">Un solo plato central · ave o carne · tocá de nuevo para deseleccionar</div>
+      </div>
+      <div class="gastro-section-label">ELEGÍ UNO</div>
+      <div class="gastro-plato-list" id="gastro-plato-central">${centralRows}</div>
+      <div class="gastro-necesidades-note">Contamos con menús y opciones para cubrir cualquier tipo de necesidad · vegetariano, sin TACC, alergias y más · consultanos sin compromiso</div>
+    </div>`;
+  })() : '';
+
   const primerPlatoHtml = !isAmericano ? (() => {
     const ppd = PRIMER_PLATO_DATA;
     const pastaRows = ppd.pastas.map(p => `
@@ -5684,8 +5731,6 @@ function buildGastroSlide() {
       <label class="gastro-menu-row${s.locked ? ' locked' : ''}"><input type="checkbox" value="${s.name}"${s.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s.name}${s.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
     const salsaGRows = ppd.salsasGourmet.map(s => `
       <label class="gastro-menu-row"><input type="checkbox" value="${s}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s}<span class="sello-autor">${SELLO.badge}</span></span></label>`).join('');
-    const centralRows = PLATO_CENTRAL_DATA.opciones.map(p => `
-      <label class="gastro-plato-row"><input type="radio" name="plato-central" value="${p.value}"><div class="gastro-plato-indicator">✓</div><div class="gastro-plato-body"><div class="gastro-plato-header"><div class="gastro-plato-name">${p.value}</div><span class="gastro-plato-tipo">${p.tipo}</span></div><div class="gastro-plato-desc">${p.desc}</div></div></label>`).join('');
     return `
     <div class="gastro-subsection">
       <div class="gastro-subsection-header">
@@ -5698,15 +5743,6 @@ function buildGastroSlide() {
       <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></div>
       <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
       <div class="gastro-menu-grid" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
-    </div>
-    <div class="gastro-subsection">
-      <div class="gastro-subsection-header">
-        <div class="gastro-section-title">Plato central</div>
-        <div class="gastro-section-sub">Un solo plato central · ave o carne · clickeá de nuevo para deseleccionar</div>
-      </div>
-      <div class="gastro-section-label">ELEGÍ UNO</div>
-      <div class="gastro-plato-list" id="gastro-plato-central">${centralRows}</div>
-      <div class="gastro-necesidades-note">Contamos con menús y opciones para cubrir cualquier tipo de necesidad · vegetariano, sin TACC, alergias y más · consultanos sin compromiso</div>
     </div>`;
   })() : '';
 
@@ -5799,14 +5835,16 @@ function buildGastroSlide() {
   /* En el formal las estaciones son el momento de la recepcion: viven en el
      paso 8, al lado de la carta, y el paso 9 queda para el primer plato. */
   const recepcion = $('recepcion-carta');
+  const central = $('gastro-central-content');
   if (!isAmericano && recepcion) {
     recepcion.innerHTML = islasHtml;
     recepcion.dataset.estaciones = '1';
     container.innerHTML = primerPlatoHtml;
   } else {
     if (recepcion) delete recepcion.dataset.estaciones;
-    container.innerHTML = islasHtml + primerPlatoHtml;
+    container.innerHTML = islasHtml;
   }
+  if (central) central.innerHTML = platoCentralHtml;
 
   // La mesa dulce vive en el paso siguiente. Se pinta en el mismo armado para
   // que los listeners y la restauracion de lo elegido corran una sola vez.
@@ -7060,7 +7098,10 @@ function normalizarTelWhatsapp(tel) {
 
 // Mensaje pre-armado que acompaña el envío de la propuesta
 function mensajePropuesta(d) {
-  const nombre = (d.nombre || '').trim().split(/\s+/)[0] || '';
+  // Los clientes se cargan como "Perez, Ana": el saludo tiene que decir Ana,
+  // no Perez. Si no hay coma, se usa la primera palabra.
+  const crudo = (d.nombre || '').trim();
+  const nombre = (crudo.includes(',') ? crudo.split(',')[1] : crudo).trim().split(/\s+/)[0] || '';
   const evento = d.tipoEvento ? ` para ${d.tipoEvento}` : '';
   const fecha = d.fecha ? ` del ${formatDate(d.fecha)}` : '';
   const saludo = nombre ? `Hola ${nombre}! ` : 'Hola! ';
@@ -7108,73 +7149,68 @@ function renderPropuestaShare(d) {
       `<span class="share-ico">✉️</span> Enviar por Gmail<span class="share-dest">${esc(email)}</span></a>`);
   }
 
+  const archivo = nombreArchivoPropuesta(d) + '.pdf';
   panel.innerHTML =
-    `<div class="share-titulo">Adjuntá el PDF descargado y envialo a ${esc((d.nombre || '').trim() || 'tu cliente')}:</div>` +
+    `<div class="share-titulo">Adjuntá <strong>${esc(archivo)}</strong> y envialo a ` +
+    `${esc((d.nombre || '').trim() || 'tu cliente')}:</div>` +
     `<div class="share-botones">${botones.join('')}</div>`;
   panel.classList.remove('hidden');
 }
 
-// Deja el botón compartir en su estado inicial (paso 1)
+/* Guardar baja el PDF y habilita Compartir. El orden no es un capricho:
+   ni WhatsApp Web ni Gmail pueden adjuntar un archivo desde la pagina, asi
+   que el PDF tiene que estar en Descargas ANTES de abrir el chat, y con un
+   nombre que se encuentre de una. */
+function descargarYHabilitarCompartir() {
+  readPropuestaData();
+  const d = propuestaState.data;
+  generatePropuestaPDF();   // el navegador sugiere el nombre del <title>
+
+  const archivo = nombreArchivoPropuesta(d) + '.pdf';
+  const compartir = $('btn-compartir-propuesta');
+  if (compartir) {
+    compartir.disabled = false;
+    compartir.classList.add('btn-final-fuerte');
+  }
+  const hint = $('prop-final-hint');
+  if (hint) {
+    hint.innerHTML = 'Se descargó <strong>' + esc(archivo) + '</strong> · ' +
+      'tocá Compartir y adjuntalo en el chat o en el mail';
+  }
+}
+
+// Deja el cierre en su estado inicial: Compartir apagado hasta que se guarde
 function resetBotonCompartir() {
-  const btn = $('btn-descargar-pdf');
-  if (!btn) return;
-  btn.dataset.step = '1';
-  delete btn.dataset.canal;
-  btn.textContent = '⬇ Descargar propuesta';
+  const compartir = $('btn-compartir-propuesta');
+  if (compartir) {
+    compartir.disabled = true;
+    compartir.classList.remove('btn-final-fuerte');
+  }
+  const hint = $('prop-final-hint');
+  if (hint) hint.textContent = 'Guardar lo deja en la agenda y descarga el PDF · después se habilita Compartir';
   const panel = $('prop-share-panel');
   if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
 }
 
-// Handler del botón — 2 pasos:
-//   Paso 1: descarga el PDF (nombre claro).
-//   Paso 2: te lleva a WhatsApp / Gmail con el archivo ya descargado para adjuntar.
+/* Compartir: abre WhatsApp Web con el telefono que cargaron en el form, o
+   Gmail con el mail de ese cliente, los dos con el mensaje ya escrito. El
+   PDF se adjunta a mano: es el que se acaba de bajar. */
 function compartirPropuesta() {
-  const btn = $('btn-descargar-pdf');
   readPropuestaData();
   const d = propuestaState.data;
+  const panel = $('prop-share-panel');
+  if (!panel) return;
+
   const tel = normalizarTelWhatsapp(d.telefono);
   const email = (d.gmail || '').trim();
-  const panel = $('prop-share-panel');
-  const step = btn?.dataset.step || '1';
 
-  // ----- PASO 1: descargar -----
-  if (step === '1') {
-    if (d.clienteId) { try { savePropuestaLocal(d.clienteId, { ...d }); } catch {} }
-    generatePropuestaPDF();   // abre la ventana del PDF con nombre de archivo claro
-
-    if (!tel && !email) {
-      if (panel) {
-        panel.innerHTML = `<div class="share-nota">✓ PDF listo para guardar. ` +
-          `Para enviarlo directo, cargá un teléfono o email en el contacto y volvé a intentar.</div>`;
-        panel.classList.remove('hidden');
-      }
-      if (btn) btn.textContent = '⬇ Descargar de nuevo';
-      return;
-    }
-
-    if (panel) {
-      panel.innerHTML = `<div class="share-nota">✓ Guardá el PDF que se abrió. ` +
-        `Después tocá <strong>Enviar</strong> y adjuntalo en el chat/mail.</div>`;
-      panel.classList.remove('hidden');
-    }
-    if (btn) {
-      btn.dataset.step = '2';
-      if (tel && email)  { btn.textContent = 'Enviar propuesta →'; btn.dataset.canal = 'ambos'; }
-      else if (tel)      { btn.textContent = 'Enviar por WhatsApp →'; btn.dataset.canal = 'wa'; }
-      else               { btn.textContent = 'Enviar por Gmail →'; btn.dataset.canal = 'mail'; }
-    }
+  if (!tel && !email) {
+    panel.innerHTML = '<div class="share-nota">Este cliente no tiene teléfono ni mail cargado. ' +
+      'Cargalos en su ficha y el envío se arma solo.</div>';
+    panel.classList.remove('hidden');
     return;
   }
-
-  // ----- PASO 2: enviar -----
-  const canal = btn?.dataset.canal;
-  if (canal === 'wa' && tel)          { window.open(waUrlPropuesta(d, tel), '_blank', 'noopener'); }
-  else if (canal === 'mail' && email) { window.open(gmailUrlPropuesta(d, email), '_blank', 'noopener'); }
-  else {
-    // Ambos canales: mostrar las dos opciones para elegir
-    renderPropuestaShare(d);
-    panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  renderPropuestaShare(d);
 }
 
 // Listeners de propuesta (se registran una vez al cargar el DOM)
@@ -7183,11 +7219,11 @@ function compartirPropuesta() {
 
   $('btn-prop-next')?.addEventListener('click', () => {
     document.querySelector('.propuesta-slides-container')?.classList.remove('slides-going-back');
-    if (propuestaState.current < propuestaState.total) goToPropuestaSlide(propuestaState.current + 1);
+    if (propuestaState.current < propuestaState.total) goToPropuestaSlide(pasoSiguiente(propuestaState.current, 1));
   });
   $('btn-prop-prev')?.addEventListener('click', () => {
     document.querySelector('.propuesta-slides-container')?.classList.add('slides-going-back');
-    if (propuestaState.current > 1) goToPropuestaSlide(propuestaState.current - 1);
+    if (propuestaState.current > 1) goToPropuestaSlide(pasoSiguiente(propuestaState.current, -1));
   });
 
   $('propuesta-close-btn')?.addEventListener('click', () => {
@@ -7282,7 +7318,7 @@ function compartirPropuesta() {
     $('preform-draft')?.classList.add('hidden');
   });
 
-  $('btn-descargar-pdf')?.addEventListener('click', compartirPropuesta);
+  $('btn-compartir-propuesta')?.addEventListener('click', compartirPropuesta);
 
   // Pre-form: comenzar propuesta
   $('btn-preform-comenzar')?.addEventListener('click', startPropuestaSlides);
