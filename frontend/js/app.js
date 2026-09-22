@@ -4740,8 +4740,9 @@ async function guardarClientePropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
   const btn = $('btn-guardar-cliente-propuesta');
-  // Si el cliente ya existe (se entro desde su ficha) no se crea de nuevo,
-  // pero igual hay que bajar el PDF: es lo que despues se adjunta.
+  // Si el cliente ya existe (se entro desde su ficha, o se lo eligio en el
+  // buscador del pre-form) no se crea de nuevo, pero igual hay que bajar el
+  // PDF: es lo que despues se adjunta.
   if (d.clienteId) {
     try { savePropuestaLocal(d.clienteId, { ...d }); } catch (e) {}
     return true;
@@ -7385,7 +7386,61 @@ function resetBotonCompartir() {
 /* El cierre es un solo toque: guarda el cliente en la agenda y abre el PDF.
    De ahi en mas el panel va guiando, y los canales recien aparecen cuando el
    archivo esta. Antes habia dos botones que hacian casi lo mismo. */
+/* ---- Que no se dupliquen los clientes ----
+   Entrando desde la ficha, o eligiendo el cliente en el buscador del pre-form,
+   la propuesta ya viene con su clienteId y no se crea nada. El problema es
+   cuando el nombre se escribe a mano: muchas veces el cliente ya estaba en la
+   agenda y quedaban dos filas de la misma persona. Antes de crear, se busca
+   por telefono, mail o nombre, y si aparece se pregunta. */
+function soloDigitosTel(t) { return String(t || '').replace(/\D/g, ''); }
+function nombreComparable(n) {
+  return String(n || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // saca acentos
+    .replace(/[^a-z0-9]/g, '');                         // y comas, puntos, espacios
+}
+
+function buscarClienteYaCargado(d) {
+  // Los ultimos 8 digitos alcanzan: el mismo numero se carga con y sin 15,
+  // con y sin 0 de area, con y sin +54.
+  const tel = soloDigitosTel(d.telefono).slice(-8);
+  const mail = (d.gmail || '').trim().toLowerCase();
+  const nom = nombreComparable(d.nombre);
+  return (allClientes || []).find(c => {
+    if (tel.length >= 8 && soloDigitosTel(c.telefono).slice(-8) === tel) return true;
+    if (mail && (c.gmail || '').trim().toLowerCase() === mail) return true;
+    if (nom.length >= 4 && nombreComparable(c.apellidoNombre) === nom) return true;
+    return false;
+  });
+}
+
+/* Pregunta y espera. Se muestra en el panel del cierre, con el nombre del
+   cliente y nada mas: es lo unico que se necesita para decidir. */
+function preguntarSiEsElMismo(cliente) {
+  return new Promise(resolve => {
+    const panel = $('prop-share-panel');
+    if (!panel) return resolve('nuevo');
+    panel.classList.remove('hidden');
+    panel.innerHTML =
+      '<div class="share-paso"><strong>' + esc(cliente.apellidoNombre || 'Ese cliente') +
+      '</strong> ya está en la agenda.</div>' +
+      '<div class="share-botones">' +
+        '<button type="button" class="btn-final btn-final-fuerte" id="btn-dup-mismo">Es el mismo</button>' +
+        '<button type="button" class="btn-final" id="btn-dup-nuevo">Es otro cliente</button>' +
+      '</div>';
+    $('btn-dup-mismo')?.addEventListener('click', () => resolve('mismo'));
+    $('btn-dup-nuevo')?.addEventListener('click', () => resolve('nuevo'));
+  });
+}
+
 async function finalizarPropuesta() {
+  readPropuestaData();
+  const d = propuestaState.data;
+  if (!d.clienteId) {
+    const yaEsta = buscarClienteYaCargado(d);
+    // Se vincula a la ficha que ya existe: no se pisan sus datos, solo se
+    // deja de crear una segunda.
+    if (yaEsta && (await preguntarSiEsElMismo(yaEsta)) === 'mismo') d.clienteId = yaEsta.id;
+  }
   const ok = await guardarClientePropuesta();
   if (ok === false) return;   // el error ya se mostro abajo
   descargarPropuesta();
