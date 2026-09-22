@@ -3253,6 +3253,9 @@
   color: var(--gold);
   font-family: 'DM Sans', inherit;
   cursor: pointer;
+  /* Sin subtitulo debajo del nombre, el contenido va centrado para quedar a
+     la misma altura que WhatsApp y Gmail, que si lo tienen. */
+  justify-content: center;
 }
 .btn-share-ver:hover:not(:disabled) { background: rgba(196,153,62,.26); color: #f2d79a; }
 .btn-share-mail:hover:not(:disabled) { background: rgba(234,67,53,.22); color: #ffb0a8; }

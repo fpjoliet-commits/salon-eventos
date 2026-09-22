@@ -7318,8 +7318,7 @@ const LOGO_PDF = '<svg class="share-logo" viewBox="0 0 24 24" aria-hidden="true"
   '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
   'd="M9 12.6h6M9 15.6h6M9 18.2h3.6"/></svg>';
 const BTN_VER_PDF = '<button type="button" class="btn-share btn-share-ver" id="btn-ver-pdf">' +
-  LOGO_PDF + '<span class="share-nom">Ver el PDF</span>' +
-  '<span class="share-dest">como lo recibe el cliente</span></button>';
+  LOGO_PDF + '<span class="share-nom">Ver el PDF</span></button>';
 
 function enlazarBotonVerPDF() {
   $('btn-ver-pdf')?.addEventListener('click', () => {
