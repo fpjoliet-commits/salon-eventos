@@ -5777,7 +5777,7 @@ function buildGastroSlide() {
         <div class="gastro-section-title">Primer plato</div>
         <div class="gastro-section-sub">Pastas artesanales · Tagliatelle y Filetto siempre incluidos</div>
       </div>
-      <div class="gastro-section-label">PASTAS · Tagliatelle y sorrentinos incluidos · elegí hasta 5 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/5</span></div>
+      <div class="gastro-section-label">PASTAS · Tagliatelle y sorrentinos incluidos <span id="gastro-pasta-counter" class="gastro-count-badge">0/5</span></div>
       <div id="gastro-pasta-wrap">
         <details class="gastro-menu-group" open>
           <summary class="gastro-menu-summary">Pastas al corte<span class="gastro-menu-chev">▾</span></summary>
@@ -5789,7 +5789,7 @@ function buildGastroSlide() {
         </details>
       </div>
       <details class="gastro-menu-group" style="margin-top:14px">
-        <summary class="gastro-menu-summary"><span>Salsas · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></span><span class="gastro-menu-chev">▾</span></summary>
+        <summary class="gastro-menu-summary"><span>Salsas · Filetto incluida <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></span><span class="gastro-menu-chev">▾</span></summary>
         <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
         <div class="gastro-menu-grid" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
       </details>
