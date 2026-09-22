@@ -3367,6 +3367,40 @@ tr.coc-row-hidden { display: none; }
   flex-wrap: wrap;
   margin-bottom: 4px;
 }
+/* Probar los documentos de la ficha no tiene que gastar los PDF del mes ni
+   mandarle a nadie un archivo con marca de agua: apagado se ve al margen,
+   prendido se ve. */
+.prop-tab-prueba {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 13px;
+  color: var(--text-muted, #7a7a7a);
+  cursor: pointer;
+}
+.prop-tab-prueba input { width: 16px; height: 16px; cursor: pointer; }
+.prop-tab-prueba:has(input:checked) {
+  color: #8a6a1e;
+  background: rgba(196,153,62,.1);
+  border-color: rgba(196,153,62,.4);
+}
+/* El aviso de "ya se bajo" con el boton para abrirlo. Vacio no ocupa lugar. */
+.pdf-aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.pdf-aviso:empty { display: none; }
+.pdf-aviso .pdf-aviso-txt { color: var(--text-muted, #7a7a7a); }
+.pdf-aviso strong { color: var(--text, #2b2b2b); }
+
 .prop-admin-section {
   margin-top: 20px;
   padding: 14px;

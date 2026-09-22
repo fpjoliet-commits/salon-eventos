@@ -576,6 +576,85 @@ app.get('/api/cotizacion-blue', auth, async (req, res) => {
   res.json(c);
 });
 
+/* ---- PDF de la propuesta ----
+   El PDF no se puede armar aca adentro: Chrome headless (puppeteer) pide unos
+   300 MB de RAM y el plan de Render tiene 512 MB en total. Asi que el HTML que
+   arma el front se manda a PDFShift, que lo renderiza con Chrome y devuelve el
+   archivo. El navegador lo baja solo, sin pasar por el dialogo de impresion:
+   ese dialogo se podia cancelar sin querer y dejaba a la vendedora mandando un
+   WhatsApp sin adjunto.
+
+   Si no hay API key configurada devuelve 501 y el front sigue usando el
+   dialogo de impresion guiado. Nunca se rompe: como mucho, se degrada. */
+const PDF_API_KEY = process.env.PDFSHIFT_API_KEY || '';
+// Las imagenes del documento van con ruta relativa (img/propuesta/...): el
+// servicio las tiene que poder bajar, asi que se absolutizan contra la URL
+// publica del CRM. En dev local apuntan igual al deploy, que ya las tiene.
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://salon-eventos.onrender.com').replace(/\/+$/, '');
+
+/* El plan gratis trae 50 creditos por mes: probar el creador no se los tiene
+   que comer. En modo sandbox el servicio arma el PDF igual pero no cobra
+   credito —sale con marca de agua— y eso alcanza para ver si la maqueta
+   quedo bien. Se activa solo en local, o a mano con PDF_SANDBOX=1 si hay que
+   probar contra el deploy sin gastar. */
+const PDF_SANDBOX_FORZADO = /^(1|true|si|sí)$/i.test(process.env.PDF_SANDBOX || '');
+function esPrueba(req) {
+  if (PDF_SANDBOX_FORZADO) return true;
+  // Lo marca quien esta probando desde el creador: el equipo prueba contra el
+  // sistema subido, asi que mirar el host no alcanza.
+  if (req.body && req.body.prueba === true) return true;
+  const host = String(req.hostname || '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+}
+
+app.post('/api/propuesta/pdf', auth, express.json({ limit: '8mb' }), async (req, res) => {
+  if (!PDF_API_KEY) return res.status(501).json({ error: 'pdf_no_configurado' });
+  const { html } = req.body || {};
+  if (!html || typeof html !== 'string') return res.status(400).json({ error: 'Falta el HTML de la propuesta.' });
+  const sandbox = esPrueba(req);
+
+  // url('img/...'), src="img/..." y href="img/..." pasan a ser absolutas
+  const source = html
+    .replace(/url\((['"]?)img\//g, `url($1${PUBLIC_BASE_URL}/img/`)
+    .replace(/(src|href)=(['"])img\//g, `$1=$2${PUBLIC_BASE_URL}/img/`);
+
+  try {
+    const r = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
+      method: 'POST',
+      headers: { 'X-API-Key': PDF_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source,
+        format: 'A4',
+        // El documento ya trae sus margenes (@page margin 0 y hojas de
+        // 210x297mm): si el servicio agrega los 48px que pone por defecto, la
+        // maqueta se parte en dos hojas por pagina.
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+        // El reparto del contenido en hojas lo hace un script del propio
+        // documento; sin esperarlo, el PDF sale con las paginas a medio armar.
+        wait_for: 'propuestaLista',
+        timeout: 60,
+        sandbox,
+      }),
+    });
+    if (!r.ok) {
+      const detalle = await r.text().catch(() => '');
+      console.error('PDFShift', r.status, detalle.slice(0, 400));
+      return res.status(502).json({ error: 'El servicio de PDF no respondió bien.' });
+    }
+    const pdf = Buffer.from(await r.arrayBuffer());
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Length', String(pdf.length));
+    // El front avisa en pantalla cuando el PDF es de prueba: uno con marca de
+    // agua no se le puede mandar a un cliente.
+    res.set('X-Pdf-Sandbox', sandbox ? '1' : '0');
+    res.set('Access-Control-Expose-Headers', 'X-Pdf-Sandbox');
+    res.send(pdf);
+  } catch (e) {
+    console.error('PDFShift', e.message);
+    res.status(502).json({ error: 'No se pudo generar el PDF.' });
+  }
+});
+
 // Precio general del cubierto (se propone al crear un evento; cada evento
 // despues puede tener el suyo).
 app.get('/api/config', auth, async (req, res) => {

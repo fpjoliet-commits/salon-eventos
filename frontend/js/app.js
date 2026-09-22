@@ -4509,7 +4509,7 @@ function initPropuesta() {
   const agRow = $('agasajado-row'); if (agRow) agRow.style.display = 'none';
   const guardarStatus = $('prop-guardar-status'); if (guardarStatus) guardarStatus.style.display = 'none';
   const guardarBtn = $('btn-guardar-cliente-propuesta');
-  if (guardarBtn) { guardarBtn.disabled = false; guardarBtn.textContent = 'Guardar'; }
+  if (guardarBtn) { guardarBtn.disabled = false; guardarBtn.textContent = 'Guardar y compartir'; }
 
   openPropuestaPreForm();
 }
@@ -4729,13 +4729,10 @@ function startPropuestaFromCliente(cliente) {
 function actualizarBtnGuardar() {
   const btn = $('btn-guardar-cliente-propuesta');
   if (!btn) return;
-  // Nunca se bloquea: aunque el cliente ya este en la agenda, este boton es
-  // el que baja el PDF, y bajarlo dos veces tiene que poder hacerse.
-  if (propuestaState.data.clienteId) {
-    btn.textContent = 'Guardar y descargar';
-  } else {
-    btn.textContent = 'Guardar';
-  }
+  // Nunca se bloquea ni cambia de nombre: siempre hace lo mismo (guardar,
+  // bajar el PDF y abrir los canales), y bajarlo dos veces tiene que poder
+  // hacerse aunque el cliente ya este en la agenda.
+  btn.textContent = 'Guardar y compartir';
   btn.disabled = false;
 }
 
@@ -4747,7 +4744,6 @@ async function guardarClientePropuesta() {
   // pero igual hay que bajar el PDF: es lo que despues se adjunta.
   if (d.clienteId) {
     try { savePropuestaLocal(d.clienteId, { ...d }); } catch (e) {}
-    descargarPropuesta();
     return true;
   }
   const statusEl = $('prop-guardar-status');
@@ -4770,13 +4766,12 @@ async function guardarClientePropuesta() {
     });
     d.clienteId = nuevo.id;
     try { savePropuestaLocal(d.clienteId, { ...d }); } catch (e) {}
-    if (btn) { btn.textContent = '✓ Guardado'; btn.disabled = false; }
+    if (btn) { btn.textContent = '✓ Guardado · descargar de nuevo'; btn.disabled = false; }
     if (statusEl) statusEl.textContent = '';
     loadClientes();
-    descargarPropuesta();
     return true;
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar y compartir'; }
     if (statusEl) { statusEl.textContent = 'No se pudo guardar. Probá de nuevo.'; statusEl.style.display = ''; }
     return false;
   }
@@ -4840,6 +4835,13 @@ function renderPropuestaTab(cliente) {
         <button class="btn btn-secondary" id="btn-prop-tab-build">✏️ ${hasProposal ? 'Editar propuesta' : 'Construir propuesta'}</button>
         <button class="btn btn-secondary" id="btn-prop-tab-pdf">📄 Propuesta experiencial</button>
       </div>
+      <!-- Solo en la ficha, que es pantalla de gestion: el creador se espeja a
+           la tele del salon y ahi no va nada interno. -->
+      <label class="prop-tab-prueba">
+        <input type="checkbox" id="prop-tab-modo-prueba">
+        <span>Modo prueba (no consume del plan)</span>
+      </label>
+      <div class="pdf-aviso" id="prop-tab-pdf-aviso"></div>
       ${adminHTML}
     </div>`;
 
@@ -4870,7 +4872,11 @@ function renderPropuestaTab(cliente) {
       pastasGourmetSeleccionadas: [],
       salsasGourmetSeleccionadas: [],
     };
-    generatePropuestaPDF({ data: dataParaPDF, tipo: 'experiencial' });
+    bajarDocumentoFicha(
+      { data: dataParaPDF, tipo: 'experiencial' },
+      'prop-tab-pdf-aviso',
+      !!document.getElementById('prop-tab-modo-prueba')?.checked
+    );
   });
 
   if (isAdmin()) {
@@ -4903,7 +4909,11 @@ function renderPropuestaTab(cliente) {
       const precioInfantil = parseFloat(infantilEl()?.value) || 0;
       const moneda = monedaEl()?.value || 'ARS';
       savePropuestaLocal(cliente.id + '_precios', { adulto: precioAdulto, infantil: precioInfantil, moneda });
-      generatePropuestaPDF({ data: saved, tipo: 'contrato', precioAdulto, precioInfantil, moneda });
+      bajarDocumentoFicha(
+        { data: saved, tipo: 'contrato', precioAdulto, precioInfantil, moneda },
+        'prop-tab-pdf-aviso',
+        !!document.getElementById('prop-tab-modo-prueba')?.checked
+      );
     });
   }
 }
@@ -6304,7 +6314,7 @@ function buildPropuestaResumen() {
   if (fondo) fondo.style.backgroundImage = `url('${portadaImgFor(d.tipoEvento)}')`;
 }
 
-function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto = 0, precioInfantil = 0, moneda = 'ARS' } = {}) {
+function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto = 0, precioInfantil = 0, moneda = 'ARS', soloHTML = false } = {}) {
   if (!data) {
     readPropuestaData();
     if (propuestaState.data.clienteId) {
@@ -6756,9 +6766,38 @@ ul.mi-yours{background:var(--glow);border-left:2px solid var(--gold);padding-lef
   .page{margin:0;box-shadow:none;break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid}
   .page:last-child{break-after:auto;page-break-after:avoid}
 }
+
+/* ---- Barra de ayuda de la ventana de impresion ----
+   La vista previa del navegador es el unico paso del recorrido que no
+   controlamos: si ahi se toca Cancelar, no hay archivo y el resto del
+   flujo queda colgado. Por eso la ventana explica que hacer, con letra
+   grande, y tiene su propio boton para reintentar. Nunca se imprime. */
+.ayuda-pdf{
+  position:fixed;top:0;left:0;right:0;z-index:99999;
+  display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;
+  padding:14px 20px;background:#1b1b1f;color:#fff;
+  font-family:'Inter',system-ui,sans-serif;font-size:17px;line-height:1.45;
+  box-shadow:0 2px 14px rgba(0,0,0,.35);
+}
+.ayuda-pdf b{color:#f0c96a}
+.ayuda-pdf .ayuda-txt{max-width:640px}
+.ayuda-pdf button{
+  font:inherit;font-weight:700;font-size:17px;cursor:pointer;
+  background:#f0c96a;color:#1b1b1f;border:0;border-radius:8px;
+  padding:12px 22px;min-height:48px;white-space:nowrap;
+}
+.ayuda-pdf button:active{transform:scale(.97)}
+@media screen{body{padding-top:86px}}
+@media print{.ayuda-pdf{display:none !important}}
 </style>
 </head>
 <body>
+
+<div class="ayuda-pdf">
+  <span class="ayuda-txt">Se abrio la ventana de impresion. En <b>Destino</b> elegi
+  <b>Guardar como PDF</b> y toca <b>Guardar</b>. El archivo queda en Descargas.</span>
+  <button type="button" onclick="window.print()">Guardar el PDF</button>
+</div>
 
 <!-- PORTADA -->
 <div class="page cover">
@@ -7133,12 +7172,26 @@ ${tipo === 'contrato' ? (() => {
   window.addEventListener('beforeprint', function () { document.body.style.zoom = 1; });
   window.addEventListener('afterprint', ajustar);
   ajustar();
+  /* El CRM necesita saber que el dialogo se cerro para recien ahi preguntar
+     si el archivo quedo guardado. afterprint salta tanto al guardar como al
+     cancelar: por eso preguntamos en vez de dar por hecho que hay PDF. */
+  window.addEventListener('afterprint', function () {
+    try { if (window.opener && window.opener.propuestaVolvioDeImprimir) window.opener.propuestaVolvioDeImprimir(); } catch (e) {}
+  });
 })();
+/* Cuando el documento se renderiza afuera (el servicio que arma el PDF), el
+   servicio no tiene forma de saber que el paginador termino de repartir el
+   contenido en hojas: pregunta por esta funcion hasta que diga que si. */
+window.propuestaLista = function () { return !!window.__propuestaPaginada; };
 </script>
 </body></html>`;
 
+  // Para mandar a armar el PDF afuera solo hace falta el HTML: no se abre
+  // ninguna ventana ni se toca el dialogo de impresion.
+  if (soloHTML) return { html, nombre: nombreArchivoPropuesta(d, tipo) };
+
   const win = window.open('', '_blank');
-  if (!win) { toast('Permití popups en el navegador para descargar la propuesta', 'error'); return; }
+  if (!win) { toast('Permití popups en el navegador para descargar la propuesta', 'error'); return null; }
   win.document.write(html);
   win.document.close();
   // Esperamos a que el documento termine de repartir el contenido en hojas
@@ -7148,6 +7201,7 @@ ${tipo === 'contrato' ? (() => {
     setTimeout(() => esperarYImprimir(intentos + 1), 100);
   };
   setTimeout(() => esperarYImprimir(), 400);
+  return win;   // quien la abrio necesita saber cuando se cierra
 }
 
 /* ---- Compartir la propuesta: arma el PDF y ofrece enviarla por
@@ -7218,12 +7272,68 @@ const LOGO_GMAIL = '<svg class="share-logo" viewBox="0 0 24 24" aria-hidden="tru
   '<path fill="#C5221F" d="M2 5.2V7l4 3.4V5.2L4.4 4A1.5 1.5 0 0 0 2 5.2z"/>' +
   '<path fill="#FBBC04" d="M18 5.2v5.2L22 7V5.2A1.5 1.5 0 0 0 19.6 4z"/></svg>';
 
-function renderPropuestaShare(d) {
+/* ---- El panel de cierre, paso por paso ----
+   El PDF sale de la ventana de impresion del navegador, y ahi se puede tocar
+   Cancelar: no hay forma de saber desde el CRM si el archivo existe. Antes los
+   botones de WhatsApp y Gmail aparecian igual, asi que se podia mandar el
+   mensaje sin adjunto y sin darse cuenta. Ahora el panel tiene cuatro estados
+   y los canales recien salen cuando alguien confirma que el archivo esta. */
+function renderSharePanel(estado) {
   const panel = $('prop-share-panel');
   if (!panel) return;
+  const d = propuestaState.data;
+  const hint = $('prop-final-hint');
+  panel.classList.remove('hidden');
+
+  if (estado === 'generando') {
+    panel.innerHTML = '<div class="share-paso">Armando el PDF…</div>';
+    return;
+  }
+
+  if (estado === 'popup') {
+    panel.innerHTML = '<div class="share-paso">El navegador bloqueó la ventana del PDF. ' +
+      'Permití las ventanas emergentes y tocá <strong>Guardar y compartir</strong> otra vez.</div>';
+    return;
+  }
+
+  if (estado === 'esperando') {
+    panel.innerHTML = '<div class="share-paso">Se abrió la ventana del PDF. ' +
+      'Elegí <strong>Guardar como PDF</strong> y tocá <strong>Guardar</strong>.</div>';
+    return;
+  }
+
+  if (estado === 'confirmar') {
+    // Se cerro el dialogo, pero no sabemos con cual boton: preguntamos.
+    panel.innerHTML =
+      '<div class="share-paso">¿Quedó guardado <strong>' + esc(nombreArchivoPropuesta(d)) + '.pdf</strong> en Descargas?</div>' +
+      '<div class="share-botones">' +
+        '<button type="button" class="btn-final btn-final-fuerte" id="btn-pdf-ok">Sí, ya lo tengo</button>' +
+        '<button type="button" class="btn-final" id="btn-pdf-reintentar">No · abrir de nuevo</button>' +
+      '</div>';
+    $('btn-pdf-ok')?.addEventListener('click', () => renderSharePanel('canales'));
+    $('btn-pdf-reintentar')?.addEventListener('click', () => descargarPropuesta());
+    return;
+  }
+
+  // estado 'canales': el archivo ya esta, queda elegir por donde mandarlo.
+  // Se corta la vigilancia de la ventana: si sigue abierta y se cierra mas
+  // tarde, no tiene que volver a preguntar encima de los canales.
+  if (pollImpresion) { clearInterval(pollImpresion); pollImpresion = null; }
+  window.propuestaVolvioDeImprimir = null;
+  if (hint) hint.innerHTML = '✓ En Descargas: <strong>' + esc(nombreArchivoPropuesta(d)) + '.pdf</strong>';
+
   const tel = normalizarTelWhatsapp(d.telefono);
   const email = (d.gmail || '').trim();
+  if (!tel && !email) {
+    panel.innerHTML = '<div class="share-paso">Guardado. Para enviarlo falta cargar el teléfono o el mail del cliente.</div>' +
+      (propuestaPDF.url ? '<div class="share-botones">' + BTN_VER_PDF + '</div>' : '');
+    enlazarBotonVerPDF();
+    return;
+  }
   const botones = [];
+  // Cuando el PDF lo armo el servidor lo tenemos en memoria: este boton abre
+  // el mismo archivo que se acaba de bajar, sin salir a buscarlo a Descargas.
+  if (propuestaPDF.url) botones.push(BTN_VER_PDF);
   if (tel) {
     botones.push(`<a class="btn-share btn-share-wa" href="${waUrlPropuesta(d, tel)}" target="_blank" rel="noopener">` +
       `${LOGO_WA}<span class="share-nom">WhatsApp</span><span class="share-dest">${esc(d.telefono)}</span></a>`);
@@ -7233,55 +7343,189 @@ function renderPropuestaShare(d) {
       `${LOGO_GMAIL}<span class="share-nom">Gmail</span><span class="share-dest">${esc(email)}</span></a>`);
   }
   panel.innerHTML = `<div class="share-botones">${botones.join('')}</div>` +
-    `<div class="share-nota">El mensaje ya va escrito · adjuntá el PDF</div>`;
-  panel.classList.remove('hidden');
+    `<div class="share-nota">El mensaje ya va escrito · adjuntá el PDF desde <strong>Descargas</strong></div>`;
+  enlazarBotonVerPDF();
 }
 
-/* Bajar el PDF. Va siempre antes de abrir el chat: ni WhatsApp Web ni
-   Gmail pueden adjuntar un archivo desde una pagina, asi que el PDF tiene
-   que estar en Descargas, y con un nombre que se encuentre de una. */
-function descargarPropuesta() {
+/* El boton de ver el PDF no es un link comun: apunta al archivo que quedo en
+   memoria despues de bajarlo, asi que se abre por JS y no con un href fijo. */
+const LOGO_PDF = '<svg class="share-logo" viewBox="0 0 24 24" aria-hidden="true">' +
+  '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" ' +
+  'd="M6 2.8h7.2L18.4 8v13.2H6z"/>' +
+  '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M13.2 2.8V8h5.2"/>' +
+  '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
+  'd="M9 12.6h6M9 15.6h6M9 18.2h3.6"/></svg>';
+const BTN_VER_PDF = '<button type="button" class="btn-share btn-share-ver" id="btn-ver-pdf">' +
+  LOGO_PDF + '<span class="share-nom">Ver el PDF</span>' +
+  '<span class="share-dest">como lo recibe el cliente</span></button>';
+
+function enlazarBotonVerPDF() {
+  $('btn-ver-pdf')?.addEventListener('click', () => {
+    if (propuestaPDF.url) window.open(propuestaPDF.url, '_blank');
+  });
+}
+
+/* El PDF que se acaba de bajar, todavia en memoria: es lo que abre el boton
+   "Ver el PDF". Una pagina no puede abrir un archivo del disco, asi que el
+   visor se abre sobre esta copia — es el mismo documento, byte por byte. */
+let propuestaPDF = { url: null, nombre: '', huella: '', prueba: false };
+
+function olvidarPDFAnterior() {
+  if (propuestaPDF.url) { try { URL.revokeObjectURL(propuestaPDF.url); } catch (e) {} }
+  propuestaPDF = { url: null, nombre: '', huella: '', prueba: false };
+}
+
+/* Huella del documento, para no pagarlo dos veces. Cada PDF gasta un credito
+   del plan, y tocar "Guardar y compartir" de nuevo sin haber cambiado nada
+   —cosa que pasa seguido— pedia uno nuevo igual. Si el HTML es identico al
+   anterior, se reusa el archivo que ya esta bajado. */
+function huellaDocumento(html) {
+  let h = 5381;
+  for (let i = 0; i < html.length; i++) h = ((h * 33) ^ html.charCodeAt(i)) >>> 0;
+  return html.length + '-' + h.toString(36);
+}
+
+/* Le pide el archivo al servidor, que es quien tiene la key del servicio que
+   lo arma. Devuelve null si el servicio no esta configurado o falla: ahi el
+   flujo cae al dialogo de impresion y la propuesta igual sale. */
+async function pedirPDFalServidor(html, prueba = false) {
+  try {
+    const res = await fetch(`${API}/propuesta/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ html, prueba: !!prueba }),
+    });
+    if (!res.ok) return null;          // 501 sin key, 502 servicio caido
+    const blob = await res.blob();
+    if (!blob || blob.size < 1000) return null;   // respuesta vacia o rota
+    return { url: URL.createObjectURL(blob), prueba: res.headers.get('X-Pdf-Sandbox') === '1' };
+  } catch (e) {
+    return null;                       // sin red: el fallback igual funciona
+  }
+}
+
+// Dispara la descarga sin preguntar nada: es el paso que antes quedaba en
+// manos del dialogo de impresion.
+function bajarArchivo(url, nombre) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/* ---- Los documentos de la ficha del cliente ----
+   Los dos botones de la tab Propuesta (la experiencial y el contrato con
+   precios) usan el mismo motor que el cierre del creador: el archivo se baja
+   solo y queda el boton para verlo, sin pasar por el dialogo de impresion.
+   Si el servicio no esta configurado o falla, cae al dialogo de siempre. */
+let pdfFicha = { url: null };
+
+async function bajarDocumentoFicha(opts, avisoId, prueba = false) {
+  const aviso = document.getElementById(avisoId);
+  const doc = generatePropuestaPDF({ ...opts, soloHTML: true });
+  if (!doc || !doc.html) return;
+  const nombre = doc.nombre + '.pdf';
+
+  if (aviso) aviso.innerHTML = '<span class="pdf-aviso-txt">Armando el PDF…</span>';
+  const pdf = await pedirPDFalServidor(doc.html, prueba);
+
+  if (!pdf) {
+    // Sin servicio: la propuesta igual sale, por el camino de antes.
+    if (aviso) aviso.innerHTML = '';
+    generatePropuestaPDF(opts);
+    return;
+  }
+
+  if (pdfFicha.url) { try { URL.revokeObjectURL(pdfFicha.url); } catch (e) {} }
+  pdfFicha = { url: pdf.url };
+  bajarArchivo(pdf.url, nombre);
+
+  if (aviso) {
+    aviso.innerHTML = '<span class="pdf-aviso-txt">✓ En Descargas: <strong>' + esc(nombre) + '</strong>' +
+      (pdf.prueba ? ' · <em>prueba, con marca de agua</em>' : '') + '</span>' +
+      '<button type="button" class="btn btn-secondary btn-sm" id="btn-ver-pdf-ficha">Ver el PDF</button>';
+    document.getElementById('btn-ver-pdf-ficha')?.addEventListener('click', () => {
+      if (pdfFicha.url) window.open(pdfFicha.url, '_blank');
+    });
+  }
+}
+
+/* Baja el PDF y deja el panel listo para mandarlo. Con el servicio andando es
+   automatico: se descarga solo y queda el boton para verlo. Sin servicio cae
+   al dialogo de impresion del navegador, que es lo que habia antes. */
+async function descargarPropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
-  generatePropuestaPDF();   // el navegador sugiere el nombre del <title>
   const hint = $('prop-final-hint');
-  if (hint) {
-    hint.innerHTML = '✓ En Descargas: <strong>' +
-      esc(nombreArchivoPropuesta(d)) + '.pdf</strong>';
+  const nombre = nombreArchivoPropuesta(d) + '.pdf';
+
+  const doc = generatePropuestaPDF({ soloHTML: true });
+  const huella = doc && doc.html ? huellaDocumento(doc.html) : '';
+
+  // Mismo documento que la vez anterior: se baja el que ya tenemos y no se
+  // gasta otro credito del plan.
+  if (huella && propuestaPDF.url && propuestaPDF.huella === huella) {
+    bajarArchivo(propuestaPDF.url, propuestaPDF.nombre || nombre);
+    renderSharePanel('canales');
+    return true;
   }
+
+  olvidarPDFAnterior();
+  renderSharePanel('generando');
+  if (hint) hint.textContent = '';
+  const pdf = doc && doc.html ? await pedirPDFalServidor(doc.html) : null;
+
+  if (pdf) {
+    propuestaPDF = { url: pdf.url, nombre, huella, prueba: pdf.prueba };
+    bajarArchivo(pdf.url, nombre);
+    renderSharePanel('canales');
+    return true;
+  }
+
+  // ---- Fallback: el dialogo de impresion del navegador ----
+  const win = generatePropuestaPDF();   // el navegador sugiere el nombre del <title>
+  if (!win) { renderSharePanel('popup'); if (hint) hint.textContent = ''; return false; }
+  if (hint) hint.innerHTML = 'Se va a guardar como <strong>' + esc(nombre) + '</strong>';
+  renderSharePanel('esperando');
+  esperarVueltaDeImpresion(win);
+  return true;
+}
+
+/* El dialogo de impresion no avisa si se guardo o se cancelo, y se sale por
+   dos lados: cerrando el dialogo (afterprint, lo avisa la propia ventana) o
+   cerrando la ventana entera. Escuchamos los dos y recien ahi preguntamos. */
+let pollImpresion = null;
+function esperarVueltaDeImpresion(win) {
+  if (pollImpresion) clearInterval(pollImpresion);
+  window.propuestaVolvioDeImprimir = () => renderSharePanel('confirmar');
+  pollImpresion = setInterval(() => {
+    if (!win || win.closed) {
+      clearInterval(pollImpresion); pollImpresion = null;
+      renderSharePanel('confirmar');
+    }
+  }, 600);
 }
 
 // Deja el cierre como recien llegado: sin estado y sin los canales abiertos
 function resetBotonCompartir() {
+  if (pollImpresion) { clearInterval(pollImpresion); pollImpresion = null; }
+  window.propuestaVolvioDeImprimir = null;
+  olvidarPDFAnterior();
   const hint = $('prop-final-hint');
   if (hint) hint.textContent = '';
   const panel = $('prop-share-panel');
   if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
 }
 
-/* Compartir es un solo toque. Si todavia no se guardo, guarda y baja el PDF
-   primero —sin eso no hay nada que adjuntar— y enseguida muestra los dos
-   canales. Antes eran tres toques y dos carteles de instrucciones. */
-async function compartirPropuesta() {
-  readPropuestaData();
-  const d = propuestaState.data;
-  const panel = $('prop-share-panel');
-  if (!panel) return;
-
-  const yaBajado = !!$('prop-final-hint')?.textContent;
-  if (!yaBajado) {
-    const ok = await guardarClientePropuesta();
-    if (ok === false) return;   // el error ya se mostro abajo
-  }
-
-  const tel = normalizarTelWhatsapp(d.telefono);
-  const email = (d.gmail || '').trim();
-  if (!tel && !email) {
-    panel.innerHTML = '<div class="share-nota">Falta el teléfono o el mail del cliente.</div>';
-    panel.classList.remove('hidden');
-    return;
-  }
-  renderPropuestaShare(d);
+/* El cierre es un solo toque: guarda el cliente en la agenda y abre el PDF.
+   De ahi en mas el panel va guiando, y los canales recien aparecen cuando el
+   archivo esta. Antes habia dos botones que hacian casi lo mismo. */
+async function finalizarPropuesta() {
+  const ok = await guardarClientePropuesta();
+  if (ok === false) return;   // el error ya se mostro abajo
+  descargarPropuesta();
 }
 
 // Listeners de propuesta (se registran una vez al cargar el DOM)
@@ -7389,7 +7633,6 @@ async function compartirPropuesta() {
     $('preform-draft')?.classList.add('hidden');
   });
 
-  $('btn-compartir-propuesta')?.addEventListener('click', compartirPropuesta);
 
   // Pre-form: comenzar propuesta
   $('btn-preform-comenzar')?.addEventListener('click', startPropuestaSlides);
@@ -7398,7 +7641,7 @@ async function compartirPropuesta() {
   initPropuestaClienteCombo();
 
   // Guardar cliente desde propuesta
-  $('btn-guardar-cliente-propuesta')?.addEventListener('click', guardarClientePropuesta);
+  $('btn-guardar-cliente-propuesta')?.addEventListener('click', finalizarPropuesta);
 
   buildPropuestaDots();
 })();
