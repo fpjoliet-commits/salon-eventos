@@ -5053,9 +5053,9 @@ function goToPropuestaSlide(n) {
     });
     const d = propuestaState.data;
     d.pastasSeleccionadas = [];
-    document.querySelectorAll('#gastro-pasta-list input:checked:not([disabled])').forEach(cb => d.pastasSeleccionadas.push(cb.value));
+    document.querySelectorAll('#gastro-pasta-wrap input:checked:not([disabled]):not([data-autor])').forEach(cb => d.pastasSeleccionadas.push(cb.value));
     d.pastasGourmetSeleccionadas = [];
-    document.querySelectorAll('#gastro-pasta-gourmet-list input:checked').forEach(cb => d.pastasGourmetSeleccionadas.push(cb.value));
+    document.querySelectorAll('#gastro-pasta-wrap input[data-autor]:checked').forEach(cb => d.pastasGourmetSeleccionadas.push(cb.value));
     d.salsasSeleccionadas = [];
     document.querySelectorAll('#gastro-salsa-list input:checked:not([disabled])').forEach(cb => d.salsasSeleccionadas.push(cb.value));
     d.salsasGourmetSeleccionadas = [];
@@ -5325,7 +5325,8 @@ function readPropuestaData() {
     });
   }
   const pp = (sel) => { const a = []; document.querySelectorAll(sel + ' input:checked:not([disabled])').forEach(cb => a.push(cb.value)); return a; };
-  if ($('gastro-plato-central')) { d.pastasSeleccionadas = pp('#gastro-pasta-list'); d.pastasGourmetSeleccionadas = pp('#gastro-pasta-gourmet-list'); d.salsasSeleccionadas = pp('#gastro-salsa-list'); d.salsasGourmetSeleccionadas = pp('#gastro-salsa-gourmet-list'); d.platoCentral = document.querySelector('#gastro-plato-central input:checked')?.value || ''; d.platoCentralCarne = []; }
+  const ppSel = (sel) => { const a = []; document.querySelectorAll(sel).forEach(cb => a.push(cb.value)); return a; };
+  if ($('gastro-plato-central')) { d.pastasSeleccionadas = ppSel('#gastro-pasta-wrap input:checked:not([disabled]):not([data-autor])'); d.pastasGourmetSeleccionadas = ppSel('#gastro-pasta-wrap input[data-autor]:checked'); d.salsasSeleccionadas = pp('#gastro-salsa-list'); d.salsasGourmetSeleccionadas = pp('#gastro-salsa-gourmet-list'); d.platoCentral = document.querySelector('#gastro-plato-central input:checked')?.value || ''; d.platoCentralCarne = []; }
   d.pedidos = $('prop-pedidos')?.value?.trim() || '';
   // La Barra Clasica va incluida; los otros dos niveles se cotizan aparte.
   d.barraNivel = document.querySelector('input[name="barra-nivel"]:checked')?.value || 'Clásica';
@@ -5377,23 +5378,26 @@ const RECEPCION_DATA = [
 ];
 
 const PRIMER_PLATO_DATA = {
+  // rellena: true → va en el menú "Pastas rellenas" (colapsado).
+  // rellena: false → va en el menú "Pastas al corte" (abierto, primero).
   pastas: [
-    { name: 'Tagliatelle cortados a cuchillo (blancos y de verdura)', locked: true },
+    { name: 'Tagliatelle cortados a cuchillo (blancos y de verdura)', locked: true, rellena: false },
     // Los sorrentinos de jamón y queso van incluidos igual que el tagliatelle.
-    { name: 'Sorrentinos de jamón y queso', locked: true },
+    { name: 'Sorrentinos de jamón y queso', locked: true, rellena: true },
     // Una sola opción de canelones de cara al cliente. En la lista de cocina
     // (PASTAS_OPT) siguen separados, porque el relleno cambia el insumo.
-    { name: 'Canelones' },
-    { name: 'Lasaña' },
-    { name: 'Ravioloni de espinaca y parmesano' },
-    { name: 'Agnolotis de pollo' },
-    { name: 'Gnocchis de papa' },
+    { name: 'Canelones', rellena: true },
+    { name: 'Lasaña', rellena: true },
+    { name: 'Ravioloni de espinaca y parmesano', rellena: true },
+    { name: 'Agnolotis de pollo', rellena: true },
+    { name: 'Gnocchis de papa', rellena: false },
+    { name: 'Orecchiette', rellena: false },
   ],
   pastasGourmet: [
-    'Fetuccine Nero di sepia',
-    'Sorrentinos de trucha y almendras',
-    'Fagotinnis de cordero y romero',
-    'Sorrentinos de salmón y philadelphia',
+    { name: 'Fetuccine Nero di sepia', rellena: false },
+    { name: 'Sorrentinos de trucha y almendras', rellena: true },
+    { name: 'Fagotinnis de cordero y romero', rellena: true },
+    { name: 'Sorrentinos de salmón y philadelphia', rellena: true },
   ],
   salsas: [
     { name: 'Filetto', locked: true },
@@ -5561,7 +5565,7 @@ function actualizarContadorAutor() {
   const el = $('autor-contador');
   if (!el) return;
   const sel = [
-    '#gastro-pasta-gourmet-list input:checked',
+    '#gastro-pasta-wrap input[data-autor]:checked',
     '#gastro-salsa-gourmet-list input:checked',
     '#gastro-mesa-dulce-list input:checked',
     '#view-propuesta .adicionales-grid input:checked',
@@ -5749,10 +5753,20 @@ function buildGastroSlide() {
 
   const primerPlatoHtml = !isAmericano ? (() => {
     const ppd = PRIMER_PLATO_DATA;
-    const pastaRows = ppd.pastas.map(p => `
-      <label class="gastro-menu-row${p.locked ? ' locked' : ''}"><input type="checkbox" value="${p.name}"${p.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p.name}${p.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
-    const pastaGRows = ppd.pastasGourmet.map(p => `
-      <label class="gastro-menu-row"><input type="checkbox" value="${p}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${p}<span class="sello-autor">${SELLO.badge}</span></span></label>`).join('');
+    // Una fila de pasta. autor:true suma el sello "De autor" y marca el input
+    // con data-autor, para que la selección se guarde como pasta de autor
+    // (antes se distinguía por contenedor; ahora los mezclamos por relleno).
+    const pastaRow = (name, { locked = false, autor = false } = {}) => `
+      <label class="gastro-menu-row${locked ? ' locked' : ''}"><input type="checkbox" value="${name}"${autor ? ' data-autor="1"' : ''}${locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${name}${locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : (autor ? `<span class="sello-autor">${SELLO.badge}</span>` : '')}</span></label>`;
+    // Base + de autor juntas, partidas por rellena / no rellena.
+    const pastasTodas = [
+      ...ppd.pastas.map(p => ({ name: p.name, locked: !!p.locked, autor: false, rellena: !!p.rellena })),
+      ...ppd.pastasGourmet.map(p => ({ name: p.name, locked: false, autor: true, rellena: !!p.rellena })),
+    ];
+    const rowsPara = (rellena) => pastasTodas.filter(p => p.rellena === rellena)
+      .map(p => pastaRow(p.name, { locked: p.locked, autor: p.autor })).join('');
+    const alCorteRows = rowsPara(false);
+    const rellenasRows = rowsPara(true);
     const salsaRows = ppd.salsas.map(s => `
       <label class="gastro-menu-row${s.locked ? ' locked' : ''}"><input type="checkbox" value="${s.name}"${s.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s.name}${s.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
     const salsaGRows = ppd.salsasGourmet.map(s => `
@@ -5764,11 +5778,21 @@ function buildGastroSlide() {
         <div class="gastro-section-sub">Pastas artesanales · Tagliatelle y Filetto siempre incluidos</div>
       </div>
       <div class="gastro-section-label">PASTAS · Tagliatelle y sorrentinos incluidos · elegí hasta 5 más <span id="gastro-pasta-counter" class="gastro-count-badge">0/5</span></div>
-      <div class="gastro-menu-list" id="gastro-pasta-list">${pastaRows}</div>
-      <div class="gastro-menu-list" id="gastro-pasta-gourmet-list">${pastaGRows}</div>
-      <div class="gastro-section-label" style="margin-top:14px">SALSAS · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></div>
-      <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
-      <div class="gastro-menu-grid" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
+      <div id="gastro-pasta-wrap">
+        <details class="gastro-menu-group" open>
+          <summary class="gastro-menu-summary">Pastas al corte<span class="gastro-menu-chev">▾</span></summary>
+          <div class="gastro-menu-list">${alCorteRows}</div>
+        </details>
+        <details class="gastro-menu-group">
+          <summary class="gastro-menu-summary">Pastas rellenas<span class="gastro-menu-chev">▾</span></summary>
+          <div class="gastro-menu-list">${rellenasRows}</div>
+        </details>
+      </div>
+      <details class="gastro-menu-group" style="margin-top:14px">
+        <summary class="gastro-menu-summary"><span>Salsas · Filetto incluida · elegí 4 más <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></span><span class="gastro-menu-chev">▾</span></summary>
+        <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
+        <div class="gastro-menu-grid" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
+      </details>
     </div>`;
   })() : '';
 
@@ -5902,10 +5926,16 @@ function buildGastroSlide() {
         if (saved.includes(cb.value)) { cb.checked = true; cb.closest('.gastro-menu-row')?.classList.add('selected'); }
       });
     };
-    restoreMenu('gastro-pasta-list', d.pastasSeleccionadas);
-    restoreMenu('gastro-pasta-gourmet-list', d.pastasGourmetSeleccionadas);
+    restoreMenu('gastro-pasta-wrap', d.pastasSeleccionadas);
+    restoreMenu('gastro-pasta-wrap', d.pastasGourmetSeleccionadas);
     restoreMenu('gastro-salsa-list', d.salsasSeleccionadas);
     restoreMenu('gastro-salsa-gourmet-list', d.salsasGourmetSeleccionadas);
+    // Si un menú colapsado (Pastas rellenas o Salsas) ya trae algo elegido, lo
+    // abrimos al volver, para que Mariana vea lo seleccionado sin desplegarlo a
+    // mano. En la primera visita, sin selección, siguen plegados.
+    const salsaGroup = $('gastro-salsa-list')?.closest('.gastro-menu-group');
+    [...($('gastro-pasta-wrap')?.querySelectorAll('.gastro-menu-group') || []), salsaGroup]
+      .forEach(g => { if (g && g.querySelector('input:checked:not([disabled])')) g.open = true; });
     if (d.platoCentral) {
       const radio = document.querySelector(`#gastro-plato-central input[value="${CSS.escape(d.platoCentral)}"]`);
       if (radio) { radio.checked = true; radio.closest('.gastro-plato-row')?.classList.add('selected'); }
@@ -6051,8 +6081,7 @@ function setupFormalExtrasEvents() {
 
   function getPastaCount() {
     let n = 0;
-    $('gastro-pasta-list')?.querySelectorAll('.gastro-menu-row:not(.locked) input:checked').forEach(() => n++);
-    $('gastro-pasta-gourmet-list')?.querySelectorAll('input:checked').forEach(() => n++);
+    $('gastro-pasta-wrap')?.querySelectorAll('.gastro-menu-row:not(.locked) input:checked').forEach(() => n++);
     return n;
   }
   function getSalsaCount() {
@@ -6066,7 +6095,7 @@ function setupFormalExtrasEvents() {
     const c = getPastaCount();
     el.textContent = c + '/' + MAX_PASTA;
     el.style.color = c >= MAX_PASTA ? 'var(--gold-bright)' : '';
-    marcarExtras(['gastro-pasta-list', 'gastro-pasta-gourmet-list'], MAX_PASTA);
+    marcarExtras(['gastro-pasta-wrap'], MAX_PASTA);
     actualizarContadorAutor();
   }
   function updateSalsaCounter() {
@@ -6089,8 +6118,7 @@ function setupFormalExtrasEvents() {
       });
     });
   };
-  addPastaListeners('gastro-pasta-list');
-  addPastaListeners('gastro-pasta-gourmet-list');
+  addPastaListeners('gastro-pasta-wrap');
 
   const addSalsaListeners = (listId) => {
     const list = $(listId); if (!list) return;
