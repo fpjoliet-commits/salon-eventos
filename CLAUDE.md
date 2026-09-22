@@ -31,9 +31,7 @@ Helpers de permiso: `auth`, `adminOnly` (admin+superadmin), `superAdminOnly`.
 Ver `backend/.env.example`. Obligatorias: `JWT_SECRET`, `SPREADSHEET_ID`, los 3
 `PASSWORD_*`. Credenciales de Google: `GOOGLE_CREDENTIALS_JSON` (env var, en Render)
 **o** `backend/credentials.json` (archivo, dev local — se usa como fallback).
-Opcionales: bots (Telegram/WhatsApp), `CAL_WEBHOOK_SECRET`, `ALLOWED_ORIGINS`,
-`PDFSHIFT_API_KEY` + `PUBLIC_BASE_URL` (PDF de la propuesta: sin la key, el
-creador cae al diálogo de impresión del navegador en vez de descargar solo).
+Opcionales: bots (Telegram/WhatsApp), `CAL_WEBHOOK_SECRET`, `ALLOWED_ORIGINS`.
 
 ## Modelo de datos — Google Sheets
 

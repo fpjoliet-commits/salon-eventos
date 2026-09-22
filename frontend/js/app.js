@@ -4835,13 +4835,6 @@ function renderPropuestaTab(cliente) {
         <button class="btn btn-secondary" id="btn-prop-tab-build">✏️ ${hasProposal ? 'Editar propuesta' : 'Construir propuesta'}</button>
         <button class="btn btn-secondary" id="btn-prop-tab-pdf">📄 Propuesta experiencial</button>
       </div>
-      <!-- Solo en la ficha, que es pantalla de gestion: el creador se espeja a
-           la tele del salon y ahi no va nada interno. -->
-      <label class="prop-tab-prueba">
-        <input type="checkbox" id="prop-tab-modo-prueba">
-        <span>Modo prueba (no consume del plan)</span>
-      </label>
-      <div class="pdf-aviso" id="prop-tab-pdf-aviso"></div>
       ${adminHTML}
     </div>`;
 
@@ -4872,11 +4865,7 @@ function renderPropuestaTab(cliente) {
       pastasGourmetSeleccionadas: [],
       salsasGourmetSeleccionadas: [],
     };
-    bajarDocumentoFicha(
-      { data: dataParaPDF, tipo: 'experiencial' },
-      'prop-tab-pdf-aviso',
-      !!document.getElementById('prop-tab-modo-prueba')?.checked
-    );
+    generatePropuestaPDF({ data: dataParaPDF, tipo: 'experiencial' });
   });
 
   if (isAdmin()) {
@@ -4909,11 +4898,7 @@ function renderPropuestaTab(cliente) {
       const precioInfantil = parseFloat(infantilEl()?.value) || 0;
       const moneda = monedaEl()?.value || 'ARS';
       savePropuestaLocal(cliente.id + '_precios', { adulto: precioAdulto, infantil: precioInfantil, moneda });
-      bajarDocumentoFicha(
-        { data: saved, tipo: 'contrato', precioAdulto, precioInfantil, moneda },
-        'prop-tab-pdf-aviso',
-        !!document.getElementById('prop-tab-modo-prueba')?.checked
-      );
+      generatePropuestaPDF({ data: saved, tipo: 'contrato', precioAdulto, precioInfantil, moneda });
     });
   }
 }
@@ -6314,7 +6299,7 @@ function buildPropuestaResumen() {
   if (fondo) fondo.style.backgroundImage = `url('${portadaImgFor(d.tipoEvento)}')`;
 }
 
-function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto = 0, precioInfantil = 0, moneda = 'ARS', soloHTML = false } = {}) {
+function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto = 0, precioInfantil = 0, moneda = 'ARS', soloVista = false } = {}) {
   if (!data) {
     readPropuestaData();
     if (propuestaState.data.clienteId) {
@@ -7179,21 +7164,16 @@ ${tipo === 'contrato' ? (() => {
     try { if (window.opener && window.opener.propuestaVolvioDeImprimir) window.opener.propuestaVolvioDeImprimir(); } catch (e) {}
   });
 })();
-/* Cuando el documento se renderiza afuera (el servicio que arma el PDF), el
-   servicio no tiene forma de saber que el paginador termino de repartir el
-   contenido en hojas: pregunta por esta funcion hasta que diga que si. */
-window.propuestaLista = function () { return !!window.__propuestaPaginada; };
 </script>
 </body></html>`;
-
-  // Para mandar a armar el PDF afuera solo hace falta el HTML: no se abre
-  // ninguna ventana ni se toca el dialogo de impresion.
-  if (soloHTML) return { html, nombre: nombreArchivoPropuesta(d, tipo) };
 
   const win = window.open('', '_blank');
   if (!win) { toast('Permití popups en el navegador para descargar la propuesta', 'error'); return null; }
   win.document.write(html);
   win.document.close();
+  // Vista previa: se abre el documento y nada mas. El dialogo lo lanza la
+  // persona, con el boton que la propia ventana trae arriba.
+  if (soloVista) return win;
   // Esperamos a que el documento termine de repartir el contenido en hojas
   const esperarYImprimir = (intentos = 0) => {
     if (win.closed) return;
@@ -7285,11 +7265,6 @@ function renderSharePanel(estado) {
   const hint = $('prop-final-hint');
   panel.classList.remove('hidden');
 
-  if (estado === 'generando') {
-    panel.innerHTML = '<div class="share-paso">Armando el PDF…</div>';
-    return;
-  }
-
   if (estado === 'popup') {
     panel.innerHTML = '<div class="share-paso">El navegador bloqueó la ventana del PDF. ' +
       'Permití las ventanas emergentes y tocá <strong>Guardar y compartir</strong> otra vez.</div>';
@@ -7326,14 +7301,11 @@ function renderSharePanel(estado) {
   const email = (d.gmail || '').trim();
   if (!tel && !email) {
     panel.innerHTML = '<div class="share-paso">Guardado. Para enviarlo falta cargar el teléfono o el mail del cliente.</div>' +
-      (propuestaPDF.url ? '<div class="share-botones">' + BTN_VER_PDF + '</div>' : '');
+      '<div class="share-botones">' + BTN_VER_PDF + '</div>';
     enlazarBotonVerPDF();
     return;
   }
-  const botones = [];
-  // Cuando el PDF lo armo el servidor lo tenemos en memoria: este boton abre
-  // el mismo archivo que se acaba de bajar, sin salir a buscarlo a Descargas.
-  if (propuestaPDF.url) botones.push(BTN_VER_PDF);
+  const botones = [BTN_VER_PDF];
   if (tel) {
     botones.push(`<a class="btn-share btn-share-wa" href="${waUrlPropuesta(d, tel)}" target="_blank" rel="noopener">` +
       `${LOGO_WA}<span class="share-nom">WhatsApp</span><span class="share-dest">${esc(d.telefono)}</span></a>`);
@@ -7347,8 +7319,10 @@ function renderSharePanel(estado) {
   enlazarBotonVerPDF();
 }
 
-/* El boton de ver el PDF no es un link comun: apunta al archivo que quedo en
-   memoria despues de bajarlo, asi que se abre por JS y no con un href fijo. */
+/* Ver el PDF vuelve a abrir el documento en su ventana, sin lanzar el dialogo
+   de impresion: es la vista previa. Desde ahi, el boton de la propia ventana
+   lo guarda si hace falta. Una pagina no puede abrir un archivo del disco, y
+   este es el mismo documento que se acaba de bajar. */
 const LOGO_PDF = '<svg class="share-logo" viewBox="0 0 24 24" aria-hidden="true">' +
   '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" ' +
   'd="M6 2.8h7.2L18.4 8v13.2H6z"/>' +
@@ -7361,131 +7335,21 @@ const BTN_VER_PDF = '<button type="button" class="btn-share btn-share-ver" id="b
 
 function enlazarBotonVerPDF() {
   $('btn-ver-pdf')?.addEventListener('click', () => {
-    if (propuestaPDF.url) window.open(propuestaPDF.url, '_blank');
+    generatePropuestaPDF({ soloVista: true });
   });
 }
 
-/* El PDF que se acaba de bajar, todavia en memoria: es lo que abre el boton
-   "Ver el PDF". Una pagina no puede abrir un archivo del disco, asi que el
-   visor se abre sobre esta copia — es el mismo documento, byte por byte. */
-let propuestaPDF = { url: null, nombre: '', huella: '', prueba: false };
-
-function olvidarPDFAnterior() {
-  if (propuestaPDF.url) { try { URL.revokeObjectURL(propuestaPDF.url); } catch (e) {} }
-  propuestaPDF = { url: null, nombre: '', huella: '', prueba: false };
-}
-
-/* Huella del documento, para no pagarlo dos veces. Cada PDF gasta un credito
-   del plan, y tocar "Guardar y compartir" de nuevo sin haber cambiado nada
-   —cosa que pasa seguido— pedia uno nuevo igual. Si el HTML es identico al
-   anterior, se reusa el archivo que ya esta bajado. */
-function huellaDocumento(html) {
-  let h = 5381;
-  for (let i = 0; i < html.length; i++) h = ((h * 33) ^ html.charCodeAt(i)) >>> 0;
-  return html.length + '-' + h.toString(36);
-}
-
-/* Le pide el archivo al servidor, que es quien tiene la key del servicio que
-   lo arma. Devuelve null si el servicio no esta configurado o falla: ahi el
-   flujo cae al dialogo de impresion y la propuesta igual sale. */
-async function pedirPDFalServidor(html, prueba = false) {
-  try {
-    const res = await fetch(`${API}/propuesta/pdf`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ html, prueba: !!prueba }),
-    });
-    if (!res.ok) return null;          // 501 sin key, 502 servicio caido
-    const blob = await res.blob();
-    if (!blob || blob.size < 1000) return null;   // respuesta vacia o rota
-    return { url: URL.createObjectURL(blob), prueba: res.headers.get('X-Pdf-Sandbox') === '1' };
-  } catch (e) {
-    return null;                       // sin red: el fallback igual funciona
-  }
-}
-
-// Dispara la descarga sin preguntar nada: es el paso que antes quedaba en
-// manos del dialogo de impresion.
-function bajarArchivo(url, nombre) {
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = nombre;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-/* ---- Los documentos de la ficha del cliente ----
-   Los dos botones de la tab Propuesta (la experiencial y el contrato con
-   precios) usan el mismo motor que el cierre del creador: el archivo se baja
-   solo y queda el boton para verlo, sin pasar por el dialogo de impresion.
-   Si el servicio no esta configurado o falla, cae al dialogo de siempre. */
-let pdfFicha = { url: null };
-
-async function bajarDocumentoFicha(opts, avisoId, prueba = false) {
-  const aviso = document.getElementById(avisoId);
-  const doc = generatePropuestaPDF({ ...opts, soloHTML: true });
-  if (!doc || !doc.html) return;
-  const nombre = doc.nombre + '.pdf';
-
-  if (aviso) aviso.innerHTML = '<span class="pdf-aviso-txt">Armando el PDF…</span>';
-  const pdf = await pedirPDFalServidor(doc.html, prueba);
-
-  if (!pdf) {
-    // Sin servicio: la propuesta igual sale, por el camino de antes.
-    if (aviso) aviso.innerHTML = '';
-    generatePropuestaPDF(opts);
-    return;
-  }
-
-  if (pdfFicha.url) { try { URL.revokeObjectURL(pdfFicha.url); } catch (e) {} }
-  pdfFicha = { url: pdf.url };
-  bajarArchivo(pdf.url, nombre);
-
-  if (aviso) {
-    aviso.innerHTML = '<span class="pdf-aviso-txt">✓ En Descargas: <strong>' + esc(nombre) + '</strong>' +
-      (pdf.prueba ? ' · <em>prueba, con marca de agua</em>' : '') + '</span>' +
-      '<button type="button" class="btn btn-secondary btn-sm" id="btn-ver-pdf-ficha">Ver el PDF</button>';
-    document.getElementById('btn-ver-pdf-ficha')?.addEventListener('click', () => {
-      if (pdfFicha.url) window.open(pdfFicha.url, '_blank');
-    });
-  }
-}
-
-/* Baja el PDF y deja el panel listo para mandarlo. Con el servicio andando es
-   automatico: se descarga solo y queda el boton para verlo. Sin servicio cae
-   al dialogo de impresion del navegador, que es lo que habia antes. */
-async function descargarPropuesta() {
+/* Abre el documento y deja el panel esperando la vuelta. El PDF sale de la
+   ventana de impresion del navegador —no hay otra forma sin un servicio que
+   lo arme afuera— asi que el nombre del archivo lo sugiere el <title> y los
+   canales recien aparecen cuando alguien confirma que quedo guardado. */
+function descargarPropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
   const hint = $('prop-final-hint');
   const nombre = nombreArchivoPropuesta(d) + '.pdf';
 
-  const doc = generatePropuestaPDF({ soloHTML: true });
-  const huella = doc && doc.html ? huellaDocumento(doc.html) : '';
-
-  // Mismo documento que la vez anterior: se baja el que ya tenemos y no se
-  // gasta otro credito del plan.
-  if (huella && propuestaPDF.url && propuestaPDF.huella === huella) {
-    bajarArchivo(propuestaPDF.url, propuestaPDF.nombre || nombre);
-    renderSharePanel('canales');
-    return true;
-  }
-
-  olvidarPDFAnterior();
-  renderSharePanel('generando');
-  if (hint) hint.textContent = '';
-  const pdf = doc && doc.html ? await pedirPDFalServidor(doc.html) : null;
-
-  if (pdf) {
-    propuestaPDF = { url: pdf.url, nombre, huella, prueba: pdf.prueba };
-    bajarArchivo(pdf.url, nombre);
-    renderSharePanel('canales');
-    return true;
-  }
-
-  // ---- Fallback: el dialogo de impresion del navegador ----
-  const win = generatePropuestaPDF();   // el navegador sugiere el nombre del <title>
+  const win = generatePropuestaPDF();
   if (!win) { renderSharePanel('popup'); if (hint) hint.textContent = ''; return false; }
   if (hint) hint.innerHTML = 'Se va a guardar como <strong>' + esc(nombre) + '</strong>';
   renderSharePanel('esperando');
@@ -7512,7 +7376,6 @@ function esperarVueltaDeImpresion(win) {
 function resetBotonCompartir() {
   if (pollImpresion) { clearInterval(pollImpresion); pollImpresion = null; }
   window.propuestaVolvioDeImprimir = null;
-  olvidarPDFAnterior();
   const hint = $('prop-final-hint');
   if (hint) hint.textContent = '';
   const panel = $('prop-share-panel');
