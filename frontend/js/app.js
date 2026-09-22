@@ -7399,34 +7399,74 @@ function nombreComparable(n) {
     .replace(/[^a-z0-9]/g, '');                         // y comas, puntos, espacios
 }
 
+/* Devuelve { cliente, motivo }. El motivo importa tanto como el hallazgo: el
+   telefono y el mail identifican a una persona, el nombre no —hay homonimos—,
+   asi que cada caso se pregunta distinto. */
 function buscarClienteYaCargado(d) {
+  const lista = allClientes || [];
   // Los ultimos 8 digitos alcanzan: el mismo numero se carga con y sin 15,
   // con y sin 0 de area, con y sin +54.
   const tel = soloDigitosTel(d.telefono).slice(-8);
   const mail = (d.gmail || '').trim().toLowerCase();
   const nom = nombreComparable(d.nombre);
-  return (allClientes || []).find(c => {
-    if (tel.length >= 8 && soloDigitosTel(c.telefono).slice(-8) === tel) return true;
-    if (mail && (c.gmail || '').trim().toLowerCase() === mail) return true;
-    if (nom.length >= 4 && nombreComparable(c.apellidoNombre) === nom) return true;
-    return false;
-  });
+
+  if (tel.length >= 8) {
+    const porTel = lista.find(c => soloDigitosTel(c.telefono).slice(-8) === tel);
+    if (porTel) return { cliente: porTel, motivo: 'telefono' };
+  }
+  if (mail) {
+    const porMail = lista.find(c => (c.gmail || '').trim().toLowerCase() === mail);
+    if (porMail) return { cliente: porMail, motivo: 'mail' };
+  }
+  if (nom.length >= 4) {
+    const porNombre = lista.filter(c => nombreComparable(c.apellidoNombre) === nom);
+    if (porNombre.length) return { cliente: porNombre[0], motivo: 'nombre', cuantos: porNombre.length };
+  }
+  return null;
 }
 
-/* Pregunta y espera. Se muestra en el panel del cierre, con el nombre del
-   cliente y nada mas: es lo unico que se necesita para decidir. */
-function preguntarSiEsElMismo(cliente) {
+// Para comparar sin poner el numero de otra persona en la pantalla, que se
+// esta espejando a la tele del salon.
+function telParcial(t) {
+  const n = soloDigitosTel(t);
+  return n.length >= 4 ? '···' + n.slice(-4) : '';
+}
+
+/* Pregunta y espera. Con el telefono o el mail iguales es casi seguro que es
+   la misma persona, y el boton fuerte es "Es el mismo". Coincidiendo solo el
+   nombre pasa lo contrario: lo mas probable es que sean dos personas, asi que
+   el boton fuerte crea la ficha nueva y hay que elegir a mano lo otro. Nunca
+   se decide solo: vincular mal le pisa la propuesta al cliente equivocado. */
+function preguntarSiEsElMismo(hallazgo) {
   return new Promise(resolve => {
     const panel = $('prop-share-panel');
     if (!panel) return resolve('nuevo');
+    const { cliente, motivo, cuantos } = hallazgo;
+    const nombre = esc(cliente.apellidoNombre || 'Ese cliente');
+    const porNombre = motivo === 'nombre';
+
+    let texto;
+    if (motivo === 'telefono') {
+      texto = 'Ese teléfono ya está en la agenda, a nombre de <strong>' + nombre + '</strong>.';
+    } else if (motivo === 'mail') {
+      texto = 'Ese mail ya está en la agenda, a nombre de <strong>' + nombre + '</strong>.';
+    } else {
+      const otros = cuantos > 1 ? 'Hay ' + cuantos + ' clientes' : 'Ya hay un cliente';
+      const pista = telParcial(cliente.telefono);
+      texto = otros + ' con el nombre <strong>' + nombre + '</strong>' +
+        (pista ? ', con teléfono terminado en <strong>' + esc(pista) + '</strong>' : '') +
+        '. Puede ser otra persona.';
+    }
+
+    // El boton fuerte es el resultado mas probable en cada caso.
+    const mismo = '<button type="button" class="btn-final' + (porNombre ? '' : ' btn-final-fuerte') +
+      '" id="btn-dup-mismo">Es el mismo</button>';
+    const nuevo = '<button type="button" class="btn-final' + (porNombre ? ' btn-final-fuerte' : '') +
+      '" id="btn-dup-nuevo">Es otro cliente</button>';
+
     panel.classList.remove('hidden');
-    panel.innerHTML =
-      '<div class="share-paso"><strong>' + esc(cliente.apellidoNombre || 'Ese cliente') +
-      '</strong> ya está en la agenda.</div>' +
-      '<div class="share-botones">' +
-        '<button type="button" class="btn-final btn-final-fuerte" id="btn-dup-mismo">Es el mismo</button>' +
-        '<button type="button" class="btn-final" id="btn-dup-nuevo">Es otro cliente</button>' +
-      '</div>';
+    panel.innerHTML = '<div class="share-paso">' + texto + '</div>' +
+      '<div class="share-botones">' + (porNombre ? nuevo + mismo : mismo + nuevo) + '</div>';
     $('btn-dup-mismo')?.addEventListener('click', () => resolve('mismo'));
     $('btn-dup-nuevo')?.addEventListener('click', () => resolve('nuevo'));
   });
@@ -7439,7 +7479,7 @@ async function finalizarPropuesta() {
     const yaEsta = buscarClienteYaCargado(d);
     // Se vincula a la ficha que ya existe: no se pisan sus datos, solo se
     // deja de crear una segunda.
-    if (yaEsta && (await preguntarSiEsElMismo(yaEsta)) === 'mismo') d.clienteId = yaEsta.id;
+    if (yaEsta && (await preguntarSiEsElMismo(yaEsta)) === 'mismo') d.clienteId = yaEsta.cliente.id;
   }
   const ok = await guardarClientePropuesta();
   if (ok === false) return;   // el error ya se mostro abajo
