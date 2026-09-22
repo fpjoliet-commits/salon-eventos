@@ -5789,7 +5789,7 @@ function buildGastroSlide() {
         </details>
       </div>
       <details class="gastro-menu-group" style="margin-top:14px">
-        <summary class="gastro-menu-summary"><span>Salsas · Filetto incluida</span><span class="gastro-menu-chev">▾</span></summary>
+        <summary class="gastro-menu-summary"><span>Salsas</span><span class="gastro-menu-chev">▾</span></summary>
         <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
         <div class="gastro-menu-grid" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
       </details>
