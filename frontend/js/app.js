@@ -7278,19 +7278,6 @@ function renderSharePanel(estado) {
     return;
   }
 
-  if (estado === 'confirmar') {
-    // Se cerro el dialogo, pero no sabemos con cual boton: preguntamos.
-    panel.innerHTML =
-      '<div class="share-paso">¿Quedó guardado <strong>' + esc(nombreArchivoPropuesta(d)) + '.pdf</strong> en Descargas?</div>' +
-      '<div class="share-botones">' +
-        '<button type="button" class="btn-final btn-final-fuerte" id="btn-pdf-ok">Sí, ya lo tengo</button>' +
-        '<button type="button" class="btn-final" id="btn-pdf-reintentar">No · abrir de nuevo</button>' +
-      '</div>';
-    $('btn-pdf-ok')?.addEventListener('click', () => renderSharePanel('canales'));
-    $('btn-pdf-reintentar')?.addEventListener('click', () => descargarPropuesta());
-    return;
-  }
-
   // estado 'canales': el archivo ya esta, queda elegir por donde mandarlo.
   // Se corta la vigilancia de la ventana: si sigue abierta y se cierra mas
   // tarde, no tiene que volver a preguntar encima de los canales.
@@ -7358,17 +7345,18 @@ function descargarPropuesta() {
   return true;
 }
 
-/* El dialogo de impresion no avisa si se guardo o se cancelo, y se sale por
-   dos lados: cerrando el dialogo (afterprint, lo avisa la propia ventana) o
-   cerrando la ventana entera. Escuchamos los dos y recien ahi preguntamos. */
+/* Se vuelve del dialogo por dos lados: cerrando el dialogo (afterprint, lo
+   avisa la propia ventana) o cerrando la ventana entera. Con cualquiera de los
+   dos ya salen los canales. Si se cancelo y no hay archivo, el boton "Ver el
+   PDF" lo abre de nuevo. */
 let pollImpresion = null;
 function esperarVueltaDeImpresion(win) {
   if (pollImpresion) clearInterval(pollImpresion);
-  window.propuestaVolvioDeImprimir = () => renderSharePanel('confirmar');
+  window.propuestaVolvioDeImprimir = () => renderSharePanel('canales');
   pollImpresion = setInterval(() => {
     if (!win || win.closed) {
       clearInterval(pollImpresion); pollImpresion = null;
-      renderSharePanel('confirmar');
+      renderSharePanel('canales');
     }
   }, 600);
 }
