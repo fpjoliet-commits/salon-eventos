@@ -5757,7 +5757,7 @@ function buildGastroSlide() {
     // con data-autor, para que la selección se guarde como pasta de autor
     // (antes se distinguía por contenedor; ahora los mezclamos por relleno).
     const pastaRow = (name, { locked = false, autor = false } = {}) => `
-      <label class="gastro-menu-row${locked ? ' locked' : ''}"><input type="checkbox" value="${name}"${autor ? ' data-autor="1"' : ''}${locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${name}${locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : (autor ? `<span class="sello-autor">${SELLO.badge}</span>` : '')}</span></label>`;
+      <label class="gastro-menu-row${locked ? ' locked' : ''}"><input type="checkbox" value="${name}"${autor ? ' data-autor="1"' : ''}${locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${name}${autor ? `<span class="sello-autor">${SELLO.badge}</span>` : ''}</span></label>`;
     // Base + de autor juntas, partidas por rellena / no rellena.
     const pastasTodas = [
       ...ppd.pastas.map(p => ({ name: p.name, locked: !!p.locked, autor: false, rellena: !!p.rellena })),
@@ -5768,16 +5768,16 @@ function buildGastroSlide() {
     const alCorteRows = rowsPara(false);
     const rellenasRows = rowsPara(true);
     const salsaRows = ppd.salsas.map(s => `
-      <label class="gastro-menu-row${s.locked ? ' locked' : ''}"><input type="checkbox" value="${s.name}"${s.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s.name}${s.locked ? ' <small style="opacity:.55;font-size:10px">· siempre incluida</small>' : ''}</span></label>`).join('');
+      <label class="gastro-menu-row${s.locked ? ' locked' : ''}"><input type="checkbox" value="${s.name}"${s.locked ? ' checked disabled' : ''}><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s.name}</span></label>`).join('');
     const salsaGRows = ppd.salsasGourmet.map(s => `
       <label class="gastro-menu-row"><input type="checkbox" value="${s}"><div class="gastro-menu-indicator">✓</div><span class="gastro-menu-name">${s}<span class="sello-autor">${SELLO.badge}</span></span></label>`).join('');
     return `
     <div class="gastro-subsection">
       <div class="gastro-subsection-header">
         <div class="gastro-section-title">Primer plato</div>
-        <div class="gastro-section-sub">Pastas artesanales · Tagliatelle y Filetto siempre incluidos</div>
+        <div class="gastro-section-sub">Pastas artesanales</div>
       </div>
-      <div class="gastro-section-label">PASTAS · Tagliatelle y sorrentinos incluidos <span id="gastro-pasta-counter" class="gastro-count-badge">0/5</span></div>
+      <div class="gastro-section-label">PASTAS · Tagliatelle y sorrentinos incluidos</div>
       <div id="gastro-pasta-wrap">
         <details class="gastro-menu-group" open>
           <summary class="gastro-menu-summary">Pastas al corte<span class="gastro-menu-chev">▾</span></summary>
@@ -5789,7 +5789,7 @@ function buildGastroSlide() {
         </details>
       </div>
       <details class="gastro-menu-group" style="margin-top:14px">
-        <summary class="gastro-menu-summary"><span>Salsas · Filetto incluida <span id="gastro-salsa-counter" class="gastro-count-badge">0/4</span></span><span class="gastro-menu-chev">▾</span></summary>
+        <summary class="gastro-menu-summary"><span>Salsas · Filetto incluida</span><span class="gastro-menu-chev">▾</span></summary>
         <div class="gastro-menu-grid" id="gastro-salsa-list">${salsaRows}</div>
         <div class="gastro-menu-grid" id="gastro-salsa-gourmet-list">${salsaGRows}</div>
       </details>
@@ -6091,18 +6091,24 @@ function setupFormalExtrasEvents() {
     return n;
   }
   function updatePastaCounter() {
-    const el = $('gastro-pasta-counter'); if (!el) return;
-    const c = getPastaCount();
-    el.textContent = c + '/' + MAX_PASTA;
-    el.style.color = c >= MAX_PASTA ? 'var(--gold-bright)' : '';
+    // El badge visible se quitó; igual seguimos marcando los extras y
+    // actualizando el contador "Su selección", que cuelgan de acá.
+    const el = $('gastro-pasta-counter');
+    if (el) {
+      const c = getPastaCount();
+      el.textContent = c + '/' + MAX_PASTA;
+      el.style.color = c >= MAX_PASTA ? 'var(--gold-bright)' : '';
+    }
     marcarExtras(['gastro-pasta-wrap'], MAX_PASTA);
     actualizarContadorAutor();
   }
   function updateSalsaCounter() {
-    const el = $('gastro-salsa-counter'); if (!el) return;
-    const c = getSalsaCount();
-    el.textContent = c + '/' + MAX_SALSAS;
-    el.style.color = c >= MAX_SALSAS ? 'var(--gold-bright)' : '';
+    const el = $('gastro-salsa-counter');
+    if (el) {
+      const c = getSalsaCount();
+      el.textContent = c + '/' + MAX_SALSAS;
+      el.style.color = c >= MAX_SALSAS ? 'var(--gold-bright)' : '';
+    }
     marcarExtras(['gastro-salsa-list', 'gastro-salsa-gourmet-list'], MAX_SALSAS);
     actualizarContadorAutor();
   }
