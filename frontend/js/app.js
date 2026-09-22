@@ -4428,6 +4428,8 @@ function applyMomentoTheme() {
   set('prop-bebidas-disclaimer', diurno ? '* Los licores durante el evento no están incluidos en el precio base'
                                          : '* Los licores durante la cena no están incluidos en el precio base');
   set('prop-s9-title', (propuestaState.data.estilo === 'Americano') ? 'Las islas en vivo' : 'El primer plato');
+  // En el americano no hay mesa dulce: se elige un postre emplatado
+  set('prop-s11-title', (propuestaState.data.estilo === 'Americano') ? 'El postre' : 'La mesa dulce');
 
   // Línea de confirmación del momento (bajo las cards de turno)
   const hint = document.getElementById('momento-hint');
@@ -4917,7 +4919,8 @@ function startPropuestaWithSavedState(cliente, saved, opt = {}) {
   document.querySelectorAll('#turno-cards .propuesta-card').forEach(c =>
     c.classList.toggle('selected', c.dataset.value === saved.turno));
   document.querySelectorAll('#espacio-cards .propuesta-card').forEach(c =>
-    c.classList.toggle('selected', c.dataset.value === saved.espacio));
+    // "Jardín" paso a llamarse "Exterior": los borradores viejos lo siguen marcando
+    c.classList.toggle('selected', c.dataset.value === (saved.espacio === 'Jardín' ? 'Exterior' : saved.espacio)));
 
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   set('prop-fecha', saved.fecha || '');
@@ -5117,10 +5120,14 @@ function portadaImgFor(tipo) {
   // bautismo o un corporativo arruina la propuesta antes de empezar.
   const map = {
     'XV años':     'img/propuesta/joliet/centro-de-mesa.jpg',
-    'Boda':        'img/propuesta/joliet/mesa-principal.jpg',
+    // Boda: antes la mesa principal con las letras "G&M" de otra pareja — un
+    // cartel ajeno justo en la tapa. El altar del jardin no tiene nombres.
+    'Boda':        'img/propuesta/joliet/boda-altar-jardin.jpg',
     'Cumpleaños':  'img/propuesta/joliet/pista-a-pleno.jpg',
-    'Bautismo':    'img/propuesta/joliet/mesa-tematica.jpg',
-    'Comunión':    'img/propuesta/joliet/mesa-tematica.jpg',
+    // Bautismo y comunion: antes la mesa tematica de un quince (luna y
+    // estrellas). Una mesa blanca con flores sirve para cualquiera de los dos.
+    'Bautismo':    'img/propuesta/joliet/mesa-blanca-flores.jpg',
+    'Comunión':    'img/propuesta/joliet/mesa-blanca-flores.jpg',
     'Egresados':   'img/propuesta/joliet/baile-grupo.jpg',
     'Corporativo': 'img/propuesta/joliet/salon-montado.jpg',
   };
@@ -5528,7 +5535,21 @@ function pintarFotosDeCarta(isAmericano) {
   // el central. Antes los dos momentos compartian pantalla y una sola foto.
   poner('carta-foto-platos', 'pasta-en-fuente.jpg');
   poner('carta-foto-central', 'plato-servido.jpg');
-  poner('carta-foto-dulce', isAmericano ? 'mesa-de-postres.jpg' : 'panqueques-flambeados.jpg');
+  poner('carta-foto-dulce', isAmericano ? fotoPostreAmericano() : 'panqueques-flambeados.jpg');
+}
+
+/* El americano elige un postre emplatado: la foto sigue al postre marcado.
+   Antes de elegir se ven todos juntos en la laja; despues, el marcado. */
+const FOTO_POSTRE = {
+  'África de autor':     'postre-africa.jpg',
+  'American Sweet':      'postre-american-sweet.jpg',
+  'Pavlova de estación': 'postre-pavlova.jpg',
+  'Key Lime Pie':        'postre-key-lime-pie.jpg',
+};
+function fotoPostreAmericano() {
+  const marcado = [...document.querySelectorAll('#view-propuesta input:checked')]
+    .map(cb => cb.value).find(v => FOTO_POSTRE[v]);
+  return FOTO_POSTRE[marcado] || 'postres-laja.jpg';
 }
 
 /* La recepcion no se elige: se muestra. Sale de RECEPCION_DATA, el mismo dato
@@ -5628,7 +5649,10 @@ function pintarCartaViva() {
    es para leer DESPUES de que el handler propio marco el check. */
 document.addEventListener('click', e => {
   if (!e.target.closest('#view-propuesta .carta-doble')) return;
-  setTimeout(() => { readPropuestaData(); pintarCartaViva(); }, 0);
+  setTimeout(() => {
+    readPropuestaData(); pintarCartaViva();
+    if (propuestaState.data.estilo === 'Americano') pintarFotosDeCarta(true);
+  }, 0);
 });
 
 /* El detalle fijo de la recepcion. En el formal el paso 8 se usa para elegir
@@ -6279,9 +6303,9 @@ function generatePropuestaPDF({ data = null, tipo = 'experiencial', precioAdulto
   // geométrico corta cabezas
   const encuadrePortada = {
     'img/propuesta/joliet/centro-de-mesa.jpg':    'center 45%',
-    'img/propuesta/joliet/mesa-principal.jpg':    'center 42%',
+    'img/propuesta/joliet/boda-altar-jardin.jpg': 'center 55%',
+    'img/propuesta/joliet/mesa-blanca-flores.jpg': 'center 50%',
     'img/propuesta/joliet/pista-a-pleno.jpg':     'center 40%',
-    'img/propuesta/joliet/mesa-tematica.jpg':     'center 46%',
     'img/propuesta/joliet/baile-grupo.jpg':       'center 34%',
     'img/propuesta/joliet/salon-montado.jpg':     'center 52%',
     'img/propuesta/joliet/fachada-noche.jpg':     'center 55%',
