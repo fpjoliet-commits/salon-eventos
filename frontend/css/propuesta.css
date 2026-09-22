@@ -133,6 +133,12 @@
   align-items: center;
   padding: 70px 40px 80px;
   overflow-y: auto;
+  /* El eje horizontal se recorta a propósito: el contenido real siempre
+     entra en el ancho, pero la foto de fondo velada (.slide-foto, con
+     inset:-5% y scale(1.07)) sangra fuera del borde. Sin esto, el
+     overflow-y:auto fuerza overflow-x a 'auto' y la slide se puede
+     arrastrar de costado en la tablet, mostrando un borde oscuro. */
+  overflow-x: hidden;
   scrollbar-width: none;
 }
 .propuesta-slides-container::-webkit-scrollbar { display: none; }
@@ -3472,8 +3478,8 @@
 /* ---- Los numeros: fecha e invitados en una sola pantalla ---- */
 .numeros-fork {
   display: grid;
-  grid-template-columns: 1fr 1px 1fr;
-  gap: 0 36px;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
   align-items: center;
   width: 100%;
   max-width: 840px;
@@ -3481,10 +3487,16 @@
 }
 .numeros-fork::before { display: none; }
 .numeros-col { min-width: 0; }
+/* El divisor va sobre la columna derecha. Para que el contenido de cada
+   columna quede a la misma distancia del centro (si no, la fecha y los
+   turnos se corren ~18px a la derecha), el respiro del divisor se reparte
+   simétrico: padding a cada lado. */
+.numeros-col:first-child { padding-right: 36px; }
 .numeros-col + .numeros-col { border-left: 1px solid rgba(255,255,255,.1); padding-left: 36px; }
 .numeros-fork .propuesta-field-group { gap: 18px; }
 @media (max-width: 900px) {
   .numeros-fork { grid-template-columns: 1fr; gap: 26px; }
+  .numeros-col:first-child { padding-right: 0; }
   .numeros-col + .numeros-col { border-left: 0; padding-left: 0; border-top: 1px solid rgba(255,255,255,.1); padding-top: 22px; }
 }
 
