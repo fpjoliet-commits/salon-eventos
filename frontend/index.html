@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260922d-pdf">
-  <link rel="stylesheet" href="css/propuesta.css?v=20260922f-cierre">
+  <link rel="stylesheet" href="css/style.css?v=20260925b-ficha">
+  <link rel="stylesheet" href="css/propuesta.css?v=20260925a-recupenvio">
   <link rel="stylesheet" href="css/ux.css?v=20260911k">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
@@ -1283,6 +1283,26 @@
         </div>
       </div>
       <div class="modal-body" id="modal-body">
+
+        <!-- Nota de la persona: va arriba de todo, es lo que hay que leer antes
+             de hacer nada (a que hora llamarla, quien decide la compra). -->
+        <div id="cliente-nota-persona" class="nota-top internal-field" data-internal></div>
+
+        <!-- Datos de contacto: lo unico que es de la PERSONA -->
+        <div id="cliente-persona-bloque" class="persona-bloque"></div>
+
+        <!-- Un renglon por evento; el abierto recibe adentro #cliente-evento-panel -->
+        <div id="cliente-eventos-bloque" class="eventos-bloque"></div>
+
+        <!-- Todo lo que sigue es de UN evento: el JS lo mueve adentro de su tarjeta -->
+        <div id="cliente-evento-panel">
+
+          <!-- La nota de ESTE evento, primero de todo -->
+          <div id="modal-nota-interna" class="nota-top nota-top-ev internal-field" data-internal></div>
+
+          <!-- "Este evento tiene": como viene, sin abrir nada -->
+          <div id="evento-tablero" class="evento-tablero"></div>
+
         <!-- Tabs -->
         <div class="modal-tabs">
           <button class="tab-btn active" data-tab="info">Información</button>
@@ -1296,24 +1316,14 @@
         <div id="tab-info" class="tab-content active">
           <div id="nombre-sugerencia-area"></div>
           <div id="cliente-detail-grid" class="detail-grid"></div>
-          <div id="cliente-edit-bar" class="cliente-edit-bar hidden">
-            <span class="cliente-edit-bar-msg">Tenés cambios sin guardar</span>
-            <div class="cliente-edit-bar-btns">
-              <button type="button" id="cliente-edit-cancelar" class="btn btn-secondary btn-sm">Cancelar</button>
-              <button type="button" id="cliente-edit-guardar" class="btn btn-primary btn-sm">Guardar cambios</button>
-            </div>
-          </div>
           <div id="modal-seg-panel" class="modal-seg-panel internal-field" data-internal></div>
-          <div id="modal-nota-interna" class="nota-interna-panel internal-field" data-internal></div>
           <div class="modal-actions">
             <button id="btn-editar-cliente" class="btn btn-primary">Editar</button>
 
             <button id="btn-ficha-evento" class="btn btn-secondary" title="Imprimir la ficha de este evento para salir a comprar">🖨 Ficha del evento</button>
             <button id="btn-ver-timing" class="btn btn-secondary admin-only-btn hidden" title="Abrir el Timing Planner para este evento">⏱ Timing</button>
-            <button id="btn-nuevo-evento" class="btn btn-secondary admin-only-btn hidden" title="Crear un nuevo evento para esta misma persona">➕ Nuevo evento</button>
-            <button id="btn-eliminar-cliente" class="btn btn-danger admin-only-btn hidden" title="Eliminar este evento">🗑 Eliminar</button>
+            <button id="btn-eliminar-cliente" class="btn btn-danger admin-only-btn hidden" title="Eliminar este evento">🗑 Eliminar este evento</button>
           </div>
-          <div id="cliente-eventos-anteriores" class="eventos-anteriores hidden"></div>
         </div>
 
         <!-- Tab: Plan de pago -->
@@ -1456,6 +1466,15 @@
         <!-- Tab: Propuesta -->
         <div id="tab-propuesta" class="tab-content hidden">
           <div id="prop-tab-content"></div>
+        </div>
+        </div><!-- /#cliente-evento-panel -->
+
+        <div id="cliente-edit-bar" class="cliente-edit-bar hidden">
+          <span class="cliente-edit-bar-msg">Tenés cambios sin guardar</span>
+          <div class="cliente-edit-bar-btns">
+            <button type="button" id="cliente-edit-cancelar" class="btn btn-secondary btn-sm">Cancelar</button>
+            <button type="button" id="cliente-edit-guardar" class="btn btn-primary btn-sm">Guardar cambios</button>
+          </div>
         </div>
 
       </div>
@@ -1992,7 +2011,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260922l-cierre"></script>
+  <script src="js/app.js?v=20260925b-ficha"></script>
   <script src="js/propuesta-ui.js?v=20260921a-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>

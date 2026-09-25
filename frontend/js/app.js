@@ -273,6 +273,9 @@ function initApp() {
   loadPersonas();
   if (isAdmin()) refreshPendientesBadge();
   navigateTo('calendario');
+  // Si una propuesta quedo a medio enviar (tipico en la tablet, que recarga el
+  // CRM al guardar el PDF), reofrecer WhatsApp/Gmail apenas se abre.
+  mostrarRecuperacionEnvio();
 }
 
 /* ===================== NAVIGATION ===================== */
@@ -624,43 +627,20 @@ $('filter-origen').addEventListener('change', applyFilters);
 function openClienteModal(cliente, tabInicial = 'info') {
   currentClienteModal = cliente;
 
-  // Restaurar header si estaba en modo edición
+  // El encabezado es de la PERSONA; todo lo de adentro, de cada evento.
   const wrap = document.querySelector('#modal-overlay .modal-nombre-wrap');
-  const tituloCliente = esc(cliente.apellidoNombre)
+  const nombre = esc(cliente.apellidoNombre)
     || (cliente.telefono ? `Sin nombre · ${esc(cliente.telefono)}` : 'Sin nombre');
-  wrap.innerHTML = `<h3 id="modal-titulo">${tituloCliente}</h3>`;
+  const cuantos = eventosDeLaPersona(cliente).length;
+  const sub = [
+    cliente.telefono || '',
+    cuantos > 1 ? `${cuantos} eventos con nosotros` : '1 evento',
+  ].filter(Boolean).join(' · ');
+  wrap.innerHTML = `<h3 id="modal-titulo">${nombre}<small class="modal-subtitulo">${esc(sub)}</small></h3>`;
 
-  // Botones admin-only en modal
-  const btnNuevoEvento = $('btn-nuevo-evento');
-  const btnEliminar = $('btn-eliminar-cliente');
-  const btnVerTiming = $('btn-ver-timing');
-  const tabHistorial = document.querySelector('.tab-btn[data-tab="pagos"]');
-  const tabCuotas = document.querySelector('.tab-btn[data-tab="cuotas"]');
-  if (canManagePagos()) {
-    btnNuevoEvento?.classList.remove('hidden');
-    btnEliminar?.classList.remove('hidden');
-    btnVerTiming?.classList.remove('hidden');
-    tabHistorial?.classList.remove('hidden');
-    tabCuotas?.classList.remove('hidden');
-  } else {
-    btnNuevoEvento?.classList.add('hidden');
-    btnEliminar?.classList.add('hidden');
-    btnVerTiming?.classList.add('hidden');
-    tabHistorial?.classList.add('hidden');
-    tabCuotas?.classList.add('hidden');
-  }
-
-  activateTab(tabInicial);
-  renderClienteDetail(cliente);
-  injectNombreAcciones(cliente);
-  loadRestriccionesModal(cliente);
-  renderPropuestaTab(cliente);
-  if (canManagePagos()) {
-    initPagoForm(cliente);
-    renderHistorialTab(cliente);
-    loadCuotasTab(cliente);
-    cargarEventosAnteriores(cliente);
-  }
+  renderNotaPersona(cliente);
+  renderPersonaBloque(cliente);
+  renderEventosDeLaPersona(cliente, tabInicial);
 
   showEl($('modal-overlay'));
 }
@@ -704,11 +684,6 @@ $('btn-ver-timing')?.addEventListener('click', () => {
   }, 100);
 });
 
-$('btn-nuevo-evento')?.addEventListener('click', () => {
-  if (!currentClienteModal) return;
-  hideEl($('modal-overlay'));
-  abrirNuevoEventoParaPersona(currentClienteModal);
-});
 
 $('btn-eliminar-cliente')?.addEventListener('click', async () => {
   if (!currentClienteModal) return;
@@ -794,23 +769,287 @@ function activateTab(name) {
   });
 }
 
-function cargarEventosAnteriores(cliente) {
-  const container = $('cliente-eventos-anteriores');
-  if (!container) return;
-  const otros = allClientes.filter(c => c.personaId === cliente.personaId && c.id !== cliente.id);
-  if (!otros.length) { container.classList.add('hidden'); container.innerHTML = ''; return; }
+/* ===================== LA PERSONA Y SUS EVENTOS =====================
+   La ficha arranca por la persona (su nota y como contactarla) y sigue con sus
+   eventos, uno por tarjeta. Las solapas y los botones son de UN evento, no de
+   la persona: por eso #cliente-evento-panel se mueve fisicamente adentro de la
+   tarjeta que esta abierta y nunca queda flotando arriba de todo.            */
 
-  container.classList.remove('hidden');
-  container.innerHTML = `
-    <div class="eventos-ant-titulo">Otros eventos de esta persona (${otros.length}):</div>
-    <div class="eventos-ant-lista">
-      ${otros.map(c => `
-        <div class="evento-ant-item" onclick="openClienteModal(allClientes.find(x=>x.id==='${c.id}'))">
-          <span class="evento-ant-tipo">${c.tipoEvento || '—'}</span>
-          <span class="evento-ant-fecha">${formatDate(c.fechaEvento) || '—'}</span>
-          <span>${estadoBadge(c.estado)}</span>
-        </div>`).join('')}
+// Se piden una sola vez por sesion: alimentan el tablero de cada evento.
+let _cacheEgresos = null;
+let _cachePedidosCocina = null;
+
+function eventosDeLaPersona(cliente) {
+  const lista = cliente.personaId
+    ? allClientes.filter(c => c.personaId === cliente.personaId)
+    : [cliente];
+  // Lo que viene primero, lo que ya paso despues.
+  return lista.slice().sort((a, b) => (b.fechaEvento || '').localeCompare(a.fechaEvento || ''));
+}
+
+/* ---- Nota de la persona (columna L de Personas) ----
+   Va arriba de todo: es lo que hay que leer antes de llamar o de cotizar. */
+function renderNotaPersona(cliente) {
+  const box = $('cliente-nota-persona');
+  if (!box) return;
+  box.innerHTML = `
+    <div class="nota-top-l">📝 Nota de la persona
+      <span class="nota-top-hint">La ve solo el equipo · vale para todos sus eventos</span>
+    </div>
+    <textarea id="nota-persona-text" class="nota-top-text" rows="2"
+      placeholder="Lo que haya que saber siempre: a qué hora llamarla, quién decide, cómo prefiere que le escribamos…">${esc(cliente.notaPersona || '')}</textarea>
+    <div class="nota-top-acciones">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="guardarNotaPersona()">Guardar nota</button>
+      <span id="nota-persona-status" class="nota-top-status"></span>
     </div>`;
+}
+
+window.guardarNotaPersona = async function () {
+  const c = currentClienteModal;
+  if (!c) return;
+  const texto = ($('nota-persona-text')?.value || '').trim();
+  const status = $('nota-persona-status');
+  try {
+    await apiFetch(`/clientes/${c.rowIndex}`, {
+      method: 'PUT',
+      body: buildClienteBody(c, { notaPersona: texto }),
+    });
+    // La nota es de la persona: todos sus eventos la comparten.
+    allClientes.forEach(x => { if (x.personaId && x.personaId === c.personaId) x.notaPersona = texto; });
+    c.notaPersona = texto;
+    if (status) {
+      status.textContent = '✓ Guardada';
+      status.classList.add('ok');
+      setTimeout(() => { status.textContent = ''; status.classList.remove('ok'); }, 2500);
+    }
+  } catch (err) {
+    toast('No se pudo guardar la nota: ' + err.message, 'error');
+  }
+};
+
+/* ---- Datos de contacto: lo unico que es de la persona ---- */
+function renderPersonaBloque(cliente) {
+  const box = $('cliente-persona-bloque');
+  if (!box) return;
+  const ed = (key, label, type, opts) => _campoEditable(cliente, key, label, type, opts);
+  const tel = (cliente.telefono || '').replace(/[^\d+]/g, '');
+  const wsp = tel
+    ? `<a class="pb-accion" href="https://wa.me/${esc(tel.replace(/^\+/, ''))}" target="_blank" rel="noopener">💬 WhatsApp</a>`
+    : '';
+  box.innerHTML = `
+    <div class="pb-titulo">Datos de contacto ${wsp}</div>
+    <div class="detail-grid pb-grid">
+      ${ed('telefono', 'Teléfono', 'tel')}
+      ${ed('gmail', 'Gmail', 'email')}
+      ${ed('redSocial', 'Red social', 'text')}
+      <div class="detail-item internal-field" data-internal><span class="detail-label">Origen</span><span class="detail-value">${esc(cliente.origen || '—')}</span></div>
+      <div class="detail-item internal-field" data-internal><span class="detail-label">Tipo de cliente</span><span class="detail-value">${esc(cliente.tipoCliente || '—')}${cliente.exclienteReferencia ? ` · Ref: ${esc(cliente.exclienteReferencia)}` : ''}${cliente.exclienteNota ? ` — ${esc(cliente.exclienteNota)}` : ''}</span></div>
+    </div>`;
+}
+
+/* ---- Las tarjetas de los eventos ---- */
+function renderEventosDeLaPersona(cliente, tabInicial = 'info') {
+  const box = $('cliente-eventos-bloque');
+  if (!box) return;
+  const eventos = eventosDeLaPersona(cliente);
+
+  // El panel vive adentro de una tarjeta, o sea adentro de `box`: hay que
+  // ponerlo a salvo antes de rehacer la lista, si no innerHTML se lo lleva.
+  const panelPrevio = $('cliente-evento-panel');
+  if (panelPrevio) $('modal-body')?.appendChild(panelPrevio);
+
+  box.innerHTML = `
+    <div class="eventos-titulo">Eventos (${eventos.length})</div>
+    <div class="eventos-lista">
+      ${eventos.map(c => _tarjetaEventoHTML(c, c.id === cliente.id)).join('')}
+    </div>
+    ${canManagePagos() ? `<div class="eventos-pie">
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-nuevo-evento-persona">➕ Nuevo evento para esta persona</button>
+    </div>` : ''}`;
+
+  box.querySelectorAll('.ev-head').forEach(head => {
+    head.addEventListener('click', () => {
+      const id = head.parentElement.dataset.evId;
+      if (id === currentClienteModal?.id) return;   // ya esta abierta
+      const c = allClientes.find(x => x.id === id);
+      if (c) { renderEventosDeLaPersona(c); }
+    });
+  });
+  $('btn-nuevo-evento-persona')?.addEventListener('click', () => {
+    hideEl($('modal-overlay'));
+    abrirNuevoEventoParaPersona(currentClienteModal || cliente);
+  });
+
+  // El panel de solapas se muda adentro de la tarjeta abierta.
+  const panel = $('cliente-evento-panel');
+  const destino = box.querySelector('.ev-abierta .ev-body');
+  if (panel && destino) destino.appendChild(panel);
+
+  cargarEventoEnFicha(cliente, tabInicial);
+}
+
+function _tarjetaEventoHTML(c, abierto) {
+  const agasajado = (c.nombreAgasajado || '').trim();
+  const titulo = [c.tipoEvento || 'Evento', agasajado && agasajado.toLowerCase() !== (c.apellidoNombre || '').trim().toLowerCase() ? `— ${agasajado}` : '']
+    .filter(Boolean).join(' ');
+  const meta = [
+    c.fechaEvento ? formatDateWithDay(c.fechaEvento) : 'Sin fecha',
+    c.turno || '',
+    c.cantidadInvitados ? `${c.cantidadInvitados} invitados` : '',
+  ].filter(Boolean).join(' · ');
+  return `
+    <div class="ev-card${abierto ? ' ev-abierta' : ''}" data-ev-id="${esc(c.id)}">
+      <div class="ev-head" role="button" tabindex="0">
+        <span class="ev-chev">${abierto ? '▾' : '▸'}</span>
+        <span class="ev-nom"><b>${esc(titulo)}</b><small>${esc(meta)}</small></span>
+        ${estadoBadge(c.estado)}
+      </div>
+      <div class="ev-body"></div>
+    </div>`;
+}
+
+/* ---- Cargar en pantalla el evento elegido ----
+   Es lo que antes hacia openClienteModal de punta a punta; ahora se repite
+   cada vez que se abre otra tarjeta, sin cerrar la ficha de la persona. */
+function cargarEventoEnFicha(cliente, tabInicial = 'info') {
+  currentClienteModal = cliente;
+
+  const btnEliminar = $('btn-eliminar-cliente');
+  const btnVerTiming = $('btn-ver-timing');
+  const tabHistorial = document.querySelector('.tab-btn[data-tab="pagos"]');
+  const tabCuotas = document.querySelector('.tab-btn[data-tab="cuotas"]');
+  if (canManagePagos()) {
+    btnEliminar?.classList.remove('hidden');
+    btnVerTiming?.classList.remove('hidden');
+    tabHistorial?.classList.remove('hidden');
+    tabCuotas?.classList.remove('hidden');
+  } else {
+    btnEliminar?.classList.add('hidden');
+    btnVerTiming?.classList.add('hidden');
+    tabHistorial?.classList.add('hidden');
+    tabCuotas?.classList.add('hidden');
+  }
+
+  activateTab(tabInicial);
+  renderClienteDetail(cliente);
+  injectNombreAcciones(cliente);
+  loadRestriccionesModal(cliente);
+  renderPropuestaTab(cliente);
+  if (canManagePagos()) {
+    initPagoForm(cliente);
+    renderHistorialTab(cliente);
+    loadCuotasTab(cliente);
+  }
+  renderTableroEvento(cliente);
+}
+
+/* ---- "Este evento tiene": el tablero del evento ----
+   Contesta "como viene esto" sin abrir nada, y cambia segun en que esta el
+   evento: vendiendo, produciendo, o ya pasado.                              */
+function _faseEvento(c) {
+  if (c.estado === 'Realizado' || c.estado === 'Cancelado') return 'pasado';
+  if (ESTADOS_COBRO.includes(c.estado)) return 'produccion';
+  return 'venta';
+}
+
+async function renderTableroEvento(cliente) {
+  const cont = $('evento-tablero');
+  if (!cont) return;
+  const fase = _faseEvento(cliente);
+  cont.className = 'evento-tablero fase-' + fase;
+  cont.innerHTML = '<div class="tablero-cargando">Buscando cómo viene este evento…</div>';
+
+  const chip = (txt, val, cls, onclick, titulo) =>
+    `<button type="button" class="ev-chip${cls ? ' ' + cls : ''}" ${onclick ? `data-chip="${onclick}"` : 'disabled'}${titulo ? ` title="${esc(titulo)}"` : ''}>${txt} · <b>${val}</b></button>`;
+
+  const chips = [];
+
+  // Propuesta y presupuesto: salen de lo que ya hay en pantalla, sin pedir nada.
+  const prop = typeof loadPropuestaLocal === 'function' ? loadPropuestaLocal(cliente.id) : null;
+  const propArmada = !!(prop && prop.estilo);
+
+  if (fase === 'venta') {
+    chips.push(chip('📄 Propuesta', propArmada ? 'armada' : 'sin armar', propArmada ? '' : 'chip-falta', 'propuesta'));
+    chips.push(chip('💰 Presupuesto', cliente.montoPresupuesto ? formatMoney(cliente.montoPresupuesto) : (cliente.presupuesto || 'sin cargar'), cliente.montoPresupuesto ? '' : 'chip-falta', 'editar'));
+    chips.push(chip('📅 Fecha', cliente.estadoFecha || 'sin definir', '', ''));
+    const seg = cliente.proximoSeguimiento;
+    chips.push(chip('📞 Próx. seguimiento', seg ? formatDate(seg) : 'sin agendar', seguimientoClass(seg) === 'seg-vencido' || !seg ? 'chip-falta' : '', ''));
+    cont.innerHTML = `<div class="tablero-l">Este evento tiene</div><div class="tablero-chips">${chips.join('')}</div>`;
+    _wireChipsTablero(cont, cliente);
+    return;
+  }
+
+  // Confirmado o ya pasado: hay que ir a buscar timing, cobros, gastos y cocina.
+  const pedir = [];
+  pedir.push(apiFetch(`/timming/cliente/${cliente.id}`).catch(() => []));
+  pedir.push(canManagePagos() ? apiFetch(`/ingresos/totales/${cliente.id}`).catch(() => null) : Promise.resolve(null));
+  pedir.push(canManagePagos() ? _traerEgresos() : Promise.resolve([]));
+  pedir.push(isSuperAdmin() ? _traerPedidosCocina() : Promise.resolve(null));
+
+  const [timming, totales, egresos, pedidos] = await Promise.all(pedir);
+  if (currentClienteModal?.id !== cliente.id) return;   // cambiaron de evento mientras cargaba
+
+  const pasosTiming = (timming || []).filter(t => t.tipo !== 'cocina').length;
+  const cobrado = totales?.total || 0;
+  const presu = parseFloat(cliente.montoPresupuesto) || 0;
+  const gastado = (egresos || []).filter(e => e.idEvento === cliente.id)
+    .reduce((s, e) => s + (parseFloat(e.monto) || 0), 0);
+  const pedido = (pedidos || []).find(p => p.idCliente === cliente.id);
+
+  if (fase === 'produccion') {
+    chips.push(chip('⏱ Timing', pasosTiming ? `${pasosTiming} pasos` : 'sin armar', pasosTiming ? '' : 'chip-falta', 'timing'));
+    if (isSuperAdmin()) {
+      chips.push(chip('🍽 Pedido de cocina', pedido ? 'cargado' : 'sin cargar', pedido ? '' : 'chip-falta', 'cocina'));
+    }
+    if (canManagePagos()) {
+      chips.push(chip('💵 Cobrado', presu ? `${formatMoney(cobrado)} de ${formatMoney(presu)}` : formatMoney(cobrado),
+        presu && cobrado >= presu ? 'chip-ok' : '', 'pagos'));
+      chips.push(chip('🧾 Gastos del evento', formatMoney(gastado), '', 'egresos'));
+    }
+    chips.push(chip('📄 Propuesta', propArmada ? 'armada' : 'sin armar', propArmada ? '' : 'chip-falta', 'propuesta'));
+  } else {
+    // Ya paso: los numeros dejan de ser botones y pasan a ser el resultado.
+    if (canManagePagos()) {
+      const falta = presu - cobrado;
+      chips.push(chip('💵 Cobrado', falta > 0 ? `${formatMoney(cobrado)} · faltan ${formatMoney(falta)}` : `${formatMoney(cobrado)} · completo`,
+        falta > 0 ? 'chip-falta' : 'chip-ok', 'pagos'));
+      chips.push(chip('🧾 Gastó', formatMoney(gastado), 'chip-pasado', 'egresos'));
+    }
+    chips.push(chip('📄 Papeles del evento', 'para consultar', 'chip-pasado', 'propuesta'));
+    if (canManagePagos()) {
+      chips.push('<button type="button" class="ev-chip chip-accion" data-chip="repetir">➕ <b>Nuevo evento con esta base</b></button>');
+    }
+  }
+
+  cont.innerHTML = `<div class="tablero-l">${fase === 'pasado' ? 'Cómo terminó' : 'Este evento tiene'}</div><div class="tablero-chips">${chips.join('')}</div>`;
+  _wireChipsTablero(cont, cliente);
+}
+
+async function _traerEgresos() {
+  if (_cacheEgresos) return _cacheEgresos;
+  try { _cacheEgresos = await apiFetch('/egresos'); } catch { _cacheEgresos = []; }
+  return _cacheEgresos;
+}
+async function _traerPedidosCocina() {
+  if (_cachePedidosCocina) return _cachePedidosCocina;
+  try { _cachePedidosCocina = await apiFetch('/pedidos-cocina'); } catch { _cachePedidosCocina = []; }
+  return _cachePedidosCocina;
+}
+
+function _wireChipsTablero(cont, cliente) {
+  cont.querySelectorAll('[data-chip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      switch (btn.dataset.chip) {
+        case 'propuesta': activateTab('propuesta'); break;
+        case 'pagos':     activateTab('pagos'); break;
+        case 'editar':    activateTab('info'); break;
+        case 'timing':    $('btn-ver-timing')?.click(); break;
+        case 'cocina':    hideEl($('modal-overlay')); navigateTo('cocina'); switchCocinaTab('pedido'); break;
+        case 'egresos':   hideEl($('modal-overlay')); navigateTo('egresos'); break;
+        case 'repetir':   hideEl($('modal-overlay')); abrirNuevoEventoParaPersona(cliente); break;
+      }
+    });
+  });
 }
 
 function abrirNuevoEventoParaPersona(clienteBase) {
@@ -867,9 +1106,6 @@ function renderClienteDetail(c) {
   const ed = (key, label, type, opts) => _campoEditable(c, key, label, type, opts);
   const obs = (c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim();
   $('cliente-detail-grid').innerHTML = `
-    <div class="detail-item"><span class="detail-label">Estado</span><span class="detail-value">${estadoBadge(c.estado)}</span></div>
-    ${ed('telefono', 'Teléfono', 'tel')}
-    ${ed('gmail', 'Gmail', 'email')}
     ${ed('tipoEvento', 'Tipo de evento', 'select', { selectName: 'tipoEvento' })}
     ${ed('nombreAgasajado', 'Agasajad@', 'text')}
     ${ed('formato', 'Formato', 'select', { selectName: 'formato' })}
@@ -891,11 +1127,6 @@ function renderClienteDetail(c) {
           ${c.menuPostre ? `<div><span class="menu-cat">Postre</span> ${esc(c.menuPostre)}</div>` : ''}
         </div>
       </div>` : ''}
-    <div class="detail-item detail-full internal-field" data-internal>
-      <span class="detail-label">Tipo de cliente</span>
-      <span class="detail-value">${c.tipoCliente || '—'}${c.exclienteReferencia ? ` · Ref: ${c.exclienteReferencia}` : ''}${c.exclienteNota ? ` — ${c.exclienteNota}` : ''}</span>
-    </div>
-    <div class="detail-item internal-field" data-internal><span class="detail-label">Origen</span><span class="detail-value">${c.origen || '—'}</span></div>
     <div class="detail-item internal-field" data-internal><span class="detail-label">Presupuesto</span><span class="detail-value">${c.presupuesto || '—'}</span></div>
     <div class="detail-item internal-field" data-internal><span class="detail-label">Monto presupuesto</span><span class="detail-value">${c.montoPresupuesto ? formatMoney(c.montoPresupuesto) : '—'}</span></div>
     <div class="detail-item internal-field" data-internal><span class="detail-label">Cargado por</span><span class="detail-value">${c.cargadoPor || '—'}</span></div>
@@ -926,15 +1157,14 @@ function renderClienteDetail(c) {
   const notaPanel = $('modal-nota-interna');
   if (notaPanel) {
     notaPanel.innerHTML = `
-      <div class="nota-interna-header">
-        <span class="detail-label">📝 Nota interna</span>
-        <span class="nota-interna-hint">Solo la ve el equipo · se oculta en Vista cliente</span>
+      <div class="nota-top-l">📝 Nota de este evento
+        <span class="nota-top-hint">Solo la ve el equipo · se oculta en Vista cliente</span>
       </div>
-      <textarea id="modal-nota-interna-text" class="nota-interna-text" rows="3"
-        placeholder="Anotá lo que necesites recordar de este cliente...">${esc(c.notaInterna || '')}</textarea>
-      <div class="nota-interna-actions">
-        <button class="btn btn-secondary btn-sm" onclick="guardarNotaInterna()">Guardar nota</button>
-        <span id="modal-nota-interna-status" class="nota-interna-status"></span>
+      <textarea id="modal-nota-interna-text" class="nota-top-text" rows="2"
+        placeholder="Lo puntual de esta fiesta: la abuela no sube escaleras, la torta la trae el cliente…">${esc(c.notaInterna || '')}</textarea>
+      <div class="nota-top-acciones">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="guardarNotaInterna()">Guardar nota</button>
+        <span id="modal-nota-interna-status" class="nota-top-status"></span>
       </div>`;
   }
 
@@ -975,7 +1205,7 @@ $('btn-editar-cliente').addEventListener('click', () => {
    Click (o Enter) sobre un campo → se vuelve input del tipo correcto; se pueden
    editar varios; un solo "Guardar cambios" hace el PUT. Los <select> clonan las
    opciones del formulario para no duplicar listas. */
-function _clienteGridEl() { return document.getElementById('cliente-detail-grid'); }
+function _clienteGridEl() { return document.getElementById('modal-body'); }
 
 function iniciarEdicionCampoCliente(span) {
   if (!span || span.classList.contains('editing')) return;
@@ -1042,6 +1272,7 @@ async function guardarEdicionesCliente() {
     const idx = allClientes.findIndex(x => x.id === c.id);
     if (idx !== -1) Object.assign(allClientes[idx], edits);
     renderClienteDetail(c);
+    renderPersonaBloque(c);
     renderClientes(allClientes);
     renderRemindersBar?.();
     renderSeguimientosPanel?.();
@@ -1055,7 +1286,9 @@ async function guardarEdicionesCliente() {
 }
 
 function cancelarEdicionesCliente() {
-  if (currentClienteModal) renderClienteDetail(currentClienteModal);
+  if (!currentClienteModal) return;
+  renderClienteDetail(currentClienteModal);
+  renderPersonaBloque(currentClienteModal);
 }
 
 _clienteGridEl()?.addEventListener('click', e => {
@@ -2975,6 +3208,7 @@ function buildClienteBody(c, overrides = {}) {
     menuPostre: c.menuPostre,
     nombreAgasajado: c.nombreAgasajado,
     notaInterna: c.notaInterna,
+    notaPersona: c.notaPersona,
     cargadoPor: c.cargadoPor,
     fechaCarga: c.fechaCarga,
     ...overrides,
@@ -7662,6 +7896,10 @@ function renderSharePanel(estado) {
   panel.innerHTML = `<div class="share-botones">${botones.join('')}</div>` +
     `<div class="share-nota">El mensaje ya va escrito · adjuntá el PDF desde <strong>Descargas</strong></div>`;
   enlazarBotonVerPDF();
+  // Enviado en la misma sesion: se retira la red de seguridad para que el aviso
+  // de recuperacion no vuelva a saltar la proxima vez que se abra el CRM.
+  panel.querySelectorAll('.btn-share-wa, .btn-share-mail').forEach(a =>
+    a.addEventListener('click', () => setTimeout(clearSharePending, 400)));
 }
 
 /* Ver el PDF vuelve a abrir el documento en su ventana, sin lanzar el dialogo
@@ -7690,6 +7928,11 @@ function enlazarBotonVerPDF() {
 function descargarPropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
+  // Red de seguridad para la tablet: al abrir el PDF en otra pestaña, el
+  // navegador a veces descarta o recarga la del CRM (por memoria) y se pierden
+  // los botones de envio, que viven solo en memoria. Guardamos lo justo para
+  // poder reofrecer WhatsApp/Gmail apenas se vuelve a abrir el CRM.
+  saveSharePending(d);
   const hint = $('prop-final-hint');
   const nombre = nombreArchivoPropuesta(d) + '.pdf';
 
@@ -7725,6 +7968,91 @@ function resetBotonCompartir() {
   if (hint) hint.textContent = '';
   const panel = $('prop-share-panel');
   if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
+}
+
+/* ===== Recuperar el envio tras una recarga (tablet) =====
+   En la tablet, al guardar el PDF (que se abre en otra pestaña) el navegador a
+   veces descarta o recarga la pestaña del CRM por presion de memoria. Al volver,
+   la propuesta y sus botones de WhatsApp/Gmail ya no estaban porque vivian solo
+   en memoria. Persistimos los datos de contacto justo al abrir el PDF y, la
+   proxima vez que el CRM carga, ofrecemos terminar el envio sin rearmar nada. */
+const PROP_SHARE_KEY = 'prop_share_pending';
+
+function saveSharePending(d) {
+  try {
+    localStorage.setItem(PROP_SHARE_KEY, JSON.stringify({
+      ts: Date.now(),
+      clienteId: d.clienteId || '',
+      nombre: d.nombre || '',
+      agasajado: d.agasajado || '',
+      telefono: d.telefono || '',
+      gmail: d.gmail || '',
+      tipoEvento: d.tipoEvento || '',
+      fecha: d.fecha || '',
+    }));
+  } catch {}
+}
+function readSharePending() {
+  try {
+    const r = JSON.parse(localStorage.getItem(PROP_SHARE_KEY));
+    if (!r) return null;
+    // Pasadas 6 horas ya no es "la propuesta que acabo de armar"
+    if (Date.now() - (r.ts || 0) > 6 * 3600 * 1000) return null;
+    return r;
+  } catch { return null; }
+}
+function clearSharePending() {
+  try { localStorage.removeItem(PROP_SHARE_KEY); } catch {}
+  $('recuperar-envio')?.remove();
+}
+
+/* Aviso al abrir el CRM: si quedo una propuesta a medio enviar, muestra los
+   mismos botones (WhatsApp / Gmail / Ver el PDF) sin tener que rearmarla. */
+function mostrarRecuperacionEnvio() {
+  const r = readSharePending();
+  if (!r) return;
+  const tel = normalizarTelWhatsapp(r.telefono);
+  const email = (r.gmail || '').trim();
+  // Sin ningun canal ni forma de reabrir el PDF, no hay nada que ofrecer.
+  if (!tel && !email && !r.clienteId) { clearSharePending(); return; }
+
+  // Objeto tipo "data" para reusar los armadores de mensaje y de URL.
+  const d = { nombre: r.nombre, agasajado: r.agasajado, telefono: r.telefono,
+              gmail: r.gmail, tipoEvento: r.tipoEvento, fecha: r.fecha, clienteId: r.clienteId };
+  const quien = (r.agasajado || r.nombre || '').trim();
+  const titulo = quien ? 'Propuesta de ' + esc(quien) : 'Propuesta lista';
+
+  const botones = [BTN_VER_PDF];
+  if (tel) botones.push('<a class="btn-share btn-share-wa" data-envio href="' + waUrlPropuesta(d, tel) +
+    '" target="_blank" rel="noopener">' + LOGO_WA +
+    '<span class="share-nom">WhatsApp</span><span class="share-dest">' + esc(r.telefono) + '</span></a>');
+  if (email) botones.push('<a class="btn-share btn-share-mail" data-envio href="' + gmailUrlPropuesta(d, email) +
+    '" target="_blank" rel="noopener">' + LOGO_GMAIL +
+    '<span class="share-nom">Gmail</span><span class="share-dest">' + esc(email) + '</span></a>');
+
+  let banner = $('recuperar-envio');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'recuperar-envio';
+    banner.className = 'recuperar-envio';
+    document.body.appendChild(banner);
+  }
+  banner.innerHTML =
+    '<button type="button" class="recuperar-envio-x" id="recuperar-envio-cerrar" aria-label="Cerrar">✕</button>' +
+    '<div class="recuperar-envio-tit">' + titulo + '</div>' +
+    '<div class="recuperar-envio-sub">Quedó guardada. Terminá de enviarla:</div>' +
+    '<div class="share-botones">' + botones.join('') + '</div>' +
+    '<div class="share-nota">Adjuntá el PDF desde <strong>Descargas</strong></div>';
+
+  $('recuperar-envio-cerrar')?.addEventListener('click', () => clearSharePending());
+  // Reabrir la vista del PDF con la propuesta guardada del cliente.
+  $('btn-ver-pdf')?.addEventListener('click', () => {
+    const full = r.clienteId ? loadPropuestaLocal(r.clienteId) : null;
+    generatePropuestaPDF(full ? { data: full, soloVista: true } : { soloVista: true });
+  });
+  // Tocar un canal es la señal mas fuerte de "ya lo mande": se retira el aviso.
+  banner.querySelectorAll('[data-envio]').forEach(a =>
+    a.addEventListener('click', () => setTimeout(clearSharePending, 400)));
 }
 
 /* El cierre es un solo toque: guarda el cliente en la agenda y abre el PDF.
