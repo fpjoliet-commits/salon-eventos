@@ -68,6 +68,9 @@ function rowToPersona(row, index) {
     exclienteNota: row[8] || '',
     fechaCarga: row[9] || '',
     cargadoPor: row[10] || '',
+    // Columna L: nota libre de la PERSONA (no del evento). Se muestra arriba de
+    // todo en la ficha: es lo que hay que leer antes de llamarla.
+    notaPersona: row[11] || '',
   };
 }
 
@@ -75,7 +78,7 @@ function personaToRow(p) {
   return [
     p.id, p.apellidoNombre, p.telefono, p.gmail, p.redSocial,
     p.origen, p.tipoCliente, p.exclienteReferencia, p.exclienteNota,
-    p.fechaCarga, p.cargadoPor,
+    p.fechaCarga, p.cargadoPor, p.notaPersona,
   ].map(v => v || '');
 }
 
@@ -148,6 +151,7 @@ function enrichEvento(evento, persona, eventosCount) {
     tipoCliente: persona?.tipoCliente || '',
     exclienteReferencia: persona?.exclienteReferencia || '',
     exclienteNota: persona?.exclienteNota || '',
+    notaPersona: persona?.notaPersona || '',
     personaRowIndex: persona?.rowIndex || null,
     eventosCount: eventosCount || 1,
   };
@@ -160,7 +164,7 @@ async function getPersonas() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Personas!A2:K',
+    range: 'Personas!A2:L',
   });
   return (res.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
 }
@@ -182,7 +186,7 @@ async function addPersona(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Personas!A${nextRow}:K${nextRow}`,
+    range: `Personas!A${nextRow}:L${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [personaToRow(persona)] },
   });
@@ -199,7 +203,7 @@ async function updatePersona(rowIndex, data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Personas!A${rowIndex}:K${rowIndex}`,
+    range: `Personas!A${rowIndex}:L${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [personaToRow(data)] },
   });
@@ -221,7 +225,7 @@ async function getClientes() {
   const sheets = getSheets();
   const [evRes, perRes] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:Z' }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:L' }),
   ]);
   const personas = (perRes.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
   const personaMap = {};
@@ -375,12 +379,12 @@ async function updateCliente(rowIndex, data) {
       gmail: data.gmail, redSocial: data.redSocial, origen: data.origen,
       tipoCliente: data.tipoCliente, exclienteReferencia: data.exclienteReferencia,
       exclienteNota: data.exclienteNota, fechaCarga: data.fechaCarga,
-      cargadoPor: data.cargadoPor,
+      cargadoPor: data.cargadoPor, notaPersona: data.notaPersona,
     };
     ops.push(
       sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Personas!A${data.personaRowIndex}:K${data.personaRowIndex}`,
+        range: `Personas!A${data.personaRowIndex}:L${data.personaRowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values: [personaToRow(personaData)] },
       })
@@ -1348,9 +1352,9 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
     if (!otrosEventos.length) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Personas!A${clienteData.personaRowIndex}:K${clienteData.personaRowIndex}`,
+        range: `Personas!A${clienteData.personaRowIndex}:L${clienteData.personaRowIndex}`,
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [Array(11).fill('')] },
+        resource: { values: [Array(12).fill('')] },
       });
     }
   }
@@ -2150,14 +2154,14 @@ async function migrarClientesAPersonasEventos() {
   if (!rows.length) return { migradas: 0, msg: 'Hoja Clientes vacía o no existe.' };
 
   // Limpiar AMBAS hojas (datos desde fila 2, preserva headers si existen)
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:K' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:L' });
   await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:W' });
 
   // Escribir headers explícitamente para garantizar que los datos vayan a fila 2
   // (si el sheet está vacío sin header, append pondría datos en fila 1 y getClientes() los perdería)
   await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A1:K1', valueInputOption: 'USER_ENTERED',
-    resource: { values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor']] },
+    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A1:L1', valueInputOption: 'USER_ENTERED',
+    resource: { values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor','notaPersona']] },
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A1:X1', valueInputOption: 'USER_ENTERED',
@@ -2180,7 +2184,7 @@ async function migrarClientesAPersonasEventos() {
 
     // Persona: id, apellidoNombre, telefono, gmail, redSocial, origen, tipoCliente,
     //          exclienteReferencia, exclienteNota, fechaCarga, cargadoPor
-    personaRows.push([perId, g(4), g(5), g(6), g(7), g(17), g(14), g(15), g(16), g(3), g(2)]);
+    personaRows.push([perId, g(4), g(5), g(6), g(7), g(17), g(14), g(15), g(16), g(3), g(2), '']);
 
     // Evento usa el ID ORIGINAL del cliente (preserva vínculos con Ingresos/Timming)
     // 23 columnas A-W (incluye nombreAgasajado en W)
@@ -2191,7 +2195,7 @@ async function migrarClientesAPersonasEventos() {
   }
 
   await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A:K', valueInputOption: 'USER_ENTERED',
+    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A:L', valueInputOption: 'USER_ENTERED',
     resource: { values: personaRows },
   });
   await sheets.spreadsheets.values.append({
@@ -2348,7 +2352,7 @@ async function initSheets() {
       headers.push({ range: 'Config!A1:B1', values: [['clave','valor']] });
     }
     if (!existing.includes('Personas')) {
-      headers.push({ range: 'Personas!A1:K1', values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor']] });
+      headers.push({ range: 'Personas!A1:L1', values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor','notaPersona']] });
     }
     if (!existing.includes('Eventos')) {
       headers.push({ range: 'Eventos!A1:V1', values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre']] });

@@ -3792,3 +3792,172 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .coc-aviso-duplicado em { font-style: normal; font-weight: 600; }
 .coc-aviso-duplicado .btn { margin: 0 6px; vertical-align: baseline; }
 .coc-aviso-duplicado .coc-hint { display: inline; margin: 0; }
+
+/* ===================== FICHA: LA PERSONA Y SUS EVENTOS =====================
+   La persona arriba (su nota y como contactarla), sus eventos abajo en
+   tarjetas. Las solapas viven adentro de la tarjeta abierta.               */
+
+.modal-subtitulo {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #6b6252;
+  margin-top: 3px;
+}
+
+/* --- Notas: siempre arriba, nunca al final --- */
+.nota-top {
+  background: #fbf5e9;
+  border: 1px solid #e3d3ac;
+  border-radius: 9px;
+  padding: 12px 15px;
+  margin-bottom: 14px;
+}
+.nota-top-ev {
+  background: #fdf9f0;
+  border-color: #ede2c8;
+}
+.nota-top-l {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #6b4e12;
+  margin-bottom: 7px;
+}
+.nota-top-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: #8a7c5e;
+}
+.nota-top-text {
+  width: 100%;
+  border: 1px solid #ded6c7;
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: #2f2b24;
+  background: #fff;
+  resize: vertical;
+}
+.nota-top-acciones {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 8px;
+}
+.nota-top-status { font-size: 0.85rem; color: #6b6252; }
+.nota-top-status.ok { color: #1f6b4a; font-weight: 600; }
+
+/* --- Bloque de la persona --- */
+.persona-bloque { margin-bottom: 18px; }
+.pb-titulo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #6b6252;
+  margin-bottom: 9px;
+}
+.pb-accion {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #1f6b4a;
+  text-decoration: none;
+  border: 1px solid #9dc7b3;
+  background: #e6f2ec;
+  border-radius: 20px;
+  padding: 3px 11px;
+}
+.pb-accion:hover { background: #d7ebe0; }
+
+/* --- Lista de eventos --- */
+.eventos-bloque { margin-bottom: 4px; }
+.eventos-titulo {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #6b6252;
+  margin-bottom: 9px;
+}
+.ev-card {
+  border: 1px solid #ded6c7;
+  border-radius: 10px;
+  background: #fff;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.ev-abierta { border-color: #b07d2b; }
+.ev-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  background: #fcfaf6;
+  cursor: pointer;
+}
+.ev-abierta > .ev-head { background: #fbf5e9; cursor: default; }
+.ev-head:hover { background: #f6f1e6; }
+.ev-chev { color: #8a5a12; font-size: 0.95rem; }
+.ev-nom { flex-grow: 1; min-width: 0; }
+.ev-nom b { display: block; font-size: 1.08rem; line-height: 1.25; }
+.ev-nom small { font-size: 0.88rem; color: #5f584c; }
+.ev-body:empty { display: none; }
+.ev-abierta > .ev-body { border-top: 1px solid #ede7db; padding: 4px 15px 14px; }
+.eventos-pie { margin: 2px 0 16px; }
+
+/* --- "Este evento tiene": el tablero --- */
+.evento-tablero { margin: 12px 0 14px; }
+.tablero-l {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #6b6252;
+  margin-bottom: 8px;
+}
+.tablero-cargando { font-size: 0.9rem; color: #8a7c5e; font-style: italic; }
+.tablero-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ev-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: #2f2b24;
+  background: #fff;
+  border: 1px solid #c9bfac;
+  border-radius: 22px;
+  padding: 9px 15px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.ev-chip:hover:not(:disabled) { background: #f6f1e6; border-color: #b07d2b; }
+.ev-chip:disabled { cursor: default; opacity: 1; }
+.ev-chip b { font-weight: 700; }
+.chip-falta { background: #fbf5e9; border-color: #d9b96b; color: #6b4e12; }
+.chip-ok { background: #e6f2ec; border-color: #9dc7b3; color: #17553a; }
+.chip-pasado { background: #f2efe7; border-color: #d6cebe; color: #5f584c; }
+.chip-accion { background: #8a5a12; border-color: #8a5a12; color: #fff; }
+.chip-accion:hover:not(:disabled) { background: #6b4409; border-color: #6b4409; }
+
+/* La barra de guardar sirve a la persona y al evento: queda al pie del modal */
+#cliente-edit-bar.cliente-edit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+}
