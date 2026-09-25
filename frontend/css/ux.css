@@ -641,3 +641,32 @@ body.hay-seleccion #toast-container { bottom: 116px; }
   margin-top: 3px;
   line-height: 1.5;
 }
+
+/* ===================== 9. APP INSTALADA (PWA standalone / tablet) =====================
+   La app se usa instalada en la tablet (display: standalone), sin la barra de
+   Chrome. Estos ajustes le dan terminacion de programa, no de pagina web.
+   En un equipo sin muescas los insets valen 0, asi que no cambian nada; solo
+   protegen bordes redondeados o la barra de gestos donde existan. */
+
+/* Nada de rebote elastico al llegar al final: se sentia "pagina", no "app".
+   (La sidebar ya lo tenia; esto lo lleva a toda la ventana.) */
+html, body { overscroll-behavior: none; }
+
+/* La sidebar es fija y toca el borde izquierdo: respeta el inset del sistema. */
+.sidebar { padding-left: env(safe-area-inset-left, 0px); }
+
+/* El kiosco del creador se espeja a la tele del salon: al mantener apretado no
+   tiene que aparecer la lupa ni el menu de copiar sobre los textos. Los campos
+   donde SI se escribe o se copia (inputs, notas) quedan exceptuados. */
+.propuesta-kiosco {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.propuesta-kiosco input,
+.propuesta-kiosco textarea,
+.propuesta-kiosco [contenteditable] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}

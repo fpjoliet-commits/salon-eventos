@@ -5376,6 +5376,13 @@ const propuestaState = {
    el creador lo es). Si el navegador lo rechaza, no pasa nada: sigue
    funcionando igual en una pestaña normal. */
 function pantallaCompleta(entrar) {
+  // En la PWA instalada (display-mode: standalone) la app ya ocupa toda la
+  // pantalla: pedir fullscreen es redundante y en algunos equipos mete una
+  // transicion o el cartel "Esc para salir". Solo hace falta en navegador.
+  try {
+    if (window.matchMedia?.('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true) return;
+  } catch (e) { /* sigue el flujo normal */ }
   try {
     if (entrar) {
       if (!document.fullscreenElement) {
