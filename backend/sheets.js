@@ -648,6 +648,40 @@ function estadoCubiertos(evento, ingresosDelEvento) {
   };
 }
 
+/* ===================== CUENTA DEL EVENTO (contado / pagos sueltos) =====================
+ * "Tu evento vale X" y el cliente trae plata como puede y cuando puede. El
+ * precio queda FIJO en pesos hasta el evento: no se indexa ni se congela nada.
+ * Los dolares se pasan a pesos con la cotizacion del dia en que entraron, que
+ * queda guardada en la fila del cobro (cotizacion / montoARS).
+ * ========================================================================= */
+// Cuanto vale en pesos un cobro; null si es en dolares y no tiene cotizacion
+// (cobros viejos): esos se muestran aparte, nunca se suman como si fueran pesos.
+function cobroEnPesos(i) {
+  const monto = parseFloat(i.monto) || 0;
+  if ((i.moneda || 'ARS') !== 'USD') return monto;
+  const ars = parseFloat(i.montoARS) || 0;
+  return ars > 0 ? ars : null;
+}
+
+function estadoCuenta(evento, ingresosDelEvento) {
+  const vale = parseFloat(evento.montoPresupuesto) || 0;
+  const pagos = (ingresosDelEvento || []).filter(i => i.confirmado !== false);
+  let pagado = 0, usdSinConvertir = 0;
+  pagos.forEach(i => {
+    const ars = cobroEnPesos(i);
+    if (ars === null) usdSinConvertir += parseFloat(i.monto) || 0;
+    else pagado += ars;
+  });
+  return {
+    vale, pagado, usdSinConvertir,
+    cantidadPagos: pagos.length,
+    falta: Math.max(0, vale - pagado),
+    aFavor: Math.max(0, pagado - vale),
+    completo: vale > 0 && pagado >= vale - 0.5,
+    sinConfirmar: (ingresosDelEvento || []).filter(i => i.confirmado === false).length,
+  };
+}
+
 /* ===================== RESTRICCIONES ===================== */
 function rowToRestriccion(row, index) {
   return {
@@ -2510,7 +2544,7 @@ async function patchEvento(rowIndex, patch) {
 module.exports = {
   getPersonas, addPersona, updatePersona,
   getClientes, addCliente, updateCliente, deleteEvento, patchEvento,
-  getIngresos, addIngreso, confirmarIngreso, updateIngreso, deleteIngreso,
+  getIngresos, addIngreso, confirmarIngreso, updateIngreso, deleteIngreso, estadoCuenta, cobroEnPesos,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,

@@ -1564,6 +1564,34 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 }
 .cub-barra-txt { margin-top: 7px; font-size: 14.5px; text-align: center; }
 
+/* Cuenta del evento (contado / pagos sueltos): vale, pago, falta. */
+.cta-cuenta {
+  background: #fbf8f2; border: 1px solid var(--border-light); border-radius: 12px;
+  padding: 16px 20px; margin-bottom: 12px; max-width: 560px;
+}
+.cta-fila {
+  display: flex; align-items: baseline; gap: 10px; padding: 7px 0;
+  font-size: 17px; border-bottom: 1px dashed var(--border-light);
+}
+.cta-fila span { flex: 1; color: var(--text-muted); }
+.cta-fila b { font-size: 19px; }
+.cta-fila small { font-size: 13px; color: var(--text-muted); }
+.cta-fila .verde { color: #15803d; }
+.cta-fila .rojo { color: #b91c1c; }
+.cta-falta { border-bottom: none; padding-top: 10px; }
+.cta-falta span { color: var(--text-primary); font-weight: 700; }
+.cta-falta b { font-size: 24px; }
+.cta-cuenta .cub-barra { margin-top: 10px; height: 14px; }
+.cta-nota { font-size: 14px; color: var(--text-muted); margin: 6px 0 14px; }
+.cta-falta-precio {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  background: #fff8e6; border: 1px solid #f1d58a; border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 12px; font-size: 15px;
+}
+.cta-plan-opcional { margin: 4px 0 16px; }
+.cta-plan-opcional summary { cursor: pointer; font-size: 14px; color: var(--text-muted); padding: 6px 0; }
+.cta-plan-opcional[open] summary { margin-bottom: 10px; }
+
 .cub-listo {
   background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;
   border-radius: var(--radius); padding: 11px 15px;

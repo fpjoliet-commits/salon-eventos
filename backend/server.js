@@ -367,8 +367,17 @@ app.post('/api/ingresos', auth, async (req, res) => {
   if (error) return res.status(400).json({ error });
   try {
     const { cliente, fechaEvento } = await datosEvento(req.body.idCliente);
+    // El equivalente en pesos lo calcula el servidor, no se toma del pedido. Un
+    // cobro en dolares sin cotizacion queda sin convertir: se muestra aparte y
+    // nunca se suma como si fueran pesos.
+    const monto = parseFloat(req.body.monto);
+    const esUSD = req.body.moneda === 'USD';
+    const tc = esUSD ? parseFloat(req.body.cotizacion) : 0;
     const ingreso = await sheets.addIngreso({
       ...req.body, cargadoPor: req.user.usuario, cliente, fechaEvento,
+      cubiertos: '', precioCubierto: '',
+      cotizacion: esUSD && tc > 0 ? tc : '',
+      montoARS: esUSD ? (tc > 0 ? Math.round(monto * tc * 100) / 100 : '') : monto,
     });
     res.json(ingreso);
   } catch (e) {
@@ -445,7 +454,10 @@ app.get('/api/ingresos/totales/:idCliente', auth, adminOnly, async (req, res) =>
   try {
     const todos = await sheets.getIngresos();
     const filtrados = todos.filter(i => i.idCliente === req.params.idCliente);
-    const total = filtrados.reduce((sum, i) => sum + (parseFloat(i.monto) || 0), 0);
+    // Total en pesos, solo confirmados. Antes sumaba los montos sin mirar la
+    // moneda: U$S 100 contaba como $100.
+    const total = filtrados.filter(i => i.confirmado !== false)
+      .reduce((sum, i) => sum + (sheets.cobroEnPesos(i) || 0), 0);
     res.json({ total, ingresos: filtrados });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -627,6 +639,16 @@ app.put('/api/config', auth, superAdminOnly, async (req, res) => {
     const { clave, valor } = req.body;
     if (!clave) return res.status(400).json({ error: 'Falta la clave.' });
     res.json(await sheets.setConfig(clave, valor));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Cuenta del evento en contado / pagos sueltos: cuanto vale, cuanto pago, cuanto falta.
+app.get('/api/cuenta/:idEvento', auth, adminOnly, async (req, res) => {
+  try {
+    const [eventos, ingresos] = await Promise.all([sheets.getClientes(), sheets.getIngresos()]);
+    const ev = eventos.find(e => e.id === req.params.idEvento);
+    if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+    res.json(sheets.estadoCuenta(ev, ingresos.filter(i => i.idCliente === ev.id)));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

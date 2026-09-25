@@ -1790,6 +1790,8 @@ function renderPreviewImputacion() {
 
   // Modalidad por cubierto: cualquier cobro compra cubiertos, incluida la seña.
   if (estadoCubiertosActual) { renderPreviewCubiertos(); return; }
+  // Contado / pagos sueltos: cualquier cobro descuenta de lo que vale el evento.
+  if (cuentaActual) { renderPreviewCuenta(); return; }
 
   if (tipo !== 'Cuota') { hideEl(cont); return; }
   showEl(cont);
@@ -1840,7 +1842,7 @@ $('pago-tipo').addEventListener('change', () => {
   const manual = $('cuotas-a-tachar');
   if (tipo !== 'Cuota') hideEl(manual);
   const wrap = $('pago-modo-manual-wrap');
-  if (wrap) wrap.style.display = (tipo === 'Cuota' && !estadoCubiertosActual) ? '' : 'none';
+  if (wrap) wrap.style.display = (tipo === 'Cuota' && !estadoCubiertosActual && !cuentaActual) ? '' : 'none';
   const toggle = $('pago-modo-manual');
   if (toggle) toggle.checked = false;
   hideEl(manual);
@@ -1854,10 +1856,12 @@ $('btn-traer-cotiz')?.addEventListener('click', () => traerCotizacion(false));
 $('pago-moneda')?.addEventListener('change', () => {
   const esUSD = $('pago-moneda').value === 'USD';
   const grupo = $('pago-cotiz-group');
-  // La cotizacion solo hace falta en modalidad cubiertos: ahi hay que pasar a
-  // pesos para poder convertir a cubiertos. En cuotas el monto se guarda tal cual.
-  if (grupo) grupo.style.display = (esUSD && estadoCubiertosActual) ? '' : 'none';
-  if (esUSD && estadoCubiertosActual && !parseFloat($('pago-cotizacion')?.value)) {
+  // La cotizacion hace falta cuando la cuenta se lleva en pesos: por cubierto
+  // (para convertir a cubiertos) y en contado (para descontar de lo que vale el
+  // evento). En cuotas el monto se guarda tal cual, en la moneda del plan.
+  const pasaAPesos = !!(estadoCubiertosActual || cuentaActual);
+  if (grupo) grupo.style.display = (esUSD && pasaAPesos) ? '' : 'none';
+  if (esUSD && pasaAPesos && !parseFloat($('pago-cotizacion')?.value)) {
     traerCotizacion(true);
   } else {
     renderPreviewImputacion();
@@ -1994,8 +1998,13 @@ $('pago-form').addEventListener('submit', async e => {
         descripcion: `Cuota${nums.length > 1 ? 's' : ''} ${nums.join(', ')}`,
       }});
     } else {
+      const cotizacion = (moneda === 'USD' && cuentaActual) ? (parseFloat($('pago-cotizacion')?.value) || 0) : 0;
+      if (moneda === 'USD' && cuentaActual && !(cotizacion > 0)) {
+        $('pago-error').textContent = 'Falta la cotización del dólar para pasar el cobro a pesos.';
+        show('pago-error'); soltarBoton(); return;
+      }
       await apiFetch('/ingresos', { method: 'POST', body: {
-        idCliente, tipoIngreso: tipo, moneda, monto, fecha, formaPago, notas,
+        idCliente, tipoIngreso: tipo, moneda, monto, fecha, formaPago, notas, cotizacion,
       }});
     }
     $('pago-success').textContent = 'Cobro registrado correctamente.';
@@ -2011,7 +2020,7 @@ $('pago-form').addEventListener('submit', async e => {
     actualizarCampoSena();
     if (canManagePagos()) {
       loadPagosCliente(currentClienteModal);
-      if (tipo === 'Cuota' || estadoCubiertosActual) loadCuotasTab(currentClienteModal);
+      if (tipo === 'Cuota' || estadoCubiertosActual || cuentaActual) loadCuotasTab(currentClienteModal);
     }
   } catch (err) {
     $('pago-error').textContent = err.message;
@@ -2825,7 +2834,93 @@ function calcularCompraCubiertosLocal(montoARS, saldoPrevio, precio, restantes) 
 }
 
 let estadoCubiertosActual = null;   // foto del evento abierto
+let cuentaActual = null;            // contado / pagos sueltos: vale, pago, falta
 let cotizacionBlue = null;          // cacheada mientras el modal esta abierto
+
+/* Contado / pagos sueltos: "tu evento vale X" y el cliente trae plata como
+   puede y cuando puede. El precio queda fijo en pesos hasta el evento. Arriba
+   de todo, lo que se le dice al cliente: cuanto pago y cuanto le falta. */
+function renderCuentaContado(cliente, cta) {
+  const con = $('cuotas-content');
+  if (!(cta.vale > 0)) {
+    con.innerHTML = `
+      <div class="cta-falta-precio">
+        <b>Falta cargar cuánto vale el evento.</b>
+        <span>Sin ese número no se puede decir cuánto le falta pagar. Se carga en <b>Información → Monto presupuesto</b>.</span>
+        <button type="button" class="btn btn-sm btn-secondary" id="cta-ir-info">Cargarlo ahora</button>
+      </div>
+      ${cta.pagado > 0 ? `<p class="cta-nota">Lleva pagado ${formatMoney(cta.pagado)} en ${cta.cantidadPagos} pago${cta.cantidadPagos === 1 ? '' : 's'}.</p>` : ''}
+      ${detallePlanOpcional(cliente)}`;
+    $('cta-ir-info')?.addEventListener('click', () => activateTab('info'));
+    bindFormCrearPlan(cliente);
+    return;
+  }
+  const pct = Math.min(100, Math.round((cta.pagado / cta.vale) * 100));
+  con.innerHTML = `
+    <div class="cta-cuenta">
+      <div class="cta-fila"><span>Vale el evento</span><b>${formatMoney(cta.vale)}</b></div>
+      <div class="cta-fila"><span>Ya pagó</span><b class="verde">${formatMoney(cta.pagado)}</b>
+        <small>${cta.cantidadPagos} pago${cta.cantidadPagos === 1 ? '' : 's'}</small></div>
+      <div class="cta-fila cta-falta"><span>${cta.completo ? 'Está todo pagado' : 'Le falta'}</span>
+        <b class="${cta.completo ? 'verde' : 'rojo'}">${cta.completo ? '✓' : formatMoney(cta.falta)}</b></div>
+      ${cta.aFavor > 0.5 ? `<div class="cta-fila"><span>Pagó de más</span><b>${formatMoney(cta.aFavor)}</b></div>` : ''}
+      <div class="cub-barra"><div class="cub-barra-fill" style="width:${pct}%"></div></div>
+    </div>
+    ${cta.usdSinConvertir > 0
+      ? `<div class="aviso-sinconf">Hay ${formatMoneda(cta.usdSinConvertir, 'USD')} cobrados antes de que se guardara la cotización: no están sumados arriba, porque no se sabe a cuánto se tomaron. Tenelos en cuenta aparte.</div>` : ''}
+    ${cta.sinConfirmar ? `<div class="aviso-sinconf">${cta.sinConfirmar} cobro(s) sin confirmar todavía: no suman hasta que se confirmen.</div>` : ''}
+    <p class="cta-nota">El precio queda fijo hasta el evento. Cada vez que traiga plata, registrala abajo como <b>Pago a cuenta</b> (la primera, como Seña).</p>
+    ${detallePlanOpcional(cliente)}`;
+  bindFormCrearPlan(cliente);
+}
+
+// Si al final prefiere pagar en cuotas, el plan se puede armar igual desde acá.
+function detallePlanOpcional(cliente) {
+  return `<details class="cta-plan-opcional">
+      <summary>¿Prefiere pagarlo en cuotas fijas? Armar un plan</summary>
+      ${formCrearPlan(cliente.id, parseFloat(cliente.montoPresupuesto) || 0)}
+    </details>`;
+}
+
+// Vista previa del cobro en contado: con dolares, la conversion a la vista, y
+// cuanto le va a faltar despues de este pago.
+function renderPreviewCuenta() {
+  const cont = $('pago-imputacion');
+  const cta = cuentaActual;
+  if (!cont || !cta) return;
+  const moneda = $('pago-moneda').value || 'ARS';
+  const monto = parseFloat($('pago-monto').value) || 0;
+  const cotiz = parseFloat($('pago-cotizacion')?.value) || 0;
+  const esUSD = moneda === 'USD';
+  if (!monto) { hideEl(cont); return; }
+  showEl(cont);
+  if (esUSD && !(cotiz > 0)) {
+    cont.innerHTML = '<div class="imp-vacio">Falta la cotización del dólar para pasarlo a pesos.</div>';
+    return;
+  }
+  const ars = esUSD ? monto * cotiz : monto;
+  const pagadoDespues = cta.pagado + ars;
+  const faltaDespues = Math.max(0, cta.vale - pagadoDespues);
+  cont.innerHTML =
+    '<div class="imp-tit">Lo que le podés decir al cliente:</div>' +
+    '<div class="cub-calc">' +
+      (esUSD
+        ? `<div class="cub-calc-fila"><span>Recibís</span><b>U$S ${monto.toLocaleString('es-AR')}</b></div>` +
+          `<div class="cub-calc-fila"><span>Cotización usada</span><b>${formatMoney(cotiz)}</b></div>` +
+          `<div class="cub-calc-fila cub-calc-conv"><span>En pesos</span><b>${formatMoney(ars)}</b></div>`
+        : `<div class="cub-calc-fila"><span>Recibís</span><b>${formatMoney(ars)}</b></div>`) +
+      (cta.vale > 0
+        ? `<div class="cub-calc-fila"><span>Con este pago lleva</span><b>${formatMoney(pagadoDespues)} de ${formatMoney(cta.vale)}</b></div>`
+        : '') +
+    '</div>' +
+    (cta.vale > 0
+      ? '<div class="imp-saldo">' + (faltaDespues > 0.5
+          ? `Le falta <b>${formatMoney(faltaDespues)}</b>.`
+          : pagadoDespues - cta.vale > 0.5
+            ? `<b>Queda todo pagado</b> y pagó ${formatMoney(pagadoDespues - cta.vale)} de más.`
+            : '<b>Queda todo pagado.</b>') + '</div>'
+      : '');
+}
 
 async function loadCuotasTab(cliente) {
   const con = $('cuotas-content');
@@ -2848,8 +2943,16 @@ async function loadCuotasTab(cliente) {
   }
 
   estadoCubiertosActual = null;
+  cuentaActual = null;
   try {
     const cuotas = await apiFetch(`/cuotas/cliente/${cliente.id}`);
+    // Contado / pagos sueltos sin plan: la cuenta del evento (vale, pago, falta).
+    // Si ya tiene un plan armado, manda el plan.
+    if (!cuotas.length && cliente.modalidadPago !== 'cuotas') {
+      cuentaActual = await apiFetch(`/cuenta/${cliente.id}`);
+      renderCuentaContado(cliente, cuentaActual);
+      return;
+    }
     renderCuotas(cliente, cuotas);
   } catch (e) {
     con.innerHTML = `<p class="error-msg">${e.message}</p>`;

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260925g-cobros">
+  <link rel="stylesheet" href="css/style.css?v=20260925h-cuenta">
   <link rel="stylesheet" href="css/propuesta.css?v=20260925a-recupenvio">
   <link rel="stylesheet" href="css/ux.css?v=20260911k">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -1241,6 +1241,7 @@
             <label>Tipo de cobro</label>
             <select id="edi-tipo">
               <option>Seña</option>
+              <option>Pago a cuenta</option>
               <option>Saldo final</option>
               <option>Otro</option>
             </select>
@@ -1358,10 +1359,11 @@
             <h4>Registrar cobro</h4>
             <div class="form-grid small-grid">
               <div class="form-group">
-                <label>Tipo <span class="tip" data-tip="Seña: primer pago que confirma el interés y reserva la fecha. Cuota: pago de un plan de cuotas. Saldo final: lo que queda por pagar antes del evento. Otro: cualquier concepto extra.">?</span></label>
+                <label>Tipo <span class="tip" data-tip="Seña: primer pago que confirma el interés y reserva la fecha. Pago a cuenta: plata que trae cuando puede, a cuenta de lo que vale el evento. Cuota: pago de un plan de cuotas. Saldo final: lo que queda por pagar antes del evento. Otro: cualquier concepto extra.">?</span></label>
                 <select id="pago-tipo" required>
                   <option value="">—</option>
                   <option>Seña</option>
+                  <option>Pago a cuenta</option>
                   <option>Cuota</option>
                   <option>Saldo final</option>
                   <option>Otro</option>
@@ -2019,7 +2021,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260925g-cobros"></script>
+  <script src="js/app.js?v=20260925h-cuenta"></script>
   <script src="js/propuesta-ui.js?v=20260921a-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>
