@@ -1105,15 +1105,28 @@ async function renderTableroEvento(cliente) {
   _wireChipsTablero(cont, cliente);
 }
 
+// El cache es solo para no pedir la lista entera cada vez que abris una ficha.
+// Dura un minuto: si cargas un gasto y volves a la ficha, el numero se actualiza.
+const _CACHE_MS = 60000;
 async function _traerEgresos() {
-  if (_cacheEgresos) return _cacheEgresos;
-  try { _cacheEgresos = await apiFetch('/egresos'); } catch { _cacheEgresos = []; }
-  return _cacheEgresos;
+  if (_cacheEgresos && Date.now() - _cacheEgresos.cuando < _CACHE_MS) return _cacheEgresos.datos;
+  let datos = [];
+  try { datos = await apiFetch('/egresos'); } catch { datos = []; }
+  _cacheEgresos = { cuando: Date.now(), datos };
+  return datos;
 }
 async function _traerPedidosCocina() {
-  if (_cachePedidosCocina) return _cachePedidosCocina;
-  try { _cachePedidosCocina = await apiFetch('/pedidos-cocina'); } catch { _cachePedidosCocina = []; }
-  return _cachePedidosCocina;
+  // Si ya se entro a Cocina, la lista viva es la de verdad: el pedido que
+  // acabas de guardar tiene que verse en la ficha sin recargar nada.
+  if (_cocinaPromesa) {
+    try { await _cocinaPromesa; } catch { /* loadCocina ya avisa */ }
+    return cocinaPedidos || [];
+  }
+  if (_cachePedidosCocina && Date.now() - _cachePedidosCocina.cuando < _CACHE_MS) return _cachePedidosCocina.datos;
+  let datos = [];
+  try { datos = await apiFetch('/pedidos-cocina'); } catch { datos = []; }
+  _cachePedidosCocina = { cuando: Date.now(), datos };
+  return datos;
 }
 
 function _wireChipsTablero(cont, cliente) {
