@@ -3777,3 +3777,18 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .ev-combo-item { padding: .5rem .7rem; cursor: pointer; font-size: .95rem; }
 .ev-combo-item:hover, .ev-combo-item.active { background: #eff6ff; }
 .ev-combo-empty, .ev-combo-more { padding: .5rem .7rem; color: #6b7280; font-size: .85rem; }
+
+/* Aviso de los eventos viejos que quedaron con dos platos centrales cargados.
+   Ver platoCentralDe() en app.js: el plato central del salón es siempre uno solo. */
+.coc-aviso-duplicado {
+  background: #fff8e6;
+  border: 1px solid #e0c078;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.coc-aviso-duplicado em { font-style: normal; font-weight: 600; }
+.coc-aviso-duplicado .btn { margin: 0 6px; vertical-align: baseline; }
+.coc-aviso-duplicado .coc-hint { display: inline; margin: 0; }

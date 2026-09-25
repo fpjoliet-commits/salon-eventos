@@ -684,6 +684,16 @@ $('btn-vista-cliente').addEventListener('click', () => {
   $('btn-vista-cliente').textContent = active ? 'Vista interna' : 'Vista cliente';
 });
 
+$('btn-ficha-evento')?.addEventListener('click', async () => {
+  if (!currentClienteModal) return;
+  const btn = $('btn-ficha-evento');
+  btn.disabled = true;
+  const txt = btn.textContent;
+  btn.textContent = 'Armando ficha…';
+  try { await imprimirFichaDeCliente(currentClienteModal); }
+  finally { btn.disabled = false; btn.textContent = txt; }
+});
+
 $('btn-ver-timing')?.addEventListener('click', () => {
   if (!currentClienteModal) return;
   hideEl($('modal-overlay'));
@@ -3313,6 +3323,36 @@ const POSTRES_AMERICANO_OPT = [
   'Pavlova de estación', 'American Sweet', 'África de autor', 'Key Lime Pie',
 ];
 
+/* En el salón el plato central es SIEMPRE uno solo. El formulario viejo lo pedía
+   por duplicado (una columna "ave" y otra "carne"), así que los eventos ya guardados
+   pueden tener los dos juegos de campos. Esto lee los dos formatos: el nuevo
+   (platoCentral*) y el viejo (…Ave / …Carne). Si un evento viejo tenía los dos
+   cargados devolvemos el segundo en `sobrante` en vez de descartarlo en silencio:
+   el formulario lo muestra y la comanda lo sigue imprimiendo hasta que se resuelva. */
+function platoCentralDe(d) {
+  d = d || {};
+  if (d.platoCentralBase !== undefined) {
+    return {
+      base: d.platoCentralBase || '', relleno: d.platoCentralRelleno || '',
+      salsa: d.platoCentralSalsa || '', guarnicion: d.platoCentralGuarnicion || '',
+      sobrante: null,
+    };
+  }
+  const ave = { base: d.platoCentralAve || '', relleno: d.rellenoAve || '',
+                salsa: d.salsaAve || '', guarnicion: d.guarnicionAve || '' };
+  const carne = { base: d.platoCentralCarne || '', relleno: d.rellenoCarne || '',
+                  salsa: d.salsaCarne || '', guarnicion: d.guarnicionCarne || '' };
+  if (ave.base && carne.base) return { ...ave, sobrante: carne };
+  return { ...(ave.base ? ave : carne), sobrante: null };
+}
+
+/* Un plato central en texto corrido: "Lomo relleno de ciruelas · Papas · Salsa Dijon" */
+function platoCentralTexto(pc) {
+  const salsa = pc.salsa ? (/^salsa/i.test(pc.salsa) ? pc.salsa : 'Salsa ' + pc.salsa) : '';
+  return [[pc.base, pc.relleno].filter(Boolean).join(' '), pc.guarnicion, salsa]
+    .filter(Boolean).join(' · ');
+}
+
 function actividadSelectHTML(selectId, customId, valor = '') {
   const esPredefinida = ACTIVIDADES_TIMMING.includes(valor.toUpperCase());
   const esOtro = valor && !esPredefinida;
@@ -3809,14 +3849,10 @@ function getCocinaFormData() {
     salsas: getChecked('coc-salsa'),
     salsasGourmet: getChecked('coc-salsa-gourmet'),
     horaPlatoCentral: $('coc-hora-plato-central')?.value || '',
-    platoCentralAve: $('coc-plato-ave')?.value.trim() || '',
-    rellenoAve: $('coc-relleno-ave')?.value.trim() || '',
-    salsaAve: $('coc-salsa-ave')?.value.trim() || '',
-    guarnicionAve: $('coc-guarnicion-ave')?.value.trim() || '',
-    platoCentralCarne: $('coc-plato-carne')?.value.trim() || '',
-    rellenoCarne: $('coc-relleno-carne')?.value.trim() || '',
-    salsaCarne: $('coc-salsa-carne')?.value.trim() || '',
-    guarnicionCarne: $('coc-guarnicion-carne')?.value.trim() || '',
+    platoCentralBase: $('coc-plato-base')?.value.trim() || '',
+    platoCentralRelleno: $('coc-relleno-pc')?.value.trim() || '',
+    platoCentralSalsa: $('coc-salsa-pc')?.value.trim() || '',
+    platoCentralGuarnicion: $('coc-guarnicion-pc')?.value.trim() || '',
     horaMesaDulces: $('coc-hora-mesa-dulces')?.value || '',
     postre: $('coc-postre')?.value.trim() || '',
   };
@@ -3840,6 +3876,7 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
 
   const chk = (cls, items, sel) => checkboxListHTML(items, sel, cls);
   const ocultas = cocinaData.seccionesOcultas || [];
+  const pc = platoCentralDe(cocinaData);
   const secHeader = (titulo, horaId, horaVal, key) => `
     <div class="coc-section-header">
       <label class="coc-print-toggle" title="Destildá para NO imprimir este bloque (título incluido)">
@@ -3888,30 +3925,29 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
 
       <div class="coc-section">
         ${secHeader('PLATO CENTRAL', 'coc-hora-plato-central', cocinaData.horaPlatoCentral, 'platoCentral')}
+        ${pc.sobrante ? `
+        <div class="coc-aviso-duplicado">
+          <strong>⚠ Este evento tiene dos platos centrales cargados.</strong>
+          Va uno solo: arriba quedó el primero. El otro era
+          <em>${esc(platoCentralTexto(pc.sobrante)) || '—'}</em>.
+          <button type="button" id="coc-usar-sobrante" class="btn btn-xs btn-secondary">Usar este</button>
+          <span class="coc-hint">Al guardar queda sólo el de los campos de abajo.</span>
+        </div>` : ''}
         <div class="coc-row" style="gap:12px;align-items:flex-start">
           <div style="flex:1">
-            <div class="coc-group-label" style="margin-bottom:6px">Base Ave</div>
-            <input type="text" id="coc-plato-ave" class="coc-input" style="width:100%" list="dl-plato-ave" placeholder="Ej: Pechuga" value="${esc(cocinaData.platoCentralAve || '')}">
+            <div class="coc-group-label" style="margin-bottom:6px">Base</div>
+            <input type="text" id="coc-plato-base" class="coc-input" style="width:100%" list="dl-plato-central" placeholder="Ej: Lomo Reserva" value="${esc(pc.base)}">
             <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Relleno / preparación</div>
-            <input type="text" id="coc-relleno-ave" class="coc-input" style="width:100%" placeholder="Ej: rellena de jamón y queso" value="${esc(cocinaData.rellenoAve || '')}">
-            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Salsa</div>
-            <input type="text" id="coc-salsa-ave" class="coc-input" style="width:100%" placeholder="Ej: suprema" value="${esc(cocinaData.salsaAve || '')}">
-            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Guarnición Ave</div>
-            <input type="text" id="coc-guarnicion-ave" class="coc-input" style="width:100%" list="dl-guarnicion" placeholder="Ej: Rosti de papa" value="${esc(cocinaData.guarnicionAve || '')}">
+            <input type="text" id="coc-relleno-pc" class="coc-input" style="width:100%" placeholder="Ej: relleno de ciruelas" value="${esc(pc.relleno)}">
           </div>
           <div style="flex:1">
-            <div class="coc-group-label" style="margin-bottom:6px">Base Carne</div>
-            <input type="text" id="coc-plato-carne" class="coc-input" style="width:100%" list="dl-plato-carne" placeholder="Ej: Lomo" value="${esc(cocinaData.platoCentralCarne || '')}">
-            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Relleno / preparación</div>
-            <input type="text" id="coc-relleno-carne" class="coc-input" style="width:100%" placeholder="Ej: rellena de ciruelas" value="${esc(cocinaData.rellenoCarne || '')}">
+            <div class="coc-group-label" style="margin-bottom:6px">Guarnición</div>
+            <input type="text" id="coc-guarnicion-pc" class="coc-input" style="width:100%" list="dl-guarnicion" placeholder="Ej: Papas a la suiza" value="${esc(pc.guarnicion)}">
             <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Salsa</div>
-            <input type="text" id="coc-salsa-carne" class="coc-input" style="width:100%" placeholder="Ej: Dijon" value="${esc(cocinaData.salsaCarne || '')}">
-            <div class="coc-group-label" style="margin-top:8px;margin-bottom:4px">Guarnición Carne</div>
-            <input type="text" id="coc-guarnicion-carne" class="coc-input" style="width:100%" list="dl-guarnicion" placeholder="Ej: Papas a la suiza" value="${esc(cocinaData.guarnicionCarne || '')}">
+            <input type="text" id="coc-salsa-pc" class="coc-input" style="width:100%" placeholder="Ej: Dijon" value="${esc(pc.salsa)}">
           </div>
         </div>
-        <datalist id="dl-plato-ave">${PLATO_CENTRAL_AVE_OPT.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
-        <datalist id="dl-plato-carne">${PLATO_CENTRAL_CARNE_OPT.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+        <datalist id="dl-plato-central">${[...PLATO_CENTRAL_AVE_OPT, ...PLATO_CENTRAL_CARNE_OPT].map(p => `<option value="${esc(p)}">`).join('')}</datalist>
         <datalist id="dl-guarnicion">${GUARNICION_OPT.map(g => `<option value="${esc(g)}">`).join('')}</datalist>
       </div>
 
@@ -4048,6 +4084,15 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
   });
   $('coc-preset-clear')?.addEventListener('click', () => renderCocinaForm(cliente, { modo }, cocinaRowIndex));
 
+  // Aviso de duplicado: pasa el segundo plato a los campos, para no retipearlo.
+  $('coc-usar-sobrante')?.addEventListener('click', () => {
+    const o = pc.sobrante || {};
+    $('coc-plato-base').value = o.base || '';
+    $('coc-relleno-pc').value = o.relleno || '';
+    $('coc-salsa-pc').value = o.salsa || '';
+    $('coc-guarnicion-pc').value = o.guarnicion || '';
+  });
+
   $('btn-save-cocina')?.addEventListener('click', async () => {
     const data = getCocinaFormData();
     const btn = $('btn-save-cocina');
@@ -4076,6 +4121,315 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
     const data = getCocinaFormData();
     imprimirTimmingCocina(cliente, currentRestricciones, data);
   });
+}
+
+
+const FICHA_CSS = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #000; background: #fff; }
+
+  /* ---- La hoja ---- */
+  .hoja { width: 210mm; min-height: 297mm; margin: 0 auto 14px; padding: 13mm 14mm;
+          background: #fff; display: flex; flex-direction: column; }
+  .pie-fin-vacio { display: inline-block; width: 60%; border-bottom: 1.5px solid #999; }
+
+  .marca { font-size: 9pt; text-transform: uppercase; letter-spacing: 3px;
+           color: #666; font-weight: 700; }
+  .cliente { font-size: 24pt; font-weight: 700; line-height: 1.05; margin-top: 2.5mm; }
+  .agasajado { font-size: 13pt; color: #444; margin-top: 1.5mm; }
+
+  /* ---- Cabecera: lo que se lee de un vistazo ----
+     Cuatro datos. El formato salió de acá: ahora lo dice el título del menú. */
+  .cabecera { display: flex; margin-top: 5mm; border: 2.5px solid #000; }
+  .cab-celda { flex: 1; padding: 3.5mm 4mm; border-right: 1.5px solid #bbb; }
+  .cab-celda:last-child { border-right: none; }
+  /* La fecha y el rótulo "menús especiales" son los textos más largos: les damos
+     algo más de ancho para que no corten en dos líneas y desalineen los números. */
+  .cab-celda.cab-fecha { flex: 1.2; }
+  .cab-celda.cab-esp { flex: 1.15; }
+  .cab-celda.cab-esp .cab-lbl { letter-spacing: .6px; }
+  .cab-lbl { font-size: 8pt; text-transform: uppercase; letter-spacing: 1.2px;
+             color: #666; font-weight: 700; white-space: nowrap; }
+  .cab-val { font-size: 18pt; font-weight: 700; line-height: 1.1; margin-top: 1.2mm;
+             white-space: nowrap; }
+  .cab-sub { font-size: 9pt; color: #444; margin-top: 0.8mm; line-height: 1.3; }
+
+  /* ---- Títulos de sección ---- */
+  .sec-tit { font-size: 11pt; text-transform: uppercase; letter-spacing: 2.5px; font-weight: 700;
+             border-bottom: 2.5px solid #000; padding-bottom: 1.8mm;
+             margin: 6mm 0 3mm; display: flex; justify-content: space-between; align-items: baseline; }
+  .sec-tit .contador { font-size: 9.5pt; letter-spacing: 0; text-transform: none;
+                       font-weight: 600; color: #666; }
+
+  /* ---- El menú ----
+     El orden es fijo según el formato:
+       Formal    → Islas · Primer plato · Plato central · Fin de fiesta
+       Americano → Estaciones · Islas · Postre · Fin de fiesta          */
+  .m-bloque { padding: 2.8mm 0; border-bottom: 1.5px solid #ddd; }
+  .m-bloque:last-of-type { border-bottom: none; }
+  .m-tit { font-size: 10pt; text-transform: uppercase; letter-spacing: 1.8px;
+           font-weight: 700; color: #000; margin-bottom: 2mm; }
+
+  /* Rótulo chico arriba, valor grande abajo, en columnas.
+     Es el patrón de toda la hoja: se usa en islas, postre y plato central. */
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm 6mm; padding: 1mm 0; }
+  .g-lbl { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 1.2px;
+           color: #666; font-weight: 700; margin-bottom: 0.8mm; }
+  .g-val { font-size: 14.5pt; font-weight: 600; line-height: 1.25; }
+
+  /* Primer plato y estaciones: sólo el título y renglones para escribir a mano */
+  .renglones { margin-top: 1mm; }
+  .renglon { border-bottom: 1.5px solid #999; height: 8mm; }
+
+  .pie-fin { margin-top: 3mm; padding-top: 2mm; border-top: 1.5px dashed #999;
+             font-size: 12pt; }
+  .pie-fin b { text-transform: uppercase; letter-spacing: 1.4px;
+               font-size: 9pt; margin-right: 3mm; color: #666; }
+
+  /* ---- Menús especiales ----
+     Bloque compacto: el total ya está arriba, acá va sólo el desglose.
+     Columnas por cantidad — hasta 2 en una, 3 a 6 en dos, 7+ en tres — para que
+     crezca a lo ancho y no se coma media hoja. */
+  .esp { border: 1.5px solid #000; padding: 2.5mm 3.5mm; display: grid; gap: 0 7mm; }
+  .esp.cols-1 { grid-template-columns: 1fr; }
+  .esp.cols-2 { grid-template-columns: 1fr 1fr; }
+  .esp.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .esp-fila { display: flex; align-items: baseline; gap: 3mm; padding: 1.3mm 0;
+              border-bottom: 1px solid #e4e4e4; }
+  .esp.cols-1 .esp-fila:last-child,
+  .esp.cols-2 .esp-fila:nth-last-child(-n+2),
+  .esp.cols-3 .esp-fila:nth-last-child(-n+3) { border-bottom: none; }
+  .esp-cant { font-size: 11.5pt; font-weight: 700; min-width: 7mm;
+              font-variant-numeric: tabular-nums; }
+  .esp-tipo { font-size: 10.5pt; font-weight: 600; flex: 1; line-height: 1.2; }
+  .esp-nota { font-size: 8pt; font-weight: 700; letter-spacing: .8px; color: #000; }
+  /* Sin restricciones cargadas el bloque igual se imprime, en blanco: cuatro
+     lugares (2 x 2) para anotar a mano lo que aparezca a último momento. */
+  .esp-fila-vacia { align-items: flex-end; padding: 3mm 0 1.5mm; }
+  .esp-cant-vacia { min-width: 9mm; border-bottom: 1.5px solid #999; height: 5mm; }
+  .esp-tipo-vacia { flex: 1; border-bottom: 1.5px solid #999; height: 5mm; }
+
+  .notas-box { margin-top: 4.5mm; font-size: 12pt; line-height: 1.4; }
+  .notas-box b { text-transform: uppercase; letter-spacing: 1.4px; font-size: 9pt;
+                 color: #666; display: block; margin-bottom: 1.2mm; }
+
+  .pie { margin-top: auto; padding-top: 4mm; font-size: 8.5pt; color: #999;
+         border-top: 1px solid #ddd; display: flex; justify-content: space-between; }
+
+  @media print {
+    body { background: #fff; }
+    /* Red de seguridad: si una ficha muy cargada no entra, se achica sola.
+       El factor lo calcula ajustarALaHoja() antes de imprimir. */
+    .hoja { zoom: var(--fit, 1); }
+    .hoja { margin: 0; box-shadow: none; width: auto; min-height: 0; padding: 10mm 12mm;
+            page-break-after: always; }
+    .hoja:last-child { page-break-after: auto; }
+    @page { size: A4; margin: 0; }
+  }
+`;
+
+const FICHA_FIT_JS = `/* ---- Que la ficha entre SIEMPRE en una carilla ----
+   La hoja puede crecer sola: nombres largos que parten en dos, cuatro islas en vez
+   de dos, doce tipos de restricción, notas de tres renglones. En vez de confiar en
+   que nunca pase, medimos con la geometría de impresión y, si se pasa, achicamos esa
+   ficha lo justo. En los casos normales el factor da 1 y no se toca nada. */
+function ajustarALaHoja() {
+  const MM = 96 / 25.4;
+  const altoUtil = 297 * MM;          // A4 completo: el padding ya está en la caja
+  document.querySelectorAll('.hoja').forEach(hoja => {
+    const previo = hoja.getAttribute('style') || '';
+    hoja.style.cssText += ';margin:0;box-shadow:none;min-height:0;width:210mm;padding:10mm 12mm';
+    const alto = hoja.getBoundingClientRect().height;
+    hoja.setAttribute('style', previo);
+    // 2mm de aire para que el redondeo del navegador no empuje una hoja de más.
+    const factor = altoUtil / (alto + 2 * MM);
+    hoja.style.setProperty('--fit', factor < 1 ? factor.toFixed(3) : '1');
+  });
+}
+window.addEventListener('load', ajustarALaHoja);
+window.addEventListener('beforeprint', ajustarALaHoja);
+`;
+
+/* Abre una ventana con una o varias fichas y manda a imprimir. */
+function imprimirFichasEvento(fichasHTML, titulo) {
+  if (!fichasHTML.length) { toast('No hay eventos para armar la ficha.', 'error'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { toast('Habilitá las ventanas emergentes para este sitio e intentá nuevamente.', 'error'); return; }
+  win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>${esc(titulo)}</title><style>${FICHA_CSS}</style></head><body>
+${fichasHTML.join('')}
+<script>${FICHA_FIT_JS}
+window.addEventListener('load', () => setTimeout(() => window.print(), 250));
+<\/script></body></html>`);
+  win.document.close();
+}
+
+/* Trae lo que la ficha necesita de un evento. El menú de cocina puede no existir:
+   en ese caso devolvemos null y la ficha sale con los renglones en blanco. */
+async function datosDeFicha(cliente) {
+  let restricciones = [], cocinaData = null;
+  try {
+    const [items, rest] = await Promise.all([
+      apiFetch(`/timming/cliente/${cliente.id}`),
+      apiFetch(`/restricciones/cliente/${cliente.id}`),
+    ]);
+    restricciones = rest || [];
+    const item = (items || []).find(i => i.tipo === 'cocina');
+    if (item) { try { cocinaData = JSON.parse(item.actividad) || null; } catch {} }
+  } catch (e) { toast('No se pudo leer todo el evento: ' + e.message, 'error'); }
+  return { restricciones, cocinaData };
+}
+
+async function imprimirFichaDeCliente(cliente) {
+  const { restricciones, cocinaData } = await datosDeFicha(cliente);
+  imprimirFichasEvento([buildFichaEventoHTML(cliente, restricciones, cocinaData)],
+    'Ficha del evento — ' + (cliente.apellidoNombre || ''));
+}
+
+
+/* ===================== FICHA DEL EVENTO =====================
+   Una carilla por evento para salir a comprar la materia prima. No es la comanda
+   de cocina (que va por hora, con casillas) ni la producción de la semana (que
+   consolida cantidades y descuenta stock): acá el evento se ve como una unidad.
+   Nunca lleva plata. Se puede imprimir aunque el menú de cocina no esté cargado:
+   en ese caso los bloques salen con renglones para completar a mano. */
+
+const FICHA_DIAS_CORTO = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const FICHA_MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function fichaFechaCorta(str) {
+  if (!str || !str.includes('-') || str.length !== 10) return str || '—';
+  const [y, m, d] = str.split('-').map(Number);
+  return `${FICHA_DIAS_CORTO[new Date(y, m - 1, d).getDay()]} ${d} ${FICHA_MESES_CORTO[m - 1]}`;
+}
+
+/* "Bovalino — Pasta Italiana" se parte en rótulo + plato; "Sushi" va sin rótulo.
+   El nombre de la isla es marca: lo que se compra es el plato. */
+function fichaPartirIsla(txt) {
+  const m = String(txt || '').split(/\s+[—–-]\s+/);
+  return m.length > 1 ? { lbl: m[0], val: m.slice(1).join(' — ') } : { lbl: '', val: txt || '' };
+}
+
+function fichaCeldasGrid(celdas) {
+  if (!celdas.length) return '';
+  return `<div class="grid3">${celdas.map(c => `<div>${
+    c.lbl ? `<div class="g-lbl">${esc(c.lbl)}</div>` : ''
+  }<div class="g-val">${esc(c.val)}</div></div>`).join('')}</div>`;
+}
+
+function fichaRenglones(n) {
+  return `<div class="renglones">${'<div class="renglon"></div>'.repeat(n)}</div>`;
+}
+
+/* Un bloque del menú: con datos sale el grid; sin datos, renglones para escribir. */
+function fichaBloque(titulo, celdas, renglonesSiVacio) {
+  return `<div class="m-bloque">
+    <div class="m-tit">${esc(titulo)}</div>
+    ${celdas.length ? fichaCeldasGrid(celdas) : fichaRenglones(renglonesSiVacio)}
+  </div>`;
+}
+
+function buildFichaEventoHTML(cliente, restricciones, cocinaData) {
+  const d = cocinaData || {};
+  const hayCocina = !!cocinaData;
+  const esAmericano = d.modo ? d.modo === 'informal'
+    : /american|informal/i.test(cliente.formato || '');
+
+  const invitados = parseInt(cliente.cantidadInvitados) || 0;
+  const rest = (restricciones || []).filter(r => r && r.tipoRestriccion);
+  const especiales = rest.reduce((t, r) => t + (parseInt(r.cantidad) || 0), 0);
+  const estandar = invitados ? Math.max(invitados - especiales, 0) : 0;
+  const infantil = parseInt(cliente.menuInfantil) || 0;
+
+  const pc = platoCentralDe(d);
+  const islas = (d.islas || []).map(fichaPartirIsla);
+
+  // Menú: el orden es fijo según el formato y no se mezcla entre los dos.
+  const menu = esAmericano
+    ? fichaBloque('Estaciones', [], 1)
+      + fichaBloque('Islas', islas, 2)
+      + fichaBloque('Postre', [
+          ...(d.postres || []).map(v => ({ lbl: '', val: v })),
+          ...(d.tortaHomenaje ? [{ lbl: 'Torta homenaje', val: d.tortaHomenaje }] : []),
+        ], 1)
+    : fichaBloque('Islas', islas, 2)
+      + fichaBloque('Primer plato', [], 2)
+      + fichaBloque('Plato central', [
+          ...(pc.base ? [{ lbl: 'Proteína', val: [pc.base, pc.relleno].filter(Boolean).join(' ') }] : []),
+          ...(pc.guarnicion ? [{ lbl: 'Guarnición', val: pc.guarnicion }] : []),
+          ...(pc.salsa ? [{ lbl: 'Salsa', val: pc.salsa }] : []),
+        ], 2)
+      + (pc.sobrante && pc.sobrante.base
+          ? fichaBloque('Plato central — segundo cargado', [
+              { lbl: 'Proteína', val: [pc.sobrante.base, pc.sobrante.relleno].filter(Boolean).join(' ') },
+              ...(pc.sobrante.guarnicion ? [{ lbl: 'Guarnición', val: pc.sobrante.guarnicion }] : []),
+              ...(pc.sobrante.salsa ? [{ lbl: 'Salsa', val: pc.sobrante.salsa }] : []),
+            ], 0)
+          : '');
+
+  // El bloque de especiales se imprime SIEMPRE. Sin restricciones cargadas van
+  // cuatro lugares en blanco (2x2) para anotar lo que aparezca a último momento.
+  const cols = rest.length === 0 ? 2 : rest.length <= 2 ? 1 : rest.length <= 6 ? 2 : 3;
+  const filasEsp = rest.length
+    ? rest.map(r => `<div class="esp-fila">
+        <span class="esp-cant">${parseInt(r.cantidad) || 0}</span>
+        <span class="esp-tipo">${esc(r.tipoRestriccion)}</span>
+        ${r.coronita ? '<span class="esp-nota">&#128081;</span>' : ''}
+      </div>`).join('')
+    : '<div class="esp-fila esp-fila-vacia"><span class="esp-cant-vacia"></span><span class="esp-tipo-vacia"></span></div>'.repeat(4);
+
+  const finFiesta = (d.finFiesta || []).join(' · ');
+
+  return `<div class="hoja">
+  <div class="marca">Joliet Eventos · Ficha del evento</div>
+  <div class="cliente">${esc(cliente.apellidoNombre || '—')}</div>
+  <div class="agasajado">${esc([cliente.tipoEvento, cliente.nombreAgasajado].filter(Boolean).join(' — ')) || '&nbsp;'}</div>
+
+  <div class="cabecera">
+    <div class="cab-celda cab-fecha">
+      <div class="cab-lbl">Fecha</div>
+      <div class="cab-val">${esc(fichaFechaCorta(cliente.fechaEvento))}</div>
+      <div class="cab-sub">${esc(cliente.turno || '—')}</div>
+    </div>
+    <div class="cab-celda">
+      <div class="cab-lbl">Cubiertos</div>
+      <div class="cab-val">${invitados || '—'}</div>
+      <div class="cab-sub">${invitados ? estandar + ' estándar' : 'sin cargar'}</div>
+    </div>
+    <div class="cab-celda cab-esp">
+      <div class="cab-lbl">Menús especiales</div>
+      <div class="cab-val">${especiales || '&mdash;'}</div>
+      <div class="cab-sub">${especiales ? 'desglose abajo' : 'ninguno cargado'}</div>
+    </div>
+    <div class="cab-celda">
+      <div class="cab-lbl">Infantiles</div>
+      <div class="cab-val">${infantil || '&mdash;'}</div>
+      <div class="cab-sub">${infantil ? 'aparte de los ' + invitados : 'sin menú infantil'}</div>
+    </div>
+  </div>
+
+  <div class="sec-tit">Menú ${esAmericano ? 'americano' : 'formal'}
+    <span class="contador">${hayCocina ? esc(cliente.tipoEvento || '') : 'cocina sin cargar — completar a mano'}</span>
+  </div>
+  ${menu}
+
+  <div class="pie-fin"><b>Fin de fiesta</b>${finFiesta ? esc(finFiesta) : '<span class="pie-fin-vacio">&nbsp;</span>'}</div>
+
+  <div class="sec-tit">Menús especiales
+    <span class="contador">${rest.length ? 'desglose' : 'ninguno cargado — anotar a mano'}</span>
+  </div>
+  <div class="esp cols-${cols}">${filasEsp}</div>
+
+  <div class="notas-box">
+    <b>Otros pedidos</b>
+    ${esc(cliente.otrosPedidos || '') || '&mdash;'}
+  </div>
+
+  <div class="pie">
+    <span>Ficha del evento — no incluye horarios ni cantidades de producción</span>
+    <span>Impreso ${formatDate(hoyISO())}</span>
+  </div>
+</div>`;
 }
 
 function imprimirTimming(cliente, items) {
@@ -4178,7 +4532,8 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
     </div>`;
   };
 
-  const hayPlatoCentral = d.platoCentralAve || d.platoCentralCarne;
+  const pc = platoCentralDe(d);
+  const hayPlatoCentral = pc.base || (pc.sobrante && pc.sobrante.base);
   const hayPrimerPlato = todasPastas.length;
   const hayIslas = (d.islas || []).length;
   const hayMesaDulces = (d.mesaDulces || []).length || d.postre;
@@ -4211,11 +4566,13 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
       <div class="pp-salsas">${todasSalsas.map(s => `<span>${escA(s)}</span>`).join('')}</div>` : ''}
   </div>` : '';
 
-  const dosPlatos = d.platoCentralAve && d.platoCentralCarne;
+  // Normalmente uno solo. Si el evento es viejo y quedaron dos cargados, se imprimen
+  // los dos: la cocina no puede perder un plato porque cambiamos el formulario.
+  const dosPlatos = !!(pc.base && pc.sobrante && pc.sobrante.base);
   const secPlatoCentral = (!oculta('platoCentral') && hayPlatoCentral) ? `<div class="sec">
     ${secHead('Plato Central', d.horaPlatoCentral)}
-    ${platoCentralItem('Ave', d.platoCentralAve, d.rellenoAve, d.salsaAve, d.guarnicionAve, dosPlatos)}
-    ${platoCentralItem('Carne', d.platoCentralCarne, d.rellenoCarne, d.salsaCarne, d.guarnicionCarne, dosPlatos)}
+    ${platoCentralItem('1', pc.base, pc.relleno, pc.salsa, pc.guarnicion, dosPlatos)}
+    ${dosPlatos ? platoCentralItem('2', pc.sobrante.base, pc.sobrante.relleno, pc.sobrante.salsa, pc.sobrante.guarnicion, true) : ''}
   </div>` : '';
 
   const secMesaDulces = (!oculta('mesaDulces') && hayMesaDulces) ? `<div class="sec">
@@ -10978,6 +11335,31 @@ function renderProduccionSemanaLista() {
     }).join('');
 }
 
+/* Las fichas salen de los EVENTOS del rango, no de los pedidos de cocina: un evento
+   sin pedido cargado es justamente el que más necesita la ficha en blanco. */
+async function imprimirFichasSemana() {
+  const desde = $('cocina-prod-desde')?.value || '';
+  const hasta = $('cocina-prod-hasta')?.value || '';
+  const eventos = allClientes
+    .filter(c => c.fechaEvento && (!desde || c.fechaEvento >= desde) && (!hasta || c.fechaEvento <= hasta))
+    .filter(c => c.estado !== 'Cancelado')
+    .sort((a, b) => a.fechaEvento.localeCompare(b.fechaEvento));
+  if (!eventos.length) { toast('No hay eventos con fecha en ese rango.', 'error'); return; }
+
+  const btn = $('cocina-fichas-imprimir-btn');
+  btn.disabled = true;
+  const txt = btn.textContent;
+  btn.textContent = `Armando ${eventos.length} ficha${eventos.length > 1 ? 's' : ''}…`;
+  try {
+    const fichas = [];
+    for (const ev of eventos) {
+      const { restricciones, cocinaData } = await datosDeFicha(ev);
+      fichas.push(buildFichaEventoHTML(ev, restricciones, cocinaData));
+    }
+    imprimirFichasEvento(fichas, `Fichas ${formatDate(desde)} a ${formatDate(hasta)}`);
+  } finally { btn.disabled = false; btn.textContent = txt; }
+}
+
 function imprimirProduccionSemana() {
   const marcados = [...document.querySelectorAll('.cocina-prod-chk:checked')].map(c => parseInt(c.value));
   const pedidos = _pedidosEnRango().filter(p => marcados.includes(p.rowIndex));
@@ -11192,6 +11574,7 @@ $('cocina-prod-cerrar-btn')?.addEventListener('click', () => $('cocina-prod-sema
 $('cocina-prod-desde')?.addEventListener('change', renderProduccionSemanaLista);
 $('cocina-prod-hasta')?.addEventListener('change', renderProduccionSemanaLista);
 $('cocina-prod-imprimir-btn')?.addEventListener('click', imprimirProduccionSemana);
+$('cocina-fichas-imprimir-btn')?.addEventListener('click', imprimirFichasSemana);
 $('cocina-prod-menu')?.addEventListener('change', e => {
   localStorage.setItem('cocina-prod-menu', e.target.value);
 });
