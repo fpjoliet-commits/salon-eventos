@@ -1484,6 +1484,14 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 
 .cuotas-acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .ipc-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Estado de la actualizacion por IPC del plan: se lee antes de actuar. */
+.ipc-estado {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 10px 14px; border-radius: 9px;
+  background: #f7f5f0; border: 1px solid var(--border-light); font-size: 14px;
+}
+.ipc-estado-on { background: #eef7ef; border-color: #a5d6a7; color: #1f5e24; }
+.agregar-resumen { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
 
 .cuotas-lista { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
 .cuota-item {
@@ -3755,6 +3763,10 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
 .mov-total-linea { margin-left: 1rem; }
 .mov-total-linea em { font-style: normal; color: #6b7280; font-weight: 600; margin-right: .25rem; }
 .mov-total-count { font-weight: 600; }
+.mov-total-alcance {
+  font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--text-muted); border: 1px solid var(--border-light); border-radius: 20px; padding: 2px 10px;
+}
 tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 
 /* Buscador (typeahead) sobre un <select> de eventos */

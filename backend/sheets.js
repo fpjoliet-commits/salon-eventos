@@ -443,14 +443,20 @@ function ingresoToRow(i) {
 // (vacía la fila en vez de borrarla, para no correr los rowIndex) o filas
 // escritas a medias. El rowIndex se calcula ANTES de filtrar, así sigue
 // apuntando a la fila real de la planilla.
+// Tambien descarta las filas "fantasma": id y nada mas, sin monto ni fecha. Las
+// creaba POST /api/ingresos antes de validar el cuerpo. Se ignoran al leer en
+// vez de borrarlas de la planilla: mismo resultado, sin escribir en produccion.
+const esIngresoFantasma = i => !(parseFloat(i.monto) > 0) && !String(i.fecha || '').trim();
+
 async function getIngresos() {
-  if (!tieneCredenciales) return memIngresos.filter(i => i.id);
+  if (!tieneCredenciales) return memIngresos.filter(i => i.id && !esIngresoFantasma(i));
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: 'Ingresos!A2:P',
   });
-  return (res.data.values || []).map((row, i) => rowToIngreso(row, i)).filter(i => i.id);
+  return (res.data.values || []).map((row, i) => rowToIngreso(row, i))
+    .filter(i => i.id && !esIngresoFantasma(i));
 }
 
 async function addIngreso(data) {
@@ -791,8 +797,9 @@ async function deleteTimmingItem(rowIndex) {
 }
 
 /* ===================== CUOTAS ===================== */
-// Columnas A-L: id, idCliente (=idEvento), numeroCuota, valorOriginal, valorActual,
-//               fechaVencimiento, estado, fechaPago, montoPagado, notas, moneda, indexacion
+// Columnas A-N: id, idCliente (=idEvento), numeroCuota, valorOriginal, valorActual,
+//               fechaVencimiento, estado, fechaPago, montoPagado, notas, moneda, indexacion,
+//               confirmado, ipcHasta (ultimo mes del INDEC ya incorporado, AAAA-MM)
 
 function rowToCuota(row, index) {
   return {
@@ -810,6 +817,7 @@ function rowToCuota(row, index) {
     moneda: row[10] || 'ARS',
     indexacion: row[11] || 'fija',
     confirmado: row[12] !== '0',
+    ipcHasta: row[13] || '',
   };
 }
 
@@ -818,6 +826,7 @@ function cuotaToRow(c) {
     c.id, c.idCliente, c.numeroCuota, c.valorOriginal, c.valorActual,
     c.fechaVencimiento, c.estado, c.fechaPago || '', c.montoPagado || 0, c.notas || '',
     c.moneda || 'ARS', c.indexacion || 'fija', c.confirmado === false ? '0' : '1',
+    c.ipcHasta || '',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -827,7 +836,7 @@ async function getAllCuotas() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A2:M',
+    range: 'Cuotas!A2:N',
   });
   return (res.data.values || [])
     .map((row, i) => rowToCuota(row, i))
@@ -841,14 +850,18 @@ async function getCuotasByCliente(idCliente) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A2:M',
+    range: 'Cuotas!A2:N',
   });
   return (res.data.values || [])
     .map((row, i) => rowToCuota(row, i))
     .filter(c => c.idCliente === idCliente && c.estado !== 'cancelada');
 }
 
-async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS', indexacion = 'fija', cargadoPor = '') {
+// opts.numeroInicial: para sumar cuotas a un plan que ya existe (siguen la
+// numeracion en vez de arrancar otra vez en 1). opts.ipcHasta: ultimo mes del
+// INDEC ya contemplado en el valor de la cuota, para que el ajuste automatico
+// arranque desde el mes siguiente y no cobre inflacion ya incluida.
+async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda = 'ARS', indexacion = 'fija', cargadoPor = '', opts = {}) {
   const valor = valorCuota || Math.round(montoTotal / cantidadCuotas);
   const confirmado = cargadoPor === 'empleado' ? false : true;
   const [y, m, d] = fechaInicio.split('-').map(Number);
@@ -859,7 +872,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
     cuotas.push({
       id: generateId('CUO'),
       idCliente,
-      numeroCuota: i + 1,
+      numeroCuota: (opts.numeroInicial || 1) + i,
       valorOriginal: valor,
       valorActual: valor,
       fechaVencimiento: fv,
@@ -870,6 +883,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
       moneda: moneda || 'ARS',
       indexacion: indexacion || 'fija',
       confirmado,
+      ipcHasta: indexacion === 'ipc' ? (opts.ipcHasta || '') : '',
     });
   }
   if (!tieneCredenciales) {
@@ -884,7 +898,7 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Cuotas!A${nextRow}:M${nextRow + cuotas.length - 1}`,
+    range: `Cuotas!A${nextRow}:N${nextRow + cuotas.length - 1}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: cuotas.map(cuotaToRow) },
   });
@@ -1027,73 +1041,119 @@ async function pagarCuotas(rowIndices, fechaPago, notas) {
   });
 }
 
-async function aplicarIPC(idCliente, porcentaje) {
-  const cuotas = await getCuotasByCliente(idCliente);
-  const pendientes = cuotas.filter(c => c.estado === 'pendiente');
-  if (!pendientes.length) return { updated: 0 };
-  if (!tieneCredenciales) {
-    pendientes.forEach(c => {
-      const idx = memCuotas.findIndex(mc => mc.rowIndex === c.rowIndex);
-      if (idx !== -1) memCuotas[idx].valorActual = Math.round(c.valorActual * (1 + porcentaje / 100));
-    });
-    return { updated: pendientes.length };
-  }
-  const sheets = getSheets();
-  const data = pendientes.map(c => ({
-    range: `Cuotas!E${c.rowIndex}`,
-    values: [[Math.round(c.valorActual * (1 + porcentaje / 100))]],
-  }));
-  await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
-    resource: { valueInputOption: 'USER_ENTERED', data },
-  });
-  return { updated: pendientes.length };
+// Suma cuotas a un plan que ya existe. Hereda moneda e indexacion del plan y
+// sigue la numeracion: antes arrancaba otra vez en "Cuota 1" y quedaban dos
+// cuotas 1, dos cuotas 2... y la imputacion automatica las mezclaba.
+async function agregarCuotas(idCliente, cantidad, valorCuota, fechaInicio, ipcHasta = '', cargadoPor = '') {
+  const existentes = await getCuotasByCliente(idCliente);
+  if (!existentes.length) throw new Error('Este cliente todavía no tiene plan. Creá el plan primero.');
+  const base = existentes[0];
+  const siguiente = Math.max(...existentes.map(c => c.numeroCuota || 0)) + 1;
+  return createPlan(idCliente, valorCuota * cantidad, cantidad, valorCuota, fechaInicio,
+    base.moneda, base.indexacion, cargadoPor, { numeroInicial: siguiente, ipcHasta });
 }
 
-async function aplicarIPCIndexados(idCliente, porcentaje) {
-  const cuotas = await getCuotasByCliente(idCliente);
-  const pendientes = cuotas.filter(c => c.estado === 'pendiente' && c.indexacion === 'ipc');
-  if (!pendientes.length) return { updated: 0 };
+// 'parcial' tambien debe plata: cualquier ajuste la tiene que alcanzar.
+const cuotaViva = c => c.estado === 'pendiente' || c.estado === 'parcial';
+
+// El ajuste va sobre lo que falta pagar. Si una cuota de $100.000 ya tiene
+// $40.000 cobrados, un 10% la lleva a $106.000, no a $110.000: lo que ya
+// entro no se indexa.
+function valorAjustado(c, factor) {
+  const pagado = c.montoPagado || 0;
+  const falta = Math.max(0, (c.valorActual || 0) - pagado);
+  return Math.round(pagado + falta * factor);
+}
+
+// Escribe en bloque los cambios de valor / indexacion / ipcHasta de varias cuotas.
+async function escribirCambiosCuotas(cambios) {
+  if (!cambios.length) return;
   if (!tieneCredenciales) {
-    pendientes.forEach(c => {
-      const idx = memCuotas.findIndex(mc => mc.rowIndex === c.rowIndex);
-      if (idx !== -1) memCuotas[idx].valorActual = Math.round(c.valorActual * (1 + porcentaje / 100));
+    cambios.forEach(ch => {
+      const mc = memCuotas.find(x => x.rowIndex === ch.rowIndex);
+      if (!mc) return;
+      if (ch.valorActual !== undefined) mc.valorActual = ch.valorActual;
+      if (ch.indexacion !== undefined) mc.indexacion = ch.indexacion;
+      if (ch.ipcHasta !== undefined) mc.ipcHasta = ch.ipcHasta;
     });
-    return { updated: pendientes.length };
+    return;
   }
-  const sheets = getSheets();
-  const data = pendientes.map(c => ({
-    range: `Cuotas!E${c.rowIndex}`,
-    values: [[Math.round(c.valorActual * (1 + porcentaje / 100))]],
-  }));
-  await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
-    resource: { valueInputOption: 'USER_ENTERED', data },
+  const data = [];
+  cambios.forEach(ch => {
+    if (ch.valorActual !== undefined) data.push({ range: `Cuotas!E${ch.rowIndex}`, values: [[ch.valorActual]] });
+    if (ch.indexacion !== undefined) data.push({ range: `Cuotas!L${ch.rowIndex}`, values: [[ch.indexacion]] });
+    if (ch.ipcHasta !== undefined) data.push({ range: `Cuotas!N${ch.rowIndex}`, values: [[ch.ipcHasta]] });
   });
-  return { updated: pendientes.length };
+  await getSheets().spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: { valueInputOption: 'RAW', data },
+  });
+}
+
+// Ajuste manual por un % (planes de cuotas fijas).
+async function aplicarIPC(idCliente, porcentaje) {
+  const vivas = (await getCuotasByCliente(idCliente)).filter(cuotaViva);
+  const factor = 1 + porcentaje / 100;
+  await escribirCambiosCuotas(vivas.map(c => ({ rowIndex: c.rowIndex, valorActual: valorAjustado(c, factor) })));
+  return { updated: vivas.length };
+}
+
+// Pasa un plan ya creado a indexado por IPC (o lo vuelve a fijo). Solo toca
+// las cuotas que todavia deben algo. ipcHasta = ultimo IPC publicado: el valor
+// de hoy ya lo incluye, asi que el ajuste arranca con el mes siguiente.
+async function setIndexacionPlan(idCliente, indexacion, ipcHasta = '') {
+  const vivas = (await getCuotasByCliente(idCliente)).filter(cuotaViva);
+  const esIPC = indexacion === 'ipc';
+  await escribirCambiosCuotas(vivas.map(c => ({
+    rowIndex: c.rowIndex,
+    indexacion: esIPC ? 'ipc' : 'fija',
+    ipcHasta: esIPC ? (c.ipcHasta || ipcHasta) : '',
+  })));
+  return { updated: vivas.length };
+}
+
+/* ---------------------------------------------------------------------------
+ * IPC AUTOMATICO
+ * Cada cuota indexada guarda en ipcHasta el ultimo mes del INDEC que ya tiene
+ * incorporado. Cuando el INDEC publica un mes nuevo, se aplica a las cuotas
+ * que deben algo y se corre ipcHasta. Si pasaron varios meses sin aplicar
+ * (el servidor de Render duerme), se encadenan todos, cada uno una sola vez.
+ * Es idempotente: correrlo dos veces el mismo dia no cambia nada.
+ *
+ * serie: [{ mes: 'AAAA-MM', variacion: 1.66 }, ...] en orden ascendente.
+ * ------------------------------------------------------------------------- */
+async function aplicarIPCAutomatico(serie) {
+  if (!serie || !serie.length) return [];
+  const ultimo = serie[serie.length - 1].mes;
+  const indexadas = (await getAllCuotas()).filter(c => c.indexacion === 'ipc' && cuotaViva(c));
+
+  const cambios = [];
+  const porCliente = {};
+  indexadas.forEach(c => {
+    if (!c.ipcHasta) {
+      // Plan indexado de antes de este sistema: se toma hoy como punto de
+      // partida, sin subir nada retroactivo por sorpresa.
+      cambios.push({ rowIndex: c.rowIndex, ipcHasta: ultimo });
+      return;
+    }
+    const meses = serie.filter(m => m.mes > c.ipcHasta);
+    if (!meses.length) return;
+    const factor = meses.reduce((f, m) => f * (1 + m.variacion / 100), 1);
+    cambios.push({ rowIndex: c.rowIndex, valorActual: valorAjustado(c, factor), ipcHasta: ultimo });
+    const r = porCliente[c.idCliente] || (porCliente[c.idCliente] = { idCliente: c.idCliente, cuotas: 0, meses });
+    r.cuotas++;
+  });
+  await escribirCambiosCuotas(cambios);
+  return Object.values(porCliente);
 }
 
 async function ajustarValorCuotas(idCliente, nuevoValor) {
-  const cuotas = await getCuotasByCliente(idCliente);
-  const pendientes = cuotas.filter(c => c.estado === 'pendiente');
-  if (!pendientes.length) return { updated: 0 };
-  if (!tieneCredenciales) {
-    pendientes.forEach(c => {
-      const idx = memCuotas.findIndex(mc => mc.rowIndex === c.rowIndex);
-      if (idx !== -1) memCuotas[idx].valorActual = nuevoValor;
-    });
-    return { updated: pendientes.length };
-  }
-  const sheets = getSheets();
-  const data = pendientes.map(c => ({
-    range: `Cuotas!E${c.rowIndex}`,
-    values: [[nuevoValor]],
-  }));
-  await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
-    resource: { valueInputOption: 'USER_ENTERED', data },
-  });
-  return { updated: pendientes.length };
+  const vivas = (await getCuotasByCliente(idCliente)).filter(cuotaViva);
+  // Una cuota parcial nunca puede quedar valiendo menos de lo que ya se cobro.
+  await escribirCambiosCuotas(vivas.map(c => ({
+    rowIndex: c.rowIndex, valorActual: Math.max(nuevoValor, c.montoPagado || 0),
+  })));
+  return { updated: vivas.length };
 }
 
 async function cancelarPlan(idCliente) {
@@ -2344,6 +2404,9 @@ async function initSheets() {
     if (existing.includes('Ingresos')) {
       headers.push({ range: 'Ingresos!A1:P1', values: [['id','idEvento','tipoIngreso','monto','fecha','formaPago','notas','moneda','confirmado','cliente','fechaEvento','periodo','cubiertos','precioCubierto','cotizacion','montoARS']] });
     }
+    if (existing.includes('Cuotas')) {
+      headers.push({ range: 'Cuotas!A1:N1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion','confirmado','ipcHasta']] });
+    }
     if (existing.includes('Egresos')) {
       headers.push({ range: 'Egresos!A1:P1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo']] });
     }
@@ -2361,7 +2424,7 @@ async function initSheets() {
       headers.push({ range: 'Timming!A1:F1', values: [['id','idCliente','hora','actividad','tipo','descripcion']] });
     }
     if (!existing.includes('Cuotas')) {
-      headers.push({ range: 'Cuotas!A1:L1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion']] });
+      headers.push({ range: 'Cuotas!A1:N1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion','confirmado','ipcHasta']] });
     }
     if (!existing.includes('Papelera')) {
       headers.push({ range: 'Papelera!A1:E1', values: [['fechaEliminacion','eliminadoPor','tipo','id','datosJSON']] });
@@ -2452,7 +2515,7 @@ module.exports = {
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,
   calcularCompraCubiertos, estadoCubiertos,
-  getConfig, setConfig, pagarCuotas, aplicarIPC, aplicarIPCIndexados, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
+  getConfig, setConfig, pagarCuotas, aplicarIPC, agregarCuotas, setIndexacionPlan, aplicarIPCAutomatico, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado,
   getEgresos, addEgreso, updateEgreso, deleteEgreso, confirmarEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,

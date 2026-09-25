@@ -454,14 +454,53 @@ app.get('/api/ingresos/totales/:idCliente', auth, adminOnly, async (req, res) =>
 
 // Cuotas
 app.get('/api/cuotas/cliente/:idCliente', auth, adminOnly, async (req, res) => {
-  try { res.json(await sheets.getCuotasByCliente(req.params.idCliente)); }
+  try {
+    await correrIPCAutomatico();   // no hace nada si ya corrio en las ultimas 6 h
+    res.json(await sheets.getCuotasByCliente(req.params.idCliente));
+  }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/cuotas/plan', auth, async (req, res) => {
   try {
     const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion } = req.body;
-    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion, req.user.usuario));
+    const ipcHasta = indexacion === 'ipc' ? await ultimoMesIPC() : '';
+    res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio,
+      moneda, indexacion, req.user.usuario, { ipcHasta }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Sumar cuotas a un plan existente: hereda moneda e indexacion y sigue la numeracion.
+app.post('/api/cuotas/agregar', auth, async (req, res) => {
+  try {
+    const { idCliente, cantidad, valorCuota, fechaInicio } = req.body;
+    const n = parseInt(cantidad), valor = parseFloat(valorCuota);
+    if (!idCliente || !(n >= 1 && n <= 60) || !(valor > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio || '')) {
+      return res.status(400).json({ error: 'Completá cantidad (1 a 60), valor de cuota y fecha.' });
+    }
+    res.json(await sheets.agregarCuotas(idCliente, n, valor, fechaInicio, await ultimoMesIPC(), req.user.usuario));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Pasar un plan ya creado a indexado por IPC, o volverlo a cuotas fijas.
+app.put('/api/cuotas/indexacion', auth, adminOnly, async (req, res) => {
+  try {
+    const { idCliente, indexacion } = req.body;
+    if (!idCliente || !['ipc', 'fija'].includes(indexacion)) {
+      return res.status(400).json({ error: 'Indexación inválida.' });
+    }
+    const ipcHasta = indexacion === 'ipc' ? await ultimoMesIPC() : '';
+    if (indexacion === 'ipc' && !ipcHasta) {
+      return res.status(502).json({ error: 'No se pudo consultar el INDEC. Probá de nuevo en un rato.' });
+    }
+    const r = await sheets.setIndexacionPlan(idCliente, indexacion, ipcHasta);
+    sheets.registrarAuditoria({
+      usuario: req.user.usuario,
+      accion: indexacion === 'ipc' ? 'Pasó el plan a indexado por IPC' : 'Pasó el plan a cuotas fijas',
+      entidad: 'Cuotas', idEntidad: idCliente,
+      detalle: indexacion === 'ipc' ? `Se ajusta desde el IPC posterior a ${ipcHasta}` : '',
+    });
+    res.json({ ...r, ipcHasta });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -605,7 +644,7 @@ app.get('/api/cubiertos/:idEvento', auth, adminOnly, async (req, res) => {
 // Registrar un cobro que compra cubiertos.
 app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
   try {
-    const { idEvento, monto, moneda, cotizacion, fecha, formaPago, notas, tipoIngreso } = req.body;
+    const { idEvento, monto, moneda, cotizacion, fecha, formaPago, notas, tipoIngreso, cubiertosSena } = req.body;
     const importe = parseFloat(monto);
     if (!idEvento || !(importe > 0)) {
       return res.status(400).json({ error: 'Falta el evento o el monto del cobro.' });
@@ -629,12 +668,34 @@ app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
     }
     const montoARS = esUSD ? importe * tc : importe;
 
-    const compra = sheets.calcularCompraCubiertos(
-      montoARS, estado.saldoAFavor, estado.precio, estado.restantes);
+    // La SEÑA no se convierte sola: los cubiertos que cubre se pactan en el
+    // momento y se cargan a mano. El precio congelado de esos cubiertos es
+    // monto / cubiertos, asi la seña entera queda aplicada y no deja saldo a
+    // favor ni consume el que habia. Con 0 cubiertos, la seña queda a favor
+    // y se usa en el proximo pago.
+    const esSena = tipoIngreso === 'Seña' && cubiertosSena !== undefined && cubiertosSena !== '' && cubiertosSena !== null;
+    let compra, precioUsado = estado.precio;
+    if (esSena) {
+      const n = parseInt(cubiertosSena);
+      if (!(n >= 0) || String(n) !== String(cubiertosSena).trim()) {
+        return res.status(400).json({ error: 'Los cubiertos de la seña tienen que ser un número entero.' });
+      }
+      if (n > estado.restantes) {
+        return res.status(400).json({ error: `La seña no puede cubrir más de ${estado.restantes} cubiertos (los que le faltan).` });
+      }
+      precioUsado = n > 0 ? Math.round((montoARS / n) * 100) / 100 : 0;
+      compra = n > 0
+        ? { cubiertos: n, usado: montoARS, saldoNuevo: estado.saldoAFavor, excedente: 0 }
+        : { cubiertos: 0, usado: 0, saldoNuevo: estado.saldoAFavor + montoARS, excedente: 0 };
+    } else {
+      compra = sheets.calcularCompraCubiertos(
+        montoARS, estado.saldoAFavor, estado.precio, estado.restantes);
+    }
 
     const { cliente, fechaEvento } = await datosEvento(idEvento);
     const detalle = [
-      compra.cubiertos > 0 ? `${compra.cubiertos} cubierto(s) a ${Math.round(estado.precio)}` : 'sin cubiertos',
+      compra.cubiertos > 0 ? `${compra.cubiertos} cubierto(s) a ${Math.round(precioUsado)}` : 'sin cubiertos',
+      esSena ? 'seña: cubiertos pactados a mano' : '',
       esUSD ? `U$S ${importe} x ${tc}` : '',
       compra.saldoNuevo > 0.5 ? `a favor ${Math.round(compra.saldoNuevo)}` : '',
       compra.excedente > 0.5 ? `excedente ${Math.round(compra.excedente)}` : '',
@@ -652,7 +713,7 @@ app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
       cargadoPor: req.user.usuario,
       cliente, fechaEvento,
       cubiertos: compra.cubiertos,
-      precioCubierto: estado.precio,
+      precioCubierto: precioUsado,
       cotizacion: esUSD ? tc : '',
       montoARS,
     });
@@ -662,7 +723,7 @@ app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
       ok: true,
       montoARS,
       cubiertosComprados: compra.cubiertos,
-      precioUsado: estado.precio,
+      precioUsado,
       saldoAFavor: compra.saldoNuevo,
       excedente: compra.excedente,
       cubiertosPagados: pagadosAhora,
@@ -680,29 +741,72 @@ app.put('/api/cuotas/ipc', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Consulta el IPC mensual del INDEC (datos.gob.ar) y lo aplica a cuotas indexadas
+/* ---------------------------------------------------------------------------
+ * IPC del INDEC (datos.gob.ar): Nivel General Nacional, base dic 2016.
+ * Antes se consultaba '148.3_INUCLEOMX_DICI_M_19', que no existe en la API:
+ * el boton "Aplicar IPC del mes" fallaba siempre.
+ * ------------------------------------------------------------------------- */
+const SERIE_IPC = '148.3_INIVELNAL_DICI_M_26';
+let cacheIPC = { serie: null, ts: 0 };
+
+// Variacion mensual de los ultimos 24 meses, en orden ascendente: [{ mes, variacion }]
+async function obtenerSerieIPC() {
+  if (cacheIPC.serie && Date.now() - cacheIPC.ts < 6 * 3600 * 1000) return cacheIPC.serie;
+  const url = `https://apis.datos.gob.ar/series/api/series/?ids=${SERIE_IPC}&limit=25&sort=desc&format=json`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`INDEC respondió ${r.status}`);
+  const data = ((await r.json()).data || []).slice().reverse();   // ascendente
+  if (data.length < 2) throw new Error('Datos insuficientes del INDEC');
+  const serie = [];
+  for (let i = 1; i < data.length; i++) {
+    const [fecha, valor] = data[i], prev = data[i - 1][1];
+    serie.push({ mes: fecha.substring(0, 7), variacion: Math.round(((valor - prev) / prev) * 10000) / 100 });
+  }
+  cacheIPC = { serie, ts: Date.now() };
+  return serie;
+}
+
+// Ultimo mes publicado ('AAAA-MM'), o '' si el INDEC no responde.
+async function ultimoMesIPC() {
+  try { const s = await obtenerSerieIPC(); return s[s.length - 1].mes; }
+  catch (e) { return ''; }
+}
+
 app.get('/api/cuotas/ipc-actual', auth, async (req, res) => {
   try {
-    const url = 'https://apis.datos.gob.ar/series/api/series/?ids=148.3_INUCLEOMX_DICI_M_19&limit=2&sort=desc&format=json';
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error(`INDEC respondió ${r.status}`);
-    const json = await r.json();
-    const data = json.data;
-    if (!data || data.length < 2) throw new Error('Datos insuficientes del INDEC');
-    const [latest, prev] = data;
-    const porcentaje = Math.round(((latest[1] - prev[1]) / prev[1]) * 10000) / 100;
-    res.json({ porcentaje, mes: latest[0].substring(0, 7) });
+    const serie = await obtenerSerieIPC();
+    const u = serie[serie.length - 1];
+    res.json({ porcentaje: u.variacion, mes: u.mes });
   } catch (e) {
     res.status(502).json({ error: 'No se pudo consultar el INDEC: ' + e.message });
   }
 });
 
-app.put('/api/cuotas/ipc-indexados', auth, async (req, res) => {
-  try {
-    const { idCliente, porcentaje } = req.body;
-    res.json(await sheets.aplicarIPCIndexados(idCliente, porcentaje));
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
+// Ajuste automatico de los planes indexados. Corre al arrancar (Render duerme,
+// asi que cada despertar es una oportunidad) y cada 6 horas. Nadie tiene que
+// apretar nada: cuando el INDEC publica un mes nuevo, se aplica una sola vez.
+let ipcCorriendo = null, ipcUltimaCorrida = 0;
+function correrIPCAutomatico() {
+  if (ipcCorriendo) return ipcCorriendo;
+  if (Date.now() - ipcUltimaCorrida < 6 * 3600 * 1000) return Promise.resolve();
+  ipcCorriendo = (async () => {
+    try {
+      const aplicados = await sheets.aplicarIPCAutomatico(await obtenerSerieIPC());
+      ipcUltimaCorrida = Date.now();
+      aplicados.forEach(a => {
+        const detalle = a.meses.map(m => `${m.mes} ${m.variacion}%`).join(', ');
+        console.log(`📈 IPC automático: ${a.idCliente} — ${a.cuotas} cuota(s) — ${detalle}`);
+        sheets.registrarAuditoria({
+          usuario: 'sistema', accion: 'Ajustó cuotas por IPC', entidad: 'Cuotas',
+          idEntidad: a.idCliente, detalle: `${a.cuotas} cuota(s): ${detalle}`,
+        });
+      });
+    } catch (e) {
+      console.error('IPC automático: no se pudo aplicar —', e.message);
+    } finally { ipcCorriendo = null; }
+  })();
+  return ipcCorriendo;
+}
 
 app.put('/api/cuotas/ajustar', auth, async (req, res) => {
   try {
@@ -1132,5 +1236,6 @@ app.get('/{*path}', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
-  sheets.initSheets();
+  sheets.initSheets().then(() => correrIPCAutomatico());
+  setInterval(correrIPCAutomatico, 6 * 3600 * 1000);
 });
