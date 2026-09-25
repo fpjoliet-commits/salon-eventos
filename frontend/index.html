@@ -10,8 +10,9 @@
   <link rel="stylesheet" href="css/style.css?v=20260925h-cuenta">
   <link rel="stylesheet" href="css/propuesta.css?v=20260925a-recupenvio">
   <link rel="stylesheet" href="css/ux.css?v=20260911k">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/img/icons/favicon-48.png">
   <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/img/icons/apple-touch-icon.png">
   <meta name="theme-color" content="#121009">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="CRM Joliet">
@@ -2021,9 +2022,15 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260925h-cuenta"></script>
+  <script src="js/app.js?v=20260925i-velocidad"></script>
   <script src="js/propuesta-ui.js?v=20260921a-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>
+  <!-- App instalable: guarda la parte visual en el dispositivo (ver sw.js) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
+  </script>
 </body>
 </html>

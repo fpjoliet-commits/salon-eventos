@@ -41,13 +41,60 @@ function generateId(prefix) {
 }
 
 /* ===================== GOOGLE SHEETS CLIENT ===================== */
+// El cliente se arma una sola vez: antes cada llamada creaba un GoogleAuth nuevo
+// y pedía un token nuevo, sumando una vuelta a Google en cada lectura.
+//
+// Además las lecturas quedan en memoria: cada pantalla del CRM pedía la hoja a
+// Google (medio segundo o más por pedido). Cualquier escritura (update, append,
+// batchUpdate, clear) vacía la memoria entera, así que después de guardar nunca
+// se lee un dato viejo. El vencimiento de 30 s cubre los cambios hechos a mano
+// directamente en la planilla.
+const TTL_LECTURA_MS = 30 * 1000;
+const cacheLecturas = new Map(); // JSON de los parámetros -> { ts, promesa }
+let _clienteSheets = null;
+
+function invalidarCacheSheets() {
+  cacheLecturas.clear();
+}
+
 function getSheets() {
+  if (_clienteSheets) return _clienteSheets;
   const { google } = require('googleapis');
   const auth = new google.auth.GoogleAuth({
     credentials: credencialesJSON,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
-  return google.sheets({ version: 'v4', auth });
+  const cliente = google.sheets({ version: 'v4', auth });
+  const valores = cliente.spreadsheets.values;
+
+  const getOriginal = valores.get.bind(valores);
+  valores.get = async (params, ...resto) => {
+    const clave = JSON.stringify(params);
+    let entrada = cacheLecturas.get(clave);
+    if (!entrada || Date.now() - entrada.ts >= TTL_LECTURA_MS) {
+      const promesa = getOriginal(params, ...resto).then(r => ({ data: r.data, status: r.status }));
+      entrada = { ts: Date.now(), promesa };
+      cacheLecturas.set(clave, entrada);
+      // Si falla no queda guardado el error
+      promesa.catch(() => { if (cacheLecturas.get(clave) === entrada) cacheLecturas.delete(clave); });
+    }
+    // Copia: hay funciones que modifican las filas que reciben
+    return structuredClone(await entrada.promesa);
+  };
+
+  const conInvalidacion = (obj, metodo) => {
+    const original = obj[metodo].bind(obj);
+    obj[metodo] = async (...args) => {
+      invalidarCacheSheets();
+      try { return await original(...args); }
+      finally { invalidarCacheSheets(); }
+    };
+  };
+  ['update', 'append', 'batchUpdate', 'clear'].forEach(m => conInvalidacion(valores, m));
+  conInvalidacion(cliente.spreadsheets, 'batchUpdate');
+
+  _clienteSheets = cliente;
+  return cliente;
 }
 
 /* ===================== PERSONAS ===================== */

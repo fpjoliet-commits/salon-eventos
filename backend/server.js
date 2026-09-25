@@ -40,8 +40,70 @@ app.use(cors({
 // Guardamos el cuerpo crudo (rawBody) para poder verificar la firma del webhook
 // de WhatsApp. No afecta al resto de la app.
 app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
-app.use(express.static(path.join(__dirname, '../frontend')));
-app.use(express.static(path.join(process.cwd(), 'frontend')));
+// ── Velocidad: compresión y caché del navegador (sin dependencias, zlib de Node) ──
+// Los archivos de texto (app.js pesa ~600 KB) se mandan comprimidos con gzip; se
+// comprimen una vez y quedan en memoria hasta que el archivo cambia.
+// Los pedidos con ?v=... (así se cargan app.js y los css) se guardan un año en el
+// navegador: al subir un cambio se cambia la versión y se baja el archivo nuevo.
+// El resto (index.html) se revalida siempre con ETag.
+const zlib = require('zlib');
+const fs = require('fs');
+const DIRS_FRONTEND = [path.join(__dirname, '../frontend'), path.join(process.cwd(), 'frontend')];
+const EXT_COMPRIMIBLES = /\.(js|css|html|svg|json)$/i;
+const TIPOS = { '.js': 'application/javascript', '.css': 'text/css', '.html': 'text/html',
+  '.svg': 'image/svg+xml', '.json': 'application/json' };
+const cacheGzip = new Map(); // ruta absoluta -> { mtimeMs, etag, gz, crudo }
+
+function cabecerasDeCache(req, res) {
+  res.set('Cache-Control', req.query.v ? 'public, max-age=31536000, immutable' : 'no-cache');
+}
+
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  let rel;
+  try { rel = decodeURIComponent(req.path === '/' ? '/index.html' : req.path); } catch { return next(); }
+  if (!EXT_COMPRIMIBLES.test(rel)) return next();
+  for (const dir of DIRS_FRONTEND) {
+    const abs = path.join(dir, path.normalize(rel));
+    if (!abs.startsWith(dir + path.sep)) continue;
+    let stat;
+    try { stat = fs.statSync(abs); } catch { continue; }
+    if (!stat.isFile()) continue;
+    let entrada = cacheGzip.get(abs);
+    if (!entrada || entrada.mtimeMs !== stat.mtimeMs) {
+      const crudo = fs.readFileSync(abs);
+      entrada = { mtimeMs: stat.mtimeMs, etag: `"${stat.size}-${Math.round(stat.mtimeMs)}"`, crudo, gz: zlib.gzipSync(crudo, { level: 9 }) };
+      cacheGzip.set(abs, entrada);
+    }
+    cabecerasDeCache(req, res);
+    res.set({ 'Content-Type': (TIPOS[path.extname(abs).toLowerCase()] || 'application/octet-stream') + '; charset=utf-8',
+      'ETag': entrada.etag, 'Vary': 'Accept-Encoding' });
+    if (req.headers['if-none-match'] === entrada.etag) return res.status(304).end();
+    const usaGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+    if (usaGzip) res.set('Content-Encoding', 'gzip');
+    return res.end(req.method === 'HEAD' ? undefined : (usaGzip ? entrada.gz : entrada.crudo));
+  }
+  next();
+});
+
+// Imágenes y demás archivos: el navegador los guarda pero pregunta siempre si
+// cambiaron (responde 304 si no), así un logo nuevo se ve enseguida.
+const opcionesStatic = { setHeaders: (res, _p) => res.setHeader('Cache-Control', 'no-cache') };
+app.use(express.static(DIRS_FRONTEND[0], opcionesStatic));
+app.use(express.static(DIRS_FRONTEND[1], opcionesStatic));
+
+// Respuestas JSON de la API comprimidas (la lista de clientes, ingresos, etc.)
+app.use('/api', (req, res, next) => {
+  if (!/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return next();
+  const jsonOriginal = res.json.bind(res);
+  res.json = (cuerpo) => {
+    const texto = JSON.stringify(cuerpo);
+    if (texto === undefined || texto.length < 1024) return jsonOriginal(cuerpo);
+    res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' });
+    return res.send(zlib.gzipSync(texto));
+  };
+  next();
+});
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {

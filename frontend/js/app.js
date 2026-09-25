@@ -760,7 +760,7 @@ $('btn-ver-timing')?.addEventListener('click', () => {
   irAlModulo('timing-global', c);
   setTimeout(() => {
     const sel = $('timing-cliente-select');
-    if (sel) { sel.value = currentClienteModal.id; sel.dispatchEvent(new Event('change')); }
+    if (sel) { sel.value = c.id; sel.dispatchEvent(new Event('change')); }
   }, 100);
 });
 
@@ -1115,6 +1115,7 @@ async function _traerEgresos() {
   _cacheEgresos = { cuando: Date.now(), datos };
   return datos;
 }
+
 async function _traerPedidosCocina() {
   // Si ya se entro a Cocina, la lista viva es la de verdad: el pedido que
   // acabas de guardar tiene que verse en la ficha sin recargar nada.

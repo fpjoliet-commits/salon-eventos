@@ -1,17 +1,16 @@
 {
+  "id": "/",
   "name": "CRM Joliet Eventos",
   "short_name": "CRM Joliet",
   "description": "Sistema de gestión de clientes y eventos",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#f7f3ef",
-  "theme_color": "#8f2e4d",
+  "background_color": "#0b0a08",
+  "theme_color": "#121009",
   "icons": [
-    {
-      "src": "/favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any maskable"
-    }
+    { "src": "/img/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/img/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "/img/icons/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
   ]
 }
