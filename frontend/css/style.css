@@ -3880,8 +3880,13 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
   border: 1px solid #9dc7b3;
   background: #e6f2ec;
   border-radius: 20px;
-  padding: 3px 11px;
+  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+/* El logo real de WhatsApp reemplaza al emoji: escala al tamaño del texto. */
+.pb-accion .share-logo { width: 16px; height: 16px; display: block; }
 .pb-accion:hover { background: #d7ebe0; }
 
 /* --- Lista de eventos --- */

@@ -793,7 +793,7 @@ function renderNotaPersona(cliente) {
   const box = $('cliente-nota-persona');
   if (!box) return;
   box.innerHTML = `
-    <div class="nota-top-l">📝 Nota de la persona
+    <div class="nota-top-l">Nota
       <span class="nota-top-hint">La ve solo el equipo · vale para todos sus eventos</span>
     </div>
     <textarea id="nota-persona-text" class="nota-top-text" rows="2"
@@ -834,7 +834,7 @@ function renderPersonaBloque(cliente) {
   const ed = (key, label, type, opts) => _campoEditable(cliente, key, label, type, opts);
   const tel = (cliente.telefono || '').replace(/[^\d+]/g, '');
   const wsp = tel
-    ? `<a class="pb-accion" href="https://wa.me/${esc(tel.replace(/^\+/, ''))}" target="_blank" rel="noopener">💬 WhatsApp</a>`
+    ? `<a class="pb-accion" href="https://wa.me/${esc(tel.replace(/^\+/, ''))}" target="_blank" rel="noopener">${LOGO_WA}WhatsApp</a>`
     : '';
   box.innerHTML = `
     <div class="pb-titulo">Datos de contacto ${wsp}</div>
@@ -1157,7 +1157,7 @@ function renderClienteDetail(c) {
   const notaPanel = $('modal-nota-interna');
   if (notaPanel) {
     notaPanel.innerHTML = `
-      <div class="nota-top-l">📝 Nota de este evento
+      <div class="nota-top-l">Nota
         <span class="nota-top-hint">Solo la ve el equipo · se oculta en Vista cliente</span>
       </div>
       <textarea id="modal-nota-interna-text" class="nota-top-text" rows="2"
