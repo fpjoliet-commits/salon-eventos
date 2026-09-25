@@ -3966,3 +3966,50 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
   bottom: 0;
   z-index: 3;
 }
+
+/* ===================== PUENTES ENTRE VISTAS =====================
+   Barra de vuelta a la ficha y links del Timing y de Cocina hacia el cliente. */
+
+.volver-ficha {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #fbf5e9;
+  border: 1px solid #e3d3ac;
+  border-radius: 9px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.volver-ficha-btn {
+  font-family: inherit;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #6b4409;
+  background: #fff;
+  border: 1px solid #d9b96b;
+  border-radius: 7px;
+  padding: 10px 16px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.volver-ficha-btn:hover { background: #f6ecd8; border-color: #b07d2b; }
+.volver-ficha-hint { font-size: 0.88rem; color: #8a7c5e; }
+
+.timing-ficha-link { margin-left: 12px; display: inline-block; }
+
+.cocina-pedido-cliente {
+  display: inline-block;
+  font-size: 0.88rem;
+  color: #17553a;
+  background: #e6f2ec;
+  border: 1px solid #9dc7b3;
+  border-radius: 20px;
+  padding: 2px 10px;
+  margin-left: 8px;
+}
+.cocina-pedido-cliente.sin-evento {
+  color: #6b6252;
+  background: #f2efe7;
+  border-color: #d6cebe;
+}

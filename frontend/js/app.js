@@ -282,6 +282,7 @@ function initApp() {
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', e => {
     e.preventDefault();
+    _vueltaFicha = null;   // navegaste por tu cuenta: ya no venis de una ficha
     navigateTo(item.dataset.view);
     closeSidebar();               // en tablet/móvil, navegar cierra el drawer
   });
@@ -324,6 +325,84 @@ if (view === 'calendario') loadCalendario();
   if (view === 'egresos-cocina') { navigateTo('cocina'); switchCocinaTab('compras'); return; }
   if (view === 'seguimientos') initSeguimientos();
   if (view === 'cocina') loadCocina();
+  sincronizarBarraVolver(view);
+}
+
+/* ===================== VOLVER A LA FICHA =====================
+   Hasta ahora de la ficha se salia al Timing o a Cocina y no habia vuelta:
+   para seguir con el mismo evento habia que ir a Clientes y buscarlo de nuevo.
+   Cada salida deja anotado de que evento venis y la vista de destino muestra
+   arriba una barra para volver. Si despues navegas por tu cuenta, se borra. */
+
+let _vueltaFicha = null;   // { id, nombre, vista }
+
+function irAlModulo(vista, cliente) {
+  _vueltaFicha = cliente
+    ? { id: cliente.id, nombre: cliente.apellidoNombre || 'el cliente', vista }
+    : null;
+  hideEl($('modal-overlay'));
+  navigateTo(vista);
+}
+
+function sincronizarBarraVolver(vista) {
+  document.querySelectorAll('.volver-ficha').forEach(el => el.remove());
+  if (!_vueltaFicha || _vueltaFicha.vista !== vista) return;
+  const seccion = $(`view-${vista}`);
+  if (!seccion) return;
+  const barra = document.createElement('div');
+  barra.className = 'volver-ficha';
+  barra.innerHTML = `
+    <button type="button" class="volver-ficha-btn">← Volver a la ficha de ${esc(_vueltaFicha.nombre)}</button>
+    <span class="volver-ficha-hint">Estás viendo este evento</span>`;
+  barra.querySelector('.volver-ficha-btn').addEventListener('click', volverALaFicha);
+  seccion.insertBefore(barra, seccion.firstChild);
+}
+
+function volverALaFicha() {
+  const v = _vueltaFicha;
+  if (!v) return;
+  _vueltaFicha = null;
+  const c = allClientes.find(x => x.id === v.id);
+  navigateTo('clientes');
+  if (c) openClienteModal(c);
+  else toast('Ese evento ya no está en la agenda.', 'error');
+}
+
+/* Abre el link a la ficha desde adentro del Timing: estas mirando el timing de
+   alguien y queres su telefono, su menu o sus restricciones sin perder el lugar. */
+function pintarLinkFichaTiming(cliente) {
+  const cont = $('timing-ficha-link');
+  if (!cont) return;
+  if (!cliente) { cont.innerHTML = ''; return; }
+  cont.innerHTML = `<button type="button" class="btn btn-secondary btn-sm" id="timing-ver-ficha">👤 Ver la ficha de ${esc(cliente.apellidoNombre || 'este cliente')}</button>`;
+  $('timing-ver-ficha').addEventListener('click', () => {
+    navigateTo('clientes');
+    openClienteModal(cliente);
+  });
+}
+
+/* Cocina para UN evento: si ese evento ya tiene pedido, lo abre; si no, arranca
+   uno nuevo ya vinculado. Antes te dejaba en la solapa y tenias que buscarlo. */
+async function abrirCocinaDelEvento(cliente) {
+  if (!cliente) return;
+  irAlModulo('cocina', cliente);
+  try { await _cocinaPromesa; } catch { /* loadCocina ya avisa del error */ }
+  const p = cocinaPedidos.find(x => x.idCliente === cliente.id);
+  if (p) { openFormularioPedido(p); return; }
+
+  openFormularioPedido(null);
+  const sel = $('cocina-evento-select');
+  if (sel) {
+    sel.value = cliente.id;
+    // Si el evento no esta en la lista (solo lista confirmados), al menos
+    // dejamos el nombre y la fecha escritos para que no los tipee de nuevo.
+    if (sel.value === cliente.id) sel.dispatchEvent(new Event('change'));
+  }
+  if (!$('cocina-nombre-evento').value) {
+    $('cocina-nombre-evento').value = cliente.apellidoNombre || '';
+    $('cocina-fecha').value = cliente.fechaEvento || '';
+  }
+  toast(`Pedido nuevo para ${cliente.apellidoNombre || 'este evento'}. Cargá las cantidades.`);
 }
 
 /* ===================== TIMING PLANNER GLOBAL ===================== */
@@ -363,9 +442,10 @@ function initTimingGlobal() {
   // Evitar re-bind si ya estaba inicializado
   sel.onchange = async () => {
     const id = sel.value;
-    if (!id) { content.innerHTML = ''; return; }
+    if (!id) { content.innerHTML = ''; pintarLinkFichaTiming(null); return; }
     const cliente = allClientes.find(c => c.id === id);
     if (!cliente) return;
+    pintarLinkFichaTiming(cliente);
     content.innerHTML = '<div id="timming-content"></div>';
     await loadTimmingTab(cliente);
   };
@@ -675,9 +755,9 @@ $('btn-ficha-evento')?.addEventListener('click', async () => {
 });
 
 $('btn-ver-timing')?.addEventListener('click', () => {
-  if (!currentClienteModal) return;
-  hideEl($('modal-overlay'));
-  navigateTo('timing-global');
+  const c = currentClienteModal;
+  if (!c) return;
+  irAlModulo('timing-global', c);
   setTimeout(() => {
     const sel = $('timing-cliente-select');
     if (sel) { sel.value = currentClienteModal.id; sel.dispatchEvent(new Event('change')); }
@@ -1044,7 +1124,7 @@ function _wireChipsTablero(cont, cliente) {
         case 'pagos':     activateTab('pagos'); break;
         case 'editar':    activateTab('info'); break;
         case 'timing':    $('btn-ver-timing')?.click(); break;
-        case 'cocina':    hideEl($('modal-overlay')); navigateTo('cocina'); switchCocinaTab('pedido'); break;
+        case 'cocina':    abrirCocinaDelEvento(cliente); break;
         case 'egresos':   hideEl($('modal-overlay')); navigateTo('egresos'); break;
         case 'repetir':   hideEl($('modal-overlay')); abrirNuevoEventoParaPersona(cliente); break;
       }
@@ -9389,7 +9469,15 @@ function limpiarCatalogoCliente(items) {
   });
 }
 
+// Quien necesite los datos de cocina ya cargados (abrir el pedido de un evento
+// puntual) espera esta promesa en vez de adivinar con un setTimeout.
+let _cocinaPromesa = null;
 async function loadCocina() {
+  _cocinaPromesa = _loadCocina();
+  return _cocinaPromesa;
+}
+
+async function _loadCocina() {
   if (!isSuperAdmin()) return;
   const loadingEl = $('cocina-loading');
   if (loadingEl) loadingEl.style.display = '';
@@ -10091,14 +10179,17 @@ function renderPedidosList() {
     const badgeClass = p.estado === 'relevado' ? 'badge-relevado' : 'badge-preparacion';
     const badgeText = p.estado === 'relevado' ? 'Relevado' : 'En preparación';
     const cantItems = (p.items || []).filter(i => i.cantidad > 0).length;
+    const cli = p.idCliente ? (allClientes || []).find(c => c.id === p.idCliente) : null;
     return `
       <div class="cocina-pedido-card">
         <div class="cocina-pedido-info">
           <span class="badge ${badgeClass}">${badgeText}</span>
           <strong>${esc(p.nombreEvento || '—')}</strong>
           <span class="cocina-pedido-meta">📅 ${p.fecha ? formatDate(p.fecha) : '—'} · ${cantItems} ítems</span>
+          ${cli ? `<span class="cocina-pedido-cliente">👤 ${esc(cli.apellidoNombre)}</span>` : '<span class="cocina-pedido-cliente sin-evento">Sin evento vinculado</span>'}
         </div>
         <div class="cocina-pedido-acciones">
+          ${cli ? `<button class="btn btn-sm btn-secondary cocina-btn-ficha" data-cli="${esc(cli.id)}">👤 Ver la ficha</button>` : ''}
           <button class="btn btn-sm btn-secondary cocina-btn-editar" data-row="${p.rowIndex}">✏️ Editar</button>
           <button class="btn btn-sm btn-secondary cocina-btn-print-pedido" data-row="${p.rowIndex}">🖨️ Pedido</button>
           ${p.estado !== 'relevado'
@@ -10110,6 +10201,14 @@ function renderPedidosList() {
       </div>`;
   }).join('');
 
+  listEl.querySelectorAll('.cocina-btn-ficha').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const c = allClientes.find(x => x.id === btn.dataset.cli);
+      if (!c) { toast('Ese evento ya no está en la agenda.', 'error'); return; }
+      navigateTo('clientes');
+      openClienteModal(c);
+    });
+  });
   listEl.querySelectorAll('.cocina-btn-editar').forEach(btn => {
     btn.addEventListener('click', () => {
       const p = cocinaPedidos.find(x => x.rowIndex === parseInt(btn.dataset.row));
