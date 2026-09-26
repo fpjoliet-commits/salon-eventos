@@ -352,8 +352,7 @@ function sincronizarBarraVolver(vista) {
   const barra = document.createElement('div');
   barra.className = 'volver-ficha';
   barra.innerHTML = `
-    <button type="button" class="volver-ficha-btn">← Volver a la ficha de ${esc(_vueltaFicha.nombre)}</button>
-    <span class="volver-ficha-hint">Estás viendo este evento</span>`;
+    <button type="button" class="volver-ficha-btn">← Volver a la ficha de ${esc(_vueltaFicha.nombre)}</button>`;
   barra.querySelector('.volver-ficha-btn').addEventListener('click', volverALaFicha);
   seccion.insertBefore(barra, seccion.firstChild);
 }
@@ -718,6 +717,10 @@ function openClienteModal(cliente, tabInicial = 'info') {
   ].filter(Boolean).join(' · ');
   wrap.innerHTML = `<h3 id="modal-titulo">${nombre}<small class="modal-subtitulo">${esc(sub)}</small></h3>`;
 
+  // Entrar a una solapa puntual (por ejemplo el boton "$ Pago" de la lista)
+  // despliega ese evento; entrar normalmente deja todo cerrado.
+  _eventoAbiertoId = (tabInicial && tabInicial !== 'info') ? cliente.id : null;
+
   renderNotaPersona(cliente);
   renderPersonaBloque(cliente);
   renderEventosDeLaPersona(cliente, tabInicial);
@@ -873,11 +876,9 @@ function renderNotaPersona(cliente) {
   const box = $('cliente-nota-persona');
   if (!box) return;
   box.innerHTML = `
-    <div class="nota-top-l">Nota
-      <span class="nota-top-hint">La ve solo el equipo · vale para todos sus eventos</span>
-    </div>
+    <div class="nota-top-l">Nota</div>
     <textarea id="nota-persona-text" class="nota-top-text" rows="2"
-      placeholder="Lo que haya que saber siempre: a qué hora llamarla, quién decide, cómo prefiere que le escribamos…">${esc(cliente.notaPersona || '')}</textarea>
+      placeholder="Sobre esta persona…">${esc(cliente.notaPersona || '')}</textarea>
     <div class="nota-top-acciones">
       <button type="button" class="btn btn-secondary btn-sm" onclick="guardarNotaPersona()">Guardar nota</button>
       <span id="nota-persona-status" class="nota-top-status"></span>
@@ -928,6 +929,12 @@ function renderPersonaBloque(cliente) {
 }
 
 /* ---- Las tarjetas de los eventos ---- */
+// Cual tarjeta esta desplegada. Arranca en null a proposito: la ficha se abre
+// mostrando de un vistazo QUE eventos tiene la persona, aunque sea uno solo, y
+// recien al tocar uno aparece su detalle. Con un solo evento tambien queda
+// cerrado: el renglon alcanza para saber cual es.
+let _eventoAbiertoId = null;
+
 function renderEventosDeLaPersona(cliente, tabInicial = 'info') {
   const box = $('cliente-eventos-bloque');
   if (!box) return;
@@ -941,7 +948,7 @@ function renderEventosDeLaPersona(cliente, tabInicial = 'info') {
   box.innerHTML = `
     <div class="eventos-titulo">Eventos (${eventos.length})</div>
     <div class="eventos-lista">
-      ${eventos.map(c => _tarjetaEventoHTML(c, c.id === cliente.id)).join('')}
+      ${eventos.map(c => _tarjetaEventoHTML(c, c.id === _eventoAbiertoId)).join('')}
     </div>
     ${canManagePagos() ? `<div class="eventos-pie">
       <button type="button" class="btn btn-secondary btn-sm" id="btn-nuevo-evento-persona">➕ Nuevo evento para esta persona</button>
@@ -950,7 +957,8 @@ function renderEventosDeLaPersona(cliente, tabInicial = 'info') {
   box.querySelectorAll('.ev-head').forEach(head => {
     head.addEventListener('click', () => {
       const id = head.parentElement.dataset.evId;
-      if (id === currentClienteModal?.id) return;   // ya esta abierta
+      // Tocar la que ya esta abierta la cierra; tocar otra cambia de evento.
+      _eventoAbiertoId = (id === _eventoAbiertoId) ? null : id;
       const c = allClientes.find(x => x.id === id);
       if (c) { renderEventosDeLaPersona(c); }
     });
@@ -1037,7 +1045,7 @@ async function renderTableroEvento(cliente) {
   if (!cont) return;
   const fase = _faseEvento(cliente);
   cont.className = 'evento-tablero fase-' + fase;
-  cont.innerHTML = '<div class="tablero-cargando">Buscando cómo viene este evento…</div>';
+  cont.innerHTML = '<div class="tablero-cargando">…</div>';
 
   const chip = (txt, val, cls, onclick, titulo) =>
     `<button type="button" class="ev-chip${cls ? ' ' + cls : ''}" ${onclick ? `data-chip="${onclick}"` : 'disabled'}${titulo ? ` title="${esc(titulo)}"` : ''}>${txt} · <b>${val}</b></button>`;
@@ -1251,11 +1259,9 @@ function renderClienteDetail(c) {
   const notaPanel = $('modal-nota-interna');
   if (notaPanel) {
     notaPanel.innerHTML = `
-      <div class="nota-top-l">Nota
-        <span class="nota-top-hint">Solo la ve el equipo · se oculta en Vista cliente</span>
-      </div>
+      <div class="nota-top-l">Nota</div>
       <textarea id="modal-nota-interna-text" class="nota-top-text" rows="2"
-        placeholder="Lo puntual de esta fiesta: la abuela no sube escaleras, la torta la trae el cliente…">${esc(c.notaInterna || '')}</textarea>
+        placeholder="Sobre este evento…">${esc(c.notaInterna || '')}</textarea>
       <div class="nota-top-acciones">
         <button type="button" class="btn btn-secondary btn-sm" onclick="guardarNotaInterna()">Guardar nota</button>
         <span id="modal-nota-interna-status" class="nota-top-status"></span>

@@ -4053,3 +4053,9 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
   background: #f2efe7;
   border-color: #d6cebe;
 }
+
+/* Tarjeta de evento cerrada: un renglón y nada más. */
+.ev-card:not(.ev-abierta) .ev-head { padding: 11px 13px; }
+.ev-card:not(.ev-abierta) .ev-nom { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ev-card:not(.ev-abierta) .ev-nom b { display: inline; font-size: 1rem; }
+.ev-card:not(.ev-abierta) .ev-nom small { font-size: 0.9rem; }
