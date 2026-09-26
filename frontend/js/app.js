@@ -7670,37 +7670,13 @@ ul.mi-yours{background:var(--glow);border-left:2px solid var(--gold);padding-lef
   .page:last-child{break-after:auto;page-break-after:avoid}
 }
 
-/* ---- Barra de ayuda de la ventana de impresion ----
-   La vista previa del navegador es el unico paso del recorrido que no
-   controlamos: si ahi se toca Cancelar, no hay archivo y el resto del
-   flujo queda colgado. Por eso la ventana explica que hacer, con letra
-   grande, y tiene su propio boton para reintentar. Nunca se imprime. */
-.ayuda-pdf{
-  position:fixed;top:0;left:0;right:0;z-index:99999;
-  display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;
-  padding:14px 20px;background:#1b1b1f;color:#fff;
-  font-family:'Inter',system-ui,sans-serif;font-size:17px;line-height:1.45;
-  box-shadow:0 2px 14px rgba(0,0,0,.35);
-}
-.ayuda-pdf b{color:#f0c96a}
-.ayuda-pdf .ayuda-txt{max-width:640px}
-.ayuda-pdf button{
-  font:inherit;font-weight:700;font-size:17px;cursor:pointer;
-  background:#f0c96a;color:#1b1b1f;border:0;border-radius:8px;
-  padding:12px 22px;min-height:48px;white-space:nowrap;
-}
-.ayuda-pdf button:active{transform:scale(.97)}
-@media screen{body{padding-top:86px}}
-@media print{.ayuda-pdf{display:none !important}}
+/* La barra de ayuda de la impresion se saco: el PDF ahora se arma en un iframe
+   dentro de la app (visor con su propio boton Guardar/Imprimir, o iframe oculto
+   que va directo al dialogo de guardar), asi que este documento nunca se muestra
+   solo en una pestaña. */
 </style>
 </head>
 <body>
-
-<div class="ayuda-pdf">
-  <span class="ayuda-txt">Se abrio la ventana de impresion. En <b>Destino</b> elegi
-  <b>Guardar como PDF</b> y toca <b>Guardar</b>. El archivo queda en Descargas.</span>
-  <button type="button" onclick="window.print()">Guardar el PDF</button>
-</div>
 
 <!-- PORTADA -->
 <div class="page cover">
@@ -8085,21 +8061,15 @@ ${tipo === 'contrato' ? (() => {
 </script>
 </body></html>`;
 
-  const win = window.open('', '_blank');
-  if (!win) { toast('Permití popups en el navegador para descargar la propuesta', 'error'); return null; }
-  win.document.write(html);
-  win.document.close();
-  // Vista previa: se abre el documento y nada mas. El dialogo lo lanza la
-  // persona, con el boton que la propia ventana trae arriba.
-  if (soloVista) return win;
-  // Esperamos a que el documento termine de repartir el contenido en hojas
-  const esperarYImprimir = (intentos = 0) => {
-    if (win.closed) return;
-    if (win.__propuestaPaginada || intentos > 40) { win.print(); return; }
-    setTimeout(() => esperarYImprimir(intentos + 1), 100);
-  };
-  setTimeout(() => esperarYImprimir(), 400);
-  return win;   // quien la abrio necesita saber cuando se cierra
+  // El documento se arma en un iframe DENTRO de la app, no en una pestaña nueva.
+  // Con window.open, en la tablet se descartaba la pestaña del CRM y, en la app
+  // instalada (standalone), se abria el navegador externo y sacaba al usuario de
+  // la app. Con el iframe todo pasa adentro:
+  //  - Ver el PDF (soloVista): visor a pantalla completa dentro del CRM.
+  //  - Guardar: iframe fuera de pantalla que va directo al dialogo de guardar.
+  if (soloVista) abrirVisorPDF(html);
+  else imprimirPDFOculto(html);
+  return true;
 }
 
 /* ---- Compartir la propuesta: arma el PDF y ofrece enviarla por
@@ -8190,7 +8160,7 @@ function renderSharePanel(estado) {
   }
 
   if (estado === 'esperando') {
-    panel.innerHTML = '<div class="share-paso">Se abrió la ventana del PDF. ' +
+    panel.innerHTML = '<div class="share-paso">Se abrió el guardado del PDF. ' +
       'Elegí <strong>Guardar como PDF</strong> y tocá <strong>Guardar</strong>.</div>';
     return;
   }
@@ -8254,36 +8224,85 @@ function enlazarBotonVerPDF() {
 function descargarPropuesta() {
   readPropuestaData();
   const d = propuestaState.data;
-  // Red de seguridad para la tablet: al abrir el PDF en otra pestaña, el
-  // navegador a veces descarta o recarga la del CRM (por memoria) y se pierden
-  // los botones de envio, que viven solo en memoria. Guardamos lo justo para
-  // poder reofrecer WhatsApp/Gmail apenas se vuelve a abrir el CRM.
+  // Red de seguridad para la tablet: si algo interrumpe (recarga, cierre),
+  // guardamos lo justo para reofrecer WhatsApp/Gmail al reabrir el CRM.
   saveSharePending(d);
   const hint = $('prop-final-hint');
   const nombre = nombreArchivoPropuesta(d) + '.pdf';
-
-  const win = generatePropuestaPDF();
-  if (!win) { renderSharePanel('popup'); if (hint) hint.textContent = ''; return false; }
   if (hint) hint.innerHTML = 'Se va a guardar como <strong>' + esc(nombre) + '</strong>';
   renderSharePanel('esperando');
-  esperarVueltaDeImpresion(win);
+  generatePropuestaPDF();   // imprime desde un iframe oculto; los canales salen en afterprint
   return true;
 }
 
-/* Se vuelve del dialogo por dos lados: cerrando el dialogo (afterprint, lo
-   avisa la propia ventana) o cerrando la ventana entera. Con cualquiera de los
-   dos ya salen los canales. Si se cancelo y no hay archivo, el boton "Ver el
-   PDF" lo abre de nuevo. */
-let pollImpresion = null;
-function esperarVueltaDeImpresion(win) {
-  if (pollImpresion) clearInterval(pollImpresion);
-  window.propuestaVolvioDeImprimir = () => renderSharePanel('canales');
-  pollImpresion = setInterval(() => {
-    if (!win || win.closed) {
-      clearInterval(pollImpresion); pollImpresion = null;
-      renderSharePanel('canales');
-    }
-  }, 600);
+/* ---- El PDF se arma y se imprime DENTRO de la app ----
+   Nada de pestañas nuevas: en la tablet descartaban el CRM y en la app
+   instalada abrian el navegador externo. El documento vive en un iframe. */
+let pollImpresion = null;   // se conserva por compatibilidad con resetBotonCompartir
+
+// Escribe el documento en el iframe y avisa cuando termino de repartir en hojas.
+function _montarIframePDF(html, iframe) {
+  return new Promise(resolve => {
+    const arrancar = () => {
+      const w = iframe.contentWindow;
+      let intentos = 0;
+      const esperar = () => {
+        if (!w || w.__propuestaPaginada || intentos > 45) return resolve(iframe);
+        intentos++; setTimeout(esperar, 100);
+      };
+      esperar();
+    };
+    iframe.addEventListener('load', arrancar, { once: true });
+    iframe.srcdoc = html;
+  });
+}
+
+// Guardar: iframe fuera de pantalla -> dialogo de guardar del sistema. Los
+// canales salen con afterprint (salta tanto al guardar como al cancelar).
+function imprimirPDFOculto(html) {
+  let ifr = document.getElementById('pdf-print-frame');
+  if (!ifr) {
+    ifr = document.createElement('iframe');
+    ifr.id = 'pdf-print-frame';
+    ifr.setAttribute('aria-hidden', 'true');
+    ifr.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
+    document.body.appendChild(ifr);
+  }
+  _montarIframePDF(html, ifr).then(() => {
+    const w = ifr.contentWindow;
+    try { w.addEventListener('afterprint', () => renderSharePanel('canales'), { once: true }); } catch (e) {}
+    try { w.focus(); w.print(); } catch (e) { renderSharePanel('canales'); }
+  });
+}
+
+// Ver el PDF: visor a pantalla completa dentro del CRM, con Guardar/Imprimir.
+function abrirVisorPDF(html) {
+  let ov = document.getElementById('pdf-visor');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'pdf-visor';
+    ov.className = 'pdf-visor';
+    ov.innerHTML =
+      '<div class="pdf-visor-bar">' +
+        '<span class="pdf-visor-tit">Vista del PDF</span>' +
+        '<div class="pdf-visor-btns">' +
+          '<button type="button" class="btn btn-secondary btn-sm" id="pdf-visor-cerrar">Cerrar</button>' +
+          '<button type="button" class="btn btn-primary btn-sm" id="pdf-visor-imprimir">Guardar / Imprimir</button>' +
+        '</div>' +
+      '</div>' +
+      '<iframe class="pdf-visor-frame" id="pdf-visor-frame" title="Vista del PDF"></iframe>';
+    document.body.appendChild(ov);
+  }
+  ov.classList.remove('hidden');
+  document.body.classList.add('pdf-visor-abierto');
+  const ifr = document.getElementById('pdf-visor-frame');
+  _montarIframePDF(html, ifr);
+  $('pdf-visor-cerrar').onclick = cerrarVisorPDF;
+  $('pdf-visor-imprimir').onclick = () => { try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) {} };
+}
+function cerrarVisorPDF() {
+  document.getElementById('pdf-visor')?.classList.add('hidden');
+  document.body.classList.remove('pdf-visor-abierto');
 }
 
 // Deja el cierre como recien llegado: sin estado y sin los canales abiertos
