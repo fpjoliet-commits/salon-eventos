@@ -548,6 +548,10 @@ async function processUpdate(update, deps) {
     ext = await interpretar(input, deps);
   } catch (e) {
     console.error('[telegram] interpretar:', e.message);
+    // Saturación es pasajera; sin cupo o clave rechazada no se arregla sola
+    if (!e.sobrecargado) {
+      require('./alertas').avisar('gemini', `El bot no puede interpretar mensajes (Gemini): ${e.message}`);
+    }
     const msg = e.sinCupo
       ? '⚠️ Por ahora me quedé *sin cupo de IA* para interpretar mensajes.\n\n' +
         'Podés *cargar el movimiento a mano* en el CRM, o esperar un rato y reenviarlo ' +

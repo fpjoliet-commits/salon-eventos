@@ -36,3 +36,19 @@ Si un backup falla, Google manda un mail a la cuenta que lo instaló.
 Abrir la copia de la fecha que se quiere recuperar y copiar de ahí lo que haga
 falta a la planilla real. No reemplazar la planilla entera: el CRM la busca por su
 id (`SPREADSHEET_ID`), y una copia tiene otro id.
+
+## Avisos a Lautaro (desde 28/09/2026)
+
+El mismo script avisa por Telegram si **falla el backup**, y los **lunes a las 8**
+pide al CRM el resumen semanal (datos con problemas, borradores olvidados,
+cargas y backups de la semana). Para activarlo:
+
+1. En Render, cargar `TELEGRAM_CHAT_ALERTAS` (chat id de Lautaro) y `RESUMEN_SECRET`
+   (cualquier texto largo al azar).
+2. En script.google.com → el proyecto → ⚙ Configuración del proyecto →
+   Propiedades de la secuencia de comandos: `CRM_URL` = `https://salon-eventos.onrender.com`
+   y `RESUMEN_SECRET` = el mismo texto de Render.
+3. Pegar la versión nueva de `scripts/backup-planilla.gs` y volver a ejecutar `instalar`
+   (crea el disparador de los lunes; no duplica el diario).
+
+Para probarlo sin esperar al lunes: elegir la función `resumenSemanal` y tocar Ejecutar.

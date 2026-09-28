@@ -1,5 +1,6 @@
 const fs = require('fs');
 const listas = require('./listas');
+const alertas = require('./alertas');
 const path = require('path');
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
@@ -173,6 +174,15 @@ function errorFilaMovida() {
   return e;
 }
 
+/* Sin conexión o sin permiso con Google, el CRM no puede leer ni guardar nada:
+   se avisa a Lautaro (backend/alertas.js). El error sigue su curso igual. */
+function avisarSiGoogleCayo(e) {
+  if (alertas.esCaidaDeGoogle(e)) {
+    alertas.avisar('google', `Google Sheets no responde o rechazó la conexión: ${e.message}`);
+  }
+  throw e;
+}
+
 function getSheets() {
   if (_clienteSheets) return _clienteSheets;
   const { google } = require('googleapis');
@@ -192,7 +202,7 @@ function getSheets() {
     let entrada = cacheLecturas.get(clave);
     if (sinCache || !entrada || Date.now() - entrada.ts >= TTL_LECTURA_MS) {
       const promesa = getOriginal(conLecturaReal(params), ...resto)
-        .then(r => ({ data: normalizarLectura(r.data, params), status: r.status }));
+        .then(r => ({ data: normalizarLectura(r.data, params), status: r.status }), avisarSiGoogleCayo);
       entrada = { ts: Date.now(), promesa };
       cacheLecturas.set(clave, entrada);
       // Si falla no queda guardado el error
@@ -216,7 +226,7 @@ function getSheets() {
   // Todo pasa por acá antes de llegar a Google: ninguna escritura se salta el blindaje
   ['update', 'append', 'batchUpdate'].forEach(m => {
     const original = valores[m];
-    valores[m] = (params, ...resto) => original(blindarParams(params), ...resto);
+    valores[m] = (params, ...resto) => original(blindarParams(params), ...resto).catch(avisarSiGoogleCayo);
   });
 
   _clienteSheets = cliente;
@@ -2890,6 +2900,14 @@ async function volcarEstados() {
   }
 }
 
+/* Manda ya lo que está esperando en las colas de Auditoría y Estados. Se usa al
+   apagar: Render manda SIGTERM en cada deploy y lo que estaba en cola se perdía. */
+async function vaciarColas() {
+  if (_timerAuditoria) clearTimeout(_timerAuditoria);
+  if (_timerEstados) clearTimeout(_timerEstados);
+  await Promise.all([volcarAuditoria(), volcarEstados()]);
+}
+
 /* ===================== AUDITORÍA DE PLATA =====================
    Cada alta, edición, confirmación, anulación y restauración de un cobro o un
    gasto deja una fila en Auditoria. Alta/confirmación/anulación: foto del
@@ -3122,5 +3140,6 @@ module.exports = {
   initSheets,
   registrarAuditoria, getAuditoria, fotoAuditoria,
   tieneCredenciales,
+  vaciarColas,
   getSheets,   // cliente con el blindaje de textos; lo usa backend/limpiar-historico.js
 };

@@ -16,6 +16,8 @@ if (!process.env.RENDER && process.env.SPREADSHEET_ID === ID_PLANILLA_REAL) {
 
 const sheets = require('./sheets');
 const listas = require('./listas');
+const alertas = require('./alertas');
+const { construirResumen } = require('./resumen-semanal');
 
 const app = express();
 
@@ -303,6 +305,43 @@ function validarRowIndex(req, res, next) {
   }
   next();
 }
+
+// Salud, para el monitor externo (UptimeRobot o similar): 200 si el servidor
+// está vivo Y puede leer la planilla; 503 si no. Sin datos: solo "ok".
+app.get('/api/salud', async (req, res) => {
+  if (!sheets.tieneCredenciales) return res.status(503).json({ ok: false, error: 'Sin credenciales de Google' });
+  try {
+    await sheets.getSheets().spreadsheets.values.get({ spreadsheetId: process.env.SPREADSHEET_ID, range: 'Config!A1', sinCache: true });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(503).json({ ok: false, error: 'Google Sheets no responde' });
+  }
+});
+
+// Avisos que dispara el Apps Script de backups (scripts/backup-planilla.gs):
+// fallo del backup y resumen semanal de los lunes. Protegidos con RESUMEN_SECRET.
+function claveDeAvisos(req, res, next) {
+  const clave = process.env.RESUMEN_SECRET;
+  if (!clave || req.query.secret !== clave) return res.status(401).json({ error: 'No autorizado' });
+  next();
+}
+app.post('/api/avisos/externo', claveDeAvisos, async (req, res) => {
+  const texto = String(req.body?.texto || '').slice(0, 1000);
+  if (!texto) return res.status(400).json({ error: 'Falta el texto' });
+  await alertas.avisar('externo-' + String(req.body?.clave || 'general').slice(0, 40), texto);
+  res.json({ ok: true });
+});
+app.post('/api/avisos/resumen-semanal', claveDeAvisos, async (req, res) => {
+  try {
+    const [eventos, ingresos, egresos] = await Promise.all([sheets.getClientes(), sheets.getIngresos(), sheets.getEgresos()]);
+    const backups = Number.isInteger(req.body?.backups) ? req.body.backups : null;
+    const texto = construirResumen({ eventos, ingresos, egresos, backups });
+    const enviado = await alertas.enviar(texto);
+    res.json({ ok: true, enviado, texto });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
 
 // Estado del sistema
 app.get('/api/status', (req, res) => {
@@ -642,7 +681,11 @@ async function conDevolucion(foto, crearCobro) {
     return await crearCobro();
   } catch (e) {
     try { await sheets.devolverCuotas(foto); }
-    catch (e2) { console.error('❌ No se pudieron devolver las cuotas tras un cobro fallido:', e2.message, JSON.stringify(foto)); }
+    catch (e2) {
+      console.error('❌ No se pudieron devolver las cuotas tras un cobro fallido:', e2.message, JSON.stringify(foto));
+      alertas.avisar('cuotas-' + Date.now(), 'Un cobro falló y NO se pudieron devolver las cuotas a como estaban. '
+        + `Hay que corregirlas a mano en la hoja Cuotas: ${JSON.stringify(foto)}`);
+    }
     const err = new Error('No se pudo registrar el cobro. Las cuotas quedaron como estaban: probá de nuevo.');
     err.status = 503;
     throw err;
@@ -1738,8 +1781,24 @@ app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-app.listen(PORT, () => {
+const servidor = app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   sheets.initSheets().then(() => correrIPCAutomatico());
   setInterval(correrIPCAutomatico, 6 * 3600 * 1000);
 });
+
+// Apagado prolijo: Render manda SIGTERM en cada deploy o al dormir. Se deja de
+// aceptar pedidos, se manda lo que quedó en la cola de Auditoría/Estados y se
+// sale. Tope de 8 s por si Google no responde (Render corta a los 30).
+let apagando = false;
+async function apagar(senal) {
+  if (apagando) return;
+  apagando = true;
+  console.log(`${senal}: apagando — guardando la auditoría pendiente…`);
+  setTimeout(() => process.exit(0), 8000).unref();
+  servidor.close();
+  try { await sheets.vaciarColas(); } catch (e) { console.error('No se pudo vaciar la cola:', e.message); }
+  process.exit(0);
+}
+process.on('SIGTERM', () => apagar('SIGTERM'));
+process.on('SIGINT', () => apagar('SIGINT'));
