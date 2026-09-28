@@ -52,7 +52,7 @@ main{flex:1;overflow-y:auto;padding:10px 12px 40px}
 .velo{position:fixed;inset:0;background:#0009;display:none;z-index:4}.velo.on{display:block}
 .hoja{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:1px solid var(--gold-d);border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));transform:translateY(110%);visibility:hidden;transition:transform .25s,visibility .25s}
 .hoja.on{transform:none;visibility:visible}
-.hoja h2{font-size:20px;margin-bottom:4px}
+.hoja h2{font-size:20px;margin-bottom:14px}
 .hoja p{color:var(--mut);font-size:16px;margin-bottom:14px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .grid .btn{padding:16px 0;font-size:20px;font-weight:700}
@@ -81,9 +81,10 @@ textarea{width:100%;height:96px;background:var(--bg);color:var(--tx);border:1px 
 
 <div class="velo" id="velo" onclick="cerrar()"></div>
 <div class="hoja" id="hCorrer">
-  <h2 id="hcT"></h2><p>Se corren este paso y todos los que siguen.</p>
+  <h2 id="hcT"></h2>
   <div class="grid">
-    <button class="btn" onclick="correr(15)">+15</button><button class="btn" onclick="correr(-10)">−10</button><button class="btn" onclick="cerrar()">✕</button>
+    <button class="btn" onclick="correr(5)">+5</button><button class="btn" onclick="correr(10)">+10</button><button class="btn" onclick="correr(15)">+15</button>
+    <button class="btn" onclick="correr(30)">+30</button><button class="btn" onclick="correr(-5)">−5</button><button class="btn" onclick="correr(-10)">−10</button>
   </div>
 </div>
 <div class="hoja" id="hNota">
@@ -156,9 +157,11 @@ function render() {
   const P = D.pasos;
   let c = -1;
   if (esLaNoche()) { const a = ahoraEvento(); P.forEach((p, i) => { if (min(p.hora) <= a) c = i; }); }
-  const atraso = Math.max(0, ...P.filter(p => p.horaOriginal).map(p => min(p.hora) - min(p.horaOriginal)));
-  $('atraso').hidden = !atraso;
-  $('atraso').textContent = `Vamos ${atraso} min atrasados`;
+  // Cuánto se corrió lo que viene: +15' atrasados, −10' adelantados.
+  const prox = P.find(p => !p.hecho) || P[P.length - 1];
+  const dif = prox && prox.horaOriginal ? min(prox.hora) - min(prox.horaOriginal) : 0;
+  $('atraso').hidden = !dif;
+  $('atraso').textContent = (dif > 0 ? '+' : '−') + Math.abs(dif) + "'";
 
   $('lista').innerHTML = P.length ? P.map((p, i) => `
     <div class="paso ${p.hecho ? 'hecho' : ''} ${i === c ? 'ahora' : ''}">
@@ -208,7 +211,7 @@ function tildar(i) {
 }
 function abrir(id, i) {
   sel = i; $('velo').classList.add('on'); $(id).classList.add('on');
-  $('hcT').textContent = 'Correr desde ' + D.pasos[i].actividad;
+  $('hcT').textContent = '⏱ ' + D.pasos[i].actividad;
   $('hnT').textContent = 'Nota · ' + D.pasos[i].actividad;
   if (id === 'hNota') { $('txt').value = ''; setTimeout(() => $('txt').focus(), 250); }
 }
