@@ -4269,10 +4269,11 @@ function renderTimmingMaitre(cliente, items) {
     ? items.map(it => `
         <div class="tim-item" data-row="${it.rowIndex}">
           <div class="tim-tl-dot"></div>
-          <span class="tim-hora">${it.hora}</span>
+          <span class="tim-hora">${it.horaOriginal && it.horaOriginal !== it.hora ? `<s class="tim-hora-orig">${it.horaOriginal}</s>` : ''}${it.hora}</span>
           <div class="tim-info">
-            <span class="tim-actividad">${esc(it.actividad)}</span>
+            <span class="tim-actividad">${it.hecho ? '✓ ' : ''}${esc(it.actividad)}</span>
             ${it.descripcion ? `<span class="tim-desc">${esc(it.descripcion)}</span>` : ''}
+            ${(it.notas || []).map(n => `<span class="tim-nota-maitre">${esc(n.h)} · ${esc(n.t)}</span>`).join('')}
           </div>
           <div class="tim-acciones">
             <button class="btn-tim-edit" title="Editar">✎</button>
@@ -4291,6 +4292,7 @@ function renderTimmingMaitre(cliente, items) {
         <h4 class="timming-title">Cronograma del maître</h4>
         <div class="timming-header-btns">
           <button id="btn-copiar-timing" class="btn btn-sm btn-secondary" title="Copiar el cronograma de otro evento">📋 Traer timing de…</button>
+          <button id="btn-link-maitre" class="btn btn-sm btn-secondary">📲 Mandar a la maître</button>
           <button id="btn-print-timming" class="btn btn-sm btn-secondary">🖨 Imprimir</button>
         </div>
       </div>
@@ -4566,6 +4568,28 @@ function bindMaitreAcciones(cliente, items) {
   });
 
   $('btn-print-timming')?.addEventListener('click', () => imprimirTimming(cliente, items));
+  $('btn-link-maitre')?.addEventListener('click', () => mandarTimingMaitre(cliente));
+}
+
+/* Timing vivo: el link de la maître (edita) sale por WhatsApp; el de solo
+   lectura va como QR en la hoja impresa. Los crea el servidor la primera vez y
+   después siempre son los mismos. */
+async function linksTimingVivo(cliente) {
+  return apiFetch(`/timming/link/${cliente.id}`, { method: 'POST' });
+}
+
+async function mandarTimingMaitre(cliente) {
+  // La ventana se abre antes de esperar al servidor: si no, el navegador la bloquea.
+  const win = window.open('', '_blank');
+  try {
+    const { editar } = await linksTimingVivo(cliente);
+    const nombre = cliente.nombreAgasajado || cliente.apellidoNombre || '';
+    const f = fechaLocal(cliente.fechaEvento);
+    const cuando = f ? ` · ${f.toLocaleDateString('es-AR', { weekday: 'short' })} ${f.getDate()}/${f.getMonth() + 1}` : '';
+    const texto = `*Timing · ${[cliente.tipoEvento, nombre].filter(Boolean).join(' de ')}${cuando}*\n${editar}`;
+    const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
+    if (win) win.location.href = url; else location.href = url;
+  } catch (err) { if (win) win.close(); toast(err.message, 'error'); }
 }
 
 /* ===================== TIMING COCINA ===================== */
@@ -5209,7 +5233,10 @@ function buildFichaEventoHTML(cliente, restricciones, cocinaData) {
 </div>`;
 }
 
-function imprimirTimming(cliente, items) {
+async function imprimirTimming(cliente, items) {
+  const win = window.open('', '_blank');
+  let linkLeer = '';
+  try { linkLeer = (await linksTimingVivo(cliente)).leer; } catch {}
   const filas = items.map(it => `
     <div class="tim-row">
       <span class="tim-h">${it.hora}</span>
@@ -5239,23 +5266,31 @@ function imprimirTimming(cliente, items) {
     .tim-a { font-size: 14px; line-height: 1.4; display: block; }
     .tim-d { font-size: 12px; color: #666; display: block; margin-top: 2px; font-style: italic; }
     .footer { margin-top: 28px; font-size: 10px; color: #bbb; border-top: 1px solid #eee; padding-top: 10px; text-align: right; }
+    .cabeza { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .qr { text-align: center; font-size: 10px; color: #888; }
+    .qr #qr { width: 92px; height: 92px; margin-bottom: 3px; }
+    .qr #qr img, .qr #qr canvas { width: 92px !important; height: 92px !important; }
     @media print { .pagina { padding: 16px 20px; } }
   </style>
 </head>
 <body>
 <div class="pagina">
+  <div class="cabeza"><div>
   <div class="marca">Joliet Eventos — Timing Maitre</div>
   <div class="cliente">${esc(cliente.apellidoNombre) || '—'}</div>
   <div class="sub">${cliente.fechaEvento ? formatDateWithDay(cliente.fechaEvento) : ''}${cliente.turno ? ' &nbsp;·&nbsp; ' + cliente.turno : ''}</div>
+  </div>${linkLeer ? '<div class="qr"><div id="qr"></div>En vivo</div>' : ''}</div>
   <div class="titulo-sec">Cronograma</div>
   ${filas || '<p style="color:#aaa;font-style:italic">Sin actividades cargadas</p>'}
   <div class="footer">Impreso ${new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
 </div>
+${linkLeer ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+<script>try { new QRCode(document.getElementById('qr'), { text: ${JSON.stringify(linkLeer)}, width: 184, height: 184, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}<\/script>` : ''}
 <script>window.onload = () => { window.print(); }<\/script>
 </body>
 </html>`;
 
-  const win = window.open('', '_blank');
+  if (!win) return toast('El navegador bloqueó la ventana de impresión.', 'error');
   win.document.write(html);
   win.document.close();
 }

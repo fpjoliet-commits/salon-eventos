@@ -800,7 +800,16 @@ function rowToTimming(row, index) {
     actividad: row[3] || '',
     tipo: row[4] || 'maitre',
     descripcion: row[5] || '',
+    // Lo que toca la maître desde el celular (link /t/...). La hora que corre
+    // pisa la C; la del plan queda en horaOriginal para no perderla nunca.
+    hecho: row[6] === 'si',
+    horaOriginal: row[7] || '',
+    notas: parseNotas(row[8]),
   };
+}
+
+function parseNotas(v) {
+  try { const n = JSON.parse(v || '[]'); return Array.isArray(n) ? n : []; } catch { return []; }
 }
 
 function timmingToRow(t) {
@@ -821,7 +830,7 @@ async function getTimming(idCliente) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Timming!A2:F',
+    range: 'Timming!A2:I',
   });
   return (res.data.values || [])
     .map((row, i) => rowToTimming(row, i))
@@ -871,10 +880,36 @@ async function deleteTimmingItem(rowIndex) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Timming!A${rowIndex}:F${rowIndex}`,
+    range: `Timming!A${rowIndex}:I${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [['', '', '', '', '', '']] },
+    resource: { values: [['', '', '', '', '', '', '', '', '']] },
   });
+}
+
+/* Cambios que llegan desde el celular de la maître: hora (si corrió), tilde,
+   hora del plan y notas. No toca actividad ni descripción: eso es del CRM.
+   RAW para que "22:45" no se convierta en un número de hora de Sheets. */
+async function updateTimmingVivo(pasos) {
+  if (!tieneCredenciales) {
+    pasos.forEach(p => {
+      const t = memTimming.find(x => x.rowIndex === p.rowIndex);
+      if (t) Object.assign(t, { hora: p.hora, hecho: p.hecho, horaOriginal: p.horaOriginal, notas: p.notas });
+    });
+    return { ok: true };
+  }
+  if (!pasos.length) return { ok: true };
+  const sheets = getSheets();
+  const data = [];
+  pasos.forEach(p => {
+    data.push({ range: `Timming!C${p.rowIndex}`, values: [[p.hora]] });
+    data.push({ range: `Timming!G${p.rowIndex}:I${p.rowIndex}`,
+      values: [[p.hecho ? 'si' : '', p.horaOriginal || '', p.notas?.length ? JSON.stringify(p.notas) : '']] });
+  });
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: { valueInputOption: 'RAW', data },
+  });
+  return { ok: true };
 }
 
 /* ===================== CUOTAS ===================== */
@@ -2624,7 +2659,7 @@ module.exports = {
   getClientes, addCliente, updateCliente, deleteEvento, patchEvento,
   getIngresos, addIngreso, confirmarIngreso, updateIngreso, deleteIngreso, estadoCuenta, cobroEnPesos,
   getRestricciones, addRestriccion, deleteRestriccion,
-  getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem,
+  getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem, updateTimmingVivo,
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,
   calcularCompraCubiertos, estadoCubiertos,
   getConfig, setConfig, pagarCuotas, aplicarIPC, agregarCuotas, setIndexacionPlan, aplicarIPCAutomatico, ajustarValorCuotas, cancelarPlan, confirmarCuotas,

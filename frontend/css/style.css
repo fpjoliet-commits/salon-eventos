@@ -2068,6 +2068,9 @@ tr.grupo-cont + tr:not(.grupo-cont) td {
 /* Timing Maitre — list & form */
 .tim-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .tim-desc { font-size: 12px; color: var(--text-muted); font-style: italic; }
+/* Lo que dejó la maître desde el celular (timing vivo) */
+.tim-nota-maitre { display: block; font-size: 12px; margin-top: 3px; padding: 2px 6px; border-left: 2px solid var(--gold); background: var(--gold-light); color: var(--text-primary); }
+.tim-hora-orig { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; }
 .tim-add-form { display: flex; flex-direction: column; gap: 8px; }
 .tim-add-row1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tim-add-row1 .tim-picker-wrap { flex-shrink: 0; }

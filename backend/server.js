@@ -4,6 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const crypto = require('crypto');
 const sheets = require('./sheets');
 
 const app = express();
@@ -702,7 +703,12 @@ app.get('/api/cotizacion-blue', auth, async (req, res) => {
 // Precio general del cubierto (se propone al crear un evento; cada evento
 // despues puede tener el suyo).
 app.get('/api/config', auth, async (req, res) => {
-  try { res.json(await sheets.getConfig()); }
+  try {
+    // Los códigos de los links del timing no se reparten: dan permiso de editar.
+    const cfg = await sheets.getConfig();
+    Object.keys(cfg).forEach(k => { if (k.startsWith(PREFIJO_LINK_TIMING)) delete cfg[k]; });
+    res.json(cfg);
+  }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -948,6 +954,210 @@ app.delete('/api/timming/:rowIndex', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
   try { await sheets.deleteTimmingItem(parseInt(req.params.rowIndex)); res.json({ ok: true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ===================== TIMING VIVO DE LA MAÎTRE =====================
+ * La maître no usaba la hoja: le sacaba una foto. Ahora cada evento tiene dos
+ * links públicos, sin login:
+ *   /t/k7x9m2pq → el de la maître (va por WhatsApp): tilda, corre horarios, notas
+ *   /t/r4hw8nce → el del QR impreso: solo mira, y sin notas. La hoja anda suelta
+ *                 por el salón y nadie que la escanee por curiosidad debe tocar.
+ * El link no dice de qué evento es: eso lo dice el mensaje de WhatsApp. Se guardan
+ * en Config (timing_link_<idEvento>) y vencen el día siguiente al evento.
+ * /t/demo y /t/demo-ver son un evento de mentira para probar sin tocar ninguno. */
+const PREFIJO_LINK_TIMING = 'timing_link_';
+const ALFABETO_LINK = 'abcdefghjkmnpqrstuvwxyz23456789'; // sin 0/o ni 1/l
+const LARGO_LINK = 8;
+
+function codigoLink() {
+  let c = '';
+  for (let i = 0; i < LARGO_LINK; i++) c += ALFABETO_LINK[crypto.randomInt(ALFABETO_LINK.length)];
+  return c;
+}
+
+function fechaDelEvento(str) {
+  const [y, m, d] = String(str || '').split('-').map(Number);
+  return y && m && d ? { y, m, d } : null;
+}
+
+function ahoraArgentina() { return new Date(Date.now() - 3 * 3600 * 1000); } // leer con getUTC*
+const hoyArgentina = () => ahoraArgentina().toISOString().slice(0, 10);
+
+/* Sirve todo el día del evento y el siguiente (la fiesta termina de madrugada).
+   Si el link se generó después del evento (para repasarlo), vale igual hasta el
+   día siguiente a cuando se generó. */
+function linkVencido(cliente, links) {
+  const f = fechaDelEvento(cliente.fechaEvento);
+  if (!f) return false;
+  const c = fechaDelEvento(links.creado);
+  const hoy = Date.parse(hoyArgentina() + 'T00:00:00Z');
+  const hasta = Math.max(Date.UTC(f.y, f.m - 1, f.d + 1), c ? Date.UTC(c.y, c.m - 1, c.d + 1) : 0);
+  return hoy > hasta;
+}
+
+function minutosEvento(hora) {
+  const [h, m] = String(hora || '00:00').split(':').map(Number);
+  const t = (h || 0) * 60 + (m || 0);
+  return t < 8 * 60 ? t + 1440 : t;
+}
+function horaDeMinutos(t) {
+  t = ((t % 1440) + 1440) % 1440;
+  return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+}
+
+async function linksDeEvento(cliente) {
+  const clave = PREFIJO_LINK_TIMING + cliente.id;
+  const cfg = await sheets.getConfig();
+  let links = null;
+  try { links = JSON.parse(cfg[clave] || 'null'); } catch {}
+  if (links) return links;
+  const usados = new Set(Object.keys(cfg).filter(k => k.startsWith(PREFIJO_LINK_TIMING))
+    .flatMap(k => { try { const l = JSON.parse(cfg[k]); return [l.editar, l.leer]; } catch { return []; } }));
+  let editar, leer;
+  do { editar = codigoLink(); leer = codigoLink(); } while (editar === leer || usados.has(editar) || usados.has(leer));
+  links = { editar, leer, creado: hoyArgentina() };
+  await sheets.setConfig(clave, JSON.stringify(links));
+  return links;
+}
+
+const pasosMaitre = async (idEvento) =>
+  (await sheets.getTimming(idEvento)).filter(t => (t.tipo || 'maitre') !== 'cocina')
+    .map(t => ({ ...t, hecho: !!t.hecho, horaOriginal: t.horaOriginal || '', notas: t.notas || [] }));
+
+/* Evento de demostración: vive en memoria, arranca una hora y media antes de
+   ahora (así siempre hay un paso "de ahora") y vuelve a cero cada 6 horas. */
+let demoTiming = null;
+function eventoDemo() {
+  if (demoTiming && Date.now() - demoTiming.creado < 6 * 3600 * 1000) return demoTiming;
+  const a = ahoraArgentina();
+  const inicio = Math.floor((a.getUTCHours() * 60 + a.getUTCMinutes()) / 30) * 30 - 90;
+  const pasos = [['RECEPCIÓN', 'Jardín'], ['ENTRADA AL SALÓN', ''], ['VALS', ''], ['PRIMER PLATO', ''],
+    ['TANDA', ''], ['PLATO CENTRAL', ''], ['BRINDIS', ''], ['MESA DE DULCES', ''], ['FIN DE FIESTA', '']]
+    .map(([actividad, descripcion], i) => ({ id: 'DEMO-' + i, hora: horaDeMinutos(inicio + i * 30), actividad,
+      descripcion, hecho: i < 2, horaOriginal: '', notas: [] }));
+  // Si pasa la medianoche la fecha es la del día anterior: la noche es una sola.
+  const fecha = new Date(Date.now() - 3 * 3600 * 1000 - (a.getUTCHours() < 8 ? 86400000 : 0)).toISOString().slice(0, 10);
+  demoTiming = { creado: Date.now(), pasos,
+    evento: { nombre: 'Evento de prueba', tipo: '', formato: 'Formal', fecha, invitados: '150' } };
+  return demoTiming;
+}
+
+/* Resuelve un link en: el evento, los pasos, el modo y cómo guardar. */
+async function fuenteDelLink(slug) {
+  const codigo = String(slug || '').toLowerCase();
+  if (codigo === 'demo' || codigo === 'demo-ver') {
+    const d = eventoDemo();
+    return { modo: codigo === 'demo' ? 'editar' : 'leer', compartir: '/t/' + codigo, evento: d.evento,
+      pasos: async () => d.pasos.map(p => ({ ...p, notas: [...p.notas] })),
+      guardar: async (cambiados) => cambiados.forEach(c => Object.assign(d.pasos.find(p => p.id === c.id), c)) };
+  }
+  if (!new RegExp(`^[a-z0-9]{${LARGO_LINK}}$`).test(codigo)) return null;
+  const cfg = await sheets.getConfig();
+  for (const [k, v] of Object.entries(cfg)) {
+    if (!k.startsWith(PREFIJO_LINK_TIMING)) continue;
+    let l; try { l = JSON.parse(v); } catch { continue; }
+    const modo = l.editar === codigo ? 'editar' : l.leer === codigo ? 'leer' : null;
+    if (!modo) continue;
+    const cliente = (await sheets.getClientes()).find(c => c.id === k.slice(PREFIJO_LINK_TIMING.length));
+    if (!cliente) return null;
+    if (linkVencido(cliente, l)) return { vencido: true };
+    return {
+      modo, compartir: '/t/' + codigo,
+      evento: { nombre: cliente.nombreAgasajado || cliente.apellidoNombre || '', tipo: cliente.tipoEvento || '',
+        formato: cliente.formato || '', fecha: cliente.fechaEvento || '', invitados: cliente.cantidadInvitados || '' },
+      pasos: () => pasosMaitre(cliente.id),
+      guardar: (cambiados) => sheets.updateTimmingVivo(cambiados),
+    };
+  }
+  return null;
+}
+
+// Freno a quien pruebe códigos: 20 fallidos por IP cada 10 minutos.
+const _rlTiming = new Map();
+function timingBloqueado(ip, fallo) {
+  const now = Date.now();
+  const e = _rlTiming.get(ip) || { n: 0, start: now };
+  if (now - e.start > 10 * 60 * 1000) { e.n = 0; e.start = now; }
+  if (fallo) e.n++;
+  _rlTiming.set(ip, e);
+  return e.n > 20;
+}
+
+async function resolverLinkTiming(req, res) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+  if (timingBloqueado(ip, false)) { res.status(429).json({ error: 'Demasiados intentos. Esperá unos minutos.' }); return null; }
+  const f = await fuenteDelLink(req.params.slug);
+  if (!f) { timingBloqueado(ip, true); res.status(404).json({ error: 'Este link no existe.' }); return null; }
+  if (f.vencido) { res.status(410).json({ error: 'Este link ya venció.' }); return null; }
+  return f;
+}
+
+// CRM: crea (una sola vez) y devuelve los dos links del evento.
+app.post('/api/timming/link/:idCliente', auth, async (req, res) => {
+  if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
+  try {
+    const cliente = (await sheets.getClientes()).find(c => c.id === req.params.idCliente);
+    if (!cliente) return res.status(404).json({ error: 'Evento no encontrado' });
+    const l = await linksDeEvento(cliente);
+    const origen = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.get('host')}`;
+    res.json({ editar: `${origen}/t/${l.editar}`, leer: `${origen}/t/${l.leer}` });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/t/:slug', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/timing.html'));
+});
+
+// Público: lo que ve el celular. Nada de plata ni teléfonos; el de solo lectura, ni notas.
+app.get('/api/t/:slug', async (req, res) => {
+  try {
+    const f = await resolverLinkTiming(req, res);
+    if (!f) return;
+    const ed = f.modo === 'editar';
+    res.json({
+      modo: f.modo, compartir: f.compartir, evento: f.evento,
+      pasos: (await f.pasos()).map(p => ({ id: p.id, hora: p.hora, horaOriginal: p.horaOriginal, actividad: p.actividad,
+        descripcion: p.descripcion, hecho: p.hecho, notas: ed ? p.notas : [] })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Público, solo el link de la maître: { accion: 'tildar'|'nota'|'borrarNota'|'correr', id, ... }
+app.post('/api/t/:slug', async (req, res) => {
+  try {
+    const f = await resolverLinkTiming(req, res);
+    if (!f) return;
+    if (f.modo !== 'editar') return res.status(403).json({ error: 'Este link es solo para mirar.' });
+    const { accion, id } = req.body || {};
+    const pasos = await f.pasos();
+    const paso = pasos.find(p => p.id === id);
+    if (!paso) return res.status(404).json({ error: 'Ese paso ya no está en el timing.' });
+    let cambiados = [paso];
+    if (accion === 'tildar') {
+      paso.hecho = !!req.body.hecho;
+    } else if (accion === 'nota') {
+      const texto = String(req.body.texto || '').trim().slice(0, 500);
+      if (!texto) return res.status(400).json({ error: 'La nota está vacía.' });
+      const a = ahoraArgentina();
+      paso.notas = [...paso.notas, { h: horaDeMinutos(a.getUTCHours() * 60 + a.getUTCMinutes()), t: texto }];
+    } else if (accion === 'borrarNota') {
+      paso.notas = paso.notas.filter((_, i) => i !== Number(req.body.indice));
+    } else if (accion === 'correr') {
+      const min = Math.round(Number(req.body.minutos));
+      if (!min || Math.abs(min) > 180) return res.status(400).json({ error: 'Minutos inválidos.' });
+      const desde = minutosEvento(paso.hora);
+      cambiados = pasos.filter(p => minutosEvento(p.hora) >= desde);
+      cambiados.forEach(p => {
+        if (!p.horaOriginal) p.horaOriginal = p.hora;
+        p.hora = horaDeMinutos(minutosEvento(p.hora) + min);
+        if (p.hora === p.horaOriginal) p.horaOriginal = '';
+      });
+    } else {
+      return res.status(400).json({ error: 'Acción desconocida.' });
+    }
+    await f.guardar(cambiados);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Migración única: Clientes → Personas + Eventos (admin y superadmin)
