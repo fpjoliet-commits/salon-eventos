@@ -72,7 +72,8 @@ function getSheets() {
     const clave = JSON.stringify(params);
     let entrada = cacheLecturas.get(clave);
     if (!entrada || Date.now() - entrada.ts >= TTL_LECTURA_MS) {
-      const promesa = getOriginal(params, ...resto).then(r => ({ data: r.data, status: r.status }));
+      const promesa = getOriginal(conLecturaReal(params), ...resto)
+        .then(r => ({ data: normalizarLectura(r.data, params), status: r.status }));
       entrada = { ts: Date.now(), promesa };
       cacheLecturas.set(clave, entrada);
       // Si falla no queda guardado el error
@@ -112,9 +113,34 @@ function getSheets() {
    la API lo devuelve sin él. Los números (incluso negativos) no se tocan. */
 const ARRANQUE_PELIGROSO = /^[=+\-@']/;
 const ES_NUMERO = /^[+-]?\d+([.,]\d+)?$/;
+// Número tal como lo escribe JavaScript: punto decimal, sin miles, sin ceros a la
+// izquierda. Es lo que producen String(monto), los inputs numéricos, etc.
+const NUMERO_JS = /^-?(0|[1-9]\d*)(\.\d+)?$/;
 
 function blindarCelda(v) {
+  // Los números viajan como número: la planilla está en locale es_ES y un texto
+  // "1500.5" con USER_ENTERED se leía como la fecha "mayo del año 1500".
+  if (typeof v === 'string' && NUMERO_JS.test(v) && Number.isSafeInteger(Math.trunc(Number(v)))) return Number(v);
   return typeof v === 'string' && ARRANQUE_PELIGROSO.test(v) && !ES_NUMERO.test(v) ? "'" + v : v;
+}
+
+/* ===================== LECTURA DEL VALOR REAL =====================
+   Por defecto Google devuelve cada celda "como se ve", y eso depende del idioma
+   de la planilla: en es_ES 1500,5 viene con coma y parseFloat lo lee 1500; un
+   número con formato de moneda viene "$ 800.000". Se pide el valor real
+   (UNFORMATTED_VALUE) y las fechas/horas como texto (FORMATTED_STRING), así
+   "2026-09-28" y "21:30" siguen llegando igual que siempre. Los números se
+   devuelven como texto con punto decimal, que es lo que el resto del código
+   espera (compara '0', hace parseFloat, etc.). */
+function conLecturaReal(params) {
+  if (!params || params.valueRenderOption) return params; // quien pide otra cosa, la recibe
+  return { ...params, valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'FORMATTED_STRING' };
+}
+
+function normalizarLectura(data, params) {
+  if (!data || !Array.isArray(data.values) || (params && params.valueRenderOption)) return data;
+  const celda = v => typeof v === 'number' ? String(v) : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : v;
+  return { ...data, values: data.values.map(f => (Array.isArray(f) ? f.map(celda) : f)) };
 }
 
 function blindarFilas(filas) {
