@@ -1476,9 +1476,10 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Eventos!A${rowIndex}:W${rowIndex}`,
+    // Hasta Z: la nota, la modalidad y el precio del cubierto tambien son del evento.
+    range: `Eventos!A${rowIndex}:Z${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(23).fill('')] },
+    resource: { values: [Array(26).fill('')] },
   });
 
   // Si la Persona no tiene otros eventos, limpiar su fila también
