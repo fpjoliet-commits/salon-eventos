@@ -1362,6 +1362,45 @@ function checkRateLimit(ip) {
   return entry.count > 5;
 }
 
+/* El formulario público es la única puerta a la planilla sin login: cualquiera
+   puede mandarle un pedido armado a mano, sin pasar por las validaciones de la
+   pantalla. Se repiten acá, con las mismas opciones que ofrece consulta.html. */
+const TIPOS_EVENTO_FORM = ['Casamiento', 'Cumpleaños de 15', 'Cumpleaños', 'Bautismo', 'Corporativo', 'Otro'];
+const TURNOS_FORM = ['Noche', 'Tarde'];
+
+function validarLead(b) {
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return 'Formulario inválido.';
+  const campos = ['nombre', 'telefono', 'email', 'tipoEvento', 'fechaEvento', 'cantidadInvitados', 'turno', 'mensaje', 'origen', 'utm_source'];
+  for (const k of campos) {
+    if (b[k] !== undefined && b[k] !== null && typeof b[k] !== 'string' && typeof b[k] !== 'number') return 'Formulario inválido.';
+  }
+  const txt = k => String(b[k] ?? '').trim();
+  if (!txt('nombre') || !txt('telefono') || !txt('email') || !txt('tipoEvento') || !txt('turno')) {
+    return 'Faltan campos obligatorios.';
+  }
+  if (txt('nombre').length > 120) return 'El nombre es demasiado largo.';
+  const tel = txt('telefono');
+  const digitos = tel.replace(/\D/g, '').length;
+  if (tel.length > 30 || !/^[\d\s()+\-.]+$/.test(tel) || digitos < 8 || digitos > 15) {
+    return 'El teléfono no es válido.';
+  }
+  const mail = txt('email');
+  if (mail.length > 150 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return 'El mail no es válido.';
+  if (!TIPOS_EVENTO_FORM.includes(txt('tipoEvento'))) return 'Tipo de evento inválido.';
+  if (!TURNOS_FORM.includes(txt('turno'))) return 'Turno inválido.';
+  const fecha = txt('fechaEvento');
+  if (fecha && (!esFechaISO(fecha) || isNaN(Date.parse(fecha)))) return 'La fecha no es válida.';
+  const inv = txt('cantidadInvitados');
+  if (inv) {
+    const n = Number(inv);
+    if (!Number.isInteger(n)) return 'La cantidad de invitados no es válida.';
+    if (n < 80) return 'La capacidad mínima del salón es de 80 invitados.';
+    if (n > 2000) return 'La cantidad de invitados no es válida.';
+  }
+  if (txt('mensaje').length > 2000) return 'El mensaje es demasiado largo (máximo 2000 caracteres).';
+  return null;
+}
+
 app.get('/consulta', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/consulta.html'));
 });
@@ -1373,14 +1412,9 @@ app.post('/api/leads', async (req, res) => {
   // Honeypot: si el campo oculto tiene valor, es un bot
   if (req.body._hp) return res.status(400).json({ error: 'Formulario inválido.' });
 
+  const error = validarLead(req.body);
+  if (error) return res.status(400).json({ error });
   const { nombre, telefono, email, tipoEvento, fechaEvento, cantidadInvitados, turno, mensaje } = req.body;
-
-  if (!nombre?.trim() || !telefono?.trim() || !email?.trim() || !tipoEvento || !turno) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios.' });
-  }
-  if (cantidadInvitados && parseInt(cantidadInvitados) < 80) {
-    return res.status(400).json({ error: 'La capacidad mínima del salón es de 80 invitados.' });
-  }
 
   try {
     const ORIGENES_VALIDOS = ['Instagram','TikTok','Facebook','Google','WhatsApp','Recomendacion','Otro'];
@@ -1388,14 +1422,14 @@ app.post('/api/leads', async (req, res) => {
     const origen = ORIGENES_VALIDOS.includes(origenRaw) ? origenRaw : 'Formulario';
 
     const cliente = await sheets.addCliente({
-      apellidoNombre: nombre.trim(),
-      telefono: telefono.trim(),
-      gmail: email.trim(),
-      tipoEvento,
-      fechaEvento: fechaEvento || '',
-      cantidadInvitados: cantidadInvitados || '',
-      turno,
-      observaciones: mensaje?.trim() || '',
+      apellidoNombre: String(nombre).trim(),
+      telefono: String(telefono).trim(),
+      gmail: String(email).trim().toLowerCase(),
+      tipoEvento: String(tipoEvento).trim(),
+      fechaEvento: String(fechaEvento || '').trim(),
+      cantidadInvitados: String(cantidadInvitados || '').trim(),
+      turno: String(turno).trim(),
+      observaciones: String(mensaje || '').trim(),
       estado: 'Consulta',
       origen,
       cargadoPor: 'bot-formulario',
@@ -1420,6 +1454,10 @@ app.post('/api/cal-booking', async (req, res) => {
     if (triggerEvent !== 'BOOKING_CREATED') return res.json({ ok: true });
 
     // Formato YYYY-MM-DD que espera el calendario del CRM (sv-SE da ISO sin hora)
+    // Aviso mal formado (sin fecha de la visita): se rechaza en vez de cargar basura
+    if (!payload || isNaN(Date.parse(payload.startTime))) {
+      return res.status(400).json({ error: 'Aviso sin fecha de visita' });
+    }
     const visitDate = new Date(payload.startTime).toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
 
     const rowIndex = parseInt(payload?.metadata?.rowIndex);
@@ -1434,8 +1472,8 @@ app.post('/api/cal-booking', async (req, res) => {
     } else {
       // Reserva directa en Cal.com: crear registro nuevo en el CRM
       const attendee = payload?.attendees?.[0] || {};
-      const nombre = attendee.name || payload?.responses?.name?.value || 'Sin nombre';
-      const email  = attendee.email || payload?.responses?.email?.value || '';
+      const nombre = String(attendee.name || payload?.responses?.name?.value || 'Sin nombre').trim().slice(0, 120);
+      const email  = String(attendee.email || payload?.responses?.email?.value || '').trim().toLowerCase().slice(0, 150);
       await sheets.addCliente({
         apellidoNombre: nombre,
         gmail: email,
