@@ -367,6 +367,10 @@ function rowToEvento(row, index) {
     modificadoPor: row[27] || '',
     motivoCancelacion: row[28] || '',
     notaCancelacion: row[29] || '',
+    // Campaña que trajo la consulta del formulario web (?utm_...), desde 28/09/2026
+    utmSource: row[30] || '',
+    utmMedium: row[31] || '',
+    utmCampaign: row[32] || '',
   };
 }
 
@@ -381,6 +385,7 @@ function eventoToRow(e) {
     e.modalidadPago || '', e.precioCubierto || '',
     e.modificadoEn || '', e.modificadoPor || '',
     e.motivoCancelacion || '', e.notaCancelacion || '',
+    e.utmSource || '', e.utmMedium || '', e.utmCampaign || '',
   ].map(v => v || '');
 }
 
@@ -469,7 +474,7 @@ async function getClientes() {
   }
   const sheets = getSheets();
   const [evRes, perRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:AD' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:AG' }),
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:N' }),
   ]);
   const personas = (perRes.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
@@ -549,6 +554,7 @@ async function addCliente(data) {
     notaInterna: data.notaInterna,
     modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
     motivoCancelacion: data.motivoCancelacion, notaCancelacion: data.notaCancelacion,
+    utmSource: data.utmSource, utmMedium: data.utmMedium, utmCampaign: data.utmCampaign,
   };
   exigirMotivoCancelacion('', evento);
 
@@ -564,7 +570,7 @@ async function addCliente(data) {
     const nextRow = await proximaFila('Eventos');
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Eventos!A${nextRow}:AD${nextRow}`,
+      range: `Eventos!A${nextRow}:AG${nextRow}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [eventoToRow(evento)] },
     });
@@ -621,7 +627,7 @@ async function updateCliente(rowIndex, data) {
   // pantalla, y el formulario "Editar" no manda menús, modalidad de pago,
   // precio del cubierto, red social ni nota de la persona: se borraban.
   const [evRes, perRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `Eventos!A${rowIndex}:AD${rowIndex}`, sinCache: true }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `Eventos!A${rowIndex}:AG${rowIndex}`, sinCache: true }),
     data.personaRowIndex
       ? sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `Personas!A${data.personaRowIndex}:N${data.personaRowIndex}`, sinCache: true })
       : null,
@@ -661,7 +667,7 @@ async function updateCliente(rowIndex, data) {
   const ops = [
     sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Eventos!A${rowIndex}:AD${rowIndex}`,
+      range: `Eventos!A${rowIndex}:AG${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [eventoToRow(eventoData)] },
     }),
@@ -1940,7 +1946,7 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     // Hasta Z: la nota, la modalidad y el precio del cubierto tambien son del evento.
-    range: `Eventos!A${rowIndex}:AD${rowIndex}`,
+    range: `Eventos!A${rowIndex}:AG${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [Array(28).fill('')] },
   });
@@ -2968,7 +2974,7 @@ async function initSheets() {
     // Columnas que se fueron sumando sin encabezado: las herramientas de análisis
     // las mostraban como columnas sin nombre. Definición: docs/diccionario-de-datos.md
     const encabezadosCompletos = {
-      Eventos: ['A1:AD1', ['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna','modalidadPago','precioCubierto','modificadoEn','modificadoPor','motivoCancelacion','notaCancelacion']],
+      Eventos: ['A1:AG1', ['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna','modalidadPago','precioCubierto','modificadoEn','modificadoPor','motivoCancelacion','notaCancelacion','utmSource','utmMedium','utmCampaign']],
       Personas: ['A1:N1', ['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor','notaPersona','modificadoEn','modificadoPor']],
       Restricciones: ['A1:E1', ['id','idCliente','tipoRestriccion','cantidad','coronita']],
       Timming: ['A1:I1', ['id','idCliente','hora','actividad','tipo','descripcion','hecho','horaOriginal','notas']],

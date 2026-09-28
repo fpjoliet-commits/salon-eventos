@@ -1413,7 +1413,7 @@ const TURNOS_FORM = ['Noche', 'Tarde'];
 
 function validarLead(b) {
   if (!b || typeof b !== 'object' || Array.isArray(b)) return 'Formulario inválido.';
-  const campos = ['nombre', 'telefono', 'email', 'tipoEvento', 'fechaEvento', 'cantidadInvitados', 'turno', 'mensaje', 'origen', 'utm_source'];
+  const campos = ['nombre', 'telefono', 'email', 'tipoEvento', 'fechaEvento', 'cantidadInvitados', 'turno', 'mensaje', 'origen', 'utm_source', 'utm_medium', 'utm_campaign'];
   for (const k of campos) {
     if (b[k] !== undefined && b[k] !== null && typeof b[k] !== 'string' && typeof b[k] !== 'number') return 'Formulario inválido.';
   }
@@ -1460,9 +1460,11 @@ app.post('/api/leads', async (req, res) => {
   const { nombre, telefono, email, tipoEvento, fechaEvento, cantidadInvitados, turno, mensaje } = req.body;
 
   try {
-    const ORIGENES_VALIDOS = ['Instagram','TikTok','Facebook','Google','WhatsApp','Recomendacion','Otro'];
-    const origenRaw = req.body.origen || req.body.utm_source || '';
-    const origen = ORIGENES_VALIDOS.includes(origenRaw) ? origenRaw : 'Formulario';
+    // Origen: lo que eligió la persona o, si no, la campaña (utm_source=instagram).
+    // Cualquier valor de la lista oficial vale, sin importar mayúsculas.
+    const origenRaw = String(req.body.origen || req.body.utm_source || '');
+    const origen = listas.oPorDefecto('evento', 'origen', origenRaw, 'Formulario');
+    const utm = k => String(req.body[k] || '').trim().slice(0, 100);
 
     const cliente = await sheets.addCliente({
       apellidoNombre: String(nombre).trim(),
@@ -1475,6 +1477,7 @@ app.post('/api/leads', async (req, res) => {
       observaciones: String(mensaje || '').trim(),
       estado: 'Consulta',
       origen,
+      utmSource: utm('utm_source'), utmMedium: utm('utm_medium'), utmCampaign: utm('utm_campaign'),
       cargadoPor: 'bot-formulario',
     });
     res.json({ ok: true, rowIndex: cliente.rowIndex });

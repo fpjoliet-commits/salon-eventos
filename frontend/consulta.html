@@ -522,8 +522,9 @@
   const hoy = new Date().toISOString().split('T')[0];
   fechaInput.min = hoy;
 
-  // Origen desde UTM (se envía al servidor)
-  const utm = new URLSearchParams(location.search).get('utm_source') || '';
+  // Campaña que trajo a la persona (?utm_source=...&utm_medium=...&utm_campaign=...)
+  const qs = new URLSearchParams(location.search);
+  const utm = qs.get('utm_source') || '';
 
   const form     = document.getElementById('consulta-form');
   const errorMsg = document.getElementById('error-msg');
@@ -602,6 +603,9 @@
         turno,
         mensaje:            form.elements.mensaje.value.trim(),
         origen:             form.elements.origen.value || utm || '',
+        utm_source:         utm,
+        utm_medium:         qs.get('utm_medium') || '',
+        utm_campaign:       qs.get('utm_campaign') || '',
         _hp:                form.elements._hp.value,
       };
 

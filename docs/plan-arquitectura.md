@@ -36,7 +36,8 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 | 4.1 | Hoja "Estados" append-only (alta, edición y Cal.com) | 8be35c0 |
 | 4.2 | Motivo obligatorio al cancelar (Eventos AC:AD, lista en `listas.js`) | 5b4f3b6 |
 | 4.3 | Auditoría de cobros y gastos (alta, edición con antes/después, confirmación, anulación, restauración) | 26b5766 |
-| 4.4 | Teléfono `+54 9 …` como texto, mail en minúsculas, duplicados comparando teléfono normalizado | (este) |
+| 4.4 | Teléfono `+54 9 …` como texto, mail en minúsculas, duplicados comparando teléfono normalizado | 961129a |
+| 4.5 | Campaña del formulario web (Eventos AE:AG) + origen por UTM sin importar mayúsculas | (este) |
 
 ## Pendiente
 
@@ -48,7 +49,6 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
   `PASSWORD_FABIO` / `PASSWORD_LAUTARO` en Render.
 
 **Fase 4 — historia de cada venta**
-- 4.5 Guardar campaña/UTM del formulario web.
 
 **Fase 5 — limpiar histórico** (probar en la copia; antes de tocar la real, duplicar las hojas
 como pestañas de respaldo; verificar que cantidad de filas y total de plata no cambien)

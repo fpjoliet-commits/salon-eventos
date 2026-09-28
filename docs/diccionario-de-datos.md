@@ -92,6 +92,9 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 | AB | modificadoPor | texto | Quién hizo la última modificación (`Cal.com` si la tocó el agendamiento) |
 | AC | motivoCancelacion | lista | Por qué se cayó: `Otro salón`, `Precio`, `Fecha ocupada`, `Se suspendió`, `Dejó de responder`, `Sin motivo`, `Otro`. Obligatorio al pasar a Cancelado; vacío si no está cancelado |
 | AD | notaCancelacion | texto | Nota libre de la cancelación (obligatoria con motivo `Otro`) |
+| AE | utmSource | texto | Campaña que trajo la consulta del formulario web: `utm_source` del link (p. ej. `instagram`). Vacío si no vino de un link con campaña. Desde 28/09/2026 |
+| AF | utmMedium | texto | `utm_medium` del link (p. ej. `paid`, `bio`) |
+| AG | utmCampaign | texto | `utm_campaign` del link (nombre de la campaña) |
 
 ## Ingresos — cobros
 
