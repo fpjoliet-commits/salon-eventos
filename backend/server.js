@@ -1597,6 +1597,31 @@ app.post('/api/stock-actual/actualizar', auth, superAdminOnly, async (req, res) 
   }
 });
 
+// ── Preferencias por usuario (vistas guardadas de las listas) ──
+// Se guardan en la hoja Config con clave prefs:<usuario>:<clave>, así cada
+// usuario ve sus vistas en cualquier dispositivo. Valor = JSON (array de vistas).
+function clavePrefs(req, clave) {
+  return `prefs:${(req.user.usuario || '').toLowerCase()}:${String(clave).replace(/[^a-z0-9_-]/gi, '')}`;
+}
+app.get('/api/prefs/:clave', auth, async (req, res) => {
+  try {
+    const cfg = await sheets.getConfig();
+    let valor = [];
+    try { valor = JSON.parse(cfg[clavePrefs(req, req.params.clave)] || '[]'); } catch {}
+    res.json({ valor });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.put('/api/prefs/:clave', auth, async (req, res) => {
+  try {
+    await sheets.setConfig(clavePrefs(req, req.params.clave), JSON.stringify(req.body.valor ?? []));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 // ── Bot de Telegram (carga de ingresos/egresos por audio → bandeja Por confirmar) ──
 const telegramBot = require('./telegram-bot');

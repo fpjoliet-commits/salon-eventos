@@ -683,12 +683,25 @@
     try { return (typeof currentUser !== 'undefined' && currentUser && currentUser.usuario) || 'anon'; }
     catch { return 'anon'; }
   }
+  // Caché en memoria por lista (fuente: servidor, por usuario del token).
+  const cacheVistas = {};
+  function lsKeyVistas(D) { return D.storageKey + '__' + usuarioActual(); }
   function leerVistasD(D) {
-    try { return JSON.parse(localStorage.getItem(D.storageKey + '__' + usuarioActual()) || '[]') || []; }
-    catch { return []; }
+    if (Array.isArray(cacheVistas[D.prefKey])) return cacheVistas[D.prefKey];
+    try { return JSON.parse(localStorage.getItem(lsKeyVistas(D)) || '[]') || []; } catch { return []; }
   }
   function guardarVistasD(D, arr) {
-    try { localStorage.setItem(D.storageKey + '__' + usuarioActual(), JSON.stringify(arr)); } catch {}
+    cacheVistas[D.prefKey] = arr;
+    try { localStorage.setItem(lsKeyVistas(D), JSON.stringify(arr)); } catch {}   // fallback local
+    // Persistir en el servidor por usuario → las vistas siguen al login entre dispositivos
+    window.apiFetch?.(`/prefs/${D.prefKey}`, { method: 'PUT', body: { valor: arr } })
+      .catch(() => window.toast?.('No se pudo guardar la vista en el servidor (quedó local)', 'error'));
+  }
+  async function cargarVistasServidor(D) {
+    try {
+      const r = await window.apiFetch?.(`/prefs/${D.prefKey}`);
+      if (r && Array.isArray(r.valor)) cacheVistas[D.prefKey] = r.valor;
+    } catch { /* sin servidor: se usa el fallback local */ }
   }
   function capturarVistaD(D) {
     const filtros = {};
@@ -772,6 +785,7 @@
 
   const VISTAS_CLIENTES = {
     btnId: 'btn-vistas',
+    prefKey: 'vistas_clientes',
     ref: '#btn-exportar-csv', mode: 'before',
     // FILTROS se declara mas abajo: leerlo al vuelo evita que este objeto
     // rompa la carga del archivo (y con ella uiConfirm/toastUndo).
@@ -783,12 +797,18 @@
   };
   const VISTAS_MOV = {
     btnId: 'btn-vistas-mov',
+    prefKey: 'vistas_movimientos',
     ref: '#mov-filtros', mode: 'append',
     filterIds: ['egr-filtro-tipo', 'egr-filtro-mes', 'egr-filtro-destino', 'egr-filtro-cat', 'egr-filtro-moneda'],
     columnasKey: 'crm_columnas_movimientos',
     storageKey: 'crm_vistas_movimientos',
     aplicar: () => { window.renderEgresos?.(); },
   };
+  // Al haber datos (post-login) traigo del servidor las vistas del usuario.
+  document.addEventListener('crm:clientes-cargados', () => {
+    cargarVistasServidor(VISTAS_CLIENTES);
+    cargarVistasServidor(VISTAS_MOV);
+  }, { once: true });
 
   /* --- CSV de la vista actual (respeta filtros y orden) --- */
   const CSV_COLS = [
