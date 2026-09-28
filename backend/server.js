@@ -5,6 +5,15 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const crypto = require('crypto');
+// Fuera de Render (dev local) se trabaja SIEMPRE contra la copia "CRM PRUEBA".
+// Render define RENDER=true; si falta y el id es el de la planilla real, no arranca.
+const ID_PLANILLA_REAL = '1ijCN27RaLLYUG0a6hEYwwC9rQJKrYV_KdsBEGAHULgY';
+if (!process.env.RENDER && process.env.SPREADSHEET_ID === ID_PLANILLA_REAL) {
+  console.error('❌ Esta PC apunta a la planilla REAL. En local se usa la copia de prueba:');
+  console.error('   poné su id en SPREADSHEET_ID de backend/.env (ver docs/planilla-de-prueba.md).');
+  process.exit(1);
+}
+
 const sheets = require('./sheets');
 
 const app = express();

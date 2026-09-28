@@ -99,6 +99,8 @@ Estados de un cliente/evento: `Consulta | Visita agendada | Por cerrar | Confirm
 - Backup: un proyecto de Apps Script (cuenta dueña) copia todo cada noche a la carpeta de
   Drive "Backups CRM Joliet" (últimas 30). Código y guía: `scripts/backup-planilla.gs`,
   `docs/backup-planilla.md`.
+- Local usa SIEMPRE la copia "CRM PRUEBA - no usar" (`SPREADSHEET_ID` en `backend/.env`);
+  fuera de Render el server no arranca contra la real. Ver `docs/planilla-de-prueba.md`.
 - Un borrador del bot es "huérfano" si su etiqueta no llega a ningún rol con acceso a
   la bandeja (p. ej. cargado por Anita): el superadmin los ve como red de seguridad.
 - El `dashboard/` es un dashboard de escritorio aparte; su `config.json` guarda la
