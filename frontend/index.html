@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260926b-cerradas">
+  <link rel="stylesheet" href="css/style.css?v=20260928a-fichalimpia">
   <link rel="stylesheet" href="css/propuesta.css?v=20260925a-recupenvio">
   <link rel="stylesheet" href="css/ux.css?v=20260926a-pdfvisor">
   <link rel="icon" type="image/png" href="/img/icons/favicon-48.png">
@@ -1333,34 +1333,13 @@
         <!-- Tab: Plan de pago -->
         <div id="tab-cuotas" class="tab-content hidden">
 
-          <details class="guia-carga" id="guia-cuotas" style="margin-bottom:16px">
-            <summary class="guia-carga-header">
-              <span>💡 ¿Cómo cargar el plan de pagos y registrar cobros?</span>
-              <span class="guia-chevron">▾</span>
-            </summary>
-            <div class="guia-carga-body">
-              <p class="guia-intro"><strong>Parte de arriba — Plan de cuotas:</strong></p>
-              <ol class="guia-steps">
-                <li>Completá presupuesto total, moneda, cantidad de cuotas y fecha del primer pago → <strong>Guardar plan</strong>. El sistema genera las cuotas automáticamente.</li>
-                <li>Si el cliente ya pagó cuotas, registralas con el formulario de abajo y tildá qué cuotas cubre ese pago.</li>
-              </ol>
-              <p class="guia-intro" style="margin-top:12px"><strong>Parte de abajo — Registrar cobro:</strong></p>
-              <ol class="guia-steps">
-                <li><strong>Seña:</strong> primer pago del cliente. Al registrarlo podés cambiar el Estado de la fecha a <em>Reservada</em>.</li>
-                <li><strong>Cuota:</strong> tildar las cuotas del plan que cubre ese pago → se marcan como pagadas.</li>
-                <li><strong>Saldo final / Otro:</strong> solo registra el cobro, no toca el plan.</li>
-                <li>La <strong>fecha del cobro es libre</strong> — podés poner cualquier fecha del pasado para cargar pagos históricos. Por defecto sale hoy.</li>
-              </ol>
-            </div>
-          </details>
-
           <div id="cuotas-content"></div>
           <form id="pago-form" class="inline-form" style="margin-top:0;padding-top:16px;border-top:1px solid var(--border-light)">
             <input type="hidden" id="pago-id-cliente">
             <h4>Registrar cobro</h4>
             <div class="form-grid small-grid">
               <div class="form-group">
-                <label>Tipo <span class="tip" data-tip="Seña: primer pago que confirma el interés y reserva la fecha. Pago a cuenta: plata que trae cuando puede, a cuenta de lo que vale el evento. Cuota: pago de un plan de cuotas. Saldo final: lo que queda por pagar antes del evento. Otro: cualquier concepto extra.">?</span></label>
+                <label>Tipo</label>
                 <select id="pago-tipo" required>
                   <option value="">—</option>
                   <option>Seña</option>
@@ -1384,7 +1363,7 @@
               <!-- Solo para pago por cubierto en dólares: hay que pasar a pesos
                    antes de poder convertir a cubiertos. -->
               <div class="form-group" id="pago-cotiz-group" style="display:none">
-                <label>Cotización del dólar <span class="tip" data-tip="Se trae sola del blue (promedio entre compra y venta). Si arreglaste otro valor con el cliente, escribilo acá. Queda guardado el valor que se usó.">?</span></label>
+                <label>Cotización del dólar</label>
                 <div class="pago-cotiz-row">
                   <input type="number" id="pago-cotizacion" min="0" step="0.01" placeholder="0">
                   <button type="button" id="btn-traer-cotiz" class="btn btn-sm" title="Traer la cotización de hoy">↻</button>
@@ -1394,7 +1373,7 @@
               <!-- Solo para la seña en pago por cubierto: cuántos cubiertos cubre
                    se pacta en el momento con el cliente, no se calcula solo. -->
               <div class="form-group" id="pago-sena-cub-group" style="display:none">
-                <label>Cubiertos que cubre la seña <span class="tip" data-tip="Lo que pactaste con el cliente en el momento. Se propone lo que alcanza al precio de hoy, pero escribí el número acordado. Esos cubiertos quedan congelados al precio de esta seña.">?</span></label>
+                <label>Cubiertos que cubre la seña</label>
                 <input type="number" id="pago-sena-cubiertos" min="0" step="1" placeholder="0">
               </div>
               <div class="form-group">
@@ -1428,7 +1407,7 @@
 
             <div id="cuotas-a-tachar" class="hidden" style="margin:10px 0 14px">
               <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
-                ¿A qué cuotas corresponde este pago? <span class="tip" data-tip="Seleccioná las cuotas que cubre este cobro. Se marcarán como pagadas automáticamente.">?</span>
+                ¿A qué cuotas corresponde este pago?
               </div>
               <div id="cuotas-a-tachar-lista" class="item-list" style="max-height:180px;overflow-y:auto"></div>
             </div>
@@ -1452,7 +1431,7 @@
               <input type="number" id="rest-cantidad" placeholder="Cant." min="1" required style="width:70px">
               <label style="display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap;cursor:pointer">
                 <input type="checkbox" id="rest-coronita"> 👑 Mesa principal
-                <span class="tip" data-tip="Marcalo si esta persona está en la mesa principal: el festejado, quien paga, padres, pareja, etc. Se resalta con corona en la ficha de cocina.">?</span>
+               
               </label>
               <button type="submit" class="btn btn-primary btn-sm">Agregar</button>
             </div>
@@ -2022,7 +2001,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260926b-cerradas"></script>
+  <script src="js/app.js?v=20260928a-fichalimpia"></script>
   <script src="js/propuesta-ui.js?v=20260921a-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>

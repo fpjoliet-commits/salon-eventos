@@ -401,7 +401,6 @@ async function abrirCocinaDelEvento(cliente) {
     $('cocina-nombre-evento').value = cliente.apellidoNombre || '';
     $('cocina-fecha').value = cliente.fechaEvento || '';
   }
-  toast(`Pedido nuevo para ${cliente.apellidoNombre || 'este evento'}. Cargá las cantidades.`);
 }
 
 /* ===================== TIMING PLANNER GLOBAL ===================== */
@@ -960,7 +959,7 @@ function renderEventosDeLaPersona(cliente, tabInicial = 'info') {
       // Tocar la que ya esta abierta la cierra; tocar otra cambia de evento.
       _eventoAbiertoId = (id === _eventoAbiertoId) ? null : id;
       const c = allClientes.find(x => x.id === id);
-      if (c) { renderEventosDeLaPersona(c); }
+      if (c) renderEventosDeLaPersona(c, 'info');
     });
   });
   $('btn-nuevo-evento-persona')?.addEventListener('click', () => {
@@ -968,10 +967,14 @@ function renderEventosDeLaPersona(cliente, tabInicial = 'info') {
     abrirNuevoEventoParaPersona(currentClienteModal || cliente);
   });
 
-  // El panel de solapas se muda adentro de la tarjeta abierta.
+  // El panel de solapas se muda adentro de la tarjeta abierta. Si no hay
+  // ninguna abierta queda guardado afuera, escondido.
   const panel = $('cliente-evento-panel');
   const destino = box.querySelector('.ev-abierta .ev-body');
-  if (panel && destino) destino.appendChild(panel);
+  if (panel) {
+    panel.classList.toggle('hidden', !destino);
+    if (destino) destino.appendChild(panel);
+  }
 
   cargarEventoEnFicha(cliente, tabInicial);
 }
@@ -980,11 +983,14 @@ function _tarjetaEventoHTML(c, abierto) {
   const agasajado = (c.nombreAgasajado || '').trim();
   const titulo = [c.tipoEvento || 'Evento', agasajado && agasajado.toLowerCase() !== (c.apellidoNombre || '').trim().toLowerCase() ? `— ${agasajado}` : '']
     .filter(Boolean).join(' ');
-  const meta = [
-    c.fechaEvento ? formatDateWithDay(c.fechaEvento) : 'Sin fecha',
-    c.turno || '',
-    c.cantidadInvitados ? `${c.cantidadInvitados} invitados` : '',
-  ].filter(Boolean).join(' · ');
+  // Cerrada muestra solo la fecha; abierta agrega turno e invitados.
+  const meta = abierto
+    ? [
+        c.fechaEvento ? formatDateWithDay(c.fechaEvento) : 'Sin fecha',
+        c.turno || '',
+        c.cantidadInvitados ? `${c.cantidadInvitados} invitados` : '',
+      ].filter(Boolean).join(' · ')
+    : (c.fechaEvento ? formatDate(c.fechaEvento) : 'Sin fecha');
   return `
     <div class="ev-card${abierto ? ' ev-abierta' : ''}" data-ev-id="${esc(c.id)}">
       <div class="ev-head" role="button" tabindex="0">
@@ -1144,7 +1150,7 @@ function _wireChipsTablero(cont, cliente) {
       switch (btn.dataset.chip) {
         case 'propuesta': activateTab('propuesta'); break;
         case 'pagos':     activateTab('pagos'); break;
-        case 'editar':    activateTab('info'); break;
+        case 'editar':    $('btn-editar-cliente')?.click(); break;
         case 'timing':    $('btn-ver-timing')?.click(); break;
         case 'cocina':    abrirCocinaDelEvento(cliente); break;
         case 'egresos':   hideEl($('modal-overlay')); navigateTo('egresos'); break;
@@ -1207,15 +1213,17 @@ function _campoEditable(c, key, label, type, opts = {}) {
 function renderClienteDetail(c) {
   const ed = (key, label, type, opts) => _campoEditable(c, key, label, type, opts);
   const obs = (c.observaciones || '').replace(SUGERENCIA_REGEX,'').trim();
+  // Tipo, agasajado, fecha, turno e invitados ya estan en el renglon de la
+  // tarjeta: aca va solo lo que no se ve arriba. Estado de la fecha y
+  // presupuesto los muestra "Este evento tiene" mientras se esta vendiendo;
+  // despues el tablero pasa a otros numeros y vuelven a la grilla.
+  const enVenta = _faseEvento(c) === 'venta';
+  const presu = [c.presupuesto, c.montoPresupuesto ? formatMoney(c.montoPresupuesto) : ''].filter(Boolean).join(' · ');
   $('cliente-detail-grid').innerHTML = `
-    ${ed('tipoEvento', 'Tipo de evento', 'select', { selectName: 'tipoEvento' })}
-    ${ed('nombreAgasajado', 'Agasajad@', 'text')}
     ${ed('formato', 'Formato', 'select', { selectName: 'formato' })}
-    ${ed('fechaEvento', 'Fecha del evento', 'date', { fmt: formatDateWithDay })}
-    <div class="detail-item"><span class="detail-label">Estado de la fecha</span><span class="detail-value">${c.estadoFecha || '—'}</span></div>
-    ${ed('cantidadInvitados', 'Invitados', 'number')}
-    ${ed('turno', 'Turno', 'select', { selectName: 'turno' })}
+    ${enVenta ? '' : `<div class="detail-item"><span class="detail-label">Estado de la fecha</span><span class="detail-value">${esc(c.estadoFecha || '—')}</span></div>`}
     ${ed('menuInfantil', 'Menú infantil', 'number')}
+    ${enVenta ? '' : `<div class="detail-item internal-field" data-internal><span class="detail-label">Presupuesto</span><span class="detail-value">${esc(presu || '—')}</span></div>`}
     ${ed('otrosPedidos', 'Otros pedidos', 'textarea', { full: true })}
     ${obs ? `<div class="detail-item detail-full"><span class="detail-label">Observaciones</span><span class="detail-value">${esc(obs)}</span></div>` : ''}
     ${(c.menuRecepcion || c.menuIslas || c.menuPrimerPlato || c.menuPrincipal || c.menuPostre) ? `
@@ -1229,10 +1237,6 @@ function renderClienteDetail(c) {
           ${c.menuPostre ? `<div><span class="menu-cat">Postre</span> ${esc(c.menuPostre)}</div>` : ''}
         </div>
       </div>` : ''}
-    <div class="detail-item internal-field" data-internal><span class="detail-label">Presupuesto</span><span class="detail-value">${c.presupuesto || '—'}</span></div>
-    <div class="detail-item internal-field" data-internal><span class="detail-label">Monto presupuesto</span><span class="detail-value">${c.montoPresupuesto ? formatMoney(c.montoPresupuesto) : '—'}</span></div>
-    <div class="detail-item internal-field" data-internal><span class="detail-label">Cargado por</span><span class="detail-value">${c.cargadoPor || '—'}</span></div>
-    <div class="detail-item internal-field" data-internal><span class="detail-label">Fecha de carga</span><span class="detail-value">${formatDate(c.fechaCarga)}</span></div>
   `;
 
   // Panel de seguimiento (siempre interno, fuera del grid principal)
@@ -2876,7 +2880,6 @@ function renderCuentaContado(cliente, cta) {
     ${cta.usdSinConvertir > 0
       ? `<div class="aviso-sinconf">Hay ${formatMoneda(cta.usdSinConvertir, 'USD')} cobrados antes de que se guardara la cotización: no están sumados arriba, porque no se sabe a cuánto se tomaron. Tenelos en cuenta aparte.</div>` : ''}
     ${cta.sinConfirmar ? `<div class="aviso-sinconf">${cta.sinConfirmar} cobro(s) sin confirmar todavía: no suman hasta que se confirmen.</div>` : ''}
-    <p class="cta-nota">El precio queda fijo hasta el evento. Cada vez que traiga plata, registrala abajo como <b>Pago a cuenta</b> (la primera, como Seña).</p>
     ${detallePlanOpcional(cliente)}`;
   bindFormCrearPlan(cliente);
 }
@@ -2936,10 +2939,6 @@ async function loadCuotasTab(cliente) {
 
   // La modalidad decide que se muestra: mezclar cuotas y cubiertos en la misma
   // pantalla confunde, y el negocio usa una sola por evento.
-  // La guia de arriba explica el flujo de cuotas: no aplica a pago por cubierto.
-  const guia = $('guia-cuotas');
-  if (guia) guia.style.display = cliente.modalidadPago === 'cubiertos' ? 'none' : '';
-
   if (cliente.modalidadPago === 'cubiertos') {
     cuotasClienteActual = [];
     try {
