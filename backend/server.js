@@ -348,7 +348,7 @@ app.get('/api/personas', auth, async (req, res) => {
     const personas = await sheets.getPersonas();
     res.json(personas);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -358,7 +358,7 @@ app.get('/api/clientes', auth, async (req, res) => {
     const clientes = await sheets.getClientes();
     res.json(clientes);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -373,7 +373,7 @@ app.post('/api/clientes', auth, validarCliente, async (req, res) => {
     });
     res.json(cliente);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -388,7 +388,7 @@ app.put('/api/clientes/:rowIndex', auth, validarRowIndex, validarCliente, async 
     });
     res.json(result);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -403,7 +403,7 @@ app.delete('/api/clientes/:rowIndex', auth, adminOnly, validarRowIndex, async (r
     });
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -412,7 +412,7 @@ app.get('/api/auditoria/cliente/:idCliente', auth, adminOnly, async (req, res) =
   try {
     res.json(await sheets.getAuditoria(req.params.idCliente));
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -475,7 +475,7 @@ app.post('/api/ingresos', auth, adminOnly, async (req, res) => {
     });
     res.json(ingreso);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -489,17 +489,17 @@ app.put('/api/ingresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) =
     if (ing && !ing.idCliente) {
       return res.status(400).json({ error: 'Este cobro todavia no tiene evento.' });
     }
-    await sheets.confirmarIngreso(rowIndex);
+    await sheets.confirmarIngreso(rowIndex, req.query.id);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Descartar un cobro borrador desde la bandeja "Por confirmar".
 app.delete('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
   try {
-    await sheets.deleteIngreso(parseInt(req.params.rowIndex));
+    await sheets.deleteIngreso(parseInt(req.params.rowIndex), req.query.id);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Deshacer el borrado de un cobro. La fila quedo vacia pero sigue ahi, asi que
@@ -507,7 +507,7 @@ app.delete('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
 app.put('/api/ingresos/:rowIndex/restaurar', auth, adminOnly, validarRowIndex, async (req, res) => {
   try {
     res.json(await sheets.restaurarIngreso(parseInt(req.params.rowIndex), req.body));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Editar un cobro (usado para corregir borradores desde la bandeja "Por confirmar").
@@ -520,7 +520,7 @@ app.put('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
       ...req.body, cliente, fechaEvento,
     });
     res.json(actualizado);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Restricciones
@@ -529,7 +529,7 @@ app.get('/api/restricciones', auth, async (req, res) => {
     const restricciones = await sheets.getRestricciones();
     res.json(restricciones);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -539,7 +539,7 @@ app.get('/api/restricciones/cliente/:idCliente', auth, async (req, res) => {
     const filtradas = todas.filter(r => r.idCliente === req.params.idCliente);
     res.json(filtradas);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -548,7 +548,7 @@ app.post('/api/restricciones', auth, async (req, res) => {
     const r = await sheets.addRestriccion(req.body);
     res.json(r);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -557,7 +557,7 @@ app.delete('/api/restricciones/:rowIndex', auth, validarRowIndex, async (req, re
     await sheets.deleteRestriccion(parseInt(req.params.rowIndex));
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -572,7 +572,7 @@ app.get('/api/ingresos/totales/:idCliente', auth, adminOnly, async (req, res) =>
       .reduce((sum, i) => sum + (sheets.cobroEnPesos(i) || 0), 0);
     res.json({ total, ingresos: filtrados });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -582,7 +582,7 @@ app.get('/api/cuotas/cliente/:idCliente', auth, adminOnly, async (req, res) => {
     await correrIPCAutomatico();   // no hace nada si ya corrio en las ultimas 6 h
     res.json(await sheets.getCuotasByCliente(req.params.idCliente));
   }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.post('/api/cuotas/plan', auth, adminOnly, async (req, res) => {
@@ -591,7 +591,7 @@ app.post('/api/cuotas/plan', auth, adminOnly, async (req, res) => {
     const ipcHasta = indexacion === 'ipc' ? await ultimoMesIPC() : '';
     res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio,
       moneda, indexacion, quien(req), { ipcHasta }));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Sumar cuotas a un plan existente: hereda moneda e indexacion y sigue la numeracion.
@@ -603,7 +603,7 @@ app.post('/api/cuotas/agregar', auth, adminOnly, async (req, res) => {
       return res.status(400).json({ error: 'Completá cantidad (1 a 60), valor de cuota y fecha.' });
     }
     res.json(await sheets.agregarCuotas(idCliente, n, valor, fechaInicio, await ultimoMesIPC(), quien(req)));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Pasar un plan ya creado a indexado por IPC, o volverlo a cuotas fijas.
@@ -625,14 +625,14 @@ app.put('/api/cuotas/indexacion', auth, adminOnly, async (req, res) => {
       detalle: indexacion === 'ipc' ? `Se ajusta desde el IPC posterior a ${ipcHasta}` : '',
     });
     res.json({ ...r, ipcHasta });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.put('/api/cuotas/confirmar', auth, adminOnly, async (req, res) => {
   try {
     await sheets.confirmarCuotas(req.body.rowIndices);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.put('/api/cuotas/pagar', auth, adminOnly, async (req, res) => {
@@ -662,7 +662,7 @@ app.put('/api/cuotas/pagar', auth, adminOnly, async (req, res) => {
       });
     }
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Cobro con imputacion automatica: entra un monto, el sistema decide que cuotas
@@ -695,7 +695,7 @@ app.put('/api/cuotas/imputar', auth, adminOnly, async (req, res) => {
       cliente, fechaEvento,
     });
     res.json({ ok: true, aplicaciones, sobrante });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 /* ------------------------- PAGO POR CUBIERTO ------------------------------ */
@@ -752,7 +752,7 @@ app.get('/api/config', auth, async (req, res) => {
     Object.keys(cfg).forEach(k => { if (k.startsWith(PREFIJO_LINK_TIMING)) delete cfg[k]; });
     res.json(cfg);
   }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.put('/api/config', auth, superAdminOnly, async (req, res) => {
@@ -760,7 +760,7 @@ app.put('/api/config', auth, superAdminOnly, async (req, res) => {
     const { clave, valor } = req.body;
     if (!clave) return res.status(400).json({ error: 'Falta la clave.' });
     res.json(await sheets.setConfig(clave, valor));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Cuenta del evento en contado / pagos sueltos: cuanto vale, cuanto pago, cuanto falta.
@@ -770,7 +770,7 @@ app.get('/api/cuenta/:idEvento', auth, adminOnly, async (req, res) => {
     const ev = eventos.find(e => e.id === req.params.idEvento);
     if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
     res.json(sheets.estadoCuenta(ev, ingresos.filter(i => i.idCliente === ev.id)));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Estado de cubiertos de un evento: cuantos lleva, cuanto a favor, cuanto falta.
@@ -781,7 +781,7 @@ app.get('/api/cubiertos/:idEvento', auth, adminOnly, async (req, res) => {
     if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
     const delEvento = ingresos.filter(i => i.idCliente === ev.id);
     res.json({ ...sheets.estadoCubiertos(ev, delEvento), evento: ev.id });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Registrar un cobro que compra cubiertos.
@@ -874,14 +874,14 @@ app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
       restantes: Math.max(0, estado.total - pagadosAhora),
       faltaPagar: Math.max(0, estado.total - pagadosAhora) * estado.precio,
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.put('/api/cuotas/ipc', auth, adminOnly, async (req, res) => {
   try {
     const { idCliente, porcentaje } = req.body;
     res.json(await sheets.aplicarIPC(idCliente, porcentaje));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 /* ---------------------------------------------------------------------------
@@ -955,7 +955,7 @@ app.put('/api/cuotas/ajustar', auth, adminOnly, async (req, res) => {
   try {
     const { idCliente, nuevoValor } = req.body;
     res.json(await sheets.ajustarValorCuotas(idCliente, nuevoValor));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
@@ -967,7 +967,7 @@ app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
       detalle: 'Se eliminaron todas las cuotas del cliente',
     });
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Timming — admin y superadmin
@@ -978,25 +978,25 @@ function canManageTimming(req) {
 app.get('/api/timming/cliente/:idCliente', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
   try { res.json(await sheets.getTimming(req.params.idCliente)); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.post('/api/timming', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
   try { res.json(await sheets.addTimmingItem(req.body)); avisarTiming(req.body.idCliente); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.put('/api/timming/:rowIndex', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
   try { res.json(await sheets.updateTimmingItem(parseInt(req.params.rowIndex), req.body)); avisarTiming(req.body.idCliente); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.delete('/api/timming/:rowIndex', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
   try { await sheets.deleteTimmingItem(parseInt(req.params.rowIndex)); res.json({ ok: true }); avisarTiming(null); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 /* ===================== TIMING VIVO DE LA MAÎTRE =====================
@@ -1154,7 +1154,7 @@ app.post('/api/timming/link/:idCliente', auth, async (req, res) => {
     const l = await linksDeEvento(cliente);
     const origen = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.get('host')}`;
     res.json({ editar: `${origen}/t/${l.editar}`, leer: `${origen}/t/${l.leer}` });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 /* En vivo: cada celular con el link abierto queda escuchando acá. Cuando
@@ -1200,7 +1200,7 @@ app.get('/api/t/:slug', async (req, res) => {
       pasos: (await f.pasos()).map(p => ({ id: p.id, hora: p.hora, horaOriginal: p.horaOriginal, actividad: p.actividad,
         descripcion: p.descripcion, hecho: p.hecho, notas: ed ? p.notas : [], propio: p.tipo === TIPO_PASO_CELULAR })),
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Público, solo el link de la maître: { accion: 'tildar'|'nota'|'borrarNota'|'correr'|'agregar'|'borrar', id, ... }
@@ -1253,7 +1253,7 @@ app.post('/api/t/:slug', async (req, res) => {
     await f.guardar(cambiados);
     avisarTiming(f.clave);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Migración única: Clientes → Personas + Eventos (admin y superadmin)
@@ -1261,18 +1261,18 @@ app.post('/api/migrar-clientes', auth, adminOnly, async (req, res) => {
   try {
     const result = await sheets.migrarClientesAPersonasEventos();
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Empleados
 app.get('/api/empleados', auth, adminOnly, async (req, res) => {
   try { res.json(await sheets.getEmpleados()); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.post('/api/empleados', auth, adminOnly, async (req, res) => {
   try { res.json(await sheets.addEmpleado(req.body)); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Cambiar el rol habitual o dar de baja (activo: false). La baja no borra la
@@ -1281,7 +1281,7 @@ app.put('/api/empleados/:rowIndex', auth, adminOnly, validarRowIndex, async (req
   try {
     const rowIndex = parseInt(req.params.rowIndex);
     res.json(await sheets.updateEmpleado(rowIndex, req.body));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // ── Datos crudos para el dashboard externo ───────────────────────────────────
@@ -1299,7 +1299,7 @@ app.get('/api/dashboard-data', auth, superAdminOnly, async (req, res) => {
       generado: new Date().toISOString(),
       clientes, ingresos, egresos, cuotas,
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Todos los ingresos confirmados (para el historial de movimientos del salón).
@@ -1307,13 +1307,13 @@ app.get('/api/ingresos', auth, adminOnly, async (req, res) => {
   try {
     const ingresos = await sheets.getIngresos();
     res.json(historialVisible(ingresos.filter(i => i.id && i.confirmado !== false), req));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Egresos
 app.get('/api/egresos', auth, adminOnly, async (req, res) => {
   try { res.json(historialVisible((await sheets.getEgresos()).filter(e => e.id), req)); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Bandeja "Por confirmar": ingresos y egresos que un humano todavia no valido.
@@ -1325,7 +1325,7 @@ app.get('/api/pendientes', auth, adminOnly, async (req, res) => {
       ingresos: pendientesVisibles(ingresos.filter(i => i.id && i.confirmado === false), req),
       egresos: pendientesVisibles(egresos.filter(e => e.id && e.confirmado === false), req),
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.post('/api/egresos', auth, adminOnly, async (req, res) => {
@@ -1338,7 +1338,7 @@ app.post('/api/egresos', auth, adminOnly, async (req, res) => {
     res.json(await sheets.addEgreso({
       ...req.body, cargadoPor: quien(req), evento: etiqueta,
     }));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
@@ -1348,29 +1348,29 @@ app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
     const rowIndex = parseInt(req.params.rowIndex);
     const { etiqueta } = await datosEvento(req.body.idEvento);
     res.json(await sheets.updateEgreso(rowIndex, { ...req.body, evento: etiqueta }));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Confirmar un egreso borrador (cargado por el bot). Espejo de confirmar ingreso.
 app.put('/api/egresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) => {
   try {
-    await sheets.confirmarEgreso(parseInt(req.params.rowIndex));
+    await sheets.confirmarEgreso(parseInt(req.params.rowIndex), req.query.id);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Borrar egreso — solo superadmin, igual criterio que el boton de editar.
 app.delete('/api/egresos/:rowIndex', auth, superAdminOnly, async (req, res) => {
   try {
-    res.json(await sheets.deleteEgreso(parseInt(req.params.rowIndex)));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    res.json(await sheets.deleteEgreso(parseInt(req.params.rowIndex), req.query.id));
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Espejo del restaurar de cobros.
 app.put('/api/egresos/:rowIndex/restaurar', auth, adminOnly, validarRowIndex, async (req, res) => {
   try {
     res.json(await sheets.restaurarEgreso(parseInt(req.params.rowIndex), req.body));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // ── Formulario público de consultas ──────────────────────────────────────────
@@ -1514,7 +1514,7 @@ app.post('/api/cal-booking', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('Error en /api/cal-booking:', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1525,7 +1525,7 @@ app.get('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
     const items = await sheets.getCatalogoItems();
     res.json(items);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1536,7 +1536,7 @@ app.post('/api/catalogo-items', auth, superAdminOnly, async (req, res) => {
     const item = await sheets.addCatalogoItem({ categoria, nombre, unidad });
     res.json(item);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1551,7 +1551,7 @@ app.put('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, res) 
     await sheets.updateCatalogoItem(parseInt(req.params.rowIndex), data);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1563,7 +1563,7 @@ app.post('/api/stock-actual/mover', auth, superAdminOnly, async (req, res) => {
     await sheets.cambiarCategoriaItem(id, categoria);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1594,7 +1594,7 @@ app.delete('/api/catalogo-items/:rowIndex', auth, superAdminOnly, async (req, re
     await sheets.deleteCatalogoItem(parseInt(req.params.rowIndex));
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1603,7 +1603,7 @@ app.post('/api/catalogo-items/sync', auth, superAdminOnly, async (req, res) => {
     const result = await sheets.sincronizarCatalogoConInicial();
     res.json({ ok: true, ...result });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1612,7 +1612,7 @@ app.get('/api/pedidos-cocina', auth, superAdminOnly, async (req, res) => {
     const pedidos = await sheets.getPedidosCocina();
     res.json(pedidos);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1621,7 +1621,7 @@ app.post('/api/pedidos-cocina', auth, superAdminOnly, async (req, res) => {
     const pedido = await sheets.addPedidoCocina({ ...req.body, creadoPor: quien(req) });
     res.json(pedido);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1630,7 +1630,7 @@ app.put('/api/pedidos-cocina/:rowIndex', auth, superAdminOnly, async (req, res) 
     const pedido = await sheets.updatePedidoCocina(parseInt(req.params.rowIndex), req.body);
     res.json(pedido);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1639,7 +1639,7 @@ app.delete('/api/pedidos-cocina/:rowIndex', auth, superAdminOnly, async (req, re
     await sheets.deletePedidoCocina(parseInt(req.params.rowIndex));
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1647,7 +1647,7 @@ app.get('/api/stock-actual', auth, superAdminOnly, async (req, res) => {
   try {
     res.json(await sheets.getStockActual());
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1659,7 +1659,7 @@ app.post('/api/stock-actual/minimo', auth, superAdminOnly, async (req, res) => {
     await sheets.actualizarMinimoStock(id, minimo);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1670,7 +1670,7 @@ app.post('/api/stock-actual/actualizar', auth, superAdminOnly, async (req, res) 
     await sheets.actualizarStockActual(actualizaciones);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 
@@ -1687,7 +1687,7 @@ app.get('/api/prefs/:clave', auth, async (req, res) => {
     try { valor = JSON.parse(cfg[clavePrefs(req, req.params.clave)] || '[]'); } catch {}
     res.json({ valor });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 app.put('/api/prefs/:clave', auth, async (req, res) => {
@@ -1695,7 +1695,7 @@ app.put('/api/prefs/:clave', auth, async (req, res) => {
     await sheets.setConfig(clavePrefs(req, req.params.clave), JSON.stringify(req.body.valor ?? []));
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(e.status || 500).json({ error: e.message });
   }
 });
 

@@ -168,6 +168,12 @@ function parseFechaCarga(str) {
   return null;
 }
 
+// Suma el id del registro a un pedido por número de fila: el servidor confirma
+// que esa fila siga siendo ese registro antes de tocarla.
+function conId(ruta, id) {
+  return id ? `${ruta}?id=${encodeURIComponent(id)}` : ruta;
+}
+
 async function apiFetch(path, opts = {}) {
   let res;
   try {
@@ -9741,7 +9747,7 @@ document.addEventListener('click', async e => {
   });
   if (!ok) return;
   try {
-    await apiFetch(`/egresos/${rowIndex}`, { method: 'DELETE' });
+    await apiFetch(conId(`/egresos/${rowIndex}`, eg?.id), { method: 'DELETE' });
     allEgresos = allEgresos.filter(x => x.rowIndex !== rowIndex);
     renderEgresos();
     // La fila queda vacia pero en su lugar, asi que se puede volver a escribir.
@@ -9783,7 +9789,7 @@ document.addEventListener('click', async e => {
   });
   if (!ok) return;
   try {
-    await apiFetch(`/ingresos/${rowIndex}`, { method: 'DELETE' });
+    await apiFetch(conId(`/ingresos/${rowIndex}`, ing?.id), { method: 'DELETE' });
     allIngresos = allIngresos.filter(x => x.rowIndex !== rowIndex);
     renderEgresos();
     toastUndo('Cobro borrado', async () => {
@@ -10030,7 +10036,7 @@ async function submitEditarIngreso(ev, confirmar = true) {
           },
         });
       }
-      await apiFetch(`/ingresos/${rowIndex}/confirmar`, { method: 'PUT' });
+      await apiFetch(conId(`/ingresos/${rowIndex}/confirmar`, original?.id), { method: 'PUT' });
     }
     hide('modal-editar-ingreso');
     toast(_ediYaConfirmado ? 'Cobro corregido' : (confirmar ? 'Cobro confirmado' : 'Cobro guardado'));
@@ -10075,7 +10081,7 @@ document.addEventListener('click', async e => {
     if (!ok) return;
     btn.disabled = true;
     try {
-      await apiFetch(`/${base}/${rowIndex}/confirmar`, { method: 'PUT' });
+      await apiFetch(conId(`/${base}/${rowIndex}/confirmar`, it?.id), { method: 'PUT' });
       toast(tipo === 'ingreso' ? 'Cobro confirmado' : 'Gasto confirmado');
       egresosCargados = false;           // el historial/totales cambiaron: forzar recarga al re-entrar
       await Promise.all([loadEgresos(), loadPendientes()]);
@@ -10097,7 +10103,7 @@ document.addEventListener('click', async e => {
   if (!ok) return;
   btn.disabled = true;
   try {
-    await apiFetch(`/${base}/${rowIndex}`, { method: 'DELETE' });
+    await apiFetch(conId(`/${base}/${rowIndex}`, borrador?.id), { method: 'DELETE' });
     await loadPendientes();
     toastUndo('Borrador descartado', async () => {
       try {

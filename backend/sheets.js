@@ -90,6 +90,48 @@ async function proximaFila(hoja) {
   return (colA.data.values || []).length + 1;
 }
 
+/* ===================== DESHACER SEGURO =====================
+   "Deshacer" vuelve a escribir el registro borrado en su fila. Si mientras
+   tanto una alta nueva ocupó esa fila (pasa cuando se borra el último), se lo
+   pisaba y se perdía. Ahora: si la fila sigue vacía (o ya tiene ese mismo
+   registro) se restaura ahí; si la ocupa otro, el restaurado va al final. */
+async function restaurarEnSuLugar(hoja, ultimaCol, rowIndex, data, aFila) {
+  const sheets = getSheets();
+  return enFilaDeAlta(hoja, async () => {
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID, range: `${hoja}!A${rowIndex}`, sinCache: true,
+    });
+    const ocupante = String(r.data.values?.[0]?.[0] ?? '');
+    const fila = (!ocupante || ocupante === String(data.id)) ? rowIndex : await proximaFila(hoja);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${hoja}!A${fila}:${ultimaCol}${fila}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [aFila(data)] },
+    });
+    return { ...data, rowIndex: fila };
+  });
+}
+
+/* ===================== REVISAR LA FILA ANTES DE ESCRIBIR =====================
+   Todo se escribe por número de fila. Si alguien ordenó, insertó o borró filas
+   a mano en la planilla, "la fila 45" pasaba a ser otro cliente y se le
+   escribía encima. Antes de escribir se confirma que el id de esa fila sea el
+   esperado; si no, no se toca nada y se pide recargar. Sin id no se puede
+   comparar (pantallas viejas en caché): se sigue como antes. */
+async function verificarFila(hoja, rowIndex, idEsperado) {
+  if (!tieneCredenciales || !idEsperado) return;
+  const r = await getSheets().spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID, range: `${hoja}!A${rowIndex}`, sinCache: true,
+  });
+  const actual = String(r.data.values?.[0]?.[0] ?? '');
+  if (actual !== String(idEsperado)) {
+    const e = new Error('La planilla cambió mientras tanto (se movieron filas). Recargá la pantalla y volvé a intentar.');
+    e.status = 409;
+    throw e;
+  }
+}
+
 function getSheets() {
   if (_clienteSheets) return _clienteSheets;
   const { google } = require('googleapis');
@@ -496,6 +538,8 @@ async function updateCliente(rowIndex, data) {
   }
 
   const sheets = getSheets();
+  await verificarFila('Eventos', rowIndex, data.id);
+  if (data.personaRowIndex) await verificarFila('Personas', data.personaRowIndex, data.personaId);
   const eventoData = {
     id: data.id, personaId: data.personaId, estado: data.estado,
     cargadoPor: data.cargadoPor, fechaCarga: data.fechaCarga,
@@ -638,13 +682,14 @@ async function addIngreso(data) {
   return ingreso;
 }
 
-async function confirmarIngreso(rowIndex) {
+async function confirmarIngreso(rowIndex, idEsperado) {
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
     if (idx !== -1) memIngresos[idx].confirmado = true;
     return;
   }
   const sheets = getSheets();
+  await verificarFila('Ingresos', rowIndex, idEsperado);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Ingresos!I${rowIndex}`,
@@ -655,13 +700,14 @@ async function confirmarIngreso(rowIndex) {
 
 // Borra (limpia) un ingreso — usado para descartar un borrador desde la bandeja.
 // Espejo de deleteEgreso: vacía la fila (A:P = 16 columnas) y conserva el rowIndex.
-async function deleteIngreso(rowIndex) {
+async function deleteIngreso(rowIndex, idEsperado) {
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(x => x.rowIndex === rowIndex);
     if (idx !== -1) memIngresos[idx] = { rowIndex };
     return { ok: true };
   }
   const sheets = getSheets();
+  await verificarFila('Ingresos', rowIndex, idEsperado);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Ingresos!A${rowIndex}:Q${rowIndex}`,
@@ -681,14 +727,7 @@ async function restaurarIngreso(rowIndex, data) {
     if (idx !== -1) memIngresos[idx] = fila; else memIngresos.push(fila);
     return fila;
   }
-  const sheets = getSheets();
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!A${rowIndex}:Q${rowIndex}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [ingresoToRow(data)] },
-  });
-  return { ...data, rowIndex };
+  return restaurarEnSuLugar('Ingresos', 'Q', rowIndex, data, ingresoToRow);
 }
 
 // Edita un ingreso (columnas B:P, sin tocar el id ni forzar confirmado).
@@ -702,6 +741,7 @@ async function updateIngreso(rowIndex, data) {
     return memIngresos[idx] || { ...data, rowIndex };
   }
   const sheets = getSheets();
+  await verificarFila('Ingresos', rowIndex, data.id);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Ingresos!B${rowIndex}:P${rowIndex}`,
@@ -1583,13 +1623,14 @@ async function addEgreso(data) {
   return e;
 }
 
-async function deleteEgreso(rowIndex) {
+async function deleteEgreso(rowIndex, idEsperado) {
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
     if (idx !== -1) memEgresos[idx] = { rowIndex };
     return { ok: true };
   }
   const sheets = getSheets();
+  await verificarFila('Egresos', rowIndex, idEsperado);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Egresos!A${rowIndex}:S${rowIndex}`,
@@ -1608,14 +1649,7 @@ async function restaurarEgreso(rowIndex, data) {
     if (idx !== -1) memEgresos[idx] = fila; else memEgresos.push(fila);
     return fila;
   }
-  const sheets = getSheets();
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!A${rowIndex}:S${rowIndex}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [egresoToRow(data)] },
-  });
-  return { ...data, rowIndex };
+  return restaurarEnSuLugar('Egresos', 'S', rowIndex, data, egresoToRow);
 }
 
 async function updateEgreso(rowIndex, data) {
@@ -1626,6 +1660,7 @@ async function updateEgreso(rowIndex, data) {
     return memEgresos[idx] || { ...data, rowIndex };
   }
   const sheets = getSheets();
+  await verificarFila('Egresos', rowIndex, data.id);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Egresos!B${rowIndex}:P${rowIndex}`,
@@ -1645,13 +1680,14 @@ async function updateEgreso(rowIndex, data) {
 }
 
 // Confirma un egreso borrador (col Q -> '1'). Espejo de confirmarIngreso.
-async function confirmarEgreso(rowIndex) {
+async function confirmarEgreso(rowIndex, idEsperado) {
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
     if (idx !== -1) memEgresos[idx].confirmado = true;
     return;
   }
   const sheets = getSheets();
+  await verificarFila('Egresos', rowIndex, idEsperado);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Egresos!Q${rowIndex}`,
@@ -1678,6 +1714,7 @@ async function archivarEnPapelera(tipo, id, datos, eliminadoPor) {
 }
 
 async function deleteEvento(rowIndex, clienteData, usuario) {
+  await verificarFila('Eventos', rowIndex, clienteData.id);
   await archivarEnPapelera('Evento', clienteData.id, clienteData, usuario);
   if (!tieneCredenciales) {
     const idx = memEventos.findIndex(e => e.rowIndex === rowIndex);
