@@ -3584,11 +3584,12 @@ textarea.detail-edit-input { resize: vertical; min-height: 46px; }
 .stock-cat-handle:active { cursor: grabbing; }
 .stock-cat-grip { opacity: .5; margin-right: 6px; user-select: none; font-size: 13px; }
 
-/* ============ Arrastre horizontal de columnas (tabla de clientes) ============ */
-#view-clientes .data-table thead th[data-sort-key] { cursor: grab; touch-action: none; }
-#view-clientes .data-table thead th[data-sort-key] .th-sort { cursor: grab; }
-#view-clientes .data-table thead th.col-dragging { opacity: .6; background: var(--gold-soft, #f3e9d2); }
+/* ============ Arrastre horizontal de columnas (clientes y movimientos) ============ */
+.data-table thead th[data-col-key] { cursor: grab; touch-action: none; }
+.data-table thead th[data-col-key] .th-sort { cursor: grab; }
+.data-table thead th.col-dragging { opacity: .6; background: var(--gold-soft, #f3e9d2); }
 .columnas-panel-sub { font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--text-muted); font-size: 11px; }
+.btn-columnas-gen { white-space: nowrap; }
 
 
 /* ===== Producción de la semana (hoja consolidada multi-evento) ===== */

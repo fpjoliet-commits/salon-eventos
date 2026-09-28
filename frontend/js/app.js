@@ -10762,8 +10762,8 @@ function enableTouchDragReorder(container, itemSelector, handleSelector, onDrop)
 function moverColumna(table, key, pos, refKey) {
   if (key === refKey) return;
   const head = table.querySelector('thead tr');
-  const th = head?.querySelector(`th[data-sort-key="${key}"]`);
-  const refTh = head?.querySelector(`th[data-sort-key="${refKey}"]`);
+  const th = head?.querySelector(`th[data-col-key="${key}"]`);
+  const refTh = head?.querySelector(`th[data-col-key="${refKey}"]`);
   if (!th || !refTh) return;
   pos === 'after' ? refTh.after(th) : refTh.before(th);
   table.querySelectorAll('tbody tr').forEach(tr => {
@@ -10780,7 +10780,7 @@ function habilitarArrastreColumnas(table, onReorder) {
   if (!thead || thead.dataset.colDragReady) return;
   thead.dataset.colDragReady = '1';
   let dragTh = null, startX = 0, moved = false;
-  const cols = () => [...thead.querySelectorAll('th[data-sort-key]')];
+  const cols = () => [...thead.querySelectorAll('th[data-col-key]')];
 
   const onMove = e => {
     if (!dragTh) return;
@@ -10790,11 +10790,11 @@ function habilitarArrastreColumnas(table, onReorder) {
       dragTh.classList.add('col-dragging');
     }
     e.preventDefault();
-    const t = document.elementFromPoint(e.clientX, e.clientY)?.closest('th[data-sort-key]');
+    const t = document.elementFromPoint(e.clientX, e.clientY)?.closest('th[data-col-key]');
     if (t && t !== dragTh && thead.contains(t)) {
       const list = cols();
-      moverColumna(table, dragTh.dataset.sortKey,
-        list.indexOf(dragTh) < list.indexOf(t) ? 'after' : 'before', t.dataset.sortKey);
+      moverColumna(table, dragTh.dataset.colKey,
+        list.indexOf(dragTh) < list.indexOf(t) ? 'after' : 'before', t.dataset.colKey);
     }
   };
   const onUp = () => {
@@ -10802,13 +10802,13 @@ function habilitarArrastreColumnas(table, onReorder) {
     if (dragTh) dragTh.classList.remove('col-dragging');
     if (moved) {
       thead._colDragUntil = Date.now() + 400;   // suprime el click de ordenar
-      onReorder?.(cols().map(th => th.dataset.sortKey));
+      onReorder?.(cols().map(th => th.dataset.colKey));
     }
     dragTh = null; moved = false;
   };
   thead.addEventListener('pointerdown', e => {
     if (e.button != null && e.button !== 0) return;
-    const th = e.target.closest('th[data-sort-key]');
+    const th = e.target.closest('th[data-col-key]');
     if (!th) return;
     dragTh = th; startX = e.clientX; moved = false;
     window.addEventListener('pointermove', onMove, { passive: false });

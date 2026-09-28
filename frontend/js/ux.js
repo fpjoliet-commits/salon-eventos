@@ -372,6 +372,7 @@
       const col = COLUMNAS[i];
       if (!col) return;                       // la última columna (acciones) no se ordena
       th.dataset.sortKey = col.key;
+      th.dataset.colKey = col.key;            // clave para ocultar/reordenar (drag)
       th.setAttribute('aria-sort', 'none');
       th.innerHTML = `<button type="button" class="th-sort">
           <span>${col.label}</span>
@@ -534,6 +535,141 @@
       }
     });
 
+  }
+
+  /* ============================================================
+     6c. GESTOR GENÉRICO DE COLUMNAS (para otras tablas: Movimientos)
+     Misma idea que clientes (ocultar/reordenar arrastrando, se recuerda
+     por navegador) pero parametrizable por tabla. Reusa el arrastre de
+     app.js (habilitarArrastreColumnas / moverColumna) vía data-col-key.
+     ============================================================ */
+  const COLS_MOV = [
+    { key: 'fecha',         label: 'Fecha' },
+    { key: 'tipo',          label: 'Tipo' },
+    { key: 'categoria',     label: 'Categoría' },
+    { key: 'concepto',      label: 'Concepto' },
+    { key: 'empleadoRol',   label: 'Empleado / Rol' },
+    { key: 'clienteEvento', label: 'Cliente / Evento' },
+    { key: 'monto',         label: 'Monto' },
+    { key: 'notas',         label: 'Notas' },
+    { key: 'cargadoPor',    label: 'Cargado por' },
+  ];
+  const MOV_DESC = {
+    table: '#view-egresos .data-table',
+    btnInto: '#mov-filtros',
+    columnas: COLS_MOV,
+    storageKey: 'crm_columnas_movimientos',
+  };
+
+  function leerCfgCols(storageKey, columnas) {
+    const claves = columnas.map(c => c.key);
+    let cfg = { orden: [...claves], ocultas: [] };
+    try {
+      const g = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (g && Array.isArray(g.orden)) {
+        cfg.orden = [...g.orden.filter(k => claves.includes(k)), ...claves.filter(k => !g.orden.includes(k))];
+        cfg.ocultas = (g.ocultas || []).filter(k => claves.includes(k));
+      }
+    } catch { /* preferencia corrupta: se ignora */ }
+    return cfg;
+  }
+  function guardarCfgCols(storageKey, cfg) {
+    try { localStorage.setItem(storageKey, JSON.stringify(cfg)); } catch {}
+  }
+
+  function tagThsGenerico(table, columnas) {
+    const thead = table.querySelector('thead tr');
+    if (!thead || thead.dataset.colKeysReady) return;
+    const dataThs = [...thead.children].filter(th => !th.classList.contains('th-check'));
+    columnas.forEach((col, i) => { if (dataThs[i]) dataThs[i].dataset.colKey = col.key; });
+    thead.dataset.colKeysReady = '1';
+  }
+
+  function aplicarCols(table, columnas, storageKey) {
+    const cfg = leerCfgCols(storageKey, columnas);
+    const oculta = k => cfg.ocultas.includes(k);
+    const thead = table.querySelector('thead tr');
+    if (!thead) return;
+    const thByKey = {};
+    thead.querySelectorAll('th[data-col-key]').forEach(th => { thByKey[th.dataset.colKey] = th; });
+    const actionsTh = [...thead.children].find(th => !th.classList.contains('th-check') && !th.dataset.colKey);
+    cfg.orden.forEach(k => {
+      const th = thByKey[k]; if (!th) return;
+      th.style.display = oculta(k) ? 'none' : '';
+      thead.insertBefore(th, actionsTh || null);
+    });
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      const kids = [...tr.children];
+      const actionsTd = tr.querySelector('.egr-acciones') || tr.querySelector('.acciones-col') || kids[kids.length - 1];
+      const dataTds = kids.filter(td => td !== actionsTd && !td.classList.contains('td-check'));
+      dataTds.forEach((td, i) => { if (!td.dataset.col && columnas[i]) td.dataset.col = columnas[i].key; });
+      const tdByKey = {};
+      dataTds.forEach(td => { if (td.dataset.col) tdByKey[td.dataset.col] = td; });
+      cfg.orden.forEach(k => {
+        const td = tdByKey[k]; if (!td) return;
+        td.style.display = oculta(k) ? 'none' : '';
+        tr.insertBefore(td, actionsTd || null);
+      });
+    });
+    window.habilitarArrastreColumnas?.(table, nuevoOrden => {
+      const c = leerCfgCols(storageKey, columnas);
+      c.orden = nuevoOrden;
+      guardarCfgCols(storageKey, c);
+    });
+  }
+
+  function refrescarColsTabla(D) {
+    const t = document.querySelector(D.table);
+    if (!t) return;
+    tagThsGenerico(t, D.columnas);
+    aplicarCols(t, D.columnas, D.storageKey);
+  }
+
+  function montarMenuColsGenerico(D) {
+    const cont = document.querySelector(D.btnInto);
+    if (!cont || cont.querySelector('.btn-columnas-gen')) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'columnas-wrap';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-columnas-gen';
+    btn.textContent = '☰ Columnas';
+    const panel = document.createElement('div');
+    panel.className = 'columnas-panel hidden';
+    wrap.appendChild(btn); wrap.appendChild(panel); cont.appendChild(wrap);
+
+    const pintar = () => {
+      const cfg = leerCfgCols(D.storageKey, D.columnas);
+      const label = k => D.columnas.find(c => c.key === k)?.label || k;
+      panel.innerHTML = `<div class="columnas-panel-head">Mostrar u ocultar columnas<br><span class="columnas-panel-sub">Para ordenar, arrastrá la columna en la tabla</span></div>`
+        + cfg.orden.map(k => `
+          <div class="columnas-row" data-key="${k}">
+            <label class="columnas-check"><input type="checkbox" ${cfg.ocultas.includes(k) ? '' : 'checked'}> ${escHtml(label(k))}</label>
+          </div>`).join('')
+        + `<button type="button" class="columnas-reset">Restablecer</button>`;
+    };
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (panel.classList.contains('hidden')) { pintar(); panel.classList.remove('hidden'); }
+      else panel.classList.add('hidden');
+    });
+    document.addEventListener('click', e => { if (!wrap.contains(e.target)) panel.classList.add('hidden'); });
+    panel.addEventListener('change', e => {
+      const row = e.target.closest('.columnas-row'); if (!row) return;
+      const cfg = leerCfgCols(D.storageKey, D.columnas);
+      const set = new Set(cfg.ocultas);
+      e.target.checked ? set.delete(row.dataset.key) : set.add(row.dataset.key);
+      cfg.ocultas = [...set];
+      guardarCfgCols(D.storageKey, cfg);
+      refrescarColsTabla(D);
+    });
+    panel.addEventListener('click', e => {
+      if (e.target.classList.contains('columnas-reset')) {
+        try { localStorage.removeItem(D.storageKey); } catch {}
+        refrescarColsTabla(D);
+        pintar();
+      }
+    });
   }
 
   /* --- CSV de la vista actual (respeta filtros y orden) --- */
@@ -1094,6 +1230,18 @@
       window.renderClientes = envuelta;
     }
 
+    // renderEgresos: aplica ocultar/reordenar columnas a la tabla de Movimientos
+    if (typeof window.renderEgresos === 'function' && !window.renderEgresos._uxWrapped) {
+      const original = window.renderEgresos;
+      const envuelta = function () {
+        const r = original.apply(this, arguments);
+        refrescarColsTabla(MOV_DESC);
+        return r;
+      };
+      envuelta._uxWrapped = true;
+      window.renderEgresos = envuelta;
+    }
+
     // applyFilters: guarda los filtros y actualiza el aviso de "vista filtrada".
     // Volver a filtrar deja de ser un subconjunto armado a mano.
     if (typeof window.applyFilters === 'function' && !window.applyFilters._uxWrapped) {
@@ -1250,6 +1398,7 @@
     montarOrdenTabla();
     montarColumnaSeleccion();
     montarMenuColumnas();
+    montarMenuColsGenerico(MOV_DESC);
     montarFiltros();
     aplicarInputmodes();
     observarInputsNuevos();
