@@ -4237,3 +4237,9 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .cocina-duplicar-wrap .ev-combo { flex: 1; min-width: 220px; }
 .cocina-duplicar-wrap .ev-combo-list { min-width: 280px; }
 .timing-global-selector .ev-combo { flex: 1; min-width: 260px; max-width: 560px; }
+
+/* Timing: base armada cuando el evento no tiene pasos */
+.tim-base { display: flex; flex-direction: column; gap: 6px; }
+.tim-base-head { display: flex; gap: 6px; margin-bottom: 4px; }
+.tim-base-row .tim-desc-input { margin-top: 4px; }
+#tim-base-guardar { align-self: flex-start; margin-top: 6px; }

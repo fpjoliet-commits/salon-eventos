@@ -3852,18 +3852,108 @@ function setTimePicker(id, value) {
   if (mSel) mSel.value = m.padEnd(2, '0').substring(0, 2);
 }
 
+/* Pasos del maître, en el orden en que suelen pasar en la noche. Sale de los
+   timings reales cargados hasta sep/2026 (lo que se escribía a mano una y otra
+   vez). "Estaciones" es el momento de la recepción en el formal; "Islas en vivo"
+   es el plato central del americano: son cosas distintas y no se mezclan.
+   "Entrada de la quinceañera" y "Entrada al salón" tampoco son lo mismo: a veces
+   entra durante la recepción y después hace la entrada formal. */
 const ACTIVIDADES_TIMMING = [
   'RECEPCIÓN',
-  'ISLAS',
+  'ESTACIONES',
+  'ENTRADA DE LA QUINCEAÑERA',
+  'ENTRADA AL SALÓN',
+  'CAMINO DE ROSAS',
+  'VALS',
+  'VALS Y TANDA',
+  'TANDA',
   'PRIMER PLATO',
+  'FOTOS DE MESA',
+  'ISLAS EN VIVO',
   'PLATO CENTRAL',
+  'VIDEO',
   'SHOW',
+  'BRINDIS',
   'TORTA HOMENAJE',
+  'VELAS',
+  'POSTRE',
   'MESA DE DULCES',
   'CAFETERÍA',
-  'POSTRE',
+  'PIÑATA',
+  'CINTITAS',
+  'COTILLÓN',
+  'FOTO FINAL',
+  'TANDA CARIOCA',
   'FIN DE FIESTA',
 ];
+
+/* Acceso rápido: lo que se agrega por encima de la base armada. Los pasos fijos
+   (recepción, platos, fin) ya vienen en la base; acá van los que se repiten
+   (tanda) o que cada familia pide o no (video, velas, piñata…). */
+const ATAJOS_TIMMING = [
+  'TANDA', 'FOTOS DE MESA', 'VIDEO', 'SHOW', 'BRINDIS', 'VELAS',
+  'PIÑATA', 'CINTITAS', 'COTILLÓN', 'FOTO FINAL', 'ENTRADA DE LA QUINCEAÑERA',
+];
+
+/* Base del timing según el formato. Formal: mediana de los 4 XV formales
+   cargados. Americano: sale de un solo evento y de su comanda de cocina, así que
+   es orientativa hasta tener más. */
+const BASE_TIMMING = {
+  formal: [
+    ['21:00', 'RECEPCIÓN'], ['21:45', 'ESTACIONES'], ['22:30', 'ENTRADA AL SALÓN'],
+    ['22:40', 'VALS Y TANDA'], ['23:30', 'PRIMER PLATO'], ['00:00', 'TANDA'],
+    ['00:50', 'PLATO CENTRAL'], ['01:10', 'VIDEO'], ['01:25', 'TANDA'],
+    ['02:15', 'TORTA HOMENAJE'], ['02:20', 'BRINDIS'], ['02:30', 'MESA DE DULCES'],
+    ['02:45', 'CAFETERÍA'], ['03:10', 'COTILLÓN'], ['03:20', 'TANDA CARIOCA'],
+    ['04:40', 'FIN DE FIESTA'],
+  ],
+  americano: [
+    ['21:00', 'RECEPCIÓN'], ['22:30', 'ENTRADA AL SALÓN'], ['23:00', 'TANDA'],
+    ['00:15', 'ISLAS EN VIVO'], ['01:00', 'TANDA'], ['01:30', 'TORTA HOMENAJE'],
+    ['01:40', 'POSTRE'], ['02:30', 'COTILLÓN'], ['02:40', 'TANDA CARIOCA'],
+    ['04:30', 'FIN DE FIESTA'],
+  ],
+};
+
+const esAmericano = cliente => /americano|informal/i.test(cliente?.formato || '');
+
+/* Qué paso del maître da la hora inicial de cada bloque de la comanda de cocina.
+   Sólo precarga lo vacío: las horas de cocina difieren a propósito (la tanda se
+   corta 5 min antes del plato para las fotos) y no se tocan ni se comparan. */
+const GUIA_COCINA = {
+  'coc-hora-recepcion':     ['RECEPCIÓN'],
+  'coc-hora-islas':         ['ESTACIONES', 'ISLAS EN VIVO', 'ISLAS'],
+  'coc-hora-primer-plato':  ['PRIMER PLATO'],
+  'coc-hora-plato-central': ['PLATO CENTRAL'],
+  'coc-hora-mesa-dulces':   ['MESA DE DULCES', 'MESA DULCE'],
+  'coc-hora-postres':       ['TORTA HOMENAJE'],
+  'coc-hora-cafeteria':     ['FIN DE FIESTA'],
+};
+let timmingMaitreActual = [];
+let timmingCocinaActual = {};
+
+/* El camino inverso: si la comanda de cocina se armó primero, la base del maître
+   toma de ahí la hora de los pasos que comparten. */
+const CAMPO_COCINA = {
+  'coc-hora-recepcion': 'horaRecepcion', 'coc-hora-islas': 'horaIslas',
+  'coc-hora-primer-plato': 'horaPrimerPlato', 'coc-hora-plato-central': 'horaPlatoCentral',
+  'coc-hora-mesa-dulces': 'horaMesaDulces', 'coc-hora-postres': 'horaPostres',
+  'coc-hora-cafeteria': 'horaCafeteria',
+};
+function horaCocinaPara(act) {
+  const n = normAct(act);
+  const horaId = Object.keys(GUIA_COCINA).find(k => GUIA_COCINA[k].map(normAct).includes(n));
+  const hora = horaId ? timmingCocinaActual[CAMPO_COCINA[horaId]] : '';
+  return hora && hora !== '00:00' ? hora : '';
+}
+
+const normAct = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
+
+function horaMaitrePara(horaId) {
+  const nombres = (GUIA_COCINA[horaId] || []).map(normAct);
+  const it = timmingMaitreActual.find(i => nombres.includes(normAct(i.actividad)) && i.hora);
+  return it ? it.hora : '';
+}
 
 /* ===================== MENÚ COCINA ===================== */
 const MENU_COCINA = {
@@ -3997,7 +4087,10 @@ function getActividadValue(selectId, customId) {
   const sel = document.getElementById(selectId);
   const inp = document.getElementById(customId);
   if (!sel) return '';
-  return sel.value === 'otro' ? (inp?.value.trim() || '') : sel.value;
+  if (sel.value !== 'otro') return sel.value;
+  // Escrito a mano pero ya está en la lista ("vELAS", "Cotillon"): se guarda como en la lista
+  const txt = inp?.value.trim() || '';
+  return ACTIVIDADES_TIMMING.find(a => normAct(a) === normAct(txt)) || txt;
 }
 
 
@@ -4023,7 +4116,12 @@ function renderTimming(cliente, items, restricciones) {
   if (!con) return;
 
   const maitreItems = items.filter(i => (i.tipo || 'maitre') !== 'cocina');
-  const cocinaItem = items.find(i => i.tipo === 'cocina');
+  /* Si quedaron varias filas de cocina (pasó en eventos copiados), la buena es la
+     última: la primera a veces es una versión vieja con todo en 00:00. */
+  const cocinaItem = items.filter(i => i.tipo === 'cocina').sort((a, b) => a.rowIndex - b.rowIndex).pop();
+  timmingMaitreActual = maitreItems;
+  timmingCocinaActual = {};
+  try { timmingCocinaActual = JSON.parse(cocinaItem?.actividad || '{}') || {}; } catch {}
 
   con.innerHTML = `
     <div id="tim-rest-panel"></div>
@@ -4181,9 +4279,9 @@ function renderTimmingMaitre(cliente, items) {
             <button class="btn-tim-del" title="Eliminar">✕</button>
           </div>
         </div>`).join('')
-    : '<p class="tim-empty">Sin actividades cargadas aún.</p>';
+    : baseTimmingHTML(esAmericano(cliente) ? 'americano' : 'formal');
 
-  const quickBtns = ACTIVIDADES_TIMMING.map(a =>
+  const quickBtns = ATAJOS_TIMMING.map(a =>
     `<button type="button" class="tim-quick-btn" data-act="${a}">${a.charAt(0) + a.slice(1).toLowerCase()}</button>`
   ).join('');
 
@@ -4219,6 +4317,68 @@ function renderTimmingMaitre(cliente, items) {
     </div>`;
 
   bindMaitreAcciones(cliente, items);
+  if (!items.length) bindBaseTimming(cliente);
+}
+
+/* Timing vacío: aparece la base ya armada. Cada renglón se retoca (hora, paso,
+   nota) o se saca, y se guarda todo junto. */
+function baseTimmingHTML(tipo) {
+  const filas = BASE_TIMMING[tipo].map(([horaTipica, act], i) => [horaCocinaPara(act) || horaTipica, act, i])
+    .map(([hora, act, i]) => `
+    <div class="tim-item tim-base-row" data-i="${i}">
+      ${timePicker(`tim-base-h-${i}`, hora)}
+      <div class="tim-info" style="flex:1">
+        <div class="tim-actividad-wrap">${actividadSelectHTML(`tim-base-a-${i}`, `tim-base-c-${i}`, act)}</div>
+        <input type="text" class="tim-base-desc tim-desc-input" placeholder="Nota…">
+      </div>
+      <div class="tim-acciones"><button type="button" class="btn-tim-del tim-base-quitar" title="Sacar">✕</button></div>
+    </div>`).join('');
+  return `
+    <div class="tim-base" data-tipo="${tipo}">
+      <div class="tim-base-head">
+        <button type="button" class="btn btn-xs ${tipo === 'formal' ? 'btn-primary' : 'btn-secondary'}" data-base="formal">Formal</button>
+        <button type="button" class="btn btn-xs ${tipo === 'americano' ? 'btn-primary' : 'btn-secondary'}" data-base="americano">Americano</button>
+      </div>
+      ${filas}
+      <button type="button" id="tim-base-guardar" class="btn btn-sm btn-primary">✓ Guardar timing</button>
+    </div>`;
+}
+
+function bindBaseTimming(cliente) {
+  const base = document.querySelector('#tim-panel-maitre .tim-base');
+  if (!base) return;
+  bindAllTimePickers(base);
+  base.querySelectorAll('.tim-base-row').forEach(row => {
+    const i = row.dataset.i;
+    bindActividadToggle(`tim-base-a-${i}`, `tim-base-c-${i}`);
+    row.querySelector('.tim-base-quitar').addEventListener('click', () => row.remove());
+  });
+  base.querySelectorAll('[data-base]').forEach(btn => btn.addEventListener('click', () => {
+    base.outerHTML = baseTimmingHTML(btn.dataset.base);
+    bindBaseTimming(cliente);
+  }));
+  $('tim-base-guardar').addEventListener('click', async e => {
+    const pasos = [...base.querySelectorAll('.tim-base-row')].map(row => {
+      const i = row.dataset.i;
+      return {
+        hora: $(`tim-base-h-${i}`).value,
+        actividad: getActividadValue(`tim-base-a-${i}`, `tim-base-c-${i}`),
+        descripcion: row.querySelector('.tim-base-desc').value.trim(),
+      };
+    }).filter(p => p.hora && p.actividad);
+    if (!pasos.length) return;
+    e.target.disabled = true;
+    e.target.textContent = 'Guardando…';
+    try {
+      for (const p of pasos) {
+        await apiFetch('/timming', { method: 'POST', body: { idCliente: cliente.id, tipo: 'maitre', ...p } });
+      }
+      loadTimmingTab(cliente);
+    } catch (err) {
+      toast(err.message, 'error');
+      loadTimmingTab(cliente);
+    }
+  });
 }
 
 /* Traer el timing de otro evento: casi todas las fiestas siguen el mismo guion.
@@ -4489,14 +4649,19 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
   const chk = (cls, items, sel) => checkboxListHTML(items, sel, cls);
   const ocultas = cocinaData.seccionesOcultas || [];
   const pc = platoCentralDe(cocinaData);
-  const secHeader = (titulo, horaId, horaVal, key) => `
+  /* Las dos hojas las arma la maître: si la de cocina no tiene hora, arranca con
+     la del maître. No se muestra nada más; cocina no necesita ver ese timing. */
+  const secHeader = (titulo, horaId, horaVal, key) => {
+    const hora = horaVal || (horaId ? horaMaitrePara(horaId) : '');
+    return `
     <div class="coc-section-header">
       <label class="coc-print-toggle" title="Destildá para NO imprimir este bloque (título incluido)">
         <input type="checkbox" class="coc-sec-print" value="${key}" ${ocultas.includes(key) ? '' : 'checked'}>
         <span class="coc-section-title">${titulo}</span>
       </label>
-      ${horaId ? timePicker(horaId, horaVal || '') : ''}
+      ${horaId ? timePicker(horaId, hora) : ''}
     </div>`;
+  };
 
   // islas guardadas que no figuran en las opciones predefinidas (texto libre)
   const islasConocidas = modo === 'informal'
@@ -4506,7 +4671,7 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
 
   const cuerpoFormal = `
       <div class="coc-section">
-        ${secHeader('ISLAS', 'coc-hora-islas', cocinaData.horaIslas, 'islas')}
+        ${secHeader('ESTACIONES', 'coc-hora-islas', cocinaData.horaIslas, 'islas')}
         <div class="coc-checks">${chk('coc-isla', [...ISLAS_OPT, ...islasCustom], cocinaData.islas)}</div>
         <input type="text" id="coc-isla-extra" class="coc-input" placeholder="Otra isla..." style="margin-top:8px">
       </div>
@@ -4655,7 +4820,7 @@ function renderCocinaForm(cliente, cocinaData, cocinaRowIndex) {
       ${modo === 'informal' ? cuerpoInformal : cuerpoFormal}
 
       <div class="coc-section">
-        ${secHeader('CAFETERÍA / FIN DE FIESTA', 'coc-hora-cafeteria', cocinaData.horaCafeteria, 'finFiesta')}
+        ${secHeader('FIN DE FIESTA', 'coc-hora-cafeteria', cocinaData.horaCafeteria, 'finFiesta')}
         <div class="coc-checks">${chk('coc-fin-fiesta', FIN_FIESTA_OPT, cocinaData.finFiesta)}</div>
       </div>
 
@@ -4886,7 +5051,7 @@ async function datosDeFicha(cliente) {
       apiFetch(`/restricciones/cliente/${cliente.id}`),
     ]);
     restricciones = rest || [];
-    const item = (items || []).find(i => i.tipo === 'cocina');
+    const item = (items || []).filter(i => i.tipo === 'cocina').sort((a, b) => a.rowIndex - b.rowIndex).pop();
     if (item) { try { cocinaData = JSON.parse(item.actividad) || null; } catch {} }
   } catch (e) { toast('No se pudo leer todo el evento: ' + e.message, 'error'); }
   return { restricciones, cocinaData };
@@ -5166,7 +5331,7 @@ function imprimirTimmingCocina(cliente, restricciones, cocinaData) {
   </div>` : '';
 
   const secIslas = (!oculta('islas') && hayIslas) ? `<div class="sec">
-    ${secHead(esInformal ? 'Islas en vivo — Plato Central' : 'Islas', d.horaIslas)}
+    ${secHead(esInformal ? 'Islas en vivo — Plato Central' : 'Estaciones', d.horaIslas)}
     <div class="isla">${(d.islas||[]).map(i => `<div>${escA(i)}</div>`).join('')}</div>
   </div>` : '';
 
