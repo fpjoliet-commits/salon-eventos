@@ -27,6 +27,7 @@
     filtros: 'crm_filtros_clientes',
     orden: 'crm_orden_clientes',
     columnas: 'crm_columnas_clientes',
+    vistas: 'crm_vistas_clientes',
   };
 
   /* Nombres reales detrás de cada usuario del login.
@@ -668,6 +669,100 @@
         try { localStorage.removeItem(D.storageKey); } catch {}
         refrescarColsTabla(D);
         pintar();
+      }
+    });
+  }
+
+  /* ============================================================
+     7b. VISTAS GUARDADAS (Clientes)
+     Una "vista" empaqueta filtros + orden + columnas con un nombre, para
+     no re-filtrar cada vez. Se recuerda por navegador (localStorage).
+     ============================================================ */
+  function leerVistas() {
+    try { return JSON.parse(localStorage.getItem(LS.vistas) || '[]') || []; } catch { return []; }
+  }
+  function guardarVistas(arr) {
+    try { localStorage.setItem(LS.vistas, JSON.stringify(arr)); } catch {}
+  }
+  function capturarVistaActual() {
+    const filtros = {};
+    FILTROS.forEach(id => { const el = document.getElementById(id); if (el) filtros[id] = el.value; });
+    let columnas = null, ordenGuardado = null;
+    try { columnas = JSON.parse(localStorage.getItem(LS.columnas) || 'null'); } catch {}
+    try { ordenGuardado = JSON.parse(localStorage.getItem(LS.orden) || 'null'); } catch {}
+    return { filtros, orden: ordenGuardado, columnas };
+  }
+  function aplicarVista(v) {
+    FILTROS.forEach(id => { const el = document.getElementById(id); if (el) el.value = (v.filtros && v.filtros[id]) || ''; });
+    if (v.orden) { orden = v.orden; localStorage.setItem(LS.orden, JSON.stringify(v.orden)); }
+    if (v.columnas) { localStorage.setItem(LS.columnas, JSON.stringify(v.columnas)); }
+    subconjunto = null;
+    window.applyFilters?.();     // re-renderiza (aplica orden y columnas) y guarda filtros
+    pintarEstadoOrden();
+  }
+
+  function montarMenuVistas() {
+    const exportBtn = document.getElementById('btn-exportar-csv');
+    if (!exportBtn || document.getElementById('btn-vistas')) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'columnas-wrap';
+    const btn = document.createElement('button');
+    btn.id = 'btn-vistas';
+    btn.type = 'button';
+    btn.className = exportBtn.className;
+    btn.textContent = '★ Vistas';
+    const panel = document.createElement('div');
+    panel.className = 'columnas-panel hidden';
+    wrap.appendChild(btn); wrap.appendChild(panel);
+    exportBtn.parentNode.insertBefore(wrap, exportBtn);
+
+    const pintar = () => {
+      const vistas = leerVistas();
+      const filas = vistas.length
+        ? vistas.map((v, i) => `
+            <div class="columnas-row vista-row" data-i="${i}">
+              <button type="button" class="vista-aplicar">${escHtml(v.nombre)}</button>
+              <button type="button" class="vista-borrar" title="Borrar vista">✕</button>
+            </div>`).join('')
+        : `<div class="columnas-panel-sub" style="padding:4px 6px">Todavía no guardaste ninguna vista.</div>`;
+      panel.innerHTML = `<div class="columnas-panel-head">Vistas guardadas<br><span class="columnas-panel-sub">Filtros + columnas, con un nombre</span></div>`
+        + filas
+        + `<div class="vista-guardar-row">
+             <input type="text" class="vista-nombre-input" placeholder="Nombre de la vista actual…" maxlength="40">
+             <button type="button" class="vista-guardar btn btn-sm btn-primary">Guardar</button>
+           </div>`;
+    };
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (panel.classList.contains('hidden')) { pintar(); panel.classList.remove('hidden'); }
+      else panel.classList.add('hidden');
+    });
+    document.addEventListener('click', e => { if (!wrap.contains(e.target)) panel.classList.add('hidden'); });
+    panel.addEventListener('click', e => {
+      const aplicarBtn = e.target.closest('.vista-aplicar');
+      if (aplicarBtn) {
+        const i = +aplicarBtn.closest('.vista-row').dataset.i;
+        const v = leerVistas()[i];
+        if (v) { aplicarVista(v); panel.classList.add('hidden'); window.toast?.(`Vista "${v.nombre}" aplicada`); }
+        return;
+      }
+      const borrarBtn = e.target.closest('.vista-borrar');
+      if (borrarBtn) {
+        const i = +borrarBtn.closest('.vista-row').dataset.i;
+        const arr = leerVistas(); arr.splice(i, 1); guardarVistas(arr); pintar();
+        return;
+      }
+      if (e.target.closest('.vista-guardar')) {
+        const input = panel.querySelector('.vista-nombre-input');
+        const nombre = (input?.value || '').trim();
+        if (!nombre) { input?.focus(); return; }
+        const arr = leerVistas();
+        const idx = arr.findIndex(v => v.nombre.toLowerCase() === nombre.toLowerCase());
+        const nueva = { nombre, ...capturarVistaActual() };
+        if (idx >= 0) arr[idx] = nueva; else arr.push(nueva);
+        guardarVistas(arr);
+        pintar();
+        window.toast?.(`Vista "${nombre}" guardada`);
       }
     });
   }
@@ -1398,6 +1493,7 @@
     montarOrdenTabla();
     montarColumnaSeleccion();
     montarMenuColumnas();
+    montarMenuVistas();
     montarMenuColsGenerico(MOV_DESC);
     montarFiltros();
     aplicarInputmodes();

@@ -4247,3 +4247,12 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .tim-base-head { display: flex; gap: 6px; margin-bottom: 4px; }
 .tim-base-row .tim-desc-input { margin-top: 4px; }
 #tim-base-guardar { align-self: flex-start; margin-top: 6px; }
+
+/* ============ Vistas guardadas ============ */
+.vista-row { justify-content: space-between; }
+.vista-aplicar { flex: 1; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; color: var(--text-primary, #222); padding: 4px 2px; }
+.vista-aplicar:hover { color: var(--gold, #c4993e); }
+.vista-borrar { background: none; border: none; cursor: pointer; color: var(--text-muted, #888); font-size: 12px; padding: 2px 6px; }
+.vista-borrar:hover { color: var(--danger, #c0392b); }
+.vista-guardar-row { display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.vista-nombre-input { flex: 1; min-width: 0; font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; }
