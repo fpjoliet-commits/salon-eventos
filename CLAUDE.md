@@ -40,6 +40,10 @@ Opcionales: bots (Telegram/WhatsApp), `CAL_WEBHOOK_SECRET`, `ALLOWED_ORIGINS`.
 
 ## Modelo de datos — Google Sheets
 
+**Diccionario de datos:** `docs/diccionario-de-datos.md` (qué es cada columna, formato,
+relaciones). Si se agrega o cambia una columna: nueva columna **siempre al final**, sumar
+su encabezado en `initSheets` y actualizar el diccionario en el mismo commit.
+
 Un "cliente" del CRM = una fila de **Eventos** + su fila en **Personas** (unidas por
 `personaRowIndex`). Hojas y rangos (orden exacto de columnas en `backend/sheets.js`):
 

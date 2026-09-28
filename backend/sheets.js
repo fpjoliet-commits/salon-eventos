@@ -2676,6 +2676,20 @@ async function initSheets() {
     if (existing.includes('Ingresos')) {
       headers.push({ range: 'Ingresos!A1:Q1', values: [['id','idEvento','tipoIngreso','monto','fecha','formaPago','notas','moneda','confirmado','cliente','fechaEvento','periodo','cubiertos','precioCubierto','cotizacion','montoARS','cargadoPor']] });
     }
+    // Columnas que se fueron sumando sin encabezado: las herramientas de análisis
+    // las mostraban como columnas sin nombre. Definición: docs/diccionario-de-datos.md
+    const encabezadosCompletos = {
+      Eventos: ['A1:Z1', ['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna','modalidadPago','precioCubierto']],
+      Personas: ['A1:L1', ['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor','notaPersona']],
+      Restricciones: ['A1:E1', ['id','idCliente','tipoRestriccion','cantidad','coronita']],
+      Timming: ['A1:I1', ['id','idCliente','hora','actividad','tipo','descripcion','hecho','horaOriginal','notas']],
+      Empleados: ['A1:D1', ['id','nombre','activo','rolHabitual']],
+      CatalogoItems: ['A1:E1', ['id','categoria','nombre','activo','unidad']],
+      StockActual: ['A1:G1', ['id','categoria','nombre','unidad','cantidad','actualizado','minimo']],
+    };
+    for (const [hoja, [rango, nombres]] of Object.entries(encabezadosCompletos)) {
+      if (existing.includes(hoja)) headers.push({ range: `${hoja}!${rango}`, values: [nombres] });
+    }
     if (existing.includes('Cuotas')) {
       headers.push({ range: 'Cuotas!A1:N1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion','confirmado','ipcHasta']] });
     }
