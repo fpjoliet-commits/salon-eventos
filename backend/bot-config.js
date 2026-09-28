@@ -28,7 +28,7 @@ module.exports = {
     timezone: 'America/Argentina/Buenos_Aires',
     dias: {
       0: [],                        // Domingo: no se deriva
-      1: [['09:00', '18:00']],      // Lunes
+      1: [],                        // Lunes: no se atiende
       2: [['09:00', '18:00']],      // Martes
       3: [['09:00', '18:00']],      // Miércoles
       4: [['09:00', '18:00']],      // Jueves
