@@ -3707,17 +3707,6 @@
 
 .exp-cuerpo .incluido-section { margin: 0; }
 
-/* Lo elegido por encima del tope sugerido: no se bloquea, se destiñe. Mariana
-   sabe que entra y que no; el sistema solo avisa. */
-.gastro-menu-row.extra { opacity: .62; }
-.gastro-menu-row.extra .gastro-menu-name::after {
-  content: ' · extra';
-  font-size: 10px;
-  letter-spacing: .08em;
-  color: var(--gold);
-  opacity: .85;
-}
-
 /* Lo que llevan elegido por fuera de la base. Se ve en la tele, asi que dice
    una cantidad y nada mas: ni "$", ni "extras", ni nada que suene a factura. */
 .autor-contador {

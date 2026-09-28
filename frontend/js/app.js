@@ -6320,8 +6320,8 @@ const RECEPCION_DATA = [
     ['BBQ', 'Bondiola en lenta cocción desmenuzada con barbacoa de la casa', []],
   ]},
   { grupo: 'Brochettes & bocados calientes', cols: 2, items: [
-    ['Criolla de carne', 'Trozos de carne jugosa con morrón asado y cebolla a la parrilla', []],  // SC a confirmar con cocina
-    ['Criolla de pollo', 'Bocados de pollo grillados con cherry y vegetales asados', []],  // SC a confirmar con cocina
+    ['Criolla de carne', 'Trozos de carne jugosa con morrón asado y cebolla a la parrilla', ['SC']],
+    ['Criolla de pollo', 'Bocados de pollo grillados con cherry y vegetales asados', ['SC']],
     ['Italiana fría', 'Mozzarella y tomate con reducción de balsámico y hojas de albahaca', ['V']],
     ['Bombitas de queso', 'Quesillo fundido en panizado crocante, servidas calientes', ['V']],
     ['Daditos de mozzarella', '', ['V']],
@@ -7026,56 +7026,11 @@ function setupGastroEvents(isAmericano, maxBase) {
 }
 
 function setupFormalExtrasEvents() {
-  // El tope sugerido NO bloquea. Esto lo arma Mariana durante la charla y ella
-  // sabe que se puede y que no; que el sistema le trabe el dedo en la reunion es
-  // peor que pasarse. Lo que pasa del tope se marca como extra y se atenua.
-  const MAX_PASTA = 5, MAX_SALSAS = 4;
-
-  // Marca como .extra todo lo elegido despues del tope, en orden de aparicion.
-  function marcarExtras(listIds, max) {
-    const filas = [];
-    listIds.forEach(id => $(id)?.querySelectorAll('.gastro-menu-row:not(.locked)').forEach(r => filas.push(r)));
-    let n = 0;
-    filas.forEach(r => {
-      const marcada = !!r.querySelector('input')?.checked;
-      if (marcada) n++;
-      r.classList.toggle('extra', marcada && n > max);
-    });
-  }
-
-  function getPastaCount() {
-    let n = 0;
-    $('gastro-pasta-wrap')?.querySelectorAll('.gastro-menu-row:not(.locked) input:checked').forEach(() => n++);
-    return n;
-  }
-  function getSalsaCount() {
-    let n = 0;
-    $('gastro-salsa-list')?.querySelectorAll('.gastro-menu-row:not(.locked) input:checked').forEach(() => n++);
-    $('gastro-salsa-gourmet-list')?.querySelectorAll('input:checked').forEach(() => n++);
-    return n;
-  }
-  function updatePastaCounter() {
-    // El badge visible se quitó; igual seguimos marcando los extras y
-    // actualizando el contador "Su selección", que cuelgan de acá.
-    const el = $('gastro-pasta-counter');
-    if (el) {
-      const c = getPastaCount();
-      el.textContent = c + '/' + MAX_PASTA;
-      el.style.color = c >= MAX_PASTA ? 'var(--gold-bright)' : '';
-    }
-    marcarExtras(['gastro-pasta-wrap'], MAX_PASTA);
-    actualizarContadorAutor();
-  }
-  function updateSalsaCounter() {
-    const el = $('gastro-salsa-counter');
-    if (el) {
-      const c = getSalsaCount();
-      el.textContent = c + '/' + MAX_SALSAS;
-      el.style.color = c >= MAX_SALSAS ? 'var(--gold-bright)' : '';
-    }
-    marcarExtras(['gastro-salsa-list', 'gastro-salsa-gourmet-list'], MAX_SALSAS);
-    actualizarContadorAutor();
-  }
+  // Sin tope ni sugerencia de cantidad: Mariana arma el menu durante la charla
+  // y sabe que se puede y que no (decision del dueño, 28/09/2026). Antes se
+  // sugerian 5 pastas y 4 salsas y lo que pasaba se atenuaba como "extra".
+  function updatePastaCounter() { actualizarContadorAutor(); }
+  function updateSalsaCounter() { actualizarContadorAutor(); }
 
   const addPastaListeners = (listId) => {
     const list = $(listId); if (!list) return;
