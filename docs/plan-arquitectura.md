@@ -51,16 +51,15 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 El código del plan está completo. Lo que falta son acciones de personas:
 
 **Lautaro**
-- Avisos por Telegram: cargar en Render `TELEGRAM_CHAT_ALERTAS` (su chat id) y `RESUMEN_SECRET`;
-  en el Apps Script del backup, `CRM_URL` y `RESUMEN_SECRET`, y volver a ejecutar `instalar`
-  (pasos en `docs/backup-planilla.md`).
-- Monitor externo (UptimeRobot o similar) contra `/api/salud`, que avise si el CRM se cae.
-- Cal.com: disponibilidad martes a sábado 17:30–20:00, turnos de 30 min (último 19:30).
-- Confirmar que el backup de las 03:00 aparece en "Backups CRM Joliet".
-- Reserva de prueba en Cal.com: confirmar que la URL del webhook tiene `?secret=...` y entra al CRM.
-- Activar cuentas de Fabio y Lautaro: `node backend/hash-password.js "clave"` → cargar
-  `PASSWORD_FABIO` / `PASSWORD_LAUTARO` en Render.
-- Decidir: Render pago (sin demora al abrir) y Looker Studio (gráficos) — ninguno es urgente.
+- Hecho 28/09: avisos por Telegram (probado), webhook de Cal.com (clave verificada), horarios de Cal.com
+  (a propósito: mar–vie hasta 19:00, sáb hasta 19:30).
+- Vigilancia del CRM en el Apps Script: pegar la versión nueva, cargar `TELEGRAM_TOKEN` y `TELEGRAM_CHAT`
+  y volver a ejecutar `instalar` (reemplaza al monitor externo).
+- Opcional: cuentas propias de Fabio y Lautaro (`node backend/hash-password.js "clave"` →
+  `PASSWORD_FABIO` / `PASSWORD_LAUTARO` en Render). Solo hace falta si se quiere distinguir quién de
+  los dos cargó algo; hoy figura "superadmin".
+- Decidido no hacer por ahora: Render pago (el ping de la vigilancia no lo mantiene despierto; la demora
+  de ~50 s al abrir ya estaba aceptada) y Looker Studio (datos listos; reportes cuando se quieran).
 
 **Mariana (datos a mano)**
 - Fecha de la fiesta de Amaya Barbara Lucía y Nicolás Pérez (confirmados sin fecha).

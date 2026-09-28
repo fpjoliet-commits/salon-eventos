@@ -52,3 +52,14 @@ cargas y backups de la semana). Para activarlo:
    (crea el disparador de los lunes; no duplica el diario).
 
 Para probarlo sin esperar al lunes: elegir la función `resumenSemanal` y tocar Ejecutar.
+
+## Vigilancia del CRM (desde 28/09/2026)
+
+`vigilarCRM` corre cada 30 minutos (de 8 a 23 h) y pide `/api/salud`. Si el CRM no
+responde dos veces seguidas (con 30 s entre una y otra, por si Render estaba
+dormido), avisa por Telegram directo, sin pasar por el CRM. Avisa una sola vez
+mientras siga caído, y otra cuando vuelve. Propiedades necesarias, además de
+`CRM_URL`: `TELEGRAM_TOKEN` (= `TELEGRAM_BOT_TOKEN` de Render) y `TELEGRAM_CHAT`
+(= `TELEGRAM_CHAT_ALERTAS`). Se activa al volver a ejecutar `instalar`.
+
+Reemplaza a un monitor externo (UptimeRobot): no hace falta otra cuenta.

@@ -17,6 +17,12 @@
  * (https://salon-eventos.onrender.com) y RESUMEN_SECRET (el mismo de Render).
  * Con eso: si falla el backup avisa en el momento, y los lunes a las 8 pide al
  * CRM el resumen semanal (con cuántos backups se hicieron en la semana).
+ *
+ * Vigilancia del CRM: cada 30 minutos (de 8 a 23 h) revisa que el CRM responda.
+ * Si no responde, avisa DIRECTO por Telegram (no puede pasar por el CRM, que es
+ * justamente lo que está caído). Necesita TELEGRAM_TOKEN y TELEGRAM_CHAT en las
+ * mismas propiedades (los mismos valores que TELEGRAM_BOT_TOKEN y
+ * TELEGRAM_CHAT_ALERTAS de Render). Cuando vuelve, avisa que volvió.
  */
 
 // La planilla se busca por su id (el mismo SPREADSHEET_ID del CRM), así el script
@@ -33,6 +39,10 @@ function instalar() {
   ScriptApp.getProjectTriggers()
     .filter(t => ['hacerBackup', 'resumenSemanal'].indexOf(t.getHandlerFunction()) !== -1)
     .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'vigilarCRM')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('vigilarCRM').timeBased().everyMinutes(30).create();
   ScriptApp.newTrigger('hacerBackup')
     .timeBased().everyDays(1).atHour(HORA).inTimezone(ZONA)
     .create();
@@ -76,6 +86,40 @@ function avisarAlCRM(ruta, cuerpo) {
   // Render gratis tarda ~50 s en despertar: UrlFetch espera hasta 60 s
   UrlFetchApp.fetch(url + ruta + '?secret=' + encodeURIComponent(secreto), {
     method: 'post', contentType: 'application/json', payload: JSON.stringify(cuerpo), muteHttpExceptions: true,
+  });
+}
+
+// Cada 30 min: ¿el CRM responde? Render gratis se duerme y tarda ~50 s en
+// despertar, así que un primer intento fallido se reintenta antes de avisar.
+function vigilarCRM() {
+  const hora = Number(Utilities.formatDate(new Date(), ZONA, 'H'));
+  if (hora < 8 || hora >= 23) return;   // de noche nadie lo usa
+  const props = PropertiesService.getScriptProperties();
+  const url = props.getProperty('CRM_URL');
+  if (!url) return;
+  const anda = () => {
+    try { return UrlFetchApp.fetch(url + '/api/salud', { muteHttpExceptions: true }).getResponseCode() === 200; }
+    catch (e) { return false; }
+  };
+  const ok = anda() || (Utilities.sleep(30000), anda());
+  const estabaCaido = props.getProperty('CRM_CAIDO') === '1';
+  if (!ok && !estabaCaido) {
+    props.setProperty('CRM_CAIDO', '1');
+    telegramDirecto('🚨 CRM Joliet: el CRM no responde (o no puede leer la planilla). Revisar en dashboard.render.com');
+  } else if (ok && estabaCaido) {
+    props.deleteProperty('CRM_CAIDO');
+    telegramDirecto('✅ CRM Joliet: el CRM volvió a responder.');
+  }
+}
+
+function telegramDirecto(texto) {
+  const props = PropertiesService.getScriptProperties();
+  const token = props.getProperty('TELEGRAM_TOKEN');
+  const chat = props.getProperty('TELEGRAM_CHAT');
+  if (!token || !chat) { console.log('Sin TELEGRAM_TOKEN / TELEGRAM_CHAT: ' + texto); return; }
+  UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ chat_id: chat, text: texto }), muteHttpExceptions: true,
   });
 }
 
