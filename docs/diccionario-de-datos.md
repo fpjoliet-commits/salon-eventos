@@ -209,6 +209,8 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 
 **Auditoria** — historial de cambios: `fecha` (fecha y hora), `usuario` (persona), `accion`, `entidad`, `idEntidad`, `nombre`, `detalle` (JSON con los campos auditados). Por ahora registra fichas de eventos y planes de cuotas; los cobros y gastos se suman en la tarea 4.3 del plan.
 
+**Estados** — historia del embudo, solo se agregan filas (nunca se editan ni borran): una por cada cambio de estado de un evento. `idEvento` (→ `Eventos.id`), `de` (estado anterior; vacío en el alta), `a` (estado nuevo), `fechaHora` (hora argentina), `quien` (persona; "Cal.com" si lo cambió la reserva de visita). Existe desde el 28/09/2026; lo anterior se rellena desde la Auditoría (Fase 5).
+
 **Papelera** — eventos eliminados: `fechaEliminacion`, `eliminadoPor`, `tipo`, `id`, `datosJSON` (la ficha completa al momento de borrarla).
 
 **Config** — pares `clave` / `valor` (precio general del cubierto, links del timing, vistas guardadas). No es para análisis.

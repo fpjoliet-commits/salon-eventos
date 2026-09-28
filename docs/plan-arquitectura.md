@@ -32,7 +32,8 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 | 3.3 + 3.4 | Fichas: el servidor conserva lo que la pantalla no manda (bug que borraba menús/modalidad), rastro Eventos AA:AB / Personas M:N, aviso de edición simultánea | 8a3e344 |
 | — | Migración vieja Clientes→Personas+Eventos desactivada (podía borrar todo) | f7a10ff |
 | 3.6 | Cobros de cuotas "todo o nada" (compensación) | 7f59cb9 |
-| 3.7 | Anular en vez de borrar + rastro en Ingresos R:U / Egresos T:W | (este) |
+| 3.7 | Anular en vez de borrar + rastro en Ingresos R:U / Egresos T:W | 8e33d37 |
+| 4.1 | Hoja "Estados" append-only (alta, edición y Cal.com) | (este) |
 
 ## Pendiente
 
@@ -44,7 +45,6 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
   `PASSWORD_FABIO` / `PASSWORD_LAUTARO` en Render.
 
 **Fase 4 — historia de cada venta**
-- 4.1 Hoja "Estados" append-only: idEvento, de, a, fechaHora, quién (en cada cambio de estado).
 - 4.2 Motivo obligatorio al pasar a Cancelado (lista cerrada en `listas.js` + texto).
 - 4.3 Auditoría de plata: alta/edición/confirmación/anulación de cobros y gastos con antes/después.
 - 4.4 Teléfono normalizado (+54 9…) guardado como texto, mail minúsculas, aviso de persona duplicada.

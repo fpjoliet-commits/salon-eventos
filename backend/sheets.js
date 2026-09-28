@@ -523,6 +523,7 @@ async function addCliente(data) {
   if (!tieneCredenciales) {
     evento.rowIndex = memEventos.length + 2;
     memEventos.push(evento);
+    registrarEstado(eventoId, '', evento.estado, data.cargadoPor);
     return enrichEvento(evento, persona, 1);
   }
 
@@ -537,6 +538,7 @@ async function addCliente(data) {
     });
     evento.rowIndex = nextRow;
   });
+  registrarEstado(eventoId, '', evento.estado, data.cargadoPor);
   return enrichEvento(evento, persona, 1);
 }
 
@@ -547,6 +549,7 @@ async function updateCliente(rowIndex, data) {
   if (!tieneCredenciales) {
     const eIdx = memEventos.findIndex(e => e.rowIndex === rowIndex);
     if (eIdx !== -1) {
+      if (data.estado !== undefined) registrarEstado(memEventos[eIdx].id, memEventos[eIdx].estado, data.estado, data.modificadoPor);
       memEventos[eIdx] = {
         ...memEventos[eIdx],
         estado: data.estado, tipoEvento: data.tipoEvento, formato: data.formato,
@@ -652,6 +655,7 @@ async function updateCliente(rowIndex, data) {
   }
 
   await Promise.all(ops);
+  registrarEstado(eventoData.id, actualEv.estado, eventoData.estado, quien);
   return { ...data, modificadoEn: ahora, modificadoPor: quien };
 }
 
@@ -2789,6 +2793,40 @@ async function getAuditoria(idEntidad = null) {
     .reverse();                     // lo más nuevo primero
 }
 
+/* ===================== ESTADOS (historia de cada venta) =====================
+   Hoja append-only: una fila por cada cambio de estado de un evento (incluida el
+   alta, con "de" vacío). Nunca se edita ni se borra: es la historia del embudo.
+   Misma cola que la auditoría, para no gastar escrituras de la API. */
+
+let _colaEstados = [];
+let _timerEstados = null;
+let memEstados = [];
+
+function registrarEstado(idEvento, de, a, quien) {
+  if (!idEvento || (de || '') === (a || '')) return;
+  const fila = [idEvento, de || '', a || '', ahoraAR(), quien || '—'];
+  if (!tieneCredenciales) { memEstados.push(fila); return; }
+  _colaEstados.push(fila);
+  if (!_timerEstados) _timerEstados = setTimeout(volcarEstados, 2500);
+}
+
+async function volcarEstados() {
+  _timerEstados = null;
+  const lote = _colaEstados;
+  _colaEstados = [];
+  if (!lote.length || !tieneCredenciales) return;
+  try {
+    await getSheets().spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Estados!A:E',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: lote },
+    });
+  } catch (e) {
+    console.error('⚠️  No se pudo escribir el cambio de estado:', e.message);
+  }
+}
+
 /* ===================== INIT SHEETS ===================== */
 async function initSheets() {
   if (!tieneCredenciales) return;
@@ -2810,6 +2848,7 @@ async function initSheets() {
     if (!existing.includes('StockActual')) toCreate.push('StockActual');
     if (!existing.includes('Auditoria')) toCreate.push('Auditoria');
     if (!existing.includes('Config')) toCreate.push('Config');
+    if (!existing.includes('Estados')) toCreate.push('Estados');
 
     if (toCreate.length) {
       await sheets.spreadsheets.batchUpdate({
@@ -2883,6 +2922,9 @@ async function initSheets() {
     if (!existing.includes('Auditoria')) {
       headers.push({ range: 'Auditoria!A1:G1', values: [['fecha','usuario','accion','entidad','idEntidad','nombre','detalle']] });
     }
+    if (!existing.includes('Estados')) {
+      headers.push({ range: 'Estados!A1:E1', values: [['idEvento','de','a','fechaHora','quien']] });
+    }
 
     if (headers.length) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -2927,10 +2969,19 @@ async function patchEvento(rowIndex, patch) {
   patch = listas.normalizar('evento', patch); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memEventos.findIndex(e => e.rowIndex === rowIndex);
-    if (idx !== -1) Object.assign(memEventos[idx], patch);
+    if (idx !== -1) {
+      if (patch.estado !== undefined) registrarEstado(memEventos[idx].id, memEventos[idx].estado, patch.estado, patch.modificadoPor || 'Cal.com');
+      Object.assign(memEventos[idx], patch);
+    }
     return;
   }
   const sh = getSheets();
+  // Estado anterior, para la historia (hoja Estados)
+  let antes = null;
+  if (patch.estado !== undefined) {
+    const r = await sh.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `Eventos!A${rowIndex}:C${rowIndex}`, sinCache: true });
+    antes = rowToEvento(r.data.values?.[0] || [], rowIndex - 2);
+  }
   const data = [];
   if (patch.estado !== undefined)
     data.push({ range: `Eventos!C${rowIndex}`, values: [[patch.estado]] });
@@ -2943,6 +2994,7 @@ async function patchEvento(rowIndex, patch) {
       spreadsheetId: SPREADSHEET_ID,
       resource: { valueInputOption: 'USER_ENTERED', data },
     });
+    if (antes) registrarEstado(antes.id, antes.estado, patch.estado, patch.modificadoPor || 'Cal.com');
   }
 }
 
