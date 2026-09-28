@@ -93,8 +93,49 @@ function getSheets() {
   ['update', 'append', 'batchUpdate', 'clear'].forEach(m => conInvalidacion(valores, m));
   conInvalidacion(cliente.spreadsheets, 'batchUpdate');
 
+  // Todo pasa por acá antes de llegar a Google: ninguna escritura se salta el blindaje
+  ['update', 'append', 'batchUpdate'].forEach(m => {
+    const original = valores[m];
+    valores[m] = (params, ...resto) => original(blindarParams(params), ...resto);
+  });
+
   _clienteSheets = cliente;
   return cliente;
+}
+
+/* ===================== TEXTOS SIEMPRE COMO TEXTO =====================
+   Se escribe con USER_ENTERED (así los números y fechas quedan como tales), pero
+   eso hace que un texto que empieza con "=" se ejecute como fórmula. El nombre
+   que alguien escribe en el formulario público /consulta llega hasta acá: con
+   una fórmula podía leer otras celdas o mandarlas afuera.
+   El apóstrofo inicial le dice a Sheets "esto es texto": no se ve en la celda y
+   la API lo devuelve sin él. Los números (incluso negativos) no se tocan. */
+const ARRANQUE_PELIGROSO = /^[=+\-@']/;
+const ES_NUMERO = /^[+-]?\d+([.,]\d+)?$/;
+
+function blindarCelda(v) {
+  return typeof v === 'string' && ARRANQUE_PELIGROSO.test(v) && !ES_NUMERO.test(v) ? "'" + v : v;
+}
+
+function blindarFilas(filas) {
+  return Array.isArray(filas) ? filas.map(f => (Array.isArray(f) ? f.map(blindarCelda) : f)) : filas;
+}
+
+function blindarCuerpo(cuerpo) {
+  // En batchUpdate el modo viene en el cuerpo; con RAW el apóstrofo quedaría escrito
+  if (!cuerpo || typeof cuerpo !== 'object' || cuerpo.valueInputOption === 'RAW') return cuerpo;
+  const nuevo = { ...cuerpo };
+  if (nuevo.values) nuevo.values = blindarFilas(nuevo.values);
+  if (Array.isArray(nuevo.data)) nuevo.data = nuevo.data.map(d => ({ ...d, values: blindarFilas(d.values) }));
+  return nuevo;
+}
+
+function blindarParams(params) {
+  if (!params || params.valueInputOption === 'RAW') return params; // RAW ya guarda todo literal
+  const p = { ...params };
+  if (p.resource) p.resource = blindarCuerpo(p.resource);
+  if (p.requestBody) p.requestBody = blindarCuerpo(p.requestBody);
+  return p;
 }
 
 /* ===================== PERSONAS ===================== */
