@@ -29,11 +29,11 @@ module.exports = {
     dias: {
       0: [],                        // Domingo: no se deriva
       1: [],                        // Lunes: no se atiende
-      2: [['09:00', '18:00']],      // Martes
-      3: [['09:00', '18:00']],      // Miércoles
-      4: [['09:00', '18:00']],      // Jueves
-      5: [['09:00', '18:00']],      // Viernes
-      6: [['10:00', '13:00']],      // Sábado (media jornada)
+      2: [['17:30', '19:30']],      // Martes
+      3: [['17:30', '19:30']],      // Miércoles
+      4: [['17:30', '19:30']],      // Jueves
+      5: [['17:30', '19:30']],      // Viernes
+      6: [['17:30', '19:30']],      // Sábado (se muestra el salón armado)
     },
   },
 
