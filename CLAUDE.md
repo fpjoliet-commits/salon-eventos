@@ -23,6 +23,11 @@ Hay **3 cuentas de login**, definidas por hash bcrypt en variables de entorno
 | `admin`        | `admin`      | Mariana         | Bandeja "Por confirmar", plan de pago, historial|
 | `empleado`     | `operador`   | Anita           | Carga básica; sin bandeja ni ingresos           |
 
+Cuentas personales opcionales: `fabio` y `lautaro` (rol `superadmin`), activas si
+existen `PASSWORD_FABIO` / `PASSWORD_LAUTARO`; recién ahí aparecen en el login.
+`cargadoPor` y la auditoría guardan el **nombre de la persona** (`quien(req)`:
+Mariana, Anita, Fabio, Lautaro; "superadmin" = la cuenta compartida).
+
 Mapeo nombre↔rol para etiquetas/visibilidad: `ETIQUETAS_DE_ROL` en `backend/server.js`.
 Helpers de permiso: `auth`, `adminOnly` (admin+superadmin), `superAdminOnly`.
 

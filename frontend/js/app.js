@@ -220,6 +220,16 @@ function canEditNombre() { return isAdmin(); }
 // Usuarios sin contraseña
 const USUARIOS_SIN_PASSWORD = [];
 
+// Fabio y Lautaro pueden tener cuenta propia (así queda quién hizo cada cosa).
+// Aparecen en el login solo si el servidor la tiene activa.
+fetch('/api/status').then(r => r.json()).then(({ cuentasPersonales = [] }) => {
+  const sel = $('login-usuario');
+  const nombres = { fabio: 'Fabio', lautaro: 'Lautaro' };
+  cuentasPersonales.forEach(u => {
+    if (nombres[u] && ![...sel.options].some(o => o.value === u)) sel.add(new Option(nombres[u], u));
+  });
+}).catch(() => {});
+
 $('login-usuario').addEventListener('change', () => {
   const usuario = $('login-usuario').value;
   const grupo = $('password-group');

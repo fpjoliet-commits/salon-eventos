@@ -126,11 +126,24 @@ const PORT = process.env.PORT || 3001;
 
 // Las variables de entorno guardan el HASH bcrypt de cada contraseña, no la
 // contraseña en texto plano. Para generar un hash: node backend/hash-password.js "miContraseña"
+//
+// `nombre` es la persona: es lo que queda escrito en "cargadoPor" y en la
+// auditoría, para saber quién hizo cada cosa. La cuenta superadmin la comparten
+// Fabio y Lautaro (no se sabe cuál de los dos fue); por eso cada uno puede tener
+// la suya con PASSWORD_FABIO / PASSWORD_LAUTARO. Son opcionales: si no están,
+// esas cuentas no existen y todo sigue como antes.
 const USERS = {
-  superadmin: { passwordHash: process.env.PASSWORD_SUPERADMIN, role: 'superadmin' },
-  admin: { passwordHash: process.env.PASSWORD_ADMIN, role: 'admin' },
-  empleado: { passwordHash: process.env.PASSWORD_EMPLEADO, role: 'operador' },
+  superadmin: { passwordHash: process.env.PASSWORD_SUPERADMIN, role: 'superadmin', nombre: 'superadmin' },
+  admin: { passwordHash: process.env.PASSWORD_ADMIN, role: 'admin', nombre: 'Mariana' },
+  empleado: { passwordHash: process.env.PASSWORD_EMPLEADO, role: 'operador', nombre: 'Anita' },
 };
+const USUARIOS_OPCIONALES = {
+  fabio: { passwordHash: process.env.PASSWORD_FABIO, role: 'superadmin', nombre: 'Fabio' },
+  lautaro: { passwordHash: process.env.PASSWORD_LAUTARO, role: 'superadmin', nombre: 'Lautaro' },
+};
+for (const [usuario, u] of Object.entries(USUARIOS_OPCIONALES)) {
+  if (u.passwordHash) USERS[usuario] = u;
+}
 
 // Si algún hash falta o no tiene pinta de hash bcrypt (empieza con $2), avisamos
 // fuerte: probablemente quedó una contraseña vieja en texto plano sin migrar.
@@ -151,6 +164,8 @@ function auth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Sin autenticación' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    // Sesiones de antes de guardar el nombre en el token: se deduce del usuario
+    if (!req.user.nombre) req.user.nombre = USERS[req.user.usuario]?.nombre || req.user.usuario;
     next();
   } catch {
     res.status(401).json({ error: 'Token inválido' });
@@ -168,6 +183,9 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
+// Quién hizo algo, con nombre de persona (Mariana, Anita, Fabio...), no el login
+const quien = req => req.user.nombre || req.user.usuario;
+
 // Qué etiquetas (cargadoPor) "posee" cada rol. cargadoPor es el nombre que se
 // MUESTRA (lo pone el bot: Lautaro/Fabio/Mariana; o el login a mano: superadmin/
 // admin/empleado). La visibilidad se decide acá, separada de la etiqueta.
@@ -181,7 +199,8 @@ const ETIQUETAS_DE_ROL = {
 };
 function etiquetasPropias(req) {
   const yo = (req.user.usuario || '').toLowerCase();
-  return new Set([yo, ...(ETIQUETAS_DE_ROL[req.user.role] || []).map(s => s.toLowerCase())]);
+  const nombre = (req.user.nombre || '').toLowerCase();
+  return new Set([yo, nombre, ...(ETIQUETAS_DE_ROL[req.user.role] || []).map(s => s.toLowerCase())]);
 }
 
 // La bandeja "Por confirmar" es adminOnly: solo admin y superadmin llegan.
@@ -287,7 +306,11 @@ function validarRowIndex(req, res, next) {
 
 // Estado del sistema
 app.get('/api/status', (req, res) => {
-  res.json({ googleSheets: sheets.tieneCredenciales });
+  // cuentasPersonales: las cuentas opcionales activas, para mostrarlas en el login
+  res.json({
+    googleSheets: sheets.tieneCredenciales,
+    cuentasPersonales: Object.keys(USUARIOS_OPCIONALES).filter(u => USERS[u]),
+  });
 });
 
 // Anti fuerza-bruta en login: máx 10 intentos por IP cada 10 min
@@ -315,7 +338,7 @@ app.post('/api/login', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Usuario incorrecto' });
   const ok = await bcrypt.compare(String(password || ''), user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Contraseña incorrecta' });
-  const token = jwt.sign({ usuario, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
+  const token = jwt.sign({ usuario, role: user.role, nombre: user.nombre }, JWT_SECRET, { expiresIn: '12h' });
   res.json({ token, usuario, role: user.role });
 });
 
@@ -341,10 +364,10 @@ app.get('/api/clientes', auth, async (req, res) => {
 
 app.post('/api/clientes', auth, validarCliente, async (req, res) => {
   try {
-    const data = { ...req.body, cargadoPor: req.user.usuario };
+    const data = { ...req.body, cargadoPor: quien(req) };
     const cliente = await sheets.addCliente(data);
     sheets.registrarAuditoria({
-      usuario: req.user.usuario, accion: 'Creó', entidad: 'Evento',
+      usuario: quien(req), accion: 'Creó', entidad: 'Evento',
       idEntidad: cliente.id, nombre: cliente.apellidoNombre,
       detalle: sheets.fotoAuditoria(cliente),
     });
@@ -359,7 +382,7 @@ app.put('/api/clientes/:rowIndex', auth, validarRowIndex, validarCliente, async 
     const rowIndex = parseInt(req.params.rowIndex);
     const result = await sheets.updateCliente(rowIndex, req.body);
     sheets.registrarAuditoria({
-      usuario: req.user.usuario, accion: 'Editó', entidad: 'Evento',
+      usuario: quien(req), accion: 'Editó', entidad: 'Evento',
       idEntidad: req.body.id, nombre: req.body.apellidoNombre,
       detalle: sheets.fotoAuditoria(req.body),
     });
@@ -372,9 +395,9 @@ app.put('/api/clientes/:rowIndex', auth, validarRowIndex, validarCliente, async 
 app.delete('/api/clientes/:rowIndex', auth, adminOnly, validarRowIndex, async (req, res) => {
   try {
     const rowIndex = parseInt(req.params.rowIndex);
-    await sheets.deleteEvento(rowIndex, req.body, req.user.usuario);
+    await sheets.deleteEvento(rowIndex, req.body, quien(req));
     sheets.registrarAuditoria({
-      usuario: req.user.usuario, accion: 'Eliminó', entidad: 'Evento',
+      usuario: quien(req), accion: 'Eliminó', entidad: 'Evento',
       idEntidad: req.body.id, nombre: req.body.apellidoNombre,
       detalle: 'Archivado en la hoja Papelera',
     });
@@ -445,7 +468,7 @@ app.post('/api/ingresos', auth, adminOnly, async (req, res) => {
     // se podía mandar ya confirmado y salteaba la bandeja "Por confirmar".
     const { confirmado: _ignorado, ...cuerpo } = req.body;
     const ingreso = await sheets.addIngreso({
-      ...cuerpo, cargadoPor: req.user.usuario, cliente, fechaEvento,
+      ...cuerpo, cargadoPor: quien(req), cliente, fechaEvento,
       cubiertos: '', precioCubierto: '',
       cotizacion: esUSD && tc > 0 ? tc : '',
       montoARS: esUSD ? (tc > 0 ? Math.round(monto * tc * 100) / 100 : '') : monto,
@@ -567,7 +590,7 @@ app.post('/api/cuotas/plan', auth, adminOnly, async (req, res) => {
     const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion } = req.body;
     const ipcHasta = indexacion === 'ipc' ? await ultimoMesIPC() : '';
     res.json(await sheets.createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio,
-      moneda, indexacion, req.user.usuario, { ipcHasta }));
+      moneda, indexacion, quien(req), { ipcHasta }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -579,7 +602,7 @@ app.post('/api/cuotas/agregar', auth, adminOnly, async (req, res) => {
     if (!idCliente || !(n >= 1 && n <= 60) || !(valor > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio || '')) {
       return res.status(400).json({ error: 'Completá cantidad (1 a 60), valor de cuota y fecha.' });
     }
-    res.json(await sheets.agregarCuotas(idCliente, n, valor, fechaInicio, await ultimoMesIPC(), req.user.usuario));
+    res.json(await sheets.agregarCuotas(idCliente, n, valor, fechaInicio, await ultimoMesIPC(), quien(req)));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -596,7 +619,7 @@ app.put('/api/cuotas/indexacion', auth, adminOnly, async (req, res) => {
     }
     const r = await sheets.setIndexacionPlan(idCliente, indexacion, ipcHasta);
     sheets.registrarAuditoria({
-      usuario: req.user.usuario,
+      usuario: quien(req),
       accion: indexacion === 'ipc' ? 'Pasó el plan a indexado por IPC' : 'Pasó el plan a cuotas fijas',
       entidad: 'Cuotas', idEntidad: idCliente,
       detalle: indexacion === 'ipc' ? `Se ajusta desde el IPC posterior a ${ipcHasta}` : '',
@@ -635,7 +658,7 @@ app.put('/api/cuotas/pagar', auth, adminOnly, async (req, res) => {
         moneda: monedaPago || 'ARS',
         cliente, fechaEvento,
         // Sin esto el cobro quedaba sin dueño: nadie sabía quién lo cargó
-        cargadoPor: req.user.usuario,
+        cargadoPor: quien(req),
       });
     }
     res.json({ ok: true });
@@ -668,7 +691,7 @@ app.put('/api/cuotas/imputar', auth, adminOnly, async (req, res) => {
       notas: [detalle, sobrante > 0.5 ? `sobrante a favor ${Math.round(sobrante)}` : '', notas]
              .filter(Boolean).join(' — '),
       moneda: moneda || 'ARS',
-      cargadoPor: req.user.usuario,
+      cargadoPor: quien(req),
       cliente, fechaEvento,
     });
     res.json({ ok: true, aplicaciones, sobrante });
@@ -830,7 +853,7 @@ app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
       formaPago: formaPago || '',
       notas: detalle,
       moneda: moneda || 'ARS',
-      cargadoPor: req.user.usuario,
+      cargadoPor: quien(req),
       cliente, fechaEvento,
       cubiertos: compra.cubiertos,
       precioCubierto: precioUsado,
@@ -939,7 +962,7 @@ app.delete('/api/cuotas/plan/:idCliente', auth, adminOnly, async (req, res) => {
   try {
     await sheets.cancelarPlan(req.params.idCliente);
     sheets.registrarAuditoria({
-      usuario: req.user.usuario, accion: 'Borró el plan de pagos',
+      usuario: quien(req), accion: 'Borró el plan de pagos',
       entidad: 'Cuotas', idEntidad: req.params.idCliente,
       detalle: 'Se eliminaron todas las cuotas del cliente',
     });
@@ -1313,7 +1336,7 @@ app.post('/api/egresos', auth, adminOnly, async (req, res) => {
   try {
     const { etiqueta } = await datosEvento(req.body.idEvento);
     res.json(await sheets.addEgreso({
-      ...req.body, cargadoPor: req.user.usuario, evento: etiqueta,
+      ...req.body, cargadoPor: quien(req), evento: etiqueta,
     }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1595,7 +1618,7 @@ app.get('/api/pedidos-cocina', auth, superAdminOnly, async (req, res) => {
 
 app.post('/api/pedidos-cocina', auth, superAdminOnly, async (req, res) => {
   try {
-    const pedido = await sheets.addPedidoCocina({ ...req.body, creadoPor: req.user.usuario });
+    const pedido = await sheets.addPedidoCocina({ ...req.body, creadoPor: quien(req) });
     res.json(pedido);
   } catch (e) {
     res.status(500).json({ error: e.message });
