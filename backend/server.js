@@ -434,7 +434,7 @@ function validarIngreso(body) {
   return null;
 }
 
-app.post('/api/ingresos', auth, async (req, res) => {
+app.post('/api/ingresos', auth, adminOnly, async (req, res) => {
   const error = validarIngreso(req.body);
   if (error) return res.status(400).json({ error });
   try {
@@ -445,8 +445,11 @@ app.post('/api/ingresos', auth, async (req, res) => {
     const monto = parseFloat(req.body.monto);
     const esUSD = req.body.moneda === 'USD';
     const tc = esUSD ? parseFloat(req.body.cotizacion) : 0;
+    // "confirmado" lo decide el servidor, nunca el pedido: si no, un borrador
+    // se podía mandar ya confirmado y salteaba la bandeja "Por confirmar".
+    const { confirmado: _ignorado, ...cuerpo } = req.body;
     const ingreso = await sheets.addIngreso({
-      ...req.body, cargadoPor: req.user.usuario, cliente, fechaEvento,
+      ...cuerpo, cargadoPor: req.user.usuario, cliente, fechaEvento,
       cubiertos: '', precioCubierto: '',
       cotizacion: esUSD && tc > 0 ? tc : '',
       montoARS: esUSD ? (tc > 0 ? Math.round(monto * tc * 100) / 100 : '') : monto,
@@ -561,7 +564,7 @@ app.get('/api/cuotas/cliente/:idCliente', auth, adminOnly, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/cuotas/plan', auth, async (req, res) => {
+app.post('/api/cuotas/plan', auth, adminOnly, async (req, res) => {
   try {
     const { idCliente, montoTotal, cantidadCuotas, valorCuota, fechaInicio, moneda, indexacion } = req.body;
     const ipcHasta = indexacion === 'ipc' ? await ultimoMesIPC() : '';
@@ -571,7 +574,7 @@ app.post('/api/cuotas/plan', auth, async (req, res) => {
 });
 
 // Sumar cuotas a un plan existente: hereda moneda e indexacion y sigue la numeracion.
-app.post('/api/cuotas/agregar', auth, async (req, res) => {
+app.post('/api/cuotas/agregar', auth, adminOnly, async (req, res) => {
   try {
     const { idCliente, cantidad, valorCuota, fechaInicio } = req.body;
     const n = parseInt(cantidad), valor = parseFloat(valorCuota);
@@ -611,7 +614,7 @@ app.put('/api/cuotas/confirmar', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/cuotas/pagar', auth, async (req, res) => {
+app.put('/api/cuotas/pagar', auth, adminOnly, async (req, res) => {
   try {
     const { rowIndices, fechaPago, notas, idCliente, formaPago, montoTotal, montoEfectivo, monedaPago, descripcion, sinIngreso } = req.body;
     await sheets.pagarCuotas(rowIndices, fechaPago, notas);
@@ -633,6 +636,8 @@ app.put('/api/cuotas/pagar', auth, async (req, res) => {
         notas: [descripcion, notas].filter(Boolean).join(' — '),
         moneda: monedaPago || 'ARS',
         cliente, fechaEvento,
+        // Sin esto el cobro quedaba sin dueño: nadie sabía quién lo cargó
+        cargadoPor: req.user.usuario,
       });
     }
     res.json({ ok: true });
@@ -851,7 +856,7 @@ app.put('/api/cubiertos/cobrar', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/cuotas/ipc', auth, async (req, res) => {
+app.put('/api/cuotas/ipc', auth, adminOnly, async (req, res) => {
   try {
     const { idCliente, porcentaje } = req.body;
     res.json(await sheets.aplicarIPC(idCliente, porcentaje));
@@ -925,7 +930,7 @@ function correrIPCAutomatico() {
   return ipcCorriendo;
 }
 
-app.put('/api/cuotas/ajustar', auth, async (req, res) => {
+app.put('/api/cuotas/ajustar', auth, adminOnly, async (req, res) => {
   try {
     const { idCliente, nuevoValor } = req.body;
     res.json(await sheets.ajustarValorCuotas(idCliente, nuevoValor));

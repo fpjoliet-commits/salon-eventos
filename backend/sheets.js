@@ -515,6 +515,9 @@ function rowToIngreso(row, index) {
     precioCubierto: parseFloat(row[13]) || 0,
     cotizacion: parseFloat(row[14]) || 0,   // dolar usado, si se pago en USD
     montoARS: parseFloat(row[15]) || 0,     // el importe ya convertido a pesos
+    // Quién lo cargó (Mariana, Fabio, bot...). Hasta sep/2026 no se guardaba y
+    // todo cobro quedaba "sin dueño": la bandeja por persona no los encontraba.
+    cargadoPor: row[16] || '',
   };
 }
 
@@ -524,6 +527,7 @@ function ingresoToRow(i) {
     i.moneda || 'ARS', i.confirmado === false ? '0' : '1',
     i.cliente || '', i.fechaEvento || '', i.periodo || periodoDe(i.fecha),
     i.cubiertos || '', i.precioCubierto || '', i.cotizacion || '', i.montoARS || '',
+    i.cargadoPor || '',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -541,7 +545,7 @@ async function getIngresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:P',
+    range: 'Ingresos!A2:Q',
   });
   return (res.data.values || []).map((row, i) => rowToIngreso(row, i))
     .filter(i => i.id && !esIngresoFantasma(i));
@@ -567,7 +571,7 @@ async function addIngreso(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!A${nextRow}:P${nextRow}`,
+    range: `Ingresos!A${nextRow}:Q${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [ingresoToRow(ingreso)] },
   });
@@ -601,9 +605,9 @@ async function deleteIngreso(rowIndex) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!A${rowIndex}:P${rowIndex}`,
+    range: `Ingresos!A${rowIndex}:Q${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(16).fill('')] },
+    resource: { values: [Array(17).fill('')] },
   });
   return { ok: true };
 }
@@ -620,7 +624,7 @@ async function restaurarIngreso(rowIndex, data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!A${rowIndex}:P${rowIndex}`,
+    range: `Ingresos!A${rowIndex}:Q${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [ingresoToRow(data)] },
   });
@@ -1647,7 +1651,7 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   // Borrar ingresos asociados al cliente eliminado
   const ingRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:P',
+    range: 'Ingresos!A2:Q',
   });
   const ingRows = ingRes.data.values || [];
   const filasABorrar = ingRows
@@ -1658,9 +1662,9 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   for (const ingRowIndex of filasABorrar) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Ingresos!A${ingRowIndex}:P${ingRowIndex}`,
+      range: `Ingresos!A${ingRowIndex}:Q${ingRowIndex}`,
       valueInputOption: 'USER_ENTERED',
-      resource: { values: [Array(16).fill('')] },
+      resource: { values: [Array(17).fill('')] },
     });
   }
 }
@@ -2627,7 +2631,7 @@ async function initSheets() {
     // nunca los datos. Necesario para que Excel muestre nombres de columna reales
     // en las tablas dinamicas (el analisis se hace por fuera del sistema).
     if (existing.includes('Ingresos')) {
-      headers.push({ range: 'Ingresos!A1:P1', values: [['id','idEvento','tipoIngreso','monto','fecha','formaPago','notas','moneda','confirmado','cliente','fechaEvento','periodo','cubiertos','precioCubierto','cotizacion','montoARS']] });
+      headers.push({ range: 'Ingresos!A1:Q1', values: [['id','idEvento','tipoIngreso','monto','fecha','formaPago','notas','moneda','confirmado','cliente','fechaEvento','periodo','cubiertos','precioCubierto','cotizacion','montoARS','cargadoPor']] });
     }
     if (existing.includes('Cuotas')) {
       headers.push({ range: 'Cuotas!A1:N1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion','confirmado','ipcHasta']] });
