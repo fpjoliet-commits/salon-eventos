@@ -4192,9 +4192,38 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 }
 .volver-mov-btn:hover { background: #E7E2D6; }
 
-.adj-resumen {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: #3B372F;
-  margin-bottom: 14px;
+/* Tres botones no entran en un renglon en la tablet: que bajen. */
+#editar-ingreso-form .egreso-form-actions {
+  flex-wrap: wrap;
+  gap: 10px;
 }
+
+/* Las cuotas que cubre el cobro, dentro de la revision. */
+.edi-cuotas {
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  background: #F7F5EF;
+  border: 1px solid #E2DCCD;
+  border-radius: 10px;
+}
+.edi-cuotas-titulo {
+  font-size: .95rem;
+  font-weight: 700;
+  color: #5B5446;
+  margin-bottom: 8px;
+}
+.edi-cuota {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  border-top: 1px solid #EBE6D9;
+}
+.edi-cuota:first-of-type { border-top: none; }
+.edi-cuota input { width: 18px; height: 18px; }
+.edi-cuota-n { font-weight: 600; }
+.edi-cuota-vto { color: #7A7264; }
+.edi-cuota-val { font-weight: 700; }

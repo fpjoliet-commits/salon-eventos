@@ -595,10 +595,12 @@ app.put('/api/cuotas/confirmar', auth, adminOnly, async (req, res) => {
 
 app.put('/api/cuotas/pagar', auth, async (req, res) => {
   try {
-    const { rowIndices, fechaPago, notas, idCliente, formaPago, montoTotal, montoEfectivo, monedaPago, descripcion } = req.body;
+    const { rowIndices, fechaPago, notas, idCliente, formaPago, montoTotal, montoEfectivo, monedaPago, descripcion, sinIngreso } = req.body;
     await sheets.pagarCuotas(rowIndices, fechaPago, notas);
     const montoRegistrar = montoEfectivo || montoTotal;
-    if (idCliente && montoRegistrar > 0) {
+    // Al confirmar un cobro del bot la fila del ingreso ya existe: solo hay que
+    // tachar las cuotas. Sin esto el mismo pago quedaba cargado dos veces.
+    if (!sinIngreso && idCliente && montoRegistrar > 0) {
       // Mismo enriquecido que POST /api/ingresos: sin esto los cobros de cuotas
       // caian en la planilla sin el nombre del cliente y no se podian analizar.
       const { cliente, fechaEvento } = await datosEvento(idCliente);

@@ -9640,8 +9640,10 @@ function renderPendientes() {
     const titulo = it.sinEvento
       ? `<span class="pend-sin-evento">Sin evento</span>`
       : `${esc(it.titulo)}${esIngreso ? ` <button class="pend-ir-evento" data-row="${it.rowIndex}">ver el evento →</button>` : ''}`;
-    const acciones = it.sinEvento
-      ? `<button class="btn btn-primary btn-pend-adjudicar" data-row="${it.rowIndex}">Elegir el evento</button>
+    // Un cobro nunca se confirma de un boton: hay que abrirlo, decir de que
+    // evento es y que cuotas cubre. Un gasto si, que no tiene esa vuelta.
+    const acciones = esIngreso
+      ? `<button class="btn btn-primary btn-pend-editar" data-tipo="ingreso" data-row="${it.rowIndex}">Revisar</button>
          <button class="btn btn-sm btn-pend-descartar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Descartar este borrador">✕</button>`
       : `<button class="btn btn-pend-editar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Editar antes de confirmar">✏️ Editar</button>
          <button class="btn btn-primary btn-pend-confirmar" data-tipo="${it.tipo}" data-row="${it.rowIndex}">✓ Confirmar</button>
@@ -9692,10 +9694,38 @@ function openEditarIngreso(ingreso) {
   $('edi-notas').value = ingreso.notas || '';
   hide('edi-error');
   show('modal-editar-ingreso');
+  cargarCuotasDelCobro();
 }
 
-async function submitEditarIngreso(ev) {
-  ev.preventDefault();
+/* Si el evento tiene plan de pago, ahi mismo se dice que cuotas cubre este
+   cobro. Sin esto habia que confirmarlo aca y despues ir a la ficha a tachar
+   las cuotas a mano, con el riesgo de cargar el pago dos veces. */
+async function cargarCuotasDelCobro() {
+  const box = $('edi-cuotas');
+  const lista = $('edi-cuotas-lista');
+  if (!box || !lista) return;
+  const id = $('edi-cliente').value;
+  lista.innerHTML = '';
+  box.classList.add('hidden');
+  if (!id) return;
+  let cuotas = [];
+  try { cuotas = await apiFetch(`/cuotas/cliente/${id}`); } catch { return; }
+  const pendientesDelPlan = (cuotas || []).filter(c => c.estado !== 'pagada');
+  if (!pendientesDelPlan.length) return;
+  lista.innerHTML = pendientesDelPlan.map(c => `
+    <label class="edi-cuota">
+      <input type="checkbox" class="edi-cuota-check" data-row="${c.rowIndex}" data-num="${c.numeroCuota}">
+      <span class="edi-cuota-n">Cuota ${c.numeroCuota}</span>
+      <span class="edi-cuota-vto">${c.fechaVencimiento ? formatDate(c.fechaVencimiento) : ''}</span>
+      <span class="edi-cuota-val">${formatMoneda(c.valorActual || c.valorOriginal, c.moneda || 'ARS')}</span>
+    </label>`).join('');
+  box.classList.remove('hidden');
+}
+
+$('edi-cliente')?.addEventListener('change', cargarCuotasDelCobro);
+
+async function submitEditarIngreso(ev, confirmar = true) {
+  ev?.preventDefault();
   hide('edi-error');
   const rowIndex = parseInt($('edi-row-index').value);
   const original = (pendientes.ingresos || []).find(x => x.rowIndex === rowIndex) || {};
@@ -9705,28 +9735,62 @@ async function submitEditarIngreso(ev) {
     $('edi-error').textContent = 'Ingresá un monto mayor a 0.';
     return;
   }
+  const idCliente = $('edi-cliente').value;
+  if (confirmar && !idCliente) {
+    show('edi-error');
+    $('edi-error').textContent = 'Elegí de qué evento es este cobro.';
+    return;
+  }
+
+  const marcadas = [...document.querySelectorAll('.edi-cuota-check:checked')];
+  const detalle = marcadas.length
+    ? `Cuota${marcadas.length > 1 ? 's' : ''} ${marcadas.map(c => c.dataset.num).join(', ')}`
+    : '';
   const updated = {
     ...original,
     fecha: $('edi-fecha').value,
     monto,
     moneda: $('edi-moneda').value,
-    tipoIngreso: $('edi-tipo').value,
+    tipoIngreso: marcadas.length ? 'Cuota' : $('edi-tipo').value,
     formaPago: $('edi-forma').value,
-    idCliente: $('edi-cliente').value,        // el server deriva cliente/fechaEvento
-    notas: $('edi-notas').value.trim(),
+    idCliente,                                // el server deriva cliente/fechaEvento
+    notas: [$('edi-notas').value.trim(), confirmar ? detalle : ''].filter(Boolean).join(' — '),
   };
+
+  const botones = document.querySelectorAll('#editar-ingreso-form button');
+  botones.forEach(b => { b.disabled = true; });
   try {
     await apiFetch(`/ingresos/${rowIndex}`, { method: 'PUT', body: updated });
+    if (confirmar) {
+      if (marcadas.length) {
+        // El cobro ya existe como fila: tachar las cuotas sin crear otro ingreso.
+        await apiFetch('/cuotas/pagar', {
+          method: 'PUT',
+          body: {
+            rowIndices: marcadas.map(c => parseInt(c.dataset.row)),
+            fechaPago: $('edi-fecha').value,
+            notas: $('edi-notas').value.trim(),
+            sinIngreso: true,
+          },
+        });
+      }
+      await apiFetch(`/ingresos/${rowIndex}/confirmar`, { method: 'PUT' });
+    }
     hide('modal-editar-ingreso');
-    toast('Cobro actualizado');
-    loadPendientes();
+    toast(confirmar ? 'Cobro confirmado' : 'Cobro guardado');
+    egresosCargados = false;
+    await Promise.all([loadEgresos(), loadPendientes()]);
+    if (!confirmar) _flashPendiente(rowIndex);
   } catch (err) {
     show('edi-error');
     $('edi-error').textContent = err.message || 'Error al guardar';
+  } finally {
+    botones.forEach(b => { b.disabled = false; });
   }
 }
 
 document.getElementById('editar-ingreso-form')?.addEventListener('submit', submitEditarIngreso);
+document.getElementById('edi-guardar-btn')?.addEventListener('click', () => submitEditarIngreso(null, false));
 document.getElementById('close-editar-ingreso-btn')?.addEventListener('click', () => hide('modal-editar-ingreso'));
 document.getElementById('cancel-editar-ingreso-btn')?.addEventListener('click', () => hide('modal-editar-ingreso'));
 
@@ -9786,10 +9850,9 @@ document.addEventListener('click', async e => {
 /* ===================== ADJUDICAR UN COBRO A SU EVENTO =====================
    Todo lo que entra al salon entra por un evento. Un cobro que el bot no pudo
    atribuir queda marcado en la bandeja y no se puede confirmar hasta que tenga
-   evento. Desde la tarjeta se puede elegirlo ahi mismo, o entrar al evento a
-   mirar el plan de pago y volver a la bandeja con un solo clic. */
+   evento. Desde la tarjeta se entra al evento a mirar el plan de pago y se
+   vuelve a la bandeja con un solo clic. */
 
-let _adjRow = null;
 let _vueltaMovimientos = null;   // { rowIndex }
 
 function _pendienteIngreso(rowIndex) {
@@ -9804,54 +9867,7 @@ function _flashPendiente(rowIndex) {
   setTimeout(() => el.classList.remove('pend-flash'), 2500);
 }
 
-function abrirAdjudicar(rowIndex) {
-  const it = _pendienteIngreso(rowIndex);
-  if (!it) return;
-  _adjRow = rowIndex;
-  $('adj-resumen').textContent = [
-    formatMoneda(parseFloat(it.monto) || 0, it.moneda || 'ARS'),
-    it.tipoIngreso || '', it.formaPago || '',
-    it.fecha ? formatDate(it.fecha) : '',
-  ].filter(Boolean).join(' \u00b7 ');
-  populateEgrEventoSelect('adj-evento');
-  $('adj-evento').value = '';
-  syncBuscador('adj-evento');
-  hide('adj-error');
-  show('modal-adjudicar');
-  setTimeout(() => $('adj-evento')?._buscador?.focus(), 60);
-}
-
-async function guardarAdjudicacion() {
-  const id = $('adj-evento').value;
-  if (!id) {
-    $('adj-error').textContent = 'Eleg\u00ed el evento.';
-    show('adj-error');
-    return;
-  }
-  const it = _pendienteIngreso(_adjRow);
-  if (!it) { hide('modal-adjudicar'); return; }
-  const btn = $('adj-guardar');
-  btn.disabled = true;
-  try {
-    await apiFetch(`/ingresos/${_adjRow}`, { method: 'PUT', body: { ...it, idCliente: id } });
-    hide('modal-adjudicar');
-    toast('Cobro adjudicado');
-    const row = _adjRow;
-    await loadPendientes();
-    _flashPendiente(row);
-  } catch (err) {
-    $('adj-error').textContent = err.message || 'Error al guardar';
-    show('adj-error');
-  } finally { btn.disabled = false; }
-}
-
-$('adj-guardar')?.addEventListener('click', guardarAdjudicacion);
-$('close-adjudicar-btn')?.addEventListener('click', () => hide('modal-adjudicar'));
-$('cancel-adjudicar-btn')?.addEventListener('click', () => hide('modal-adjudicar'));
-
 document.addEventListener('click', e => {
-  const adj = e.target.closest('.btn-pend-adjudicar');
-  if (adj) { abrirAdjudicar(parseInt(adj.dataset.row)); return; }
   const ir = e.target.closest('.pend-ir-evento');
   if (ir) verEventoDelCobro(parseInt(ir.dataset.row));
 });
