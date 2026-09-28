@@ -66,6 +66,30 @@ function invalidarCacheSheets() {
   cacheLecturas.clear();
 }
 
+/* ===================== ALTAS DE A UNA =====================
+   Una alta calcula "la próxima fila libre" y escribe ahí. Si dos llegaban juntas
+   (Mariana cargando un cobro mientras el bot carga otro) las dos calculaban la
+   misma fila y una pisaba a la otra sin avisar. Ahora las altas de cada hoja
+   hacen fila: la siguiente recién calcula cuando la anterior terminó de
+   escribir. Alcanza con una fila en memoria porque el servidor es un solo
+   proceso (Render: WEB_CONCURRENCY=1). */
+const _colasDeAlta = new Map(); // hoja -> promesa de la última alta
+
+function enFilaDeAlta(hoja, tarea) {
+  const previa = _colasDeAlta.get(hoja) || Promise.resolve();
+  const actual = previa.catch(() => {}).then(tarea);
+  _colasDeAlta.set(hoja, actual);
+  return actual;
+}
+
+// Siempre lectura fresca: con la memoria de 30 s podía calcular sobre datos viejos
+async function proximaFila(hoja) {
+  const colA = await getSheets().spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID, range: `${hoja}!A:A`, sinCache: true,
+  });
+  return (colA.data.values || []).length + 1;
+}
+
 function getSheets() {
   if (_clienteSheets) return _clienteSheets;
   const { google } = require('googleapis');
@@ -78,9 +102,12 @@ function getSheets() {
 
   const getOriginal = valores.get.bind(valores);
   valores.get = async (params, ...resto) => {
+    // sinCache: lectura fresca obligatoria (p. ej. para calcular la próxima fila libre)
+    const { sinCache, ...pedido } = params || {};
+    params = pedido;
     const clave = JSON.stringify(params);
     let entrada = cacheLecturas.get(clave);
-    if (!entrada || Date.now() - entrada.ts >= TTL_LECTURA_MS) {
+    if (sinCache || !entrada || Date.now() - entrada.ts >= TTL_LECTURA_MS) {
       const promesa = getOriginal(conLecturaReal(params), ...resto)
         .then(r => ({ data: normalizarLectura(r.data, params), status: r.status }));
       entrada = { ts: Date.now(), promesa };
@@ -302,18 +329,16 @@ async function addPersona(data) {
     return persona;
   }
   const sheets = getSheets();
-  const colA = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Personas!A:A',
+  await enFilaDeAlta('Personas', async () => {
+    const nextRow = await proximaFila('Personas');
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Personas!A${nextRow}:L${nextRow}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [personaToRow(persona)] },
+    });
+    persona.rowIndex = nextRow;
   });
-  const nextRow = (colA.data.values || []).length + 1;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Personas!A${nextRow}:L${nextRow}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [personaToRow(persona)] },
-  });
-  persona.rowIndex = nextRow;
   return persona;
 }
 
@@ -419,18 +444,16 @@ async function addCliente(data) {
   }
 
   const sheets = getSheets();
-  const colA = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Eventos!A:A',
+  await enFilaDeAlta('Eventos', async () => {
+    const nextRow = await proximaFila('Eventos');
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Eventos!A${nextRow}:Z${nextRow}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [eventoToRow(evento)] },
+    });
+    evento.rowIndex = nextRow;
   });
-  const nextRow = (colA.data.values || []).length + 1;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Eventos!A${nextRow}:Z${nextRow}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [eventoToRow(evento)] },
-  });
-  evento.rowIndex = nextRow;
   return enrichEvento(evento, persona, 1);
 }
 
@@ -602,18 +625,16 @@ async function addIngreso(data) {
     return ingreso;
   }
   const sheets = getSheets();
-  const colA = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A:A',
+  await enFilaDeAlta('Ingresos', async () => {
+    const nextRow = await proximaFila('Ingresos');
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Ingresos!A${nextRow}:Q${nextRow}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [ingresoToRow(ingreso)] },
+    });
+    ingreso.rowIndex = nextRow;
   });
-  const nextRow = (colA.data.values || []).length + 1;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!A${nextRow}:Q${nextRow}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [ingresoToRow(ingreso)] },
-  });
-  ingreso.rowIndex = nextRow;
   return ingreso;
 }
 
@@ -722,18 +743,23 @@ async function getConfig() {
 async function setConfig(clave, valor) {
   if (!tieneCredenciales) { memConfig[clave] = String(valor); return { [clave]: String(valor) }; }
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Config!A2:B',
-  });
-  const filas = res.data.values || [];
-  const idx = filas.findIndex(r => r[0] === clave);
-  const fila = idx === -1 ? filas.length + 2 : idx + 2;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Config!A${fila}:B${fila}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [[clave, String(valor)]] },
+  // Misma fila de espera que las altas: dos claves nuevas a la vez (vistas
+  // guardadas de dos personas) caían en la misma fila y una se perdía.
+  await enFilaDeAlta('Config', async () => {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Config!A2:B',
+      sinCache: true,
+    });
+    const filas = res.data.values || [];
+    const idx = filas.findIndex(r => r[0] === clave);
+    const fila = idx === -1 ? filas.length + 2 : idx + 2;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Config!A${fila}:B${fila}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [[clave, String(valor)]] },
+    });
   });
   return { [clave]: String(valor) };
 }
@@ -1111,18 +1137,16 @@ async function createPlan(idCliente, montoTotal, cantidadCuotas, valorCuota, fec
     return cuotas;
   }
   const sheets = getSheets();
-  const colA = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Cuotas!A:A',
+  await enFilaDeAlta('Cuotas', async () => {
+    const nextRow = await proximaFila('Cuotas');
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Cuotas!A${nextRow}:N${nextRow + cuotas.length - 1}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: cuotas.map(cuotaToRow) },
+    });
+    cuotas.forEach((c, i) => { c.rowIndex = nextRow + i; });
   });
-  const nextRow = (colA.data.values || []).length + 1;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Cuotas!A${nextRow}:N${nextRow + cuotas.length - 1}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: cuotas.map(cuotaToRow) },
-  });
-  cuotas.forEach((c, i) => { c.rowIndex = nextRow + i; });
   return cuotas;
 }
 
@@ -1546,18 +1570,16 @@ async function addEgreso(data) {
   const sheets = getSheets();
   // Escritura por fila explicita (no append) para poder devolver el rowIndex real:
   // sin el, el egreso recien cargado no se podia editar hasta recargar la pagina.
-  const colA = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A:A',
+  await enFilaDeAlta('Egresos', async () => {
+    const nextRow = await proximaFila('Egresos');
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Egresos!A${nextRow}:S${nextRow}`,
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [egresoToRow(e)] },
+    });
+    e.rowIndex = nextRow;
   });
-  const nextRow = (colA.data.values || []).length + 1;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!A${nextRow}:S${nextRow}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [egresoToRow(e)] },
-  });
-  e.rowIndex = nextRow;
   return e;
 }
 
