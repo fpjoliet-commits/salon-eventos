@@ -742,6 +742,7 @@ textarea { resize: vertical; min-height: 70px; }
 }
 .modal-body { padding: 24px 28px; overflow-y: auto; }
 .modal-actions { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+.modal-actions.ev-acciones { margin: 14px 0; }
 
 /* Header actions (Vista cliente + close) */
 .modal-header-actions { display: flex; align-items: center; gap: 8px; }
