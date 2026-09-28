@@ -1,0 +1,81 @@
+# Plan de arquitectura y datos — estado al 28/09/2026
+
+Objetivo: que el CRM se proteja solo (sobre todo la plata) y que todo quede registrado
+limpio para conectar herramientas de análisis mañana ("plug and play"). **No** construir
+reportes todavía.
+
+Forma de trabajo: una tarea → probar contra la copia de prueba → commit → push → verificar
+en producción. Local usa SIEMPRE la copia "CRM PRUEBA - no usar" (ver `docs/planilla-de-prueba.md`).
+
+## ⚠️ Trabajo a medio hacer (retomar primero)
+
+**Tarea 3.7 (anular en vez de borrar)**: el código YA ESTÁ APLICADO en `backend/sheets.js`
+y `backend/server.js` pero **SIN PROBAR NI COMMITEAR**.
+- Ingresos suma R creadoEn, S modificadoEn, T modificadoPor, U anulado.
+- Egresos suma T creadoEn, U modificadoEn, V modificadoPor, W anulado.
+- Borrar cobro/gasto = marcar anulado=1; deshacer = `desanular()`; borrar evento anula sus
+  cobros (antes los vaciaba). `getIngresos/getEgresos` filtran anulados.
+- Falta: probar en la copia (alta → editar → borrar → deshacer; borrar evento con cobros;
+  deshacer de una fila vaciada vieja), comparar lecturas de la real (solo deben aparecer
+  campos nuevos vacíos), actualizar `docs/diccionario-de-datos.md`, commit y push.
+
+**Ojo al commitear `backend/sheets.js`**: tiene un cambio ajeno sin subir en `updateEgreso`
+(`Egresos!B${rowIndex}:S${rowIndex}`, en HEAD es `:P`). No es mío: se deja afuera. Truco usado:
+cambiarlo a `:P`, `git add`, volverlo a `:S`.
+
+## Hecho (todo en producción)
+
+| # | Tarea | Commit |
+|---|---|---|
+| 0.1 | Backup diario de la planilla (Apps Script, carpeta "Backups CRM Joliet", 30 copias) | c36f899, 291c3a9 |
+| 0.2 | Planilla de prueba + seguro: fuera de Render no arranca contra la real | bf8df33 |
+| 0.3 | Clave de Cal.com (`CAL_WEBHOOK_SECRET`) — verificado 401 sin clave | (Render) |
+| 1.1 | Textos nunca se ejecutan como fórmula (apóstrofo en el cliente de Sheets) | a3d8938 |
+| 1.2 | Permisos de plata en servidor (Anita bloqueada) + columna Ingresos Q `cargadoPor` | 7046537 |
+| 1.3 | Descartada: Anita SÍ ve presupuesto y nota interna (decisión del usuario) | — |
+| 1.4 | Formulario público `/api/leads` validado en servidor | 04bcb23 |
+| 2.1 | Diccionario de datos + encabezados completos en todas las hojas | 3d0513f |
+| 2.2 | Hora argentina e ISO en todo lo que pone el servidor; zona de la planilla → Buenos Aires | 0bc8ba5 |
+| 2.3 | Números como números (locale es_ES rompía decimales) | 796aedd |
+| 2.4 | Listas cerradas en `backend/listas.js` + sinónimos + select no borra valores | 3303776 |
+| 2.5 | Cuentas opcionales fabio/lautaro; `cargadoPor` = nombre de la persona | 180ea67 |
+| 3.1 | Altas de a una (no se pisan cargas simultáneas) | aaaed4e |
+| 3.2 + 3.5 | Revisar id de la fila antes de escribir (409) + deshacer sin pisar | e4ff431 |
+| 3.3 + 3.4 | Fichas: el servidor conserva lo que la pantalla no manda (bug que borraba menús/modalidad), rastro Eventos AA:AB / Personas M:N, aviso de edición simultánea | 8a3e344 |
+| — | Migración vieja Clientes→Personas+Eventos desactivada (podía borrar todo) | f7a10ff |
+| 3.6 | Cobros de cuotas "todo o nada" (compensación) | 7f59cb9 |
+
+## Pendiente
+
+**Acciones del usuario**
+- Confirmar que el backup de las 03:00 apareció en "Backups CRM Joliet".
+- Reserva de prueba en Cal.com: confirmar que la URL del webhook tiene `?secret=...` y entra al CRM.
+- Superadmin: confirmar/descartar 2 cobros viejos del bot sin dueño en "Por confirmar".
+- Activar cuentas de Fabio y Lautaro: `node backend/hash-password.js "clave"` → cargar
+  `PASSWORD_FABIO` / `PASSWORD_LAUTARO` en Render.
+
+**Fase 3** — terminar 3.7 (ver arriba).
+
+**Fase 4 — historia de cada venta**
+- 4.1 Hoja "Estados" append-only: idEvento, de, a, fechaHora, quién (en cada cambio de estado).
+- 4.2 Motivo obligatorio al pasar a Cancelado (lista cerrada en `listas.js` + texto).
+- 4.3 Auditoría de plata: alta/edición/confirmación/anulación de cobros y gastos con antes/después.
+- 4.4 Teléfono normalizado (+54 9…) guardado como texto, mail minúsculas, aviso de persona duplicada.
+- 4.5 Guardar campaña/UTM del formulario web.
+
+**Fase 5 — limpiar histórico** (probar en la copia; antes de tocar la real, duplicar las hojas
+como pestañas de respaldo; verificar que cantidad de filas y total de plata no cambien)
+- Normalizar fechas viejas, tipoEvento/origen (sinónimos), cargadoPor (admin→Mariana, empleado→Anita).
+- Rellenar "Estados" desde la Auditoría.
+- Prueba de conexión con Looker Studio (solo leer).
+
+**Fase 6 — operación**
+- Alerta si se cae (monitor → Telegram). Apagado prolijo (vaciar cola de auditoría en SIGTERM).
+- Cerrar sesiones a distancia. Pruebas automáticas de cálculos de plata. Render pago (decide el usuario).
+- Límite de pedidos por IP se puede esquivar falseando `X-Forwarded-For` (revisar cómo lo arma Render antes de tocar).
+
+## Herramientas de prueba usadas
+
+- Sesiones de prueba sin contraseñas: firmar JWT con `JWT_SECRET` de `backend/.env`.
+- Foto antes/después de todos los `get*` y comparación (leyendo la real solo en modo lectura).
+- `backend/credentials.json` local (no se sube) da acceso a la copia y a la real.

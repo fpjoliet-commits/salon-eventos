@@ -115,6 +115,7 @@ agregarla también en `listas.js`.**
 - Backup: un proyecto de Apps Script (cuenta dueña) copia todo cada noche a la carpeta de
   Drive "Backups CRM Joliet" (últimas 30). Código y guía: `scripts/backup-planilla.gs`,
   `docs/backup-planilla.md`.
+- Plan de arquitectura en curso (hecho / pendiente / trabajo a medias): `docs/plan-arquitectura.md`.
 - Local usa SIEMPRE la copia "CRM PRUEBA - no usar" (`SPREADSHEET_ID` en `backend/.env`);
   fuera de Render el server no arranca contra la real. Ver `docs/planilla-de-prueba.md`.
 - Un borrador del bot es "huérfano" si su etiqueta no llega a ningún rol con acceso a
