@@ -36,6 +36,14 @@ let memCatalogoItems = [];
 let memPedidosCocina = [];
 let memStockActual = [];
 
+/* Fechas que pone el sistema: siempre en hora argentina y en formato estándar
+   (2026-09-28 / 2026-09-28 21:30:05), que ordena bien y lo lee cualquier
+   herramienta. Render corre en UTC: toLocaleDateString('es-AR') sin zona ponía
+   la fecha de mañana a todo lo cargado después de las 21. */
+const ZONA_AR = 'America/Argentina/Buenos_Aires';
+const hoyAR = () => new Date().toLocaleDateString('sv-SE', { timeZone: ZONA_AR });
+const ahoraAR = () => new Date().toLocaleString('sv-SE', { timeZone: ZONA_AR });
+
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
@@ -285,7 +293,7 @@ async function getPersonas() {
 
 async function addPersona(data) {
   const id = generateId('PER');
-  const now = new Date().toLocaleDateString('es-AR');
+  const now = hoyAR();
   const persona = { ...data, id, fechaCarga: data.fechaCarga || now };
   if (!tieneCredenciales) {
     persona.rowIndex = memPersonas.length + 2;
@@ -351,7 +359,7 @@ async function getClientes() {
 }
 
 async function addCliente(data) {
-  const now = new Date().toLocaleDateString('es-AR');
+  const now = hoyAR();
   let persona;
 
   if (data.personaId) {
@@ -1626,7 +1634,7 @@ async function confirmarEgreso(rowIndex) {
 // Solo se puede leer desde el Google Sheets directamente (no hay ruta API)
 
 async function archivarEnPapelera(tipo, id, datos, eliminadoPor) {
-  const fecha = new Date().toLocaleString('es-AR');
+  const fecha = ahoraAR();
   const fila = [fecha, eliminadoPor, tipo, id, JSON.stringify(datos)];
   if (!tieneCredenciales) return; // en modo memoria no hay papelera
   const sheets = getSheets();
@@ -2062,7 +2070,7 @@ async function actualizarMinimoStock(id, minimo) {
 }
 
 async function actualizarStockActual(actualizaciones) {
-  const now = new Date().toLocaleDateString('es-AR');
+  const now = hoyAR();
   if (!tieneCredenciales) {
     for (const act of actualizaciones) {
       const idx = memStockActual.findIndex(s => s.id === act.id);
@@ -2408,7 +2416,7 @@ async function getPedidosCocina() {
 
 async function addPedidoCocina(data) {
   const id = generateId('PED');
-  const now = new Date().toLocaleDateString('es-AR');
+  const now = hoyAR();
   const pedido = { ...data, id, estado: 'preparacion', fechaCarga: now };
   if (!tieneCredenciales) {
     pedido.rowIndex = memPedidosCocina.length + 2;
@@ -2557,7 +2565,7 @@ function fotoAuditoria(data) {
 
 function registrarAuditoria({ usuario, accion, entidad, idEntidad, nombre, detalle }) {
   const fila = [
-    new Date().toLocaleString('es-AR'),
+    ahoraAR(),
     usuario || '—',
     accion || '',
     entidad || '',

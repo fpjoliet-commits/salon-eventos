@@ -48,6 +48,13 @@ function formatDate(str) {
   return str;
 }
 
+// "2026-09-28 18:22:34" (como guarda el servidor) → "28/09/2026 18:22".
+// Lo viejo ("28/9/2026, 18:22:34") se muestra tal cual.
+function formatFechaHora(str) {
+  const m = String(str || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : (str || '—');
+}
+
 const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
 // Marcador para sugerencias de Empleado almacenadas en observaciones
@@ -1608,7 +1615,7 @@ async function loadAuditoriaCliente(cliente) {
       return `<div class="aud-item">
         <div class="aud-linea">
           <strong>${esc(a.usuario)}</strong> ${esc(a.accion.toLowerCase())}
-          <span class="aud-fecha">${esc(a.fecha)}</span>
+          <span class="aud-fecha">${esc(formatFechaHora(a.fecha))}</span>
         </div>
         ${detalle ? `<div class="aud-detalle">${esc(detalle)}</div>` : ''}
       </div>`;
