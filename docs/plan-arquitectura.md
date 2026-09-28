@@ -55,10 +55,21 @@ como pestañas de respaldo; verificar que cantidad de filas y total de plata no 
 - Normalizar fechas viejas, tipoEvento/origen (sinónimos), cargadoPor (admin→Mariana, empleado→Anita).
 - Rellenar "Estados" desde la Auditoría.
 - Prueba de conexión con Looker Studio (solo leer).
+- **Fecha de corte 28/09/2026** en `docs/diccionario-de-datos.md`: desde ahí los datos son
+  confiables (reglas nuevas); antes son "heredados". Explicar qué campos no son comparables
+  (cargadoPor de cobros, fechaCarga en UTC, rastro/anulado inexistentes).
+- **Cuatro grupos de datos viejos:** (1) corregible automático → se limpia; (2) corregible con un
+  dato de la gente → lista "datos a completar a mano" (cobros del bot sin dueño, fichas sin
+  fechaCarga, etc.) para Mariana/Fabio; (3) irrecuperable → NO inventar, dejar vacío/"sin dato";
+  (4) dudoso (fechas UTC, solo las cargadas después de las 21 se corrieron un día) → dejar como está y documentarlo.
+- Regla de aceptación de la limpieza: cantidad de fichas y total de plata idénticos antes y después.
 
 **Fase 6 — operación**
 - Alerta si se cae (monitor → Telegram). Apagado prolijo (vaciar cola de auditoría en SIGTERM).
 - Cerrar sesiones a distancia. Pruebas automáticas de cálculos de plata. Render pago (decide el usuario).
+- **Control de calidad semanal**: chequeo automático de la planilla con aviso por Telegram si
+  encuentra cobros sin evento, fichas sin fecha, valores fuera de `listas.js` (escritos a mano
+  en la planilla), borradores del bot con más de 7 días sin confirmar, filas con id duplicado.
 - Límite de pedidos por IP se puede esquivar falseando `X-Forwarded-For` (revisar cómo lo arma Render antes de tocar).
 
 ## Herramientas de prueba usadas
