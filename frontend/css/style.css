@@ -4265,3 +4265,6 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .cocina-items-table.coc-hide-5 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(5) { display: none; }
 .cocina-items-table.coc-hide-6 thead th:nth-child(6),
 .cocina-items-table.coc-hide-6 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(6) { display: none; }
+
+/* Segundo botón del pie del menú (superadmin): cerrar sesiones a distancia */
+#cerrar-sesiones-btn { margin-top: 6px; }

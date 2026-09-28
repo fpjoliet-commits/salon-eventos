@@ -283,6 +283,23 @@ $('logout-btn').addEventListener('click', () => {
   $('login-form').reset();
 });
 
+// Tablet perdida o clave filtrada: saca a todos los que tengan el CRM abierto
+$('cerrar-sesiones-btn')?.addEventListener('click', async () => {
+  const ok = await uiConfirm({
+    titulo: '¿Cerrar todas las sesiones abiertas?',
+    mensaje: 'Todos los que tengan el CRM abierto (tablets, PC, celulares) van a tener que volver a entrar con su contraseña. Vos seguís adentro.',
+    confirmar: 'Sí, cerrarlas',
+    cancelar: 'No',
+    tipo: 'danger',
+  });
+  if (!ok) return;
+  try {
+    const r = await apiFetch('/sesiones/cerrar', { method: 'POST' });
+    saveSession(r.token, currentUser);
+    toast('Listo: las demás sesiones quedaron cerradas');
+  } catch (err) { toast('No se pudo: ' + err.message, 'error'); }
+});
+
 /* ===================== INIT APP ===================== */
 async function checkStatus() {
   try {

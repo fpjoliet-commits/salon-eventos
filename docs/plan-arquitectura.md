@@ -39,7 +39,8 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 | 4.4 | Teléfono `+54 9 …` como texto, mail en minúsculas, duplicados comparando teléfono normalizado | 961129a |
 | 4.5 | Campaña del formulario web (Eventos AE:AG) + origen por UTM sin importar mayúsculas | e867303 |
 | 5.1 | Script `backend/limpiar-historico.js` (fechas ISO, sinónimos, teléfonos, cargadoPor, Estados desde Auditoría, reporte "a completar a mano"); probado en la copia: 92/92 fichas y plata idéntica. Fecha de corte en el diccionario | 2ebb07d |
-| 6.1 | Avisos solo a Lautaro (`backend/alertas.js`): Google caído, Gemini sin cupo/clave, cobro sin devolver cuotas, backup fallido; resumen semanal de los lunes; `/api/salud`; apagado prolijo (SIGTERM vacía las colas) | (este) |
+| 6.1 | Avisos solo a Lautaro (`backend/alertas.js`): Google caído, Gemini sin cupo/clave, cobro sin devolver cuotas, backup fallido; resumen semanal de los lunes; `/api/salud`; apagado prolijo (SIGTERM vacía las colas) | 31934ee |
+| 6.2 | Cerrar sesiones a distancia: botón del superadmin, Config `sesionesDesde` (todas menos la propia) | (este) |
 
 ## Pendiente
 

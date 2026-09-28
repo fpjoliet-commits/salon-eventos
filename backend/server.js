@@ -161,11 +161,23 @@ for (const [usuario, u] of Object.entries(USERS)) {
   }
 }
 
+/* Cerrar sesiones a distancia (tablet perdida, clave filtrada): Config guarda
+   "sesionesDesde" (segundos). Todo token emitido antes deja de valer. Se lee
+   de un caché que se refresca cada minuto, no en cada pedido. */
+let sesionesDesde = 0;
+async function refrescarCierreDeSesiones() {
+  try { sesionesDesde = Number((await sheets.getConfig()).sesionesDesde) || 0; }
+  catch { /* sin planilla: se mantiene el último valor */ }
+}
+refrescarCierreDeSesiones();
+setInterval(refrescarCierreDeSesiones, 60 * 1000).unref();
+
 function auth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Sin autenticación' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    if (req.user.iat < sesionesDesde) return res.status(401).json({ error: 'La sesión se cerró. Volvé a entrar.' });
     // Sesiones de antes de guardar el nombre en el token: se deduce del usuario
     if (!req.user.nombre) req.user.nombre = USERS[req.user.usuario]?.nombre || req.user.usuario;
     next();
@@ -379,6 +391,19 @@ app.post('/api/login', async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'Contraseña incorrecta' });
   const token = jwt.sign({ usuario, role: user.role, nombre: user.nombre }, JWT_SECRET, { expiresIn: '12h' });
   res.json({ token, usuario, role: user.role });
+});
+
+// Cierra todas las sesiones abiertas menos la de quien lo pide (le da un token nuevo)
+app.post('/api/sesiones/cerrar', auth, superAdminOnly, async (req, res) => {
+  try {
+    const ahora = Math.floor(Date.now() / 1000);
+    await sheets.setConfig('sesionesDesde', ahora);
+    sesionesDesde = ahora;
+    const { usuario, role, nombre } = req.user;
+    const token = jwt.sign({ usuario, role, nombre }, JWT_SECRET, { expiresIn: '12h' });
+    sheets.registrarAuditoria({ usuario: quien(req), accion: 'Cerró todas las sesiones', entidad: 'Sesiones' });
+    res.json({ ok: true, token });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Personas (para búsqueda al crear nuevo evento de cliente existente)
