@@ -287,8 +287,10 @@ function borrarPaso(i) {
 
 function verQR(v) { $('qrG').classList.toggle('on', v); }
 
-// Se refresca sola: cada 30 s con la pantalla abierta y al volver a la app.
+// En vivo: el servidor avisa cuando algo cambia. Por las dudas (señal que se
+// corta) también se refresca cada 30 s y al volver a la app.
 cargar();
+try { new EventSource(API + '/vivo').onmessage = () => cargar(); } catch {}
 setInterval(() => { if (!document.hidden) cargar(); }, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { cargar(); pedirPantalla(); } });
 // Que la pantalla no se apague mientras la tiene abierta.

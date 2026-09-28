@@ -940,19 +940,19 @@ app.get('/api/timming/cliente/:idCliente', auth, async (req, res) => {
 
 app.post('/api/timming', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
-  try { res.json(await sheets.addTimmingItem(req.body)); }
+  try { res.json(await sheets.addTimmingItem(req.body)); avisarTiming(req.body.idCliente); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/timming/:rowIndex', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
-  try { res.json(await sheets.updateTimmingItem(parseInt(req.params.rowIndex), req.body)); }
+  try { res.json(await sheets.updateTimmingItem(parseInt(req.params.rowIndex), req.body)); avisarTiming(req.body.idCliente); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/timming/:rowIndex', auth, async (req, res) => {
   if (!canManageTimming(req)) return res.status(403).json({ error: 'Sin permiso' });
-  try { await sheets.deleteTimmingItem(parseInt(req.params.rowIndex)); res.json({ ok: true }); }
+  try { await sheets.deleteTimmingItem(parseInt(req.params.rowIndex)); res.json({ ok: true }); avisarTiming(null); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1052,7 +1052,7 @@ async function fuenteDelLink(slug) {
   const codigo = String(slug || '').toLowerCase();
   if (codigo === 'demo' || codigo === 'demo-ver') {
     const d = eventoDemo();
-    return { modo: codigo === 'demo' ? 'editar' : 'leer', compartir: '/t/' + codigo, evento: d.evento,
+    return { clave: 'demo', modo: codigo === 'demo' ? 'editar' : 'leer', compartir: '/t/' + codigo, evento: d.evento,
       pasos: async () => d.pasos.map(p => ({ ...p, notas: [...p.notas] })).sort((x, y) => minutosEvento(x.hora) - minutosEvento(y.hora)),
       guardar: async (cambiados) => cambiados.forEach(c => Object.assign(d.pasos.find(p => p.id === c.id), c)),
       agregar: async (hora, actividad) => d.pasos.push({ id: 'DEMO-' + d.n++, hora, actividad, tipo: TIPO_PASO_CELULAR,
@@ -1070,7 +1070,7 @@ async function fuenteDelLink(slug) {
     if (!cliente) return null;
     if (linkVencido(cliente, l)) return { vencido: true };
     return {
-      modo, compartir: '/t/' + codigo,
+      clave: cliente.id, modo, compartir: '/t/' + codigo,
       evento: { nombre: cliente.nombreAgasajado || cliente.apellidoNombre || '', tipo: cliente.tipoEvento || '',
         formato: cliente.formato || '', fecha: cliente.fechaEvento || '', invitados: cliente.cantidadInvitados || '' },
       pasos: () => pasosMaitre(cliente.id),
@@ -1114,6 +1114,34 @@ app.post('/api/timming/link/:idCliente', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+/* En vivo: cada celular con el link abierto queda escuchando acá. Cuando
+   alguien toca algo (o el CRM cambia el timing) se le avisa y vuelve a pedir la
+   lista: el cambio se ve en uno o dos segundos en todos. */
+const oyentesTiming = new Map(); // clave del evento → Set de respuestas abiertas
+function avisarTiming(clave) {
+  for (const [k, set] of oyentesTiming) {
+    if (clave && k !== clave) continue;
+    set.forEach(res => { try { res.write('data: cambio\n\n'); } catch {} });
+  }
+}
+
+app.get('/api/t/:slug/vivo', async (req, res) => {
+  const f = await resolverLinkTiming(req, res);
+  if (!f) return;
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+  if (!oyentesTiming.has(f.clave)) oyentesTiming.set(f.clave, new Set());
+  const set = oyentesTiming.get(f.clave);
+  set.add(res);
+  const latido = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
+  req.on('close', () => {
+    clearInterval(latido); set.delete(res);
+    if (!set.size) oyentesTiming.delete(f.clave);
+  });
+});
+
 app.get('/t/:slug', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/timing.html'));
 });
@@ -1144,6 +1172,7 @@ app.post('/api/t/:slug', async (req, res) => {
       const actividad = String(req.body.actividad || '').trim().toUpperCase().slice(0, 60);
       if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora) || !actividad) return res.status(400).json({ error: 'Falta la hora o el paso.' });
       await f.agregar(hora, actividad);
+      avisarTiming(f.clave);
       return res.json({ ok: true });
     }
     const pasos = await f.pasos();
@@ -1153,6 +1182,7 @@ app.post('/api/t/:slug', async (req, res) => {
     if (accion === 'borrar') {
       if (paso.tipo !== TIPO_PASO_CELULAR) return res.status(403).json({ error: 'Ese paso se borra desde el CRM.' });
       await f.borrar(paso);
+      avisarTiming(f.clave);
       return res.json({ ok: true });
     }
     if (accion === 'tildar') {
@@ -1178,6 +1208,7 @@ app.post('/api/t/:slug', async (req, res) => {
       return res.status(400).json({ error: 'Acción desconocida.' });
     }
     await f.guardar(cambiados);
+    avisarTiming(f.clave);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
