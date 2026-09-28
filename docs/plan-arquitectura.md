@@ -7,21 +7,9 @@ reportes todavía.
 Forma de trabajo: una tarea → probar contra la copia de prueba → commit → push → verificar
 en producción. Local usa SIEMPRE la copia "CRM PRUEBA - no usar" (ver `docs/planilla-de-prueba.md`).
 
-## ⚠️ Trabajo a medio hacer (retomar primero)
+## Nota al commitear `backend/sheets.js`
 
-**Tarea 3.7 (anular en vez de borrar)**: el código YA ESTÁ APLICADO en `backend/sheets.js`
-y `backend/server.js` pero **SIN PROBAR NI COMMITEAR**.
-- Ingresos suma R creadoEn, S modificadoEn, T modificadoPor, U anulado.
-- Egresos suma T creadoEn, U modificadoEn, V modificadoPor, W anulado.
-- Borrar cobro/gasto = marcar anulado=1; deshacer = `desanular()`; borrar evento anula sus
-  cobros (antes los vaciaba). `getIngresos/getEgresos` filtran anulados.
-- Falta: probar en la copia (alta → editar → borrar → deshacer; borrar evento con cobros;
-  deshacer de una fila vaciada vieja), comparar lecturas de la real (solo deben aparecer
-  campos nuevos vacíos), actualizar `docs/diccionario-de-datos.md`, commit y push.
-
-**Ojo al commitear `backend/sheets.js`**: tiene un cambio ajeno sin subir en `updateEgreso`
-(`Egresos!B${rowIndex}:S${rowIndex}`, en HEAD es `:P`). No es mío: se deja afuera. Truco usado:
-cambiarlo a `:P`, `git add`, volverlo a `:S`.
+Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowIndex}`, en HEAD `:P`). No es de este plan: se deja afuera (cambiarlo a `:P`, `git add`, volverlo a `:S`).
 
 ## Hecho (todo en producción)
 
@@ -44,6 +32,7 @@ cambiarlo a `:P`, `git add`, volverlo a `:S`.
 | 3.3 + 3.4 | Fichas: el servidor conserva lo que la pantalla no manda (bug que borraba menús/modalidad), rastro Eventos AA:AB / Personas M:N, aviso de edición simultánea | 8a3e344 |
 | — | Migración vieja Clientes→Personas+Eventos desactivada (podía borrar todo) | f7a10ff |
 | 3.6 | Cobros de cuotas "todo o nada" (compensación) | 7f59cb9 |
+| 3.7 | Anular en vez de borrar + rastro en Ingresos R:U / Egresos T:W | (este) |
 
 ## Pendiente
 
@@ -53,8 +42,6 @@ cambiarlo a `:P`, `git add`, volverlo a `:S`.
 - Superadmin: confirmar/descartar 2 cobros viejos del bot sin dueño en "Por confirmar".
 - Activar cuentas de Fabio y Lautaro: `node backend/hash-password.js "clave"` → cargar
   `PASSWORD_FABIO` / `PASSWORD_LAUTARO` en Render.
-
-**Fase 3** — terminar 3.7 (ver arriba).
 
 **Fase 4 — historia de cada venta**
 - 4.1 Hoja "Estados" append-only: idEvento, de, a, fechaHora, quién (en cada cambio de estado).

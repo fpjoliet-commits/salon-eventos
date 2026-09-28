@@ -113,6 +113,34 @@ async function restaurarEnSuLugar(hoja, ultimaCol, rowIndex, data, aFila) {
   });
 }
 
+// Deshacer una anulación: si la fila es ese registro, se le saca la marca y se
+// sella quién lo recuperó. Devuelve false si la fila no es ese registro (p. ej.
+// quedó vacía por un borrado de antes de existir la anulación).
+async function desanular(hoja, colDesde, colAnulado, rowIndex, id, quien) {
+  if (!id) return false;
+  const r = await getSheets().spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID, range: `${hoja}!A${rowIndex}`, sinCache: true,
+  });
+  if (String(r.data.values?.[0]?.[0] ?? '') !== String(id)) return false;
+  await getSheets().spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${hoja}!${colDesde}${rowIndex}:${colAnulado}${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [[ahoraAR(), quien || '', '']] },
+  });
+  return true;
+}
+
+// Sella quién y cuándo modificó una fila (columnas modificadoEn / modificadoPor)
+async function sellarModificacion(hoja, colEn, colPor, rowIndex, quien) {
+  await getSheets().spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${hoja}!${colEn}${rowIndex}:${colPor}${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [[ahoraAR(), quien || '']] },
+  });
+}
+
 /* ===================== REVISAR LA FILA ANTES DE ESCRIBIR =====================
    Todo se escribe por número de fila. Si alguien ordenó, insertó o borró filas
    a mano en la planilla, "la fila 45" pasaba a ser otro cliente y se le
@@ -681,6 +709,12 @@ function rowToIngreso(row, index) {
     // Quién lo cargó (Mariana, Fabio, bot...). Hasta sep/2026 no se guardaba y
     // todo cobro quedaba "sin dueño": la bandeja por persona no los encontraba.
     cargadoPor: row[16] || '',
+    // Rastro y anulación (desde 28/09/2026). Un cobro borrado ya no se vacía:
+    // queda marcado anulado=1 con quién y cuándo en modificadoEn/Por.
+    creadoEn: row[17] || '',
+    modificadoEn: row[18] || '',
+    modificadoPor: row[19] || '',
+    anulado: row[20] === '1',
   };
 }
 
@@ -691,6 +725,7 @@ function ingresoToRow(i) {
     i.cliente || '', i.fechaEvento || '', i.periodo || periodoDe(i.fecha),
     i.cubiertos || '', i.precioCubierto || '', i.cotizacion || '', i.montoARS || '',
     i.cargadoPor || '',
+    i.creadoEn || '', i.modificadoEn || '', i.modificadoPor || '', i.anulado ? '1' : '',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -704,14 +739,15 @@ function ingresoToRow(i) {
 const esIngresoFantasma = i => !(parseFloat(i.monto) > 0) && !String(i.fecha || '').trim();
 
 async function getIngresos() {
-  if (!tieneCredenciales) return memIngresos.filter(i => i.id && !esIngresoFantasma(i));
+  if (!tieneCredenciales) return memIngresos.filter(i => i.id && !esIngresoFantasma(i) && !i.anulado);
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:Q',
+    range: 'Ingresos!A2:U',
   });
+  // Los anulados quedan en la planilla (historia) pero no cuentan en la app
   return (res.data.values || []).map((row, i) => rowToIngreso(row, i))
-    .filter(i => i.id && !esIngresoFantasma(i));
+    .filter(i => i.id && !esIngresoFantasma(i) && !i.anulado);
 }
 
 async function addIngreso(data) {
@@ -721,7 +757,9 @@ async function addIngreso(data) {
   const confirmado = data.confirmado !== undefined
     ? data.confirmado
     : (data.cargadoPor === 'empleado' ? false : true);
-  const ingreso = { ...data, id, confirmado, periodo: periodoDe(data.fecha) };
+  const ahora = ahoraAR();
+  const ingreso = { ...data, id, confirmado, periodo: periodoDe(data.fecha),
+    creadoEn: ahora, modificadoEn: ahora, modificadoPor: data.cargadoPor || '' };
   if (!tieneCredenciales) {
     ingreso.rowIndex = memIngresos.length + 2;
     memIngresos.push(ingreso);
@@ -732,7 +770,7 @@ async function addIngreso(data) {
     const nextRow = await proximaFila('Ingresos');
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Ingresos!A${nextRow}:Q${nextRow}`,
+      range: `Ingresos!A${nextRow}:U${nextRow}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [ingresoToRow(ingreso)] },
     });
@@ -741,7 +779,7 @@ async function addIngreso(data) {
   return ingreso;
 }
 
-async function confirmarIngreso(rowIndex, idEsperado) {
+async function confirmarIngreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
     if (idx !== -1) memIngresos[idx].confirmado = true;
@@ -749,44 +787,50 @@ async function confirmarIngreso(rowIndex, idEsperado) {
   }
   const sheets = getSheets();
   await verificarFila('Ingresos', rowIndex, idEsperado);
-  await sheets.spreadsheets.values.update({
+  await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!I${rowIndex}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [['1']] },
+    resource: { valueInputOption: 'USER_ENTERED', data: [
+      { range: `Ingresos!I${rowIndex}`, values: [['1']] },
+      { range: `Ingresos!S${rowIndex}:T${rowIndex}`, values: [[ahoraAR(), quien]] },
+    ] },
   });
 }
 
-// Borra (limpia) un ingreso — usado para descartar un borrador desde la bandeja.
-// Espejo de deleteEgreso: vacía la fila (A:P = 16 columnas) y conserva el rowIndex.
-async function deleteIngreso(rowIndex, idEsperado) {
+// "Borrar" un cobro (descartar un borrador o sacar uno cargado mal). Un
+// movimiento de plata no se borra: se marca anulado=1, con quién y cuándo. Deja
+// de contar en la app, pero la historia queda en la planilla. Antes se vaciaba
+// la fila y no quedaba rastro de que había existido.
+async function deleteIngreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(x => x.rowIndex === rowIndex);
-    if (idx !== -1) memIngresos[idx] = { rowIndex };
+    if (idx !== -1) memIngresos[idx].anulado = true;
     return { ok: true };
   }
   const sheets = getSheets();
   await verificarFila('Ingresos', rowIndex, idEsperado);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Ingresos!A${rowIndex}:Q${rowIndex}`,
+    range: `Ingresos!S${rowIndex}:U${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(17).fill('')] },
+    resource: { values: [[ahoraAR(), quien, '1']] },
   });
   return { ok: true };
 }
 
 // Devuelve a la vida una fila borrada: escribe A:P, con el id incluido.
 // updateIngreso no sirve para esto porque empieza en B y la fila quedaria sin id.
-async function restaurarIngreso(rowIndex, data) {
+async function restaurarIngreso(rowIndex, data, quien = '') {
   data = listas.normalizar('ingreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
-    const fila = { ...data, rowIndex };
+    const fila = { ...data, rowIndex, anulado: false };
     if (idx !== -1) memIngresos[idx] = fila; else memIngresos.push(fila);
     return fila;
   }
-  return restaurarEnSuLugar('Ingresos', 'Q', rowIndex, data, ingresoToRow);
+  // Lo normal: la fila sigue ahí, anulada. Deshacer = sacarle la marca.
+  if (await desanular('Ingresos', 'S', 'U', rowIndex, data.id, quien)) return { ...data, rowIndex, anulado: false };
+  // Cobros borrados antes del 28/09/2026 (fila vaciada): se reescriben
+  return restaurarEnSuLugar('Ingresos', 'U', rowIndex, { ...data, anulado: false }, ingresoToRow);
 }
 
 // Edita un ingreso (columnas B:P, sin tocar el id ni forzar confirmado).
@@ -815,6 +859,7 @@ async function updateIngreso(rowIndex, data) {
       ]],
     },
   });
+  await sellarModificacion('Ingresos', 'S', 'T', rowIndex, data.modificadoPor);
   return { ...data, rowIndex };
 }
 
@@ -1660,6 +1705,11 @@ function rowToEgreso(row, index) {
     // esto un gasto en USD de hace meses no se puede comparar con nada.
     cotizacion: parseFloat(row[17]) || 0,
     montoARS: parseFloat(row[18]) || 0,
+    // Rastro y anulación (desde 28/09/2026), igual que en Ingresos
+    creadoEn: row[19] || '',
+    modificadoEn: row[20] || '',
+    modificadoPor: row[21] || '',
+    anulado: row[22] === '1',
   };
 }
 
@@ -1674,17 +1724,19 @@ function egresoToRow(e) {
     e.periodo || periodoDe(e.fecha),
     e.confirmado === false ? '0' : '1',
     e.cotizacion || '', e.montoARS || '',
+    e.creadoEn || '', e.modificadoEn || '', e.modificadoPor || '', e.anulado ? '1' : '',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
 async function getEgresos() {
-  if (!tieneCredenciales) return memEgresos.filter(e => e.id);
+  if (!tieneCredenciales) return memEgresos.filter(e => e.id && !e.anulado);
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A2:S',
+    range: 'Egresos!A2:W',
   });
-  return (res.data.values || []).map((row, i) => rowToEgreso(row, i)).filter(e => e.id);
+  // Los anulados quedan en la planilla (historia) pero no cuentan en la app
+  return (res.data.values || []).map((row, i) => rowToEgreso(row, i)).filter(e => e.id && !e.anulado);
 }
 
 async function addEgreso(data) {
@@ -1695,6 +1747,7 @@ async function addEgreso(data) {
     tipoCosto: data.idEvento ? 'Evento' : 'Fijo',
     // Los egresos cargados a mano nacen confirmados; el bot los crea con confirmado:false.
     confirmado: data.confirmado !== undefined ? data.confirmado : true,
+    creadoEn: ahoraAR(), modificadoEn: ahoraAR(), modificadoPor: data.cargadoPor || '',
   };
   if (!tieneCredenciales) {
     e.rowIndex = memEgresos.length + 2;
@@ -1708,7 +1761,7 @@ async function addEgreso(data) {
     const nextRow = await proximaFila('Egresos');
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Egresos!A${nextRow}:S${nextRow}`,
+      range: `Egresos!A${nextRow}:W${nextRow}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [egresoToRow(e)] },
     });
@@ -1717,33 +1770,37 @@ async function addEgreso(data) {
   return e;
 }
 
-async function deleteEgreso(rowIndex, idEsperado) {
+// Igual que deleteIngreso: el gasto se anula (anulado=1), no se vacía la fila
+async function deleteEgreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
-    if (idx !== -1) memEgresos[idx] = { rowIndex };
+    if (idx !== -1) memEgresos[idx].anulado = true;
     return { ok: true };
   }
   const sheets = getSheets();
   await verificarFila('Egresos', rowIndex, idEsperado);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!A${rowIndex}:S${rowIndex}`,
+    range: `Egresos!U${rowIndex}:W${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(19).fill('')] },
+    resource: { values: [[ahoraAR(), quien, '1']] },
   });
   return { ok: true };
 }
 
 // Espejo de restaurarIngreso: reescribe la fila entera, con el id.
-async function restaurarEgreso(rowIndex, data) {
+async function restaurarEgreso(rowIndex, data, quien = '') {
   data = listas.normalizar('egreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(e => e.rowIndex === rowIndex);
-    const fila = { ...data, rowIndex };
+    const fila = { ...data, rowIndex, anulado: false };
     if (idx !== -1) memEgresos[idx] = fila; else memEgresos.push(fila);
     return fila;
   }
-  return restaurarEnSuLugar('Egresos', 'S', rowIndex, data, egresoToRow);
+  // Lo normal: la fila sigue ahí, anulada. Deshacer = sacarle la marca.
+  if (await desanular('Egresos', 'U', 'W', rowIndex, data.id, quien)) return { ...data, rowIndex, anulado: false };
+  // Gastos borrados antes del 28/09/2026 (fila vaciada): se reescriben
+  return restaurarEnSuLugar('Egresos', 'W', rowIndex, { ...data, anulado: false }, egresoToRow);
 }
 
 async function updateEgreso(rowIndex, data) {
@@ -1770,11 +1827,12 @@ async function updateEgreso(rowIndex, data) {
       ]],
     },
   });
+  await sellarModificacion('Egresos', 'U', 'V', rowIndex, data.modificadoPor);
   return { ...data, rowIndex };
 }
 
 // Confirma un egreso borrador (col Q -> '1'). Espejo de confirmarIngreso.
-async function confirmarEgreso(rowIndex, idEsperado) {
+async function confirmarEgreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
     if (idx !== -1) memEgresos[idx].confirmado = true;
@@ -1782,11 +1840,12 @@ async function confirmarEgreso(rowIndex, idEsperado) {
   }
   const sheets = getSheets();
   await verificarFila('Egresos', rowIndex, idEsperado);
-  await sheets.spreadsheets.values.update({
+  await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!Q${rowIndex}`,
-    valueInputOption: 'USER_ENTERED',
-    resource: { values: [['1']] },
+    resource: { valueInputOption: 'USER_ENTERED', data: [
+      { range: `Egresos!Q${rowIndex}`, values: [['1']] },
+      { range: `Egresos!U${rowIndex}:V${rowIndex}`, values: [[ahoraAR(), quien]] },
+    ] },
   });
 }
 
@@ -1813,7 +1872,7 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   if (!tieneCredenciales) {
     const idx = memEventos.findIndex(e => e.rowIndex === rowIndex);
     if (idx !== -1) memEventos[idx] = { ...memEventos[idx], id: '' };
-    memIngresos = memIngresos.filter(i => i.idCliente !== clienteData.id);
+    memIngresos.forEach(i => { if (i.idCliente === clienteData.id) i.anulado = true; });
     return;
   }
   const sheets = getSheets();
@@ -1844,10 +1903,12 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
     }
   }
 
-  // Borrar ingresos asociados al cliente eliminado
+  // Los cobros del evento eliminado se ANULAN (antes se vaciaban): dejan de
+  // contar, pero la plata que entró sigue registrada en la planilla.
   const ingRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Ingresos!A2:Q',
+    range: 'Ingresos!A2:U',
+    sinCache: true,
   });
   const ingRows = ingRes.data.values || [];
   const filasABorrar = ingRows
@@ -1855,12 +1916,14 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
     .filter(({ row }) => (row[1] || '') === clienteData.id)
     .map(({ sheetRow }) => sheetRow);
 
-  for (const ingRowIndex of filasABorrar) {
-    await sheets.spreadsheets.values.update({
+  if (filasABorrar.length) {
+    const ahora = ahoraAR();
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Ingresos!A${ingRowIndex}:Q${ingRowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values: [Array(17).fill('')] },
+      resource: {
+        valueInputOption: 'USER_ENTERED',
+        data: filasABorrar.map(f => ({ range: `Ingresos!S${f}:U${f}`, values: [[ahora, usuario || '', '1']] })),
+      },
     });
   }
 }
@@ -2761,7 +2824,7 @@ async function initSheets() {
     // nunca los datos. Necesario para que Excel muestre nombres de columna reales
     // en las tablas dinamicas (el analisis se hace por fuera del sistema).
     if (existing.includes('Ingresos')) {
-      headers.push({ range: 'Ingresos!A1:Q1', values: [['id','idEvento','tipoIngreso','monto','fecha','formaPago','notas','moneda','confirmado','cliente','fechaEvento','periodo','cubiertos','precioCubierto','cotizacion','montoARS','cargadoPor']] });
+      headers.push({ range: 'Ingresos!A1:U1', values: [['id','idEvento','tipoIngreso','monto','fecha','formaPago','notas','moneda','confirmado','cliente','fechaEvento','periodo','cubiertos','precioCubierto','cotizacion','montoARS','cargadoPor','creadoEn','modificadoEn','modificadoPor','anulado']] });
     }
     // Columnas que se fueron sumando sin encabezado: las herramientas de análisis
     // las mostraban como columnas sin nombre. Definición: docs/diccionario-de-datos.md
@@ -2781,7 +2844,7 @@ async function initSheets() {
       headers.push({ range: 'Cuotas!A1:N1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion','confirmado','ipcHasta']] });
     }
     if (existing.includes('Egresos')) {
-      headers.push({ range: 'Egresos!A1:S1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo','confirmado','cotizacion','montoARS']] });
+      headers.push({ range: 'Egresos!A1:W1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo','confirmado','cotizacion','montoARS','creadoEn','modificadoEn','modificadoPor','anulado']] });
     }
 
     if (!existing.includes('Config')) {
@@ -2806,7 +2869,7 @@ async function initSheets() {
       headers.push({ range: 'Empleados!A1:D1', values: [['id','nombre','activo','rolHabitual']] });
     }
     if (!existing.includes('Egresos')) {
-      headers.push({ range: 'Egresos!A1:S1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo','confirmado','cotizacion','montoARS']] });
+      headers.push({ range: 'Egresos!A1:W1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo','confirmado','cotizacion','montoARS','creadoEn','modificadoEn','modificadoPor','anulado']] });
     }
     if (!existing.includes('CatalogoItems')) {
       headers.push({ range: 'CatalogoItems!A1:E1', values: [['id','categoria','nombre','activo','unidad']] });

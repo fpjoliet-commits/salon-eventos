@@ -19,7 +19,7 @@ columnas es el del código (`backend/sheets.js`, funciones `rowTo…` / `…ToRo
 | Moneda | `ARS` o `USD`. Si es `USD`, `cotizacion` guarda el dólar usado y `montoARS` el equivalente en pesos. Un cobro en USD sin cotización tiene `montoARS` vacío: **no sumarlo como pesos**. |
 | Listas cerradas | Los campos con opciones solo aceptan los valores de `backend/listas.js`, escritos siempre igual. |
 | Quién | `cargadoPor` / `usuario` guardan el nombre de la persona: `Mariana`, `Anita`, `Fabio`, `Lautaro`; `superadmin` es la cuenta compartida de Fabio y Lautaro; `bot-formulario` y `cal-booking` son cargas automáticas. |
-| Filas vacías | Un cobro o gasto descartado deja la fila vacía (para no correr los números de fila). **Filtrar por `id` no vacío.** |
+| Anulados | Desde 28/09/2026 un cobro o gasto borrado queda con `anulado = 1` (no se borra). Antes se vaciaba la fila. **Filtrar `id` no vacío y `anulado` vacío.** |
 
 **Datos de antes del 28/09/2026** (todavía sin normalizar; se limpian en la Fase 5 del plan):
 - `fechaCarga` y la auditoría vieja pueden venir como `28/9/2026` o `28/9/2026, 21:30:05`, y en hora UTC (hasta 3 horas adelantadas).
@@ -112,6 +112,10 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 | O | cotizacion | número | Dólar usado si fue en USD |
 | P | montoARS | número | Equivalente en pesos (ARS: = monto; USD: monto × cotización) |
 | Q | cargadoPor | texto | Quién lo cargó (desde 28/09/2026) |
+| R | creadoEn | fecha y hora | Alta del registro |
+| S | modificadoEn | fecha y hora | Última modificación (o anulación) |
+| T | modificadoPor | texto | Quién la hizo |
+| U | anulado | 1/vacío | `1` = anulado (borrado): **excluir en análisis** |
 
 ## Cuotas — plan de pago
 
@@ -155,6 +159,10 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 | Q | confirmado | 1/0 | `0` = borrador del bot |
 | R | cotizacion | número | Dólar usado si fue en USD |
 | S | montoARS | número | Equivalente en pesos |
+| T | creadoEn | fecha y hora | Alta del registro |
+| U | modificadoEn | fecha y hora | Última modificación (o anulación) |
+| V | modificadoPor | texto | Quién la hizo |
+| W | anulado | 1/vacío | `1` = anulado (borrado): **excluir en análisis** |
 
 ## Restricciones — alimentarias por evento
 

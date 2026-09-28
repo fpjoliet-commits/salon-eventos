@@ -490,7 +490,7 @@ app.put('/api/ingresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) =
     if (ing && !ing.idCliente) {
       return res.status(400).json({ error: 'Este cobro todavia no tiene evento.' });
     }
-    await sheets.confirmarIngreso(rowIndex, req.query.id);
+    await sheets.confirmarIngreso(rowIndex, req.query.id, quien(req));
     res.json({ ok: true });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
@@ -498,7 +498,7 @@ app.put('/api/ingresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) =
 // Descartar un cobro borrador desde la bandeja "Por confirmar".
 app.delete('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
   try {
-    await sheets.deleteIngreso(parseInt(req.params.rowIndex), req.query.id);
+    await sheets.deleteIngreso(parseInt(req.params.rowIndex), req.query.id, quien(req));
     res.json({ ok: true });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
@@ -507,7 +507,7 @@ app.delete('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
 // se vuelve a escribir en su lugar y ningun rowIndex se corre.
 app.put('/api/ingresos/:rowIndex/restaurar', auth, adminOnly, validarRowIndex, async (req, res) => {
   try {
-    res.json(await sheets.restaurarIngreso(parseInt(req.params.rowIndex), req.body));
+    res.json(await sheets.restaurarIngreso(parseInt(req.params.rowIndex), req.body, quien(req)));
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
@@ -518,7 +518,7 @@ app.put('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
   try {
     const { cliente, fechaEvento } = await datosEvento(req.body.idCliente);
     const actualizado = await sheets.updateIngreso(parseInt(req.params.rowIndex), {
-      ...req.body, cliente, fechaEvento,
+      ...req.body, cliente, fechaEvento, modificadoPor: quien(req),
     });
     res.json(actualizado);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
@@ -1365,14 +1365,14 @@ app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
   try {
     const rowIndex = parseInt(req.params.rowIndex);
     const { etiqueta } = await datosEvento(req.body.idEvento);
-    res.json(await sheets.updateEgreso(rowIndex, { ...req.body, evento: etiqueta }));
+    res.json(await sheets.updateEgreso(rowIndex, { ...req.body, evento: etiqueta, modificadoPor: quien(req) }));
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Confirmar un egreso borrador (cargado por el bot). Espejo de confirmar ingreso.
 app.put('/api/egresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) => {
   try {
-    await sheets.confirmarEgreso(parseInt(req.params.rowIndex), req.query.id);
+    await sheets.confirmarEgreso(parseInt(req.params.rowIndex), req.query.id, quien(req));
     res.json({ ok: true });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
@@ -1380,14 +1380,14 @@ app.put('/api/egresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) =>
 // Borrar egreso — solo superadmin, igual criterio que el boton de editar.
 app.delete('/api/egresos/:rowIndex', auth, superAdminOnly, async (req, res) => {
   try {
-    res.json(await sheets.deleteEgreso(parseInt(req.params.rowIndex), req.query.id));
+    res.json(await sheets.deleteEgreso(parseInt(req.params.rowIndex), req.query.id, quien(req)));
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // Espejo del restaurar de cobros.
 app.put('/api/egresos/:rowIndex/restaurar', auth, adminOnly, validarRowIndex, async (req, res) => {
   try {
-    res.json(await sheets.restaurarEgreso(parseInt(req.params.rowIndex), req.body));
+    res.json(await sheets.restaurarEgreso(parseInt(req.params.rowIndex), req.body, quien(req)));
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
