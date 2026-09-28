@@ -1745,7 +1745,6 @@ function renderPreviewCubiertos() {
   const faltanAhora = Math.max(0, est.total - pagadosAhora);
 
   cont.innerHTML =
-    '<div class="imp-tit">Lo que le podés decir al cliente:</div>' +
     '<div class="cub-calc">' +
       `<div class="cub-calc-fila"><span>Precio del cubierto hoy</span><b>${formatMoney(est.precio)}</b></div>` +
       (esUSD
@@ -1815,7 +1814,6 @@ function renderPreviewSenaCubiertos(est, montoARS, monto, cotiz, esUSD) {
   const precioSena = n > 0 ? montoARS / n : 0;
   const dif = precioSena - est.precio;
   cont.innerHTML =
-    '<div class="imp-tit">Lo que le podés decir al cliente:</div>' +
     '<div class="cub-calc">' +
       (esUSD
         ? `<div class="cub-calc-fila"><span>Seña</span><b>U$S ${monto.toLocaleString('es-AR')}</b></div>` +
@@ -2910,11 +2908,10 @@ function renderCuentaContado(cliente, cta) {
   if (!(cta.vale > 0)) {
     con.innerHTML = `
       <div class="cta-falta-precio">
-        <b>Falta cargar cuánto vale el evento.</b>
-        <span>Sin ese número no se puede decir cuánto le falta pagar. Se carga en <b>Información → Monto presupuesto</b>.</span>
-        <button type="button" class="btn btn-sm btn-secondary" id="cta-ir-info">Cargarlo ahora</button>
+        <b>¿Cuánto vale el evento?</b>
+        <button type="button" class="btn btn-sm btn-secondary" id="cta-ir-info">Cargar el precio</button>
       </div>
-      ${cta.pagado > 0 ? `<p class="cta-nota">Lleva pagado ${formatMoney(cta.pagado)} en ${cta.cantidadPagos} pago${cta.cantidadPagos === 1 ? '' : 's'}.</p>` : ''}
+      ${cta.pagado > 0 ? `<p class="cta-nota">Pagado: ${formatMoney(cta.pagado)} · ${cta.cantidadPagos} pago${cta.cantidadPagos === 1 ? '' : 's'}</p>` : ''}
       ${detallePlanOpcional(cliente)}`;
     $('cta-ir-info')?.addEventListener('click', () => activateTab('info'));
     bindFormCrearPlan(cliente);
@@ -2932,8 +2929,8 @@ function renderCuentaContado(cliente, cta) {
       <div class="cub-barra"><div class="cub-barra-fill" style="width:${pct}%"></div></div>
     </div>
     ${cta.usdSinConvertir > 0
-      ? `<div class="aviso-sinconf">Hay ${formatMoneda(cta.usdSinConvertir, 'USD')} cobrados antes de que se guardara la cotización: no están sumados arriba, porque no se sabe a cuánto se tomaron. Tenelos en cuenta aparte.</div>` : ''}
-    ${cta.sinConfirmar ? `<div class="aviso-sinconf">${cta.sinConfirmar} cobro(s) sin confirmar todavía: no suman hasta que se confirmen.</div>` : ''}
+      ? `<div class="aviso-sinconf">+ ${formatMoneda(cta.usdSinConvertir, 'USD')} sin cotización, no sumados</div>` : ''}
+    ${cta.sinConfirmar ? `<div class="aviso-sinconf">${cta.sinConfirmar} sin confirmar, no sumado${cta.sinConfirmar === 1 ? '' : 's'}</div>` : ''}
     ${detallePlanOpcional(cliente)}`;
   bindFormCrearPlan(cliente);
 }
@@ -2941,7 +2938,7 @@ function renderCuentaContado(cliente, cta) {
 // Si al final prefiere pagar en cuotas, el plan se puede armar igual desde acá.
 function detallePlanOpcional(cliente) {
   return `<details class="cta-plan-opcional">
-      <summary>¿Prefiere pagarlo en cuotas fijas? Armar un plan</summary>
+      <summary>Armar plan de cuotas</summary>
       ${formCrearPlan(cliente.id, parseFloat(cliente.montoPresupuesto) || 0)}
     </details>`;
 }
@@ -2966,7 +2963,6 @@ function renderPreviewCuenta() {
   const pagadoDespues = cta.pagado + ars;
   const faltaDespues = Math.max(0, cta.vale - pagadoDespues);
   cont.innerHTML =
-    '<div class="imp-tit">Lo que le podés decir al cliente:</div>' +
     '<div class="cub-calc">' +
       (esUSD
         ? `<div class="cub-calc-fila"><span>Recibís</span><b>U$S ${monto.toLocaleString('es-AR')}</b></div>` +
@@ -3099,17 +3095,8 @@ function renderCuotas(cliente, cuotas) {
   con.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       ${esUSD ? `<span style="background:var(--gold-light);border:1px solid var(--gold-border);color:#7a5c10;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em">U$S PLAN EN DÓLARES</span>` : ''}
-      ${esIPC ? `<span style="background:#e8f5e9;border:1px solid #a5d6a7;color:#2e7d32;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em">📈 INDEXADO POR IPC</span>` : ''}
+      ${esIPC ? `<span style="background:#e8f5e9;border:1px solid #a5d6a7;color:#2e7d32;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.04em">📈 IPC${ipcHasta ? ` · ${mesLargo(ipcHasta).toUpperCase()}` : ''}</span>` : ''}
     </div>
-
-    ${pendientes.length && isAdmin() ? `
-      <div class="ipc-estado ${esIPC ? 'ipc-estado-on' : ''}">
-        ${esIPC
-          ? `<span>📈 Las cuotas se actualizan <b>solas</b> cada mes con el IPC del INDEC${ipcHasta ? `. Ya incluyen hasta <b>${mesLargo(ipcHasta)}</b>` : ''}. Lo ya cobrado no se toca.</span>
-             <button class="btn btn-sm btn-secondary" id="btn-indexacion" data-a="fija">Pasar a cuotas fijas</button>`
-          : `<span>Cuotas fijas: no cambian solas.</span>
-             <button class="btn btn-sm btn-secondary" id="btn-indexacion" data-a="ipc">📈 Actualizar por IPC desde ahora</button>`}
-      </div>` : ''}
 
     <div class="cuotas-resumen">
       <div class="cuota-stat"><div class="cuota-stat-label">Contrato original</div><div class="cuota-stat-val">${formatMoneda(totalContrato, moneda)}</div></div>
@@ -3124,12 +3111,11 @@ function renderCuotas(cliente, cuotas) {
         <div class="ipc-inline">
           ${esIPC ? '' : `
             <input type="number" id="ipc-pct" placeholder="IPC %" min="0" max="100" step="0.1" style="width:90px">
-            <span class="tip" data-tip="Ingresá el porcentaje de aumento manualmente. Solo se actualiza lo que falta pagar de cada cuota.">?</span>
             <button class="btn btn-sm btn-secondary" id="btn-ipc">Ajustar por %</button>
           `}
           <button class="btn btn-sm btn-secondary" id="btn-ajustar-val">Fijar valor</button>
           <input type="number" id="nuevo-valor" placeholder="Nuevo valor ${esUSD ? 'U$S' : '$'}" min="0" style="width:130px">
-          <span class="tip" data-tip="Fijá un importe exacto para todas las cuotas pendientes, reemplazando el valor actual.">?</span>
+          ${isAdmin() ? `<button class="btn btn-sm btn-secondary" id="btn-indexacion" data-a="${esIPC ? 'fija' : 'ipc'}">${esIPC ? 'Pasar a fijas' : '📈 Pasar a IPC'}</button>` : ''}
         </div>
       ` : ''}
       ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
@@ -3188,7 +3174,6 @@ function renderCuotas(cliente, cuotas) {
     </div>
 
     <div style="margin-top:20px;border-top:1px solid var(--border-light);padding-top:16px">
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">¿Necesitás agregar más cuotas al plan?</p>
       ${formAgregarCuotas(cuotas, moneda, valorCuotaActual)}
     </div>
   `;
@@ -3298,7 +3283,7 @@ function formAgregarCuotas(cuotas, moneda = 'ARS', valorSugerido = 0) {
         </div>
         <button type="submit" class="btn btn-sm btn-secondary">+ Agregar</button>
       </div>
-      <div id="agregar-resumen" class="agregar-resumen">Se agregan desde la <b>cuota ${siguiente}</b>, una por mes.</div>
+      <div id="agregar-resumen" class="agregar-resumen"></div>
     </form>`;
 }
 
@@ -3439,22 +3424,20 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
     const btn = $('btn-indexacion');
     const aIPC = btn.dataset.a === 'ipc';
     const ok = await uiConfirm(aIPC ? {
-      titulo: '¿Actualizar este plan por IPC?',
-      mensaje: 'Desde ahora, cada vez que el INDEC publique la inflación del mes, las cuotas que falten pagar se ajustan solas por ese porcentaje.\n\n'
-             + 'El valor de hoy queda como punto de partida: no se aplica nada hacia atrás. Lo ya cobrado no se toca.',
-      confirmar: 'Sí, actualizar por IPC',
+      titulo: '¿Actualizar por IPC desde hoy?',
+      mensaje: 'Lo que falta pagar sube solo cada mes con el INDEC.',
+      confirmar: 'Sí, por IPC',
       icono: '📈',
     } : {
-      titulo: '¿Pasar el plan a cuotas fijas?',
-      mensaje: 'Las cuotas quedan en el valor que tienen hoy y dejan de ajustarse por IPC.',
-      confirmar: 'Sí, dejarlas fijas',
+      titulo: '¿Pasar a cuotas fijas?',
+      mensaje: 'Quedan en el valor de hoy.',
+      confirmar: 'Sí, fijas',
       icono: '📌',
     });
     if (!ok) return;
     btn.disabled = true;
     try {
       await apiFetch('/cuotas/indexacion', { method: 'PUT', body: { idCliente: cliente.id, indexacion: aIPC ? 'ipc' : 'fija' } });
-      toast(aIPC ? 'Plan actualizado por IPC desde ahora' : 'Plan pasado a cuotas fijas');
       loadCuotasTab(cliente);
     } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
   });
@@ -3525,9 +3508,9 @@ function bindCuotasAcciones(cliente, cuotas, moneda = 'ARS') {
     const n = parseInt($('agregar-ncuotas').value) || 0;
     const valor = parseFloat($('agregar-valor').value) || 0;
     cont.innerHTML = n >= 1
-      ? `Se agregan <b>cuota${n > 1 ? `s ${desde} a ${desde + n - 1}` : ` ${desde}`}</b>` +
-        (valor > 0 ? ` de <b>${formatMoneda(valor, moneda)}</b> — suman <b>${formatMoneda(valor * n, moneda)}</b> al plan.` : '.')
-      : `Se agregan desde la <b>cuota ${desde}</b>, una por mes.`;
+      ? `Cuota${n > 1 ? `s ${desde} a ${desde + n - 1}` : ` ${desde}`}` +
+        (valor > 0 ? ` · ${formatMoneda(valor * n, moneda)}` : '')
+      : '';
   };
   $('agregar-ncuotas')?.addEventListener('input', resumenAgregar);
   $('agregar-valor')?.addEventListener('input', resumenAgregar);
