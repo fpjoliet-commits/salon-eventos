@@ -41,7 +41,8 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 | 5.1 | Script `backend/limpiar-historico.js` (fechas ISO, sinónimos, teléfonos, cargadoPor, Estados desde Auditoría, reporte "a completar a mano"); probado en la copia: 92/92 fichas y plata idéntica. Fecha de corte en el diccionario | 2ebb07d |
 | 6.1 | Avisos solo a Lautaro (`backend/alertas.js`): Google caído, Gemini sin cupo/clave, cobro sin devolver cuotas, backup fallido; resumen semanal de los lunes; `/api/salud`; apagado prolijo (SIGTERM vacía las colas) | 31934ee |
 | 6.2 | Cerrar sesiones a distancia: botón del superadmin, Config `sesionesDesde` (todas menos la propia) | 21787e9 |
-| 6.3 | Pruebas automáticas (`npm test`): imputación, cubiertos, cuenta, USD, copias del frontend iguales al servidor, teléfono, resumen | (este) |
+| 6.3 | Pruebas automáticas (`npm test`): imputación, cubiertos, cuenta, USD, copias del frontend iguales al servidor, teléfono, resumen | b1a48b8 |
+| 6.4 | Límites por IP con `CF-Connecting-IP` (X-Forwarded-For se podía falsear: verificado en producción) | (este) |
 
 ## Pendiente
 
@@ -75,7 +76,6 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
     evento, fichas sin fecha, valores fuera de `listas.js` escritos a mano en la planilla, ids
     duplicados), borradores del bot con más de 7 días, y una línea de salud (cargas, errores
     del servidor, backups de la semana). Semana limpia = "✅ Semana sin problemas".
-- Límite de pedidos por IP se puede esquivar falseando `X-Forwarded-For` (revisar cómo lo arma Render antes de tocar).
 
 ## Herramientas de prueba usadas
 

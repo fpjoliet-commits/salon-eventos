@@ -355,12 +355,6 @@ app.post('/api/avisos/resumen-semanal', claveDeAvisos, async (req, res) => {
   }
 });
 
-// TEMPORAL (diagnóstico de IP detrás del proxy de Render): se borra en el próximo commit
-app.get('/api/diag-ip', (req, res) => {
-  const h = req.headers;
-  res.json({ xff: h['x-forwarded-for'] || null, cf: h['cf-connecting-ip'] || null, tci: h['true-client-ip'] || null, xri: h['x-real-ip'] || null, socket: req.socket.remoteAddress });
-});
-
 // Estado del sistema
 app.get('/api/status', (req, res) => {
   // cuentasPersonales: las cuentas opcionales activas, para mostrarlas en el login
@@ -372,8 +366,13 @@ app.get('/api/status', (req, res) => {
 
 // Anti fuerza-bruta en login: máx 10 intentos por IP cada 10 min
 const _loginAttempts = new Map();
+/* IP real de quien llama. Render está detrás de Cloudflare: CF-Connecting-IP lo
+   pone Cloudflare y pisa lo que mande el cliente. X-Forwarded-For NO sirve tal
+   cual: un valor falso que manda el cliente queda PRIMERO ("1.2.3.4, <real>,
+   <cloudflare>, <render>"), y con eso se esquivaban los límites por IP
+   (verificado en producción el 28/09/2026). Sin Cloudflare (local): el socket. */
 function clientIp(req) {
-  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  return String(req.headers['cf-connecting-ip'] || '').trim() || req.socket.remoteAddress;
 }
 function loginRateLimited(ip) {
   const now = Date.now(), windowMs = 10 * 60 * 1000, max = 10;
@@ -1229,7 +1228,7 @@ function timingBloqueado(ip, fallo) {
 }
 
 async function resolverLinkTiming(req, res) {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+  const ip = clientIp(req);
   if (timingBloqueado(ip, false)) { res.status(429).json({ error: 'Demasiados intentos. Esperá unos minutos.' }); return null; }
   const f = await fuenteDelLink(req.params.slug);
   if (!f) { timingBloqueado(ip, true); res.status(404).json({ error: 'Este link no existe.' }); return null; }
@@ -1523,7 +1522,7 @@ app.get('/consulta', (req, res) => {
 });
 
 app.post('/api/leads', async (req, res) => {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+  const ip = clientIp(req);
   if (checkRateLimit(ip)) return res.status(429).json({ error: 'Demasiadas solicitudes. Intentá más tarde.' });
 
   // Honeypot: si el campo oculto tiene valor, es un bot
