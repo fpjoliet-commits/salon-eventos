@@ -40,7 +40,7 @@ const LISTAS = {
 
 // Sinónimos conocidos → valor oficial. Claves en minúscula.
 const SINONIMOS = {
-  tipoEvento: { 'cumpleaños de 15': 'XV años', 'quince': 'XV años', '15 años': 'XV años', 'casamiento': 'Boda' },
+  tipoEvento: { 'cumpleaños de 15': 'XV años', 'quince': 'XV años', '15 años': 'XV años', '15': 'XV años', 'xv': 'XV años', 'casamiento': 'Boda' },
   origen: { 'recomendacion': 'Referido', 'recomendación': 'Referido' },
 };
 

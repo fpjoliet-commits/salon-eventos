@@ -3122,4 +3122,5 @@ module.exports = {
   initSheets,
   registrarAuditoria, getAuditoria, fotoAuditoria,
   tieneCredenciales,
+  getSheets,   // cliente con el blindaje de textos; lo usa backend/limpiar-historico.js
 };

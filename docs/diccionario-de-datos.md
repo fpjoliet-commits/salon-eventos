@@ -7,6 +7,27 @@ la planilla a una herramienta de análisis (Looker Studio, Power BI, Excel).
 Se actualiza **en el mismo commit** que cambia una columna. El orden de las
 columnas es el del código (`backend/sheets.js`, funciones `rowTo…` / `…ToRow`).
 
+## Fecha de corte: 28/09/2026
+
+Desde el **28/09/2026** los datos se cargan con las reglas nuevas (listas cerradas,
+hora argentina, rastro de quién/cuándo, anulación en vez de borrado, historia de
+estados, auditoría de plata). Lo anterior es **heredado**: se limpió con
+`backend/limpiar-historico.js` (fechas ISO, sinónimos, teléfonos, `admin`→Mariana,
+`empleado`→Anita, Estados recuperados de la Auditoría), pero no todo es comparable:
+
+| Dato heredado | Qué tener en cuenta |
+|---|---|
+| `fechaCarga` / hora en Auditoria | Antes de sep/2026 el servidor usaba hora UTC: lo cargado después de las 21 h puede figurar un día después. Se deja como está. |
+| `cargadoPor` de cobros | Antes de sep/2026 no se guardaba: vacío = "sin dato", no "nadie". |
+| `superadmin` en `cargadoPor` | Cuenta compartida de Fabio y Lautaro: no se puede saber cuál de los dos. |
+| `creadoEn`, `modificadoEn/Por`, `anulado` | No existían: vacíos en lo heredado. |
+| Hoja Estados | Solo tiene la historia que quedó en la Auditoría (desde sep/2026). De los eventos más viejos se sabe el estado actual, no el recorrido. |
+| Cobros borrados antes del corte | Se vaciaba la fila: no queda rastro de que existieron. |
+
+Lo que no se puede corregir solo (fichas sin fecha de carga, cobros sin evento…)
+lo lista el mismo script en "A completar a mano": se completa con un dato de la
+gente o se deja vacío. **Nunca se inventa.**
+
 ## Convenciones
 
 | Regla | Detalle |

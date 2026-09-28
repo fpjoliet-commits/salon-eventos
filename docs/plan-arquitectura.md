@@ -37,7 +37,8 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 | 4.2 | Motivo obligatorio al cancelar (Eventos AC:AD, lista en `listas.js`) | 5b4f3b6 |
 | 4.3 | Auditoría de cobros y gastos (alta, edición con antes/después, confirmación, anulación, restauración) | 26b5766 |
 | 4.4 | Teléfono `+54 9 …` como texto, mail en minúsculas, duplicados comparando teléfono normalizado | 961129a |
-| 4.5 | Campaña del formulario web (Eventos AE:AG) + origen por UTM sin importar mayúsculas | (este) |
+| 4.5 | Campaña del formulario web (Eventos AE:AG) + origen por UTM sin importar mayúsculas | e867303 |
+| 5.1 | Script `backend/limpiar-historico.js` (fechas ISO, sinónimos, teléfonos, cargadoPor, Estados desde Auditoría, reporte "a completar a mano"); probado en la copia: 92/92 fichas y plata idéntica. Fecha de corte en el diccionario | (este) |
 
 ## Pendiente
 
@@ -50,19 +51,12 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 
 **Fase 4 — historia de cada venta**
 
-**Fase 5 — limpiar histórico** (probar en la copia; antes de tocar la real, duplicar las hojas
-como pestañas de respaldo; verificar que cantidad de filas y total de plata no cambien)
-- Normalizar fechas viejas, tipoEvento/origen (sinónimos), cargadoPor (admin→Mariana, empleado→Anita).
-- Rellenar "Estados" desde la Auditoría.
-- Prueba de conexión con Looker Studio (solo leer).
-- **Fecha de corte 28/09/2026** en `docs/diccionario-de-datos.md`: desde ahí los datos son
-  confiables (reglas nuevas); antes son "heredados". Explicar qué campos no son comparables
-  (cargadoPor de cobros, fechaCarga en UTC, rastro/anulado inexistentes).
-- **Cuatro grupos de datos viejos:** (1) corregible automático → se limpia; (2) corregible con un
-  dato de la gente → lista "datos a completar a mano" (cobros del bot sin dueño, fichas sin
-  fechaCarga, etc.) para Mariana/Fabio; (3) irrecuperable → NO inventar, dejar vacío/"sin dato";
-  (4) dudoso (fechas UTC, solo las cargadas después de las 21 se corrieron un día) → dejar como está y documentarlo.
-- Regla de aceptación de la limpieza: cantidad de fichas y total de plata idénticos antes y después.
+**Fase 5 — limpiar histórico** (script listo y probado en la copia; falta correrlo en la real)
+- **Correr en la real** (acción del usuario, ~1 min): `node backend/limpiar-historico.js --real`
+  para ver qué cambiaría, y después `node backend/limpiar-historico.js --real --aplicar`. Hace
+  las pestañas de respaldo solo y se frena si cambia la cantidad de filas o la plata. Después,
+  pasarle a Mariana/Fabio la lista "A completar a mano" que imprime.
+- Prueba de conexión con Looker Studio (solo leer) — acción del usuario.
 
 **Fase 6 — operación**
 - Alerta si se cae (monitor → Telegram). Apagado prolijo (vaciar cola de auditoría en SIGTERM).
