@@ -4060,3 +4060,63 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .ev-card:not(.ev-abierta) .ev-nom { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .ev-card:not(.ev-abierta) .ev-nom b { display: inline; font-size: 1rem; }
 .ev-card:not(.ev-abierta) .ev-nom small { font-size: 0.9rem; }
+
+/* ===================== LISTAS CORTAS Y EQUIPO DEL EVENTO ===================== */
+
+.campo-con-editor { display: flex; align-items: center; gap: 6px; }
+.campo-con-editor select { flex-grow: 1; min-width: 0; }
+.btn-editor-lista {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  font-size: 1.05rem;
+  color: #6b6252;
+  background: #fff;
+  border: 1px solid #ded6c7;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.btn-editor-lista:hover { background: #f6f1e6; border-color: #b07d2b; color: #6b4409; }
+
+.lista-ed-alta { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.lista-ed-alta input { flex-grow: 1; min-width: 160px; }
+.lista-ed { list-style: none; margin: 0; padding: 0; }
+.lista-ed-fila {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 4px;
+  border-bottom: 1px solid #f0ece4;
+}
+.lista-ed-nombre { flex-grow: 1; font-size: 1rem; }
+.lista-ed-rol { max-width: 190px; }
+.lista-ed-baja {
+  width: 38px; height: 38px;
+  color: #b3261e; background: #fff;
+  border: 1px solid #e3b7b2; border-radius: 7px;
+  cursor: pointer; font-size: 0.95rem;
+}
+.lista-ed-baja:hover { background: #fbeae8; }
+
+.egr-equipo {
+  border: 1px solid #ded6c7;
+  border-radius: 9px;
+  padding: 12px 14px;
+  margin: 4px 0 14px;
+  background: #fcfaf6;
+}
+.egr-equipo-head, .egr-equipo-pie {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.egr-equipo-head { margin-bottom: 10px; font-weight: 600; }
+.egr-equipo-pie { margin-top: 10px; }
+.egr-equipo-fila { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.egr-equipo-fila .eq-emp { flex: 2 1 180px; }
+.egr-equipo-fila .eq-rol { flex: 1 1 130px; }
+.egr-equipo-fila .eq-monto { flex: 1 1 110px; }
+.eq-quitar {
+  width: 44px; flex-shrink: 0;
+  color: #b3261e; background: #fff;
+  border: 1px solid #e3b7b2; border-radius: 7px; cursor: pointer;
+}
+.eq-quitar:hover { background: #fbeae8; }
+.egr-equipo-total { font-size: 1.05rem; font-weight: 700; }
+
+.egr-cotiz-equiv { display: block; margin-top: 4px; font-size: 0.9rem; color: #6b6252; }

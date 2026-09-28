@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260928b-accionesarriba">
+  <link rel="stylesheet" href="css/style.css?v=20260928a-egresos">
   <link rel="stylesheet" href="css/propuesta.css?v=20260925a-recupenvio">
   <link rel="stylesheet" href="css/ux.css?v=20260926a-pdfvisor">
   <link rel="icon" type="image/png" href="/img/icons/favicon-48.png">
@@ -537,18 +537,32 @@
                   <option value="">— elegí categoría primero —</option>
                 </select>
               </div>
+              <div class="form-group" id="egr-proveedor-group">
+                <label>Proveedor</label>
+                <div class="campo-con-editor">
+                  <select id="egr-proveedor"></select>
+                  <button type="button" class="btn-editor-lista" data-editar="proveedores" aria-label="Editar la lista de proveedores">✎</button>
+                </div>
+              </div>
+              <div class="form-group hidden" id="egr-proveedor-otro-group">
+                <label>Nombre del proveedor</label>
+                <input type="text" id="egr-proveedor-otro" placeholder="Quién">
+              </div>
             </div>
 
             <!-- Personal: selección de empleado -->
             <div class="egreso-form-row" id="egr-personal-row" style="display:none">
               <div class="form-group">
                 <label>Empleado</label>
-                <select id="egr-empleado">
-                  <option value="">Seleccioná...</option>
-                </select>
+                <div class="campo-con-editor">
+                  <select id="egr-empleado">
+                    <option value="">Seleccioná...</option>
+                  </select>
+                  <button type="button" class="btn-editor-lista" data-editar="empleados" aria-label="Editar la lista de empleados">✎</button>
+                </div>
               </div>
               <div class="form-group">
-                <label>Rol en este pago</label>
+                <label>Rol</label>
                 <select id="egr-rol-pago">
                   <option value="">Seleccioná...</option>
                   <option>Mozo</option>
@@ -560,9 +574,22 @@
                   <option>Portero</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>o agregar nombre nuevo</label>
+              <div class="form-group hidden" id="egr-nuevo-empleado-group">
+                <label>Nombre</label>
                 <input type="text" id="egr-nuevo-empleado" placeholder="Nombre y apellido">
+              </div>
+            </div>
+
+            <!-- Pagar a varios de una: una fila por persona, un solo guardado -->
+            <div id="egr-equipo" class="egr-equipo hidden">
+              <div class="egr-equipo-head">
+                <span>Equipo del evento</span>
+                <button type="button" id="egr-equipo-sumar" class="btn btn-secondary btn-sm">+ Agregar</button>
+              </div>
+              <div id="egr-equipo-filas"></div>
+              <div class="egr-equipo-pie">
+                <span id="egr-equipo-total" class="egr-equipo-total"></span>
+                <button type="button" id="egr-equipo-guardar" class="btn btn-primary btn-sm">Guardar el equipo</button>
               </div>
             </div>
 
@@ -570,6 +597,11 @@
               <div class="form-group">
                 <label>Monto</label>
                 <input type="number" id="egr-monto" min="0.01" step="0.01" required placeholder="0">
+              </div>
+              <div class="form-group hidden" id="egr-cotiz-group">
+                <label>Dólar</label>
+                <input type="number" id="egr-cotizacion" min="1" step="0.01" placeholder="0">
+                <span id="egr-cotiz-equiv" class="egr-cotiz-equiv"></span>
               </div>
               <div class="form-group">
                 <label>Moneda</label>
@@ -673,135 +705,6 @@
       </section>
 
       <!-- VISTA: EGRESOS COCINA — ELIMINADA, contenido movido a tab Compras en view-cocina -->
-      <section id="view-egresos-cocina" class="view hidden" style="display:none!important">
-        <div class="view-header">
-          <h2>Egresos Cocina — Materia Prima</h2>
-        </div>
-
-        <div class="egresos-form-card">
-          <h3 class="egresos-form-title">Registrar compra de materia prima</h3>
-          <form id="egreso-cocina-form" class="egreso-form">
-            <div class="egreso-form-row">
-              <div class="form-group">
-                <label>Fecha</label>
-                <input type="date" id="egc-fecha" required>
-              </div>
-              <div class="form-group">
-                <label>Tipo</label>
-                <select id="egc-tipo" required>
-                  <option value="">Seleccioná...</option>
-                  <option>Carnes</option>
-                  <option>Verduras y Frutas</option>
-                  <option>Lácteos y Fiambres</option>
-                  <option>Panificados</option>
-                  <option>Condimentos</option>
-                  <option>Bebidas de Cocina</option>
-                  <option value="__otros__">Otros...</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Proveedor</label>
-                <select id="egc-proveedor">
-                  <option value="">Sin especificar</option>
-                  <option>Maricre</option>
-                  <option>Los Cuñados</option>
-                  <option>Chino</option>
-                  <option>Verduleria</option>
-                  <option value="__otro__">Otro...</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="egreso-form-row" id="egc-otro-prov-row" style="display:none">
-              <div class="form-group">
-                <label>Nombre del proveedor</label>
-                <input type="text" id="egc-proveedor-otro" placeholder="Nombre del proveedor">
-              </div>
-            </div>
-
-            <div class="egreso-form-row" id="egc-otros-tipo-row" style="display:none">
-              <div class="form-group" style="flex:1">
-                <label>¿Qué tipo de gasto fue? <span style="color:var(--danger)">*</span></label>
-                <input type="text" id="egc-tipo-otros" placeholder="Ej: Papel de cocina, detergente, etc.">
-              </div>
-            </div>
-
-            <div class="egreso-form-row">
-              <div class="form-group">
-                <label>Monto</label>
-                <input type="number" id="egc-monto" min="0.01" step="0.01" required placeholder="0">
-              </div>
-              <div class="form-group">
-                <label>Moneda</label>
-                <select id="egc-moneda">
-                  <option value="ARS">ARS $</option>
-                  <option value="USD">USD U$S</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Detalle / Notas</label>
-                <input type="text" id="egc-notas" placeholder="Opcional — qué se compró">
-              </div>
-            </div>
-
-            <div class="egreso-form-actions">
-              <button type="submit" class="btn btn-primary">Registrar compra</button>
-              <span id="egc-success" class="egr-success hidden">✓ Guardado</span>
-              <span id="egc-error" class="error-msg hidden"></span>
-            </div>
-          </form>
-        </div>
-
-        <div class="egresos-list-card">
-          <div class="egresos-list-header">
-            <h3>Historial de compras</h3>
-            <div class="egresos-filtros">
-              <select id="egc-filtro-tipo" class="filter-select">
-                <option value="">Todos los tipos</option>
-                <option>Carnes</option>
-                <option>Verduras y Frutas</option>
-                <option>Lácteos y Fiambres</option>
-                <option>Panificados</option>
-                <option>Condimentos</option>
-                <option>Bebidas de Cocina</option>
-                <option>Otros</option>
-              </select>
-              <select id="egc-filtro-prov" class="filter-select">
-                <option value="">Todos los proveedores</option>
-                <option>Maricre</option>
-                <option>Los Cuñados</option>
-                <option>Chino</option>
-                <option>Verduleria</option>
-              </select>
-              <select id="egc-filtro-moneda" class="filter-select">
-                <option value="">ARS + USD</option>
-                <option value="ARS">Solo ARS</option>
-                <option value="USD">Solo USD</option>
-              </select>
-            </div>
-          </div>
-          <div id="egc-loading" class="loading-msg">Cargando...</div>
-          <div id="egc-table-wrap" class="table-wrap hidden">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Tipo</th>
-                  <th>Proveedor</th>
-                  <th>Monto</th>
-                  <th>Detalle / Notas</th>
-                  <th>Cargado por</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="egc-tbody"></tbody>
-            </table>
-          </div>
-          <div id="egc-empty" class="empty-msg hidden">No hay compras registradas.</div>
-          <div id="egc-total-bar" class="egresos-total-bar hidden"></div>
-        </div>
-      </section>
-
       <!-- VISTA: GESTIÓN DE COCINA (solo superadmin) -->
       <section id="view-cocina" class="view hidden">
         <div class="view-header">
@@ -1018,14 +921,10 @@
                 </div>
                 <div class="form-group">
                   <label>Proveedor</label>
-                  <select id="egc-proveedor">
-                    <option value="">Sin especificar</option>
-                    <option>Maricre</option>
-                    <option>Los Cuñados</option>
-                    <option>Chino</option>
-                    <option>Verduleria</option>
-                    <option value="__otro__">Otro...</option>
-                  </select>
+                  <div class="campo-con-editor">
+                    <select id="egc-proveedor"></select>
+                    <button type="button" class="btn-editor-lista" data-editar="proveedores" aria-label="Editar la lista de proveedores">✎</button>
+                  </div>
                 </div>
               </div>
               <div class="egreso-form-row" id="egc-otro-prov-row" style="display:none">
@@ -2005,7 +1904,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260928b-accionesarriba"></script>
+  <script src="js/app.js?v=20260928a-egresos"></script>
   <script src="js/propuesta-ui.js?v=20260921a-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>

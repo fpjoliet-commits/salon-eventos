@@ -959,6 +959,15 @@ app.post('/api/empleados', auth, adminOnly, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Cambiar el rol habitual o dar de baja (activo: false). La baja no borra la
+// fila: los gastos ya cargados tienen que seguir diciendo quien los cobro.
+app.put('/api/empleados/:rowIndex', auth, adminOnly, validarRowIndex, async (req, res) => {
+  try {
+    const rowIndex = parseInt(req.params.rowIndex);
+    res.json(await sheets.updateEmpleado(rowIndex, req.body));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Datos crudos para el dashboard externo ───────────────────────────────────
 // Un unico endpoint a proposito: la PC que lo consume arranca Render dormido y
 // cada request extra son ~50s de espera. Devuelve todo lo necesario de una.

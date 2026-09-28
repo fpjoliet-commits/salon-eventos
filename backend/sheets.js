@@ -1267,11 +1267,14 @@ function rowToEmpleado(row, index) {
     id: row[0] || '',
     nombre: row[1] || '',
     activo: row[2] !== 'false',
+    // Columna D: el rol que hace siempre. Se propone al elegirlo en un gasto,
+    // para no tener que decir en cada pago que Juan es mozo.
+    rolHabitual: row[3] || '',
   };
 }
 
 function empleadoToRow(e) {
-  return [e.id, e.nombre, e.activo !== false ? 'true' : 'false'];
+  return [e.id, e.nombre, e.activo !== false ? 'true' : 'false', e.rolHabitual || ''];
 }
 
 async function getEmpleados() {
@@ -1279,7 +1282,7 @@ async function getEmpleados() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Empleados!A2:C',
+    range: 'Empleados!A2:D',
   });
   return (res.data.values || []).map((row, i) => rowToEmpleado(row, i))
     .filter(e => e.id && e.activo !== false);
@@ -1296,7 +1299,28 @@ async function addEmpleado(data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Empleados!A:C',
+    range: 'Empleados!A:D',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [empleadoToRow(e)] },
+  });
+  return e;
+}
+
+async function updateEmpleado(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memEmpleados.findIndex(e => e.rowIndex === rowIndex);
+    if (idx !== -1) memEmpleados[idx] = { ...memEmpleados[idx], ...data };
+    return data;
+  }
+  const sheets = getSheets();
+  const actuales = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID, range: `Empleados!A${rowIndex}:D${rowIndex}`,
+  });
+  const fila = (actuales.data.values || [[]])[0] || [];
+  const e = { ...rowToEmpleado(fila, rowIndex - 2), ...data };
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Empleados!A${rowIndex}:D${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [empleadoToRow(e)] },
   });
@@ -1334,6 +1358,11 @@ function rowToEgreso(row, index) {
     evento: row[14] || '',
     periodo: row[15] || '',
     confirmado: row[16] !== '0',
+    // Columnas R y S: si el gasto se pago en dolares, a que dolar se hizo y
+    // cuanto fue en pesos. Los ingresos ya lo guardaban; el egreso no, y sin
+    // esto un gasto en USD de hace meses no se puede comparar con nada.
+    cotizacion: parseFloat(row[17]) || 0,
+    montoARS: parseFloat(row[18]) || 0,
   };
 }
 
@@ -1347,6 +1376,7 @@ function egresoToRow(e) {
     e.tipoCosto || 'Fijo', e.idEvento || '', e.evento || '',
     e.periodo || periodoDe(e.fecha),
     e.confirmado === false ? '0' : '1',
+    e.cotizacion || '', e.montoARS || '',
   ].map(v => (v !== undefined && v !== null) ? String(v) : '');
 }
 
@@ -1355,7 +1385,7 @@ async function getEgresos() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Egresos!A2:Q',
+    range: 'Egresos!A2:S',
   });
   return (res.data.values || []).map((row, i) => rowToEgreso(row, i)).filter(e => e.id);
 }
@@ -1383,7 +1413,7 @@ async function addEgreso(data) {
   const nextRow = (colA.data.values || []).length + 1;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!A${nextRow}:Q${nextRow}`,
+    range: `Egresos!A${nextRow}:S${nextRow}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [egresoToRow(e)] },
   });
@@ -1400,7 +1430,7 @@ async function deleteEgreso(rowIndex) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Egresos!A${rowIndex}:Q${rowIndex}`,
+    range: `Egresos!A${rowIndex}:S${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [Array(17).fill('')] },
   });
@@ -2490,7 +2520,7 @@ async function initSheets() {
       headers.push({ range: 'Cuotas!A1:N1', values: [['id','idCliente','numeroCuota','valorOriginal','valorActual','fechaVencimiento','estado','fechaPago','montoPagado','notas','moneda','indexacion','confirmado','ipcHasta']] });
     }
     if (existing.includes('Egresos')) {
-      headers.push({ range: 'Egresos!A1:P1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo']] });
+      headers.push({ range: 'Egresos!A1:S1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo','confirmado','cotizacion','montoARS']] });
     }
 
     if (!existing.includes('Config')) {
@@ -2512,10 +2542,10 @@ async function initSheets() {
       headers.push({ range: 'Papelera!A1:E1', values: [['fechaEliminacion','eliminadoPor','tipo','id','datosJSON']] });
     }
     if (!existing.includes('Empleados')) {
-      headers.push({ range: 'Empleados!A1:C1', values: [['id','nombre','activo']] });
+      headers.push({ range: 'Empleados!A1:D1', values: [['id','nombre','activo','rolHabitual']] });
     }
     if (!existing.includes('Egresos')) {
-      headers.push({ range: 'Egresos!A1:P1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo']] });
+      headers.push({ range: 'Egresos!A1:S1', values: [['id','fecha','concepto','categoria','monto','moneda','idEmpleado','nombreEmpleado','rolPago','notas','cargadoPor','proveedor','tipoCosto','idEvento','evento','periodo','confirmado','cotizacion','montoARS']] });
     }
     if (!existing.includes('CatalogoItems')) {
       headers.push({ range: 'CatalogoItems!A1:E1', values: [['id','categoria','nombre','activo','unidad']] });
@@ -2598,7 +2628,7 @@ module.exports = {
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,
   calcularCompraCubiertos, estadoCubiertos,
   getConfig, setConfig, pagarCuotas, aplicarIPC, agregarCuotas, setIndexacionPlan, aplicarIPCAutomatico, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
-  getEmpleados, addEmpleado,
+  getEmpleados, addEmpleado, updateEmpleado,
   getEgresos, addEgreso, updateEgreso, deleteEgreso, confirmarEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,
   editarItemCatalogo, eliminarItemCatalogo,

@@ -1963,12 +1963,13 @@ $('pago-form').addEventListener('submit', async e => {
   // manda la plata a un mes que despues nadie mira. Se avisa, no se traba.
   if (fecha > hoyISO()) {
     const d = fecha.split('-');
-    if (!confirm(`La fecha del cobro (${d[2]}/${d[1]}/${d[0]}) es posterior a hoy.
-
-` +
-                 '¿Es correcta? Revisá que el año esté bien escrito.')) {
-      soltarBoton(); return;
-    }
+    const sigueCobro = await uiConfirm({
+      titulo: 'La fecha es posterior a hoy',
+      mensaje: `El cobro quedaría con fecha ${d[2]}/${d[1]}/${d[0]}. Revisá que el año esté bien.`,
+      confirmar: 'Está bien',
+      cancelar: 'Corregir',
+    });
+    if (!sigueCobro) { soltarBoton(); return; }
   }
 
   try {
@@ -8662,6 +8663,7 @@ function populateEmpleadoSelect() {
   sel.innerHTML = '<option value="">Seleccioná...</option>' +
     allEmpleados.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('') +
     '<option value="__nuevo__">+ Agregar nuevo...</option>';
+  refrescarFilasEquipo();
 }
 
 // Los egresos de evento se imputan al evento; el resto son costo fijo del salon.
@@ -8792,7 +8794,292 @@ async function initEgresos() {
     populateEmpleadoSelect();
   }
   populateEgrEventoSelect();
+  cargarProveedores().then(pintarSelectsProveedor);
   loadPendientes();
+}
+
+/* ============ LISTAS CORTAS: PROVEEDORES Y EMPLEADOS ============
+   Los gastos se adjudican mejor cuando hay pocas opciones. La lista de
+   proveedores vive en Config (no en el codigo) y es la misma en el gasto a
+   mano y en las compras de cocina. "Otro..." queda para el ocasional.     */
+
+const PROVEEDORES_DEFAULT = ['Maricre', 'Los Cuñados', 'Chino', 'Verdulería'];
+let _proveedores = null;
+
+async function cargarProveedores() {
+  if (_proveedores) return _proveedores;
+  try {
+    const cfg = await apiFetch('/config');
+    const guardado = cfg?.proveedores;
+    _proveedores = guardado ? JSON.parse(guardado) : PROVEEDORES_DEFAULT.slice();
+  } catch { _proveedores = PROVEEDORES_DEFAULT.slice(); }
+  if (!Array.isArray(_proveedores) || !_proveedores.length) _proveedores = PROVEEDORES_DEFAULT.slice();
+  return _proveedores;
+}
+
+async function guardarProveedores(lista) {
+  _proveedores = lista;
+  await apiFetch('/config', { method: 'PUT', body: { clave: 'proveedores', valor: JSON.stringify(lista) } });
+  pintarSelectsProveedor();
+}
+
+function pintarSelectsProveedor() {
+  const opciones = '<option value="">Sin especificar</option>'
+    + (_proveedores || []).map(n => `<option>${esc(n)}</option>`).join('')
+    + '<option value="__otro__">Otro…</option>';
+  ['egr-proveedor', 'egc-proveedor'].forEach(id => {
+    const sel = $(id);
+    if (!sel) return;
+    const antes = sel.value;
+    sel.innerHTML = opciones;
+    if (antes) sel.value = antes;
+  });
+  // La lista se guarda en Config, que es del superadmin: al resto no se le
+  // ofrece un lapiz que le va a dar error.
+  document.querySelectorAll('.btn-editor-lista[data-editar="proveedores"]')
+    .forEach(b => b.classList.toggle('hidden', !isSuperAdmin()));
+}
+
+/* Editor de las dos listas. Mismo cuadro para las dos: agregar arriba, la
+   lista abajo, y una cruz por fila. En empleados cada uno lleva su rol. */
+function abrirEditorLista(tipo) {
+  const esProv = tipo === 'proveedores';
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+
+  const filas = () => esProv
+    ? (_proveedores || []).map((n, i) => `
+        <li class="lista-ed-fila">
+          <span class="lista-ed-nombre">${esc(n)}</span>
+          <button type="button" class="lista-ed-baja" data-i="${i}" aria-label="Quitar ${esc(n)}">✕</button>
+        </li>`).join('')
+    : (allEmpleados || []).map(e => `
+        <li class="lista-ed-fila">
+          <span class="lista-ed-nombre">${esc(e.nombre)}</span>
+          <select class="lista-ed-rol" data-row="${e.rowIndex}">
+            <option value="">Sin rol</option>
+            ${ROLES_PERSONAL.map(r => `<option${e.rolHabitual === r ? ' selected' : ''}>${esc(r)}</option>`).join('')}
+          </select>
+          <button type="button" class="lista-ed-baja" data-row="${e.rowIndex}" aria-label="Dar de baja a ${esc(e.nombre)}">✕</button>
+        </li>`).join('');
+
+  ov.innerHTML = `<div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <h3>${esProv ? 'Proveedores' : 'Empleados'}</h3>
+      <button class="modal-close" data-cerrar>✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="lista-ed-alta">
+        <input type="text" id="lista-ed-nuevo" placeholder="${esProv ? 'Nuevo proveedor' : 'Nombre y apellido'}">
+        ${esProv ? '' : `<select id="lista-ed-nuevo-rol"><option value="">Sin rol</option>${ROLES_PERSONAL.map(r => `<option>${esc(r)}</option>`).join('')}</select>`}
+        <button type="button" class="btn btn-primary btn-sm" id="lista-ed-sumar">Agregar</button>
+      </div>
+      <ul class="lista-ed" id="lista-ed">${filas()}</ul>
+    </div>
+  </div>`;
+
+  const refrescar = () => { ov.querySelector('#lista-ed').innerHTML = filas(); };
+  const cerrar = () => ov.remove();
+  ov.addEventListener('click', async ev => {
+    if (ev.target === ov || ev.target.closest('[data-cerrar]')) { cerrar(); return; }
+
+    if (ev.target.closest('#lista-ed-sumar')) {
+      const nombre = (ov.querySelector('#lista-ed-nuevo').value || '').trim();
+      if (!nombre) return;
+      try {
+        if (esProv) {
+          if (!_proveedores.includes(nombre)) await guardarProveedores([..._proveedores, nombre]);
+        } else {
+          const rolHabitual = ov.querySelector('#lista-ed-nuevo-rol').value;
+          const emp = await apiFetch('/empleados', { method: 'POST', body: { nombre, rolHabitual } });
+          allEmpleados.push(emp);
+          populateEmpleadoSelect();
+        }
+        ov.querySelector('#lista-ed-nuevo').value = '';
+        refrescar();
+      } catch (err) { toast('No se pudo agregar: ' + err.message, 'error'); }
+      return;
+    }
+
+    const baja = ev.target.closest('.lista-ed-baja');
+    if (baja) {
+      try {
+        if (esProv) {
+          const i = parseInt(baja.dataset.i);
+          await guardarProveedores(_proveedores.filter((_, k) => k !== i));
+        } else {
+          const row = parseInt(baja.dataset.row);
+          await apiFetch(`/empleados/${row}`, { method: 'PUT', body: { activo: false } });
+          allEmpleados = allEmpleados.filter(e => e.rowIndex !== row);
+          populateEmpleadoSelect();
+        }
+        refrescar();
+      } catch (err) { toast('No se pudo dar de baja: ' + err.message, 'error'); }
+    }
+  });
+
+  ov.addEventListener('change', async ev => {
+    const rolSel = ev.target.closest('.lista-ed-rol');
+    if (!rolSel) return;
+    const row = parseInt(rolSel.dataset.row);
+    try {
+      await apiFetch(`/empleados/${row}`, { method: 'PUT', body: { rolHabitual: rolSel.value } });
+      const emp = allEmpleados.find(e => e.rowIndex === row);
+      if (emp) emp.rolHabitual = rolSel.value;
+    } catch (err) { toast('No se pudo guardar el rol: ' + err.message, 'error'); }
+  });
+
+  document.body.appendChild(ov);
+  ov.querySelector('#lista-ed-nuevo')?.focus();
+}
+
+const ROLES_PERSONAL = ['Mozo', 'Maître', 'Barman', 'Cocinero', 'Ayudante de Cocina', 'Bachero', 'Portero'];
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.btn-editor-lista');
+  if (!btn) return;
+  // La lista de proveedores se guarda en Config, que es del superadmin.
+  if (btn.dataset.editar === 'proveedores' && !isSuperAdmin()) return;
+  abrirEditorLista(btn.dataset.editar);
+});
+
+
+/* ============ EL EQUIPO DE UN EVENTO, DE UNA SOLA VEZ ============
+   Pagar ocho mozos de un sabado eran ocho cargas identicas. Una fila por
+   persona y un solo guardado, con la fecha y el evento del formulario.   */
+let _equipoFilas = 0;
+
+function filaEquipoHTML(n) {
+  return `<div class="egr-equipo-fila" data-fila="${n}">
+    <select class="eq-emp">
+      <option value="">Quién…</option>
+      ${allEmpleados.map(e => `<option value="${esc(e.id)}" data-rol="${esc(e.rolHabitual || '')}">${esc(e.nombre)}</option>`).join('')}
+    </select>
+    <select class="eq-rol">
+      <option value="">Rol</option>
+      ${ROLES_PERSONAL.map(r => `<option>${esc(r)}</option>`).join('')}
+    </select>
+    <input type="number" class="eq-monto" min="0.01" step="0.01" placeholder="0">
+    <button type="button" class="eq-quitar" aria-label="Quitar esta fila">✕</button>
+  </div>`;
+}
+
+function refrescarFilasEquipo() {
+  document.querySelectorAll('#egr-equipo-filas .eq-emp').forEach(sel => {
+    const antes = sel.value;
+    sel.innerHTML = '<option value="">Quién…</option>' +
+      allEmpleados.map(e => `<option value="${esc(e.id)}" data-rol="${esc(e.rolHabitual || '')}">${esc(e.nombre)}</option>`).join('');
+    if (antes) sel.value = antes;
+  });
+}
+
+function sumarFilaEquipo() {
+  const cont = $('egr-equipo-filas');
+  if (!cont) return;
+  cont.insertAdjacentHTML('beforeend', filaEquipoHTML(++_equipoFilas));
+  totalEquipo();
+}
+
+function totalEquipo() {
+  const total = [...document.querySelectorAll('#egr-equipo-filas .eq-monto')]
+    .reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
+  const el = $('egr-equipo-total');
+  if (el) el.textContent = total > 0 ? formatMoneda(total, $('egr-moneda')?.value || 'ARS') : '';
+}
+
+function _mostrarEquipo() {
+  const panel = $('egr-equipo');
+  if (!panel) return;
+  const esPersonal = $('egr-categoria')?.value === 'Personal';
+  const aEvento = document.querySelector('input[name="egr-destino"]:checked')?.value === 'evento';
+  const va = esPersonal && aEvento;
+  panel.classList.toggle('hidden', !va);
+  if (va && !$('egr-equipo-filas').children.length) { sumarFilaEquipo(); sumarFilaEquipo(); }
+}
+
+async function guardarEquipo() {
+  const fecha = $('egr-fecha').value;
+  const idEvento = $('egr-evento')?.value || '';
+  if (!fecha) { $('egr-error').textContent = 'Poné la fecha.'; show('egr-error'); return; }
+  if (!idEvento) { $('egr-error').textContent = 'Elegí a qué evento corresponde.'; show('egr-error'); return; }
+
+  const filas = [...document.querySelectorAll('#egr-equipo-filas .egr-equipo-fila')].map(f => ({
+    idEmpleado: f.querySelector('.eq-emp').value,
+    rolPago: f.querySelector('.eq-rol').value,
+    monto: parseFloat(f.querySelector('.eq-monto').value) || 0,
+  })).filter(x => x.idEmpleado && x.monto > 0);
+
+  if (!filas.length) { $('egr-error').textContent = 'Cargá al menos una persona con su monto.'; show('egr-error'); return; }
+
+  const btn = $('egr-equipo-guardar');
+  btn.disabled = true;
+  try {
+    for (const f of filas) {
+      const emp = allEmpleados.find(e => e.id === f.idEmpleado);
+      const nuevo = await apiFetch('/egresos', {
+        method: 'POST',
+        body: {
+          fecha, categoria: 'Personal',
+          concepto: f.rolPago || emp?.rolHabitual || 'Personal',
+          monto: f.monto, moneda: $('egr-moneda').value,
+          idEmpleado: f.idEmpleado, nombreEmpleado: emp?.nombre || '',
+          rolPago: f.rolPago || emp?.rolHabitual || '',
+          notas: $('egr-notas').value.trim(),
+          idEvento,
+        },
+      });
+      allEgresos.unshift(nuevo);
+    }
+    allEgresos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+    renderEgresos();
+    $('egr-equipo-filas').innerHTML = '';
+    sumarFilaEquipo(); sumarFilaEquipo();
+    totalEquipo();
+    hide('egr-error');
+    toast(`${filas.length} pagos registrados`);
+  } catch (err) {
+    $('egr-error').textContent = err.message;
+    show('egr-error');
+  } finally { btn.disabled = false; }
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('#egr-equipo-sumar')) { sumarFilaEquipo(); return; }
+  if (e.target.closest('#egr-equipo-guardar')) { guardarEquipo(); return; }
+  const quitar = e.target.closest('.eq-quitar');
+  if (quitar) { quitar.closest('.egr-equipo-fila').remove(); totalEquipo(); }
+});
+
+document.addEventListener('change', e => {
+  if (e.target.closest('.eq-emp')) {
+    const opt = e.target.selectedOptions[0];
+    const rol = opt?.dataset.rol;
+    const rolSel = e.target.closest('.egr-equipo-fila').querySelector('.eq-rol');
+    if (rol && rolSel && !rolSel.value) rolSel.value = rol;
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.closest('.eq-monto')) totalEquipo();
+});
+
+/* ============ GASTOS EN DOLARES ============
+   El ingreso ya guardaba a que dolar se cobro; el egreso no, y sin eso un
+   gasto en USD no se puede comparar nunca con lo que entro en pesos.    */
+function _mostrarCotizEgreso() {
+  const esUSD = $('egr-moneda')?.value === 'USD';
+  $('egr-cotiz-group')?.classList.toggle('hidden', !esUSD);
+  if (esUSD && $('egr-cotizacion') && !$('egr-cotizacion').value && cotizacionBlue?.promedio) {
+    $('egr-cotizacion').value = cotizacionBlue.promedio;
+  }
+  _equivEgreso();
+}
+
+function _equivEgreso() {
+  const el = $('egr-cotiz-equiv');
+  if (!el) return;
+  const monto = parseFloat($('egr-monto')?.value) || 0;
+  const cot = parseFloat($('egr-cotizacion')?.value) || 0;
+  el.textContent = (monto > 0 && cot > 0) ? formatMoney(monto * cot) : '';
 }
 
 function setupEgresosForm() {
@@ -8810,6 +9097,17 @@ function setupEgresosForm() {
       : '<option value="">— elegí categoría primero —</option>';
     const esPersonal = cat === 'Personal';
     personalRow.style.display = esPersonal ? '' : 'none';
+    // A una persona no se le pone proveedor.
+    $('egr-proveedor-group')?.classList.toggle('hidden', esPersonal);
+    // Un campo obligatorio que quedo escondido traba el guardado sin decir nada:
+    // al salir de Personal hay que soltar los de esa fila.
+    if (!esPersonal) {
+      if (nuevoEmpInput) { nuevoEmpInput.required = false; nuevoEmpInput.value = ''; }
+      $('egr-nuevo-empleado-group')?.classList.add('hidden');
+      if (empSel) empSel.value = '';
+      if ($('egr-rol-pago')) $('egr-rol-pago').value = '';
+    }
+    _mostrarEquipo();
     empSel.required = esPersonal;
     $('egr-rol-pago').required = esPersonal;
 
@@ -8828,10 +9126,15 @@ function setupEgresosForm() {
 
   empSel?.addEventListener('change', () => {
     const esNuevo = empSel.value === '__nuevo__';
-    nuevoEmpInput.style.display = esNuevo ? '' : 'none';
-    nuevoEmpInput.required = esNuevo;
+    $('egr-nuevo-empleado-group')?.classList.toggle('hidden', !esNuevo);
+    if (nuevoEmpInput) nuevoEmpInput.required = esNuevo;
+    if (esNuevo) { nuevoEmpInput?.focus(); return; }
+    // Juan siempre es mozo: no hace falta decirlo en cada pago.
+    const emp = allEmpleados.find(x => x.id === empSel.value);
+    const rolSel = $('egr-rol-pago');
+    if (emp?.rolHabitual && rolSel && !rolSel.value) rolSel.value = emp.rolHabitual;
   });
-  if (nuevoEmpInput) nuevoEmpInput.style.display = 'none';
+  $('egr-nuevo-empleado-group')?.classList.add('hidden');
 
   document.querySelectorAll('input[name="egr-destino"]').forEach(r => {
     r.addEventListener('change', () => {
@@ -8842,8 +9145,19 @@ function setupEgresosForm() {
       // Sin 'required' nativo: el <select> está oculto (no focuseable) y la
       // validación del evento ya se hace en submitEgreso. Al cambiar, limpio el buscador.
       if (!esEvento) { $('egr-evento').value = ''; syncBuscador('egr-evento'); }
+      _mostrarEquipo();
     });
   });
+
+  $('egr-proveedor')?.addEventListener('change', () => {
+    const otro = $('egr-proveedor').value === '__otro__';
+    $('egr-proveedor-otro-group')?.classList.toggle('hidden', !otro);
+    if (!otro && $('egr-proveedor-otro')) $('egr-proveedor-otro').value = '';
+  });
+
+  $('egr-moneda')?.addEventListener('change', _mostrarCotizEgreso);
+  $('egr-cotizacion')?.addEventListener('input', _equivEgreso);
+  $('egr-monto')?.addEventListener('input', () => { _equivEgreso(); });
 
   $('egr-repetir-fijos')?.addEventListener('click', repetirFijosMesPasado);
   $('egr-limpiar-filtros')?.addEventListener('click', () => {
@@ -8887,8 +9201,13 @@ async function repetirFijosMesPasado() {
   }
   const detalle = candidatos
     .map(e => `• ${e.concepto}: ${formatMoneda(parseFloat(e.monto) || 0, e.moneda)}`).join('\n');
-  if (!confirm(`Se van a cargar ${candidatos.length} gasto(s) con la fecha de hoy:\n\n${detalle}\n\nDespués podés corregir los montos uno por uno. ¿Continuar?`))
-    return;
+  const seguir = await uiConfirm({
+    titulo: `Repetir ${candidatos.length} gasto(s) del mes pasado`,
+    mensaje: `${detalle}\n\nSe cargan con la fecha de hoy; después corregís los montos.`,
+    confirmar: 'Cargarlos',
+    cancelar: 'No',
+  });
+  if (!seguir) return;
 
   const btn = $('egr-repetir-fijos');
   if (btn) { btn.disabled = true; btn.textContent = 'Cargando...'; }
@@ -8931,7 +9250,10 @@ async function submitEgreso(e) {
   if ($('egr-categoria').value === 'Personal') {
     if (empSel?.value === '__nuevo__' && nuevoNombre) {
       try {
-        const emp = await apiFetch('/empleados', { method: 'POST', body: { nombre: nuevoNombre } });
+        const emp = await apiFetch('/empleados', {
+          method: 'POST',
+          body: { nombre: nuevoNombre, rolHabitual: $('egr-rol-pago')?.value || '' },
+        });
         allEmpleados.push(emp);
         populateEmpleadoSelect();
         idEmpleado = emp.id;
@@ -8956,8 +9278,25 @@ async function submitEgreso(e) {
   const fEgr = $('egr-fecha').value;
   if (fEgr > hoyISO()) {
     const d = fEgr.split('-');
-    if (!confirm(`La fecha del gasto (${d[2]}/${d[1]}/${d[0]}) es posterior a hoy.` +
-                 String.fromCharCode(10, 10) + '¿Es correcta? Revisá que el año esté bien escrito.')) return;
+    const sigue = await uiConfirm({
+      titulo: 'La fecha es posterior a hoy',
+      mensaje: `El gasto quedaría con fecha ${d[2]}/${d[1]}/${d[0]}. Revisá que el año esté bien.`,
+      confirmar: 'Está bien',
+      cancelar: 'Corregir',
+    });
+    if (!sigue) return;
+  }
+
+  const provSel = $('egr-proveedor')?.value || '';
+  const proveedor = provSel === '__otro__'
+    ? ($('egr-proveedor-otro')?.value || '').trim()
+    : provSel;
+
+  const moneda = $('egr-moneda').value;
+  const cotizacion = moneda === 'USD' ? (parseFloat($('egr-cotizacion')?.value) || 0) : 0;
+  if (moneda === 'USD' && !(cotizacion > 0)) {
+    $('egr-error').textContent = 'Poné a qué dólar se pagó.';
+    show('egr-error'); return;
   }
 
   const body = {
@@ -8965,7 +9304,10 @@ async function submitEgreso(e) {
     concepto: $('egr-concepto').value,
     categoria: $('egr-categoria').value,
     monto,
-    moneda: $('egr-moneda').value,
+    moneda,
+    cotizacion,
+    montoARS: cotizacion > 0 ? +(monto * cotizacion).toFixed(2) : 0,
+    proveedor,
     idEmpleado, nombreEmpleado,
     rolPago: $('egr-rol-pago')?.value || '',
     notas: $('egr-notas').value.trim(),
@@ -8989,7 +9331,10 @@ async function submitEgreso(e) {
     $('egr-monto').value = '';
     $('egr-notas').value = '';
     if (nuevoNombre && $('egr-nuevo-empleado')) $('egr-nuevo-empleado').value = '';
-    if ($('egr-nuevo-empleado')) $('egr-nuevo-empleado').style.display = 'none';
+    $('egr-nuevo-empleado-group')?.classList.add('hidden');
+    if ($('egr-proveedor-otro')) $('egr-proveedor-otro').value = '';
+    $('egr-proveedor-otro-group')?.classList.add('hidden');
+    _equivEgreso();
     if (empSel) empSel.value = '';
     if ($('egr-rol-pago')) $('egr-rol-pago').value = '';
   } catch (err) {
@@ -9147,7 +9492,14 @@ document.addEventListener('click', async e => {
   const rowIndex = parseInt(btn.dataset.row);
   const eg = allEgresos.find(x => x.rowIndex === rowIndex);
   const desc = eg ? `${eg.concepto} — ${formatMoneda(parseFloat(eg.monto) || 0, eg.moneda)}` : 'este egreso';
-  if (!confirm(`¿Borrar ${desc}?\n\nEsta acción no se puede deshacer.`)) return;
+  const ok = await uiConfirm({
+    titulo: '¿Borrar este gasto?',
+    mensaje: `${desc}\n\nNo se puede deshacer.`,
+    confirmar: 'Sí, borrar',
+    cancelar: 'No',
+    tipo: 'danger',
+  });
+  if (!ok) return;
   try {
     await apiFetch(`/egresos/${rowIndex}`, { method: 'DELETE' });
     allEgresos = allEgresos.filter(x => x.rowIndex !== rowIndex);
@@ -9342,7 +9694,13 @@ document.addEventListener('click', async e => {
     const nombre = it ? (it.concepto || it.cliente || it.categoria || '') : '';
     const montoTxt = it ? formatMoneda(parseFloat(it.monto) || 0, it.moneda || 'ARS') : '';
     const etiqueta = tipo === 'ingreso' ? 'COBRO' : 'GASTO';
-    if (!confirm(`¿Confirmar este ${etiqueta}?\n\n${nombre} — ${montoTxt}\n\nUna vez confirmado entra al sistema.`)) return;
+    const ok = await uiConfirm({
+      titulo: `¿Confirmar este ${etiqueta}?`,
+      mensaje: `${nombre} — ${montoTxt}\n\nUna vez confirmado entra al sistema.`,
+      confirmar: 'Confirmar',
+      cancelar: 'Todavía no',
+    });
+    if (!ok) return;
     btn.disabled = true;
     try {
       await apiFetch(`/${base}/${rowIndex}/confirmar`, { method: 'PUT' });
@@ -9356,7 +9714,14 @@ document.addEventListener('click', async e => {
   // Descartar = borrar el borrador (cobro o gasto). Cada uno descarta lo suyo
   // (la bandeja ya muestra solo los propios).
   const queEs = tipo === 'ingreso' ? 'cobro' : 'gasto';
-  if (!confirm(`¿Descartar este borrador de ${queEs}? No se puede deshacer.`)) return;
+  const ok = await uiConfirm({
+    titulo: `¿Descartar este borrador de ${queEs}?`,
+    mensaje: 'No se puede deshacer.',
+    confirmar: 'Sí, descartar',
+    cancelar: 'No',
+    tipo: 'danger',
+  });
+  if (!ok) return;
   btn.disabled = true;
   try {
     await apiFetch(`/${base}/${rowIndex}`, { method: 'DELETE' });
@@ -9371,6 +9736,7 @@ let egresosCocCargados = false;
 
 function initEgresosCocina() {
   if (!isSuperAdmin()) return;
+  cargarProveedores().then(pintarSelectsProveedor);
   const fechaEl = $('egc-fecha');
   if (fechaEl && !fechaEl.value) fechaEl.value = hoyISO();
   if (!egresosCocCargados) {
