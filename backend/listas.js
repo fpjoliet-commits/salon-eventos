@@ -25,6 +25,7 @@ const LISTAS = {
     tipoCliente: ['Nuevo', 'Excliente', 'Referido'],
     presupuesto: ['Sí, tiene monto', 'No sabe', 'No dice'],
     modalidadPago: ['contado', 'cuotas', 'cubiertos'],
+    motivoCancelacion: ['Otro salón', 'Precio', 'Fecha ocupada', 'Se suspendió', 'Dejó de responder', 'Sin motivo', 'Otro'],
   },
   ingreso: {
     tipoIngreso: ['Seña', 'Pago a cuenta', 'Cuota', 'Saldo final', 'Otro'],

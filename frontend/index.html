@@ -277,6 +277,23 @@
                 <label class="visita-fecha-label">📅 ¿Cuándo viene? <span class="visita-fecha-hint">Esta fecha aparece en el panel de Pendientes</span></label>
                 <input type="date" name="fechaVisita" id="fechaVisita">
               </div>
+              <div class="form-group" id="motivo-cancelacion-row" style="display:none">
+                <label>Motivo *</label>
+                <select name="motivoCancelacion" id="motivoCancelacion">
+                  <option value="">Seleccioná...</option>
+                  <option>Otro salón</option>
+                  <option>Precio</option>
+                  <option>Fecha ocupada</option>
+                  <option>Se suspendió</option>
+                  <option>Dejó de responder</option>
+                  <option>Sin motivo</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+              <div class="form-group" id="nota-cancelacion-row" style="display:none">
+                <label>Nota</label>
+                <input type="text" name="notaCancelacion" id="notaCancelacion" maxlength="200">
+              </div>
               <div class="form-group">
                 <label>Teléfono *</label>
                 <input type="text" name="telefono" required placeholder="11-1234-5678">
@@ -1917,7 +1934,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260928l-sin-migracion"></script>
+  <script src="js/app.js?v=20260928m-motivo-cancelacion"></script>
   <script src="js/propuesta-ui.js?v=20260928f-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260928f-corregir"></script>

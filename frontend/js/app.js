@@ -2537,7 +2537,23 @@ document.querySelector('[name="estado"]')?.addEventListener('change', function()
   const esVisita = this.value === 'Visita agendada';
   row.style.display = esVisita ? '' : 'none';
   if (!esVisita) $('fechaVisita').value = '';
+  mostrarMotivoCancelacion();
 });
+
+/* Motivo de cancelación: se pide solo al PASAR a Cancelado (un cancelado viejo
+   sin motivo se puede editar igual). "Otro" pide la nota. */
+function mostrarMotivoCancelacion() {
+  const estado = document.querySelector('[name="estado"]')?.value;
+  const cancelado = estado === 'Cancelado';
+  const yaEstaba = $('edit-cliente-id').value && currentClienteModal?.estado === 'Cancelado';
+  const sel = $('motivoCancelacion'), nota = $('notaCancelacion');
+  $('motivo-cancelacion-row').style.display = cancelado ? '' : 'none';
+  $('nota-cancelacion-row').style.display = cancelado && sel.value ? '' : 'none';
+  sel.required = cancelado && !yaEstaba;
+  nota.required = cancelado && !yaEstaba && sel.value === 'Otro';
+  if (!cancelado) { sel.value = ''; nota.value = ''; }
+}
+$('motivoCancelacion')?.addEventListener('change', mostrarMotivoCancelacion);
 
 $('tipo-cliente-select').addEventListener('change', () => {
   const v = $('tipo-cliente-select').value;
@@ -2601,6 +2617,8 @@ function resetNuevoClienteForm() {
   if (visitaRow) visitaRow.style.display = 'none';
   const fechaVisita = $('fechaVisita');
   if (fechaVisita) fechaVisita.value = '';
+  $('motivo-cancelacion-row').style.display = 'none';
+  $('nota-cancelacion-row').style.display = 'none';
   show('persona-search-section');
   const card = $('persona-seleccionada-card');
   if (card) { card.classList.add('hidden'); card.innerHTML = ''; }
@@ -2802,6 +2820,8 @@ $('cliente-form').addEventListener('submit', async e => {
     personaId: $('edit-persona-id').value || undefined,
     personaRowIndex: $('edit-persona-row-index').value ? parseInt($('edit-persona-row-index').value) : undefined,
     estado: form.estado.value,
+    motivoCancelacion: form.motivoCancelacion.value,
+    notaCancelacion: form.notaCancelacion.value,
     apellidoNombre: form.apellidoNombre.value,
     telefono: form.telefono.value,
     gmail: form.gmail.value,
@@ -2870,6 +2890,8 @@ function openEditForm(cliente) {
   const setVal = (name, val) => { if (form[name]) valorEnCampo(form[name], val); };
 
   setVal('estado', cliente.estado);
+  setVal('motivoCancelacion', cliente.motivoCancelacion);
+  setVal('notaCancelacion', cliente.notaCancelacion);
   setVal('apellidoNombre', cliente.apellidoNombre);
   setVal('telefono', cliente.telefono);
   setVal('gmail', cliente.gmail);

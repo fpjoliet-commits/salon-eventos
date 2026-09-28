@@ -90,6 +90,8 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 | Z | precioCubierto | número | Precio del cubierto pactado para este evento |
 | AA | modificadoEn | fecha y hora | Última modificación (desde 28/09/2026). También evita que dos personas se pisen al editar la misma ficha |
 | AB | modificadoPor | texto | Quién hizo la última modificación (`Cal.com` si la tocó el agendamiento) |
+| AC | motivoCancelacion | lista | Por qué se cayó: `Otro salón`, `Precio`, `Fecha ocupada`, `Se suspendió`, `Dejó de responder`, `Sin motivo`, `Otro`. Obligatorio al pasar a Cancelado; vacío si no está cancelado |
+| AD | notaCancelacion | texto | Nota libre de la cancelación (obligatoria con motivo `Otro`) |
 
 ## Ingresos — cobros
 
