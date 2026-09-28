@@ -67,9 +67,17 @@ como pestañas de respaldo; verificar que cantidad de filas y total de plata no 
 **Fase 6 — operación**
 - Alerta si se cae (monitor → Telegram). Apagado prolijo (vaciar cola de auditoría en SIGTERM).
 - Cerrar sesiones a distancia. Pruebas automáticas de cálculos de plata. Render pago (decide el usuario).
-- **Control de calidad semanal**: chequeo automático de la planilla con aviso por Telegram si
-  encuentra cobros sin evento, fichas sin fecha, valores fuera de `listas.js` (escritos a mano
-  en la planilla), borradores del bot con más de 7 días sin confirmar, filas con id duplicado.
+- **Avisos por Telegram — SOLO a Lautaro** (nueva env var, p. ej. `TELEGRAM_CHAT_ALERTAS`;
+  hace falta su chat id). A Fabio/Mariana/Anita NO les llega nada técnico: lo que ellos
+  resuelven ya está en el CRM (bandeja "Por confirmar", píldoras de la ficha, seguimientos).
+  Regla: a cada uno le llega solo lo que puede resolver.
+  - *Urgente, en el momento, solo si algo se rompe:* CRM caído / Google sin conexión; falló el
+    backup nocturno; el bot no puede interpretar (Gemini caído o clave vencida); un cobro
+    falló y NO se pudieron devolver las cuotas (`conDevolucion` en server.js ya lo loguea).
+  - *Resumen semanal, lunes a la mañana, un solo mensaje:* datos con problemas (cobros sin
+    evento, fichas sin fecha, valores fuera de `listas.js` escritos a mano en la planilla, ids
+    duplicados), borradores del bot con más de 7 días, y una línea de salud (cargas, errores
+    del servidor, backups de la semana). Semana limpia = "✅ Semana sin problemas".
 - Límite de pedidos por IP se puede esquivar falseando `X-Forwarded-For` (revisar cómo lo arma Render antes de tocar).
 
 ## Herramientas de prueba usadas
