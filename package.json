@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node backend/server.js",
+    "test": "node --test backend/test/*.test.js",
     "install-deps": "cd backend && npm install"
   },
   "engines": {

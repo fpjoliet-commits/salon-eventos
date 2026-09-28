@@ -10,6 +10,7 @@ App web fullstack deployada en Render.
 - **Storage:** Google Sheets vía `googleapis` — fallback en memoria si no hay credenciales
 - **Deploy:** Render — start command: `node backend/server.js`
 - **Dev local:** `start.bat` o `npm start` (= `node backend/server.js`) desde la raíz
+- **Pruebas:** `npm test` (cálculos de plata, teléfono, resumen; no tocan la planilla). Correrlas antes de subir cambios de plata.
 
 ## Usuarios y roles
 
