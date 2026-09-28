@@ -4,7 +4,7 @@ Todas las noches a las 3 se guarda una copia completa de la planilla del CRM en 
 carpeta de Drive **"Backups CRM Joliet"**. Se conservan las últimas 30 (un mes);
 las más viejas van a la papelera de Drive.
 
-El código está en `scripts/backup-planilla.gs`. Corre dentro de Google, así que
+El código está en `scripts/backup-planilla.gs`. Corre en Google, así que
 no depende de Render ni de ninguna PC.
 
 ## Instalar (una sola vez, 5 minutos)
@@ -12,8 +12,9 @@ no depende de Render ni de ninguna PC.
 Conviene hacerlo con la cuenta **dueña** de la planilla (fp.joliet@gmail.com):
 las copias quedan en el Drive de quien lo instala.
 
-1. Abrir la planilla "CRM Salón de Eventos - PLANILLA BASE".
-2. Menú **Extensiones → Apps Script**. Se abre una pestaña nueva.
+1. Entrar a **script.google.com** → **Nuevo proyecto** (o, desde la planilla,
+   **Extensiones → Apps Script**; da igual, el script busca la planilla por su id).
+2. Ponerle de nombre "Backup CRM Joliet" (arriba, donde dice "Proyecto sin título").
 3. Borrar lo que haya en el editor y pegar todo el contenido de `scripts/backup-planilla.gs`.
 4. Tocar el ícono de guardar (💾).
 5. Arriba, en la lista de funciones, elegir **`instalar`** y tocar **Ejecutar**.

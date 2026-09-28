@@ -1,7 +1,7 @@
 /**
  * Backup diario de la planilla del CRM.
  *
- * Vive DENTRO de la planilla (Extensiones → Apps Script) y lo corre Google: no
+ * Es un proyecto de Apps Script (script.google.com) y lo corre Google: no
  * depende de Render, que se duerme, ni de que una PC esté prendida.
  *
  * Todas las noches guarda una copia completa en la carpeta de Drive
@@ -13,6 +13,9 @@
  * docs/backup-planilla.md
  */
 
+// La planilla se busca por su id (el mismo SPREADSHEET_ID del CRM), así el script
+// anda tanto dentro de la planilla como como proyecto suelto en script.google.com.
+const PLANILLA_ID = '1ijCN27RaLLYUG0a6hEYwwC9rQJKrYV_KdsBEGAHULgY';
 const CARPETA = 'Backups CRM Joliet';
 const PREFIJO = 'CRM backup ';
 const CONSERVAR = 30;
@@ -31,7 +34,7 @@ function instalar() {
 }
 
 function hacerBackup() {
-  const original = DriveApp.getFileById(SpreadsheetApp.getActive().getId());
+  const original = DriveApp.getFileById(PLANILLA_ID);
   const carpeta = carpetaDeBackups();
   const nombre = PREFIJO + Utilities.formatDate(new Date(), ZONA, 'yyyy-MM-dd HH-mm');
   original.makeCopy(nombre, carpeta);
