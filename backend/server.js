@@ -355,6 +355,12 @@ app.post('/api/avisos/resumen-semanal', claveDeAvisos, async (req, res) => {
   }
 });
 
+// TEMPORAL (diagnóstico de IP detrás del proxy de Render): se borra en el próximo commit
+app.get('/api/diag-ip', (req, res) => {
+  const h = req.headers;
+  res.json({ xff: h['x-forwarded-for'] || null, cf: h['cf-connecting-ip'] || null, tci: h['true-client-ip'] || null, xri: h['x-real-ip'] || null, socket: req.socket.remoteAddress });
+});
+
 // Estado del sistema
 app.get('/api/status', (req, res) => {
   // cuentasPersonales: las cuentas opcionales activas, para mostrarlas en el login
