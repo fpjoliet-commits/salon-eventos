@@ -1020,24 +1020,29 @@ async function linksDeEvento(cliente) {
   return links;
 }
 
+// Los pasos que agrega la maître desde el celular: son los únicos que puede borrar
+// desde ahí. En el CRM se ven y se editan como cualquier otro.
+const TIPO_PASO_CELULAR = 'maitre-cel';
+
 const pasosMaitre = async (idEvento) =>
   (await sheets.getTimming(idEvento)).filter(t => (t.tipo || 'maitre') !== 'cocina')
     .map(t => ({ ...t, hecho: !!t.hecho, horaOriginal: t.horaOriginal || '', notas: t.notas || [] }));
 
-/* Evento de demostración: vive en memoria, arranca una hora y media antes de
-   ahora (así siempre hay un paso "de ahora") y vuelve a cero cada 6 horas. */
+/* Evento de demostración: vive en memoria y vuelve a cero cada 6 horas. Los
+   horarios son los que dejó el dueño probándolo el 28/09. La fecha es siempre la
+   de "esta noche", así el paso de ahora se marca si se prueba de noche. */
+const PASOS_DEMO = [['21:00', 'RECEPCIÓN'], ['23:00', 'ENTRADA AL SALÓN'], ['23:10', 'VALS'],
+  ['23:50', 'PRIMER PLATO'], ['00:20', 'TANDA'], ['01:00', 'PLATO CENTRAL'], ['01:30', 'BRINDIS'],
+  ['02:30', 'MESA DE DULCES'], ['03:00', 'FIN DE FIESTA']];
 let demoTiming = null;
 function eventoDemo() {
   if (demoTiming && Date.now() - demoTiming.creado < 6 * 3600 * 1000) return demoTiming;
   const a = ahoraArgentina();
-  const inicio = Math.floor((a.getUTCHours() * 60 + a.getUTCMinutes()) / 30) * 30 - 90;
-  const pasos = [['RECEPCIÓN', 'Jardín'], ['ENTRADA AL SALÓN', ''], ['VALS', ''], ['PRIMER PLATO', ''],
-    ['TANDA', ''], ['PLATO CENTRAL', ''], ['BRINDIS', ''], ['MESA DE DULCES', ''], ['FIN DE FIESTA', '']]
-    .map(([actividad, descripcion], i) => ({ id: 'DEMO-' + i, hora: horaDeMinutos(inicio + i * 30), actividad,
-      descripcion, hecho: i < 2, horaOriginal: '', notas: [] }));
+  const pasos = PASOS_DEMO.map(([hora, actividad], i) => ({ id: 'DEMO-' + i, hora, actividad, tipo: 'maitre',
+    descripcion: '', hecho: false, horaOriginal: '', notas: [] }));
   // Si pasa la medianoche la fecha es la del día anterior: la noche es una sola.
-  const fecha = new Date(Date.now() - 3 * 3600 * 1000 - (a.getUTCHours() < 8 ? 86400000 : 0)).toISOString().slice(0, 10);
-  demoTiming = { creado: Date.now(), pasos,
+  const fecha = new Date(a.getTime() - (a.getUTCHours() < 8 ? 86400000 : 0)).toISOString().slice(0, 10);
+  demoTiming = { creado: Date.now(), pasos, n: pasos.length,
     evento: { nombre: 'Evento de prueba', tipo: '', formato: 'Formal', fecha, invitados: '150' } };
   return demoTiming;
 }
@@ -1048,8 +1053,11 @@ async function fuenteDelLink(slug) {
   if (codigo === 'demo' || codigo === 'demo-ver') {
     const d = eventoDemo();
     return { modo: codigo === 'demo' ? 'editar' : 'leer', compartir: '/t/' + codigo, evento: d.evento,
-      pasos: async () => d.pasos.map(p => ({ ...p, notas: [...p.notas] })),
-      guardar: async (cambiados) => cambiados.forEach(c => Object.assign(d.pasos.find(p => p.id === c.id), c)) };
+      pasos: async () => d.pasos.map(p => ({ ...p, notas: [...p.notas] })).sort((x, y) => minutosEvento(x.hora) - minutosEvento(y.hora)),
+      guardar: async (cambiados) => cambiados.forEach(c => Object.assign(d.pasos.find(p => p.id === c.id), c)),
+      agregar: async (hora, actividad) => d.pasos.push({ id: 'DEMO-' + d.n++, hora, actividad, tipo: TIPO_PASO_CELULAR,
+        descripcion: '', hecho: false, horaOriginal: '', notas: [] }),
+      borrar: async (paso) => { d.pasos = d.pasos.filter(p => p.id !== paso.id); } };
   }
   if (!new RegExp(`^[a-z0-9]{${LARGO_LINK}}$`).test(codigo)) return null;
   const cfg = await sheets.getConfig();
@@ -1067,6 +1075,8 @@ async function fuenteDelLink(slug) {
         formato: cliente.formato || '', fecha: cliente.fechaEvento || '', invitados: cliente.cantidadInvitados || '' },
       pasos: () => pasosMaitre(cliente.id),
       guardar: (cambiados) => sheets.updateTimmingVivo(cambiados),
+      agregar: (hora, actividad) => sheets.addTimmingItem({ idCliente: cliente.id, hora, actividad, tipo: TIPO_PASO_CELULAR, descripcion: '' }),
+      borrar: (paso) => sheets.deleteTimmingItem(paso.rowIndex),
     };
   }
   return null;
@@ -1117,22 +1127,34 @@ app.get('/api/t/:slug', async (req, res) => {
     res.json({
       modo: f.modo, compartir: f.compartir, evento: f.evento,
       pasos: (await f.pasos()).map(p => ({ id: p.id, hora: p.hora, horaOriginal: p.horaOriginal, actividad: p.actividad,
-        descripcion: p.descripcion, hecho: p.hecho, notas: ed ? p.notas : [] })),
+        descripcion: p.descripcion, hecho: p.hecho, notas: ed ? p.notas : [], propio: p.tipo === TIPO_PASO_CELULAR })),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Público, solo el link de la maître: { accion: 'tildar'|'nota'|'borrarNota'|'correr', id, ... }
+// Público, solo el link de la maître: { accion: 'tildar'|'nota'|'borrarNota'|'correr'|'agregar'|'borrar', id, ... }
 app.post('/api/t/:slug', async (req, res) => {
   try {
     const f = await resolverLinkTiming(req, res);
     if (!f) return;
     if (f.modo !== 'editar') return res.status(403).json({ error: 'Este link es solo para mirar.' });
     const { accion, id } = req.body || {};
+    if (accion === 'agregar') {
+      const hora = String(req.body.hora || '');
+      const actividad = String(req.body.actividad || '').trim().toUpperCase().slice(0, 60);
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora) || !actividad) return res.status(400).json({ error: 'Falta la hora o el paso.' });
+      await f.agregar(hora, actividad);
+      return res.json({ ok: true });
+    }
     const pasos = await f.pasos();
     const paso = pasos.find(p => p.id === id);
     if (!paso) return res.status(404).json({ error: 'Ese paso ya no está en el timing.' });
     let cambiados = [paso];
+    if (accion === 'borrar') {
+      if (paso.tipo !== TIPO_PASO_CELULAR) return res.status(403).json({ error: 'Ese paso se borra desde el CRM.' });
+      await f.borrar(paso);
+      return res.json({ ok: true });
+    }
     if (accion === 'tildar') {
       paso.hecho = !!req.body.hecho;
     } else if (accion === 'nota') {
