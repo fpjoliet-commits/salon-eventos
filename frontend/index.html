@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260928c-pildoras">
+  <link rel="stylesheet" href="css/style.css?v=20260928b-cobros">
   <link rel="stylesheet" href="css/propuesta.css?v=20260925a-recupenvio">
   <link rel="stylesheet" href="css/ux.css?v=20260926a-pdfvisor">
   <link rel="icon" type="image/png" href="/img/icons/favicon-48.png">
@@ -630,7 +630,6 @@
         <div class="pendientes-card" id="pendientes-card">
           <div class="pendientes-header">
             <h3>Por confirmar <span class="pendientes-count-pill hidden" id="pendientes-count-pill">0</span></h3>
-            <p class="pendientes-sub">Cobros y gastos cargados que esperan tu confirmación antes de entrar al sistema.</p>
           </div>
           <div id="pendientes-loading" class="loading-msg hidden">Cargando...</div>
           <div id="pendientes-empty" class="pendientes-empty hidden">✓ No hay nada por confirmar.</div>
@@ -1173,9 +1172,31 @@
     </div>
   </div>
 
+  <div id="modal-adjudicar" class="modal-overlay hidden">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <div class="modal-nombre-wrap"><h3>¿De qué evento es este cobro?</h3></div>
+        <button class="modal-close" id="close-adjudicar-btn">✕</button>
+      </div>
+      <div class="egreso-form" style="padding:20px 24px">
+        <div id="adj-resumen" class="adj-resumen"></div>
+        <div class="form-group">
+          <select id="adj-evento"><option value="">Seleccioná el evento...</option></select>
+        </div>
+        <div class="egreso-form-actions" style="margin-top:16px">
+          <button type="button" class="btn btn-primary" id="adj-guardar">Adjudicar</button>
+          <button type="button" class="btn btn-secondary" id="cancel-adjudicar-btn">Cancelar</button>
+          <span id="adj-error" class="error-msg hidden"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: Detalle cliente -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal">
+      <!-- Venis de un cobro sin adjudicar: la vuelta es un solo clic -->
+      <div id="modal-volver" class="volver-mov hidden"></div>
       <div class="modal-header">
         <div class="modal-nombre-wrap">
           <h3 id="modal-titulo">Detalle del cliente</h3>
@@ -1904,7 +1925,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260928c-pildoras"></script>
+  <script src="js/app.js?v=20260928b-cobros"></script>
   <script src="js/propuesta-ui.js?v=20260921a-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260911k"></script>

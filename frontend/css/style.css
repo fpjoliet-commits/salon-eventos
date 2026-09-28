@@ -4144,3 +4144,57 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .egr-equipo-total { font-size: 1.05rem; font-weight: 700; }
 
 .egr-cotiz-equiv { display: block; margin-top: 4px; font-size: 0.9rem; color: #6b6252; }
+
+
+/* ===== COBRO SIN EVENTO ===== */
+/* Un cobro que todavia no tiene evento no es plata de nadie: se ve distinto. */
+.pend-item.pend-huerfano {
+  border-left: 4px solid #C0392B;
+  background: #FDF3F2;
+}
+.pend-sin-evento {
+  color: #C0392B;
+  font-weight: 700;
+}
+.pend-ir-evento {
+  background: none;
+  border: none;
+  padding: 0 0 0 8px;
+  font: inherit;
+  font-weight: 600;
+  color: #1F6F54;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.pend-ir-evento:hover { color: #14503C; }
+
+/* Al volver a la bandeja, la tarjeta en la que estabas se hace ver sola. */
+@keyframes pendFlash {
+  0%   { background: #FFF3C4; }
+  100% { background: transparent; }
+}
+.pend-item.pend-flash { animation: pendFlash 2.4s ease-out; }
+
+/* Vuelta de la ficha a movimientos, arriba de todo en el modal. */
+.volver-mov {
+  padding: 10px 24px 0;
+}
+.volver-mov-btn {
+  background: #F1EEE6;
+  border: 1px solid #D9D2C4;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #3B372F;
+  cursor: pointer;
+}
+.volver-mov-btn:hover { background: #E7E2D6; }
+
+.adj-resumen {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #3B372F;
+  margin-bottom: 14px;
+}

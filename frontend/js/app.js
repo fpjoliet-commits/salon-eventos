@@ -283,6 +283,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', e => {
     e.preventDefault();
     _vueltaFicha = null;   // navegaste por tu cuenta: ya no venis de una ficha
+    _vueltaMovimientos = null;
     navigateTo(item.dataset.view);
     closeSidebar();               // en tablet/móvil, navegar cierra el drawer
   });
@@ -720,6 +721,7 @@ function openClienteModal(cliente, tabInicial = 'info') {
   // despliega ese evento; entrar normalmente deja todo cerrado.
   _eventoAbiertoId = (tabInicial && tabInicial !== 'info') ? cliente.id : null;
 
+  pintarBarraVolverMovimientos();
   renderNotaPersona(cliente);
   renderPersonaBloque(cliente);
   renderEventosDeLaPersona(cliente, tabInicial);
@@ -727,17 +729,17 @@ function openClienteModal(cliente, tabInicial = 'info') {
   showEl($('modal-overlay'));
 }
 
-$('modal-close-btn').addEventListener('click', () => {
+function cerrarFichaCliente() {
   $('modal-overlay').querySelector('.modal')?.classList.remove('vista-cliente');
   $('btn-vista-cliente').textContent = 'Vista cliente';
+  _vueltaMovimientos = null;
+  pintarBarraVolverMovimientos();
   hideEl($('modal-overlay'));
-});
+}
+
+$('modal-close-btn').addEventListener('click', cerrarFichaCliente);
 $('modal-overlay').addEventListener('click', e => {
-  if (e.target === $('modal-overlay')) {
-    $('modal-overlay').querySelector('.modal')?.classList.remove('vista-cliente');
-    $('btn-vista-cliente').textContent = 'Vista cliente';
-    hideEl($('modal-overlay'));
-  }
+  if (e.target === $('modal-overlay')) cerrarFichaCliente();
 });
 
 $('btn-vista-cliente').addEventListener('click', () => {
@@ -9608,9 +9610,11 @@ function renderPendientes() {
     ...(pendientes.ingresos || []).map(i => ({
       tipo: 'ingreso', rowIndex: i.rowIndex,
       titulo: i.cliente || i.tipoIngreso || 'Cobro',
-      detalle: [i.tipoIngreso, i.cliente].filter(Boolean).join(' · '),
+      detalle: i.tipoIngreso || '',
       monto: parseFloat(i.monto) || 0, moneda: i.moneda || 'ARS',
       formaPago: i.formaPago || '', fecha: i.fecha, cargadoPor: i.cargadoPor,
+      // Al salon le pagan por eventos: un cobro suelto no es un cobro todavia.
+      sinEvento: !i.idCliente,
     })),
     ...(pendientes.egresos || []).map(e => ({
       tipo: 'egreso', rowIndex: e.rowIndex,
@@ -9633,18 +9637,23 @@ function renderPendientes() {
     const signo = esIngreso ? '+' : '−';
     const forma = it.formaPago ? ` · ${esc(it.formaPago)}` : '';
     const quien = it.cargadoPor ? ` · cargó ${esc(nombreCargador(it.cargadoPor))}` : '';
-    return `<div class="pend-item pend-${it.tipo}">
+    const titulo = it.sinEvento
+      ? `<span class="pend-sin-evento">Sin evento</span>`
+      : `${esc(it.titulo)}${esIngreso ? ` <button class="pend-ir-evento" data-row="${it.rowIndex}">ver el evento →</button>` : ''}`;
+    const acciones = it.sinEvento
+      ? `<button class="btn btn-primary btn-pend-adjudicar" data-row="${it.rowIndex}">Elegir el evento</button>
+         <button class="btn btn-sm btn-pend-descartar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Descartar este borrador">✕</button>`
+      : `<button class="btn btn-pend-editar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Editar antes de confirmar">✏️ Editar</button>
+         <button class="btn btn-primary btn-pend-confirmar" data-tipo="${it.tipo}" data-row="${it.rowIndex}">✓ Confirmar</button>
+         <button class="btn btn-sm btn-pend-descartar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Descartar este borrador">✕</button>`;
+    return `<div class="pend-item pend-${it.tipo}${it.sinEvento ? ' pend-huerfano' : ''}" data-row="${it.rowIndex}" data-tipo="${it.tipo}">
       <div class="pend-tipo-tag">${esIngreso ? 'COBRO' : 'GASTO'}</div>
       <div class="pend-main">
-        <div class="pend-titulo">${esc(it.titulo)}</div>
+        <div class="pend-titulo">${titulo}</div>
         <div class="pend-detalle">${esc(it.detalle)}${forma}${quien}</div>
       </div>
       <div class="pend-monto pend-monto-${it.tipo}">${signo} ${formatMoneda(it.monto, it.moneda)}</div>
-      <div class="pend-acciones">
-        <button class="btn btn-pend-editar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Editar antes de confirmar">✏️ Editar</button>
-        <button class="btn btn-primary btn-pend-confirmar" data-tipo="${it.tipo}" data-row="${it.rowIndex}">✓ Confirmar</button>
-        <button class="btn btn-sm btn-pend-descartar" data-tipo="${it.tipo}" data-row="${it.rowIndex}" title="Descartar este borrador">✕</button>
-      </div>
+      <div class="pend-acciones">${acciones}</div>
     </div>`;
   }).join('');
 }
@@ -9772,6 +9781,107 @@ document.addEventListener('click', async e => {
     await loadPendientes();
   } catch (err) { btn.disabled = false; toast('Error: ' + err.message, 'error'); }
 });
+
+
+/* ===================== ADJUDICAR UN COBRO A SU EVENTO =====================
+   Todo lo que entra al salon entra por un evento. Un cobro que el bot no pudo
+   atribuir queda marcado en la bandeja y no se puede confirmar hasta que tenga
+   evento. Desde la tarjeta se puede elegirlo ahi mismo, o entrar al evento a
+   mirar el plan de pago y volver a la bandeja con un solo clic. */
+
+let _adjRow = null;
+let _vueltaMovimientos = null;   // { rowIndex }
+
+function _pendienteIngreso(rowIndex) {
+  return (pendientes.ingresos || []).find(x => x.rowIndex === rowIndex);
+}
+
+function _flashPendiente(rowIndex) {
+  const el = document.querySelector(`.pend-item[data-row="${rowIndex}"]`);
+  if (!el) return;
+  el.classList.add('pend-flash');
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  setTimeout(() => el.classList.remove('pend-flash'), 2500);
+}
+
+function abrirAdjudicar(rowIndex) {
+  const it = _pendienteIngreso(rowIndex);
+  if (!it) return;
+  _adjRow = rowIndex;
+  $('adj-resumen').textContent = [
+    formatMoneda(parseFloat(it.monto) || 0, it.moneda || 'ARS'),
+    it.tipoIngreso || '', it.formaPago || '',
+    it.fecha ? formatDate(it.fecha) : '',
+  ].filter(Boolean).join(' \u00b7 ');
+  populateEgrEventoSelect('adj-evento');
+  $('adj-evento').value = '';
+  syncBuscador('adj-evento');
+  hide('adj-error');
+  show('modal-adjudicar');
+  setTimeout(() => $('adj-evento')?._buscador?.focus(), 60);
+}
+
+async function guardarAdjudicacion() {
+  const id = $('adj-evento').value;
+  if (!id) {
+    $('adj-error').textContent = 'Eleg\u00ed el evento.';
+    show('adj-error');
+    return;
+  }
+  const it = _pendienteIngreso(_adjRow);
+  if (!it) { hide('modal-adjudicar'); return; }
+  const btn = $('adj-guardar');
+  btn.disabled = true;
+  try {
+    await apiFetch(`/ingresos/${_adjRow}`, { method: 'PUT', body: { ...it, idCliente: id } });
+    hide('modal-adjudicar');
+    toast('Cobro adjudicado');
+    const row = _adjRow;
+    await loadPendientes();
+    _flashPendiente(row);
+  } catch (err) {
+    $('adj-error').textContent = err.message || 'Error al guardar';
+    show('adj-error');
+  } finally { btn.disabled = false; }
+}
+
+$('adj-guardar')?.addEventListener('click', guardarAdjudicacion);
+$('close-adjudicar-btn')?.addEventListener('click', () => hide('modal-adjudicar'));
+$('cancel-adjudicar-btn')?.addEventListener('click', () => hide('modal-adjudicar'));
+
+document.addEventListener('click', e => {
+  const adj = e.target.closest('.btn-pend-adjudicar');
+  if (adj) { abrirAdjudicar(parseInt(adj.dataset.row)); return; }
+  const ir = e.target.closest('.pend-ir-evento');
+  if (ir) verEventoDelCobro(parseInt(ir.dataset.row));
+});
+
+function verEventoDelCobro(rowIndex) {
+  const it = _pendienteIngreso(rowIndex);
+  const c = it && allClientes.find(x => x.id === it.idCliente);
+  if (!c) { toast('Ese evento ya no est\u00e1 en la agenda.', 'error'); return; }
+  _vueltaMovimientos = { rowIndex };
+  navigateTo('clientes');
+  openClienteModal(c, 'cuotas');
+}
+
+function pintarBarraVolverMovimientos() {
+  const cont = $('modal-volver');
+  if (!cont) return;
+  cont.innerHTML = _vueltaMovimientos
+    ? `<button type="button" class="volver-mov-btn">\u2190 Volver a movimientos</button>`
+    : '';
+  cont.classList.toggle('hidden', !_vueltaMovimientos);
+  cont.querySelector('.volver-mov-btn')?.addEventListener('click', volverAMovimientos);
+}
+
+async function volverAMovimientos() {
+  const v = _vueltaMovimientos;
+  cerrarFichaCliente();
+  navigateTo('egresos');
+  await loadPendientes();
+  if (v) _flashPendiente(v.rowIndex);
+}
 
 /* ===================== EGRESOS COCINA ===================== */
 

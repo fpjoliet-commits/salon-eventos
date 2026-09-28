@@ -449,7 +449,15 @@ app.post('/api/ingresos', auth, async (req, res) => {
 
 app.put('/api/ingresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) => {
   try {
-    await sheets.confirmarIngreso(parseInt(req.params.rowIndex));
+    const rowIndex = parseInt(req.params.rowIndex);
+    // Al salon le pagan por eventos: un cobro sin evento no se puede confirmar,
+    // porque despues no hay forma de saber de quien era esa plata.
+    const ingresos = await sheets.getIngresos();
+    const ing = ingresos.find(i => i.rowIndex === rowIndex);
+    if (ing && !ing.idCliente) {
+      return res.status(400).json({ error: 'Este cobro todavia no tiene evento.' });
+    }
+    await sheets.confirmarIngreso(rowIndex);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
