@@ -4249,3 +4249,19 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .vista-borrar:hover { color: var(--danger, #c0392b); }
 .vista-guardar-row { display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .vista-nombre-input { flex: 1; min-width: 0; font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; }
+
+/* ============ Ocultar columnas en tablas de Cocina (por clase en la <table>) ============
+   No toca las filas de grupo (colspan): quedan intactas y su cabecera simplemente
+   abarca las columnas visibles. Sobrevive al re-render porque la clase vive en la tabla. */
+.cocina-items-table.coc-hide-1 thead th:nth-child(1),
+.cocina-items-table.coc-hide-1 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(1) { display: none; }
+.cocina-items-table.coc-hide-2 thead th:nth-child(2),
+.cocina-items-table.coc-hide-2 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(2) { display: none; }
+.cocina-items-table.coc-hide-3 thead th:nth-child(3),
+.cocina-items-table.coc-hide-3 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(3) { display: none; }
+.cocina-items-table.coc-hide-4 thead th:nth-child(4),
+.cocina-items-table.coc-hide-4 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(4) { display: none; }
+.cocina-items-table.coc-hide-5 thead th:nth-child(5),
+.cocina-items-table.coc-hide-5 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(5) { display: none; }
+.cocina-items-table.coc-hide-6 thead th:nth-child(6),
+.cocina-items-table.coc-hide-6 tbody tr:not(.cocina-cat-header-row):not(.cocina-miga-totales-header-row) > td:nth-child(6) { display: none; }

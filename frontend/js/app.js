@@ -10539,6 +10539,10 @@ async function _loadCocina() {
     if (loadingEl) loadingEl.style.display = 'none';
     renderStockDashboard();
     renderPedidosList();
+    // Menús de ocultar columnas (a medida para las tablas de cocina)
+    montarOcultarColsCocina('cocina-items-tbody', 'coc_cols_pedido');
+    montarOcultarColsCocina('cocina-actualizar-stock-tbody', 'coc_cols_stock');
+    montarOcultarColsCocina('cocina-relevamiento-tbody', 'coc_cols_relevamiento');
   } catch (e) {
     if (loadingEl) loadingEl.style.display = 'none';
     toast('Error cargando datos de cocina: ' + e.message, 'error');
@@ -12847,6 +12851,66 @@ function imprimirProduccionSemana() {
 }
 
 
+
+/* Ocultar/mostrar columnas de las tablas de Cocina.
+   A medida: esas tablas tienen filas de grupo con colspan y se re-renderizan por
+   muchos caminos, así que NO reordenamos ni tocamos celdas — ocultamos por
+   CLASE en la <table> + CSS nth-child (excluyendo las filas de grupo). Al vivir
+   la clase en la tabla (no en las filas), sobrevive a cada re-render.
+   La columna "En stock" se excluye: ya tiene su propio botón 👁. */
+function montarOcultarColsCocina(tbodyId, storageKey) {
+  const table = document.getElementById(tbodyId)?.closest('table');
+  if (!table) return;
+  const cont = table.closest('.cocina-items-container') || table.parentElement;
+  if (cont.parentNode.querySelector(`[data-colmenu="${storageKey}"]`)) { aplicarOcultarColsCocina(table, storageKey); return; }
+
+  const ths = [...table.querySelectorAll('thead th')];
+  const cols = ths.map((th, i) => ({ n: i + 1, label: (th.textContent || '').trim(), th }))
+    .filter(c => c.label && !c.th.classList.contains('cocina-stock-col'));
+
+  const wrap = document.createElement('span');
+  wrap.className = 'columnas-wrap';
+  wrap.dataset.colmenu = storageKey;
+  wrap.style.display = 'inline-block';
+  wrap.style.margin = '0 0 8px';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-secondary btn-sm';
+  btn.textContent = '☰ Columnas';
+  const panel = document.createElement('div');
+  panel.className = 'columnas-panel hidden';
+  wrap.appendChild(btn); wrap.appendChild(panel);
+  cont.parentNode.insertBefore(wrap, cont);
+
+  const pintar = () => {
+    let hidden = []; try { hidden = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch {}
+    panel.innerHTML = `<div class="columnas-panel-head">Mostrar u ocultar columnas</div>`
+      + cols.map(c => `<div class="columnas-row"><label class="columnas-check"><input type="checkbox" data-n="${c.n}" ${hidden.includes(c.n) ? '' : 'checked'}> ${esc(c.label)}</label></div>`).join('');
+  };
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (panel.classList.contains('hidden')) { pintar(); panel.classList.remove('hidden'); }
+    else panel.classList.add('hidden');
+  });
+  document.addEventListener('click', e => { if (!wrap.contains(e.target)) panel.classList.add('hidden'); });
+  panel.addEventListener('change', e => {
+    const n = +e.target.dataset.n; if (!n) return;
+    let hidden = []; try { hidden = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch {}
+    const set = new Set(hidden);
+    e.target.checked ? set.delete(n) : set.add(n);
+    try { localStorage.setItem(storageKey, JSON.stringify([...set])); } catch {}
+    aplicarOcultarColsCocina(table, storageKey);
+  });
+
+  aplicarOcultarColsCocina(table, storageKey);
+}
+
+function aplicarOcultarColsCocina(table, storageKey) {
+  let hidden = []; try { hidden = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch {}
+  const total = table.querySelectorAll('thead th').length;
+  for (let n = 1; n <= total; n++) table.classList.remove('coc-hide-' + n);
+  hidden.forEach(n => table.classList.add('coc-hide-' + n));
+}
 
 function toggleStockCol() {
   const wrap = $('cocina-form-wrap');
