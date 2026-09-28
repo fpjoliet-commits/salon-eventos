@@ -1523,6 +1523,32 @@ app.get('/consulta', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/consulta.html'));
 });
 
+/* Alguien que completa el formulario más de una vez. Se la reconoce por teléfono
+   (normalizado: "011 15…" y "+54 9 11…" son el mismo) o por mail.
+   - Si tiene una consulta EN CURSO del mismo tipo de evento → es el mismo pedido
+     (abierto): no se crea otra ficha.
+   - Si no (otro tipo de fiesta, o la anterior ya terminó/se canceló) → evento
+     nuevo colgado de la misma persona. */
+const ESTADOS_EN_CURSO = ['Consulta', 'Visita agendada', 'Por cerrar'];
+async function buscarConsultaPrevia(datos) {
+  const tel = listas.normalizarTelefono(datos.telefono);
+  const telDigitos = tel.replace(/\D/g, '');
+  const eventos = await sheets.getClientes();
+  const mismaPersona = e => (telDigitos.length >= 8 && listas.normalizarTelefono(e.telefono || '').replace(/\D/g, '') === telDigitos)
+    || (datos.gmail && (e.gmail || '').trim().toLowerCase() === datos.gmail);
+  const suyos = eventos.filter(mismaPersona);
+  if (!suyos.length) return {};
+  const tipo = listas.normalizar('evento', { tipoEvento: datos.tipoEvento }).tipoEvento;
+  const abierto = suyos
+    .filter(e => ESTADOS_EN_CURSO.includes(e.estado) && e.tipoEvento === tipo)
+    .sort((a, b) => String(b.fechaCarga).localeCompare(String(a.fechaCarga)))[0];
+  return {
+    persona: { id: suyos[0].personaId },
+    abierto,
+    yaHizoEvento: suyos.some(e => e.estado === 'Realizado'),
+  };
+}
+
 app.post('/api/leads', async (req, res) => {
   const ip = clientIp(req);
   if (checkRateLimit(ip)) return res.status(429).json({ error: 'Demasiadas solicitudes. Intentá más tarde.' });
@@ -1541,7 +1567,7 @@ app.post('/api/leads', async (req, res) => {
     const origen = listas.oPorDefecto('evento', 'origen', origenRaw, 'Formulario');
     const utm = k => String(req.body[k] || '').trim().slice(0, 100);
 
-    const cliente = await sheets.addCliente({
+    const datos = {
       apellidoNombre: String(nombre).trim(),
       telefono: String(telefono).trim(),
       gmail: String(email).trim().toLowerCase(),
@@ -1554,7 +1580,30 @@ app.post('/api/leads', async (req, res) => {
       origen,
       utmSource: utm('utm_source'), utmMedium: utm('utm_medium'), utmCampaign: utm('utm_campaign'),
       cargadoPor: 'bot-formulario',
-    });
+    };
+
+    // ¿Ya la conocemos? (mismo teléfono o mismo mail)
+    const { persona, abierto, yaHizoEvento } = await buscarConsultaPrevia(datos);
+    if (abierto) {
+      // Mismo pedido repetido (apretó dos veces, o volvió a escribir): no se
+      // duplica la ficha, se le suma una nota con lo nuevo.
+      const hoy = new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+      const nota = `[${hoy}] Volvió a escribir por el formulario` + (datos.observaciones ? `: ${datos.observaciones}` : '.');
+      await sheets.updateCliente(abierto.rowIndex, {
+        id: abierto.id,
+        observaciones: [abierto.observaciones, nota].filter(Boolean).join('\n'),
+        // Lo que antes no había dicho y ahora sí, se completa (no se pisa nada)
+        ...(!abierto.fechaEvento && datos.fechaEvento ? { fechaEvento: datos.fechaEvento } : {}),
+        ...(!abierto.cantidadInvitados && datos.cantidadInvitados ? { cantidadInvitados: datos.cantidadInvitados } : {}),
+        modificadoPor: 'bot-formulario',
+      });
+      sheets.registrarAuditoria({ usuario: 'bot-formulario', accion: 'Volvió a consultar', entidad: 'Evento', idEntidad: abierto.id, nombre: abierto.apellidoNombre, detalle: nota });
+      return res.json({ ok: true, rowIndex: abierto.rowIndex });
+    }
+    // Otro evento de alguien que ya conocemos: evento nuevo, misma persona
+    const cliente = await sheets.addCliente(persona
+      ? { ...datos, personaId: persona.id, ...(yaHizoEvento ? { tipoCliente: 'Excliente' } : {}) }
+      : datos);
     res.json({ ok: true, rowIndex: cliente.rowIndex });
   } catch (e) {
     console.error('Error en /api/leads:', e.message);
