@@ -1319,6 +1319,41 @@ function calcularImputacion(cuotas, montoRecibido) {
   return { aplicaciones, sobrante: Math.max(0, restante) };
 }
 
+/* ===================== COBROS "TODO O NADA" =====================
+   Pagar cuotas son dos escrituras: marcar las cuotas y crear el cobro. Google
+   Sheets no tiene transacciones: si la segunda fallaba, quedaban cuotas pagadas
+   sin la plata registrada. Antes de marcar se saca una foto de cómo estaban
+   (estado, fecha de pago, monto pagado, notas) y, si el cobro no se pudo crear,
+   se devuelven a ese estado. */
+async function fotoCuotas(rowIndices) {
+  if (!tieneCredenciales || !rowIndices.length) return [];
+  const res = await getSheets().spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID, range: 'Cuotas!A2:J', sinCache: true,
+  });
+  const filas = res.data.values || [];
+  return rowIndices.map(ri => {
+    const f = filas[ri - 2] || [];
+    return { rowIndex: ri, valores: [f[6] ?? '', f[7] ?? '', f[8] ?? '', f[9] ?? ''] };
+  });
+}
+
+async function devolverCuotas(foto) {
+  if (!tieneCredenciales || !foto.length) return;
+  await getSheets().spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: {
+      valueInputOption: 'USER_ENTERED',
+      data: foto.map(f => ({ range: `Cuotas!G${f.rowIndex}:J${f.rowIndex}`, values: [f.valores] })),
+    },
+  });
+}
+
+// Las filas de cuotas que tocaría una imputación, sin escribir nada
+async function filasDeImputacion(idCliente, montoRecibido) {
+  const { aplicaciones } = calcularImputacion(await getCuotasByCliente(idCliente), montoRecibido);
+  return aplicaciones.map(a => a.rowIndex);
+}
+
 async function imputarPago(idCliente, montoRecibido, fechaPago, notas) {
   const cuotas = await getCuotasByCliente(idCliente);
   const { aplicaciones, sobrante } = calcularImputacion(cuotas, montoRecibido);
@@ -2856,7 +2891,7 @@ module.exports = {
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem, updateTimmingVivo,
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,
   calcularCompraCubiertos, estadoCubiertos,
-  getConfig, setConfig, pagarCuotas, aplicarIPC, agregarCuotas, setIndexacionPlan, aplicarIPCAutomatico, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
+  getConfig, setConfig, pagarCuotas, fotoCuotas, devolverCuotas, filasDeImputacion, aplicarIPC, agregarCuotas, setIndexacionPlan, aplicarIPCAutomatico, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado, updateEmpleado,
   getEgresos, addEgreso, updateEgreso, deleteEgreso, restaurarEgreso, confirmarEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,

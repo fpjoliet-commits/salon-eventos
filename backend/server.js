@@ -636,18 +636,34 @@ app.put('/api/cuotas/confirmar', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
+// Crea el cobro; si falla, devuelve las cuotas a como estaban (ver fotoCuotas)
+async function conDevolucion(foto, crearCobro) {
+  try {
+    return await crearCobro();
+  } catch (e) {
+    try { await sheets.devolverCuotas(foto); }
+    catch (e2) { console.error('❌ No se pudieron devolver las cuotas tras un cobro fallido:', e2.message, JSON.stringify(foto)); }
+    const err = new Error('No se pudo registrar el cobro. Las cuotas quedaron como estaban: probá de nuevo.');
+    err.status = 503;
+    throw err;
+  }
+}
+
 app.put('/api/cuotas/pagar', auth, adminOnly, async (req, res) => {
   try {
     const { rowIndices, fechaPago, notas, idCliente, formaPago, montoTotal, montoEfectivo, monedaPago, descripcion, sinIngreso } = req.body;
-    await sheets.pagarCuotas(rowIndices, fechaPago, notas);
     const montoRegistrar = montoEfectivo || montoTotal;
+    const creaCobro = !sinIngreso && idCliente && montoRegistrar > 0;
+    // Foto previa: si el cobro no se puede crear, las cuotas vuelven como estaban
+    const foto = creaCobro ? await sheets.fotoCuotas(rowIndices || []) : [];
+    await sheets.pagarCuotas(rowIndices, fechaPago, notas);
     // Al confirmar un cobro del bot la fila del ingreso ya existe: solo hay que
     // tachar las cuotas. Sin esto el mismo pago quedaba cargado dos veces.
-    if (!sinIngreso && idCliente && montoRegistrar > 0) {
+    if (creaCobro) {
       // Mismo enriquecido que POST /api/ingresos: sin esto los cobros de cuotas
       // caian en la planilla sin el nombre del cliente y no se podian analizar.
       const { cliente, fechaEvento } = await datosEvento(idCliente);
-      await sheets.addIngreso({
+      await conDevolucion(foto, () => sheets.addIngreso({
         idCliente,
         // tipoIngreso es una categoria cerrada y se agrupa por ella; el detalle
         // de que cuotas cubrio va en notas, no pisando la categoria.
@@ -660,7 +676,7 @@ app.put('/api/cuotas/pagar', auth, adminOnly, async (req, res) => {
         cliente, fechaEvento,
         // Sin esto el cobro quedaba sin dueño: nadie sabía quién lo cargó
         cargadoPor: quien(req),
-      });
+      }));
     }
     res.json({ ok: true });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
@@ -676,6 +692,7 @@ app.put('/api/cuotas/imputar', auth, adminOnly, async (req, res) => {
     if (!idCliente || !(importe > 0)) {
       return res.status(400).json({ error: 'Falta el cliente o el monto del cobro.' });
     }
+    const foto = await sheets.fotoCuotas(await sheets.filasDeImputacion(idCliente, importe));
     const { aplicaciones, sobrante } = await sheets.imputarPago(idCliente, importe, fechaPago, notas);
 
     const detalle = aplicaciones.length
@@ -683,7 +700,7 @@ app.put('/api/cuotas/imputar', auth, adminOnly, async (req, res) => {
         aplicaciones.map(a => a.numeroCuota).join(', ')
       : '';
     const { cliente, fechaEvento } = await datosEvento(idCliente);
-    await sheets.addIngreso({
+    await conDevolucion(foto, () => sheets.addIngreso({
       idCliente,
       tipoIngreso: 'Cuota',
       monto: importe,
@@ -694,7 +711,7 @@ app.put('/api/cuotas/imputar', auth, adminOnly, async (req, res) => {
       moneda: moneda || 'ARS',
       cargadoPor: quien(req),
       cliente, fechaEvento,
-    });
+    }));
     res.json({ ok: true, aplicaciones, sobrante });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
