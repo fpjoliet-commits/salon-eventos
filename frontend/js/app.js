@@ -872,23 +872,56 @@ function eventosDeLaPersona(cliente) {
 /* ---- Nota de la persona (columna L de Personas) ----
    Va arriba de todo: es lo que hay que leer antes de llamar o de cotizar. */
 function renderNotaPersona(cliente) {
-  const box = $('cliente-nota-persona');
+  _renderNotaCompacta($('cliente-nota-persona'), 'nota-persona', cliente.notaPersona,
+    'Sobre esta persona…', 'guardarNotaPersona');
+}
+
+/* ---- Notas compactas (persona y evento) ----
+   Sin nota ocupa un renglon: la palabra "Nota", que al tocarla abre donde
+   escribir. Con nota se leen hasta 3 renglones; tocandola se abre entera
+   para leerla o editarla. Asi siguen arriba sin comerse la pantalla. */
+function _renderNotaCompacta(box, pref, texto, placeholder, fnGuardar) {
   if (!box) return;
+  const t = (texto || '').trim();
+  box.classList.toggle('nota-top-vacia', !t);
   box.innerHTML = `
-    <div class="nota-top-l">Nota</div>
-    <textarea id="nota-persona-text" class="nota-top-text" rows="2"
-      placeholder="Sobre esta persona…">${esc(cliente.notaPersona || '')}</textarea>
-    <div class="nota-top-acciones">
-      <button type="button" class="btn btn-secondary btn-sm" onclick="guardarNotaPersona()">Guardar nota</button>
-      <span id="nota-persona-status" class="nota-top-status"></span>
+    <button type="button" class="nota-vista" id="${pref}-vista" onclick="abrirNota('${pref}')">
+      <span class="nota-top-l">${t ? 'Nota' : '＋ Nota'}</span>
+      ${t ? `<span class="nota-vista-txt">${esc(t)}</span>` : ''}
+    </button>
+    <div class="nota-editor hidden" id="${pref}-editor">
+      <div class="nota-top-l">Nota</div>
+      <textarea id="${pref}-text" class="nota-top-text" rows="3" placeholder="${placeholder}">${esc(t)}</textarea>
+      <div class="nota-top-acciones">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="${fnGuardar}()">Guardar nota</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="cerrarNota('${pref}')">Cancelar</button>
+      </div>
     </div>`;
 }
+
+window.abrirNota = function (pref) {
+  const vista = $(`${pref}-vista`), editor = $(`${pref}-editor`), ta = $(`${pref}-text`);
+  if (!vista || !editor || !ta) return;
+  vista.classList.add('hidden');
+  editor.classList.remove('hidden');
+  editor.parentElement?.classList.remove('nota-top-vacia');
+  // Abierta se ve entera: tantos renglones como tenga, minimo 3.
+  ta.rows = Math.max(3, Math.min(14, ta.value.split(/\n/).length + 1));
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+};
+
+window.cerrarNota = function (pref) {
+  const c = currentClienteModal;
+  if (!c) return;
+  if (pref === 'nota-persona') renderNotaPersona(c);
+  else renderNotaEvento(c);
+};
 
 window.guardarNotaPersona = async function () {
   const c = currentClienteModal;
   if (!c) return;
   const texto = ($('nota-persona-text')?.value || '').trim();
-  const status = $('nota-persona-status');
   try {
     await apiFetch(`/clientes/${c.rowIndex}`, {
       method: 'PUT',
@@ -897,11 +930,7 @@ window.guardarNotaPersona = async function () {
     // La nota es de la persona: todos sus eventos la comparten.
     allClientes.forEach(x => { if (x.personaId && x.personaId === c.personaId) x.notaPersona = texto; });
     c.notaPersona = texto;
-    if (status) {
-      status.textContent = '✓ Guardada';
-      status.classList.add('ok');
-      setTimeout(() => { status.textContent = ''; status.classList.remove('ok'); }, 2500);
-    }
+    renderNotaPersona(c);
   } catch (err) {
     toast('No se pudo guardar la nota: ' + err.message, 'error');
   }
@@ -1046,6 +1075,19 @@ function _faseEvento(c) {
   return 'venta';
 }
 
+// Cuantos dias faltan para el evento (negativo si ya paso; null sin fecha).
+function _diasParaEvento(c) {
+  const d = c.fechaEvento ? fechaLocal(c.fechaEvento) : null;
+  return d ? Math.round((d - hoyLocal()) / 86400000) : null;
+}
+
+// Lo que falta se pinta dorado; pasa a rojo cuando ya esta encima del evento.
+const _PLAZO_DIAS = { propuesta: 30, cocina: 14, timing: 7 };
+function _claseFalta(c, que) {
+  const dias = _diasParaEvento(c);
+  return dias !== null && dias <= _PLAZO_DIAS[que] ? 'chip-urgente' : 'chip-falta';
+}
+
 async function renderTableroEvento(cliente) {
   const cont = $('evento-tablero');
   if (!cont) return;
@@ -1063,11 +1105,12 @@ async function renderTableroEvento(cliente) {
   const propArmada = !!(prop && prop.estilo);
 
   if (fase === 'venta') {
-    chips.push(chip('📄 Propuesta', propArmada ? 'armada' : 'sin armar', propArmada ? '' : 'chip-falta', 'propuesta'));
+    chips.push(chip('📄 Propuesta', propArmada ? 'armada' : 'sin armar', propArmada ? '' : _claseFalta(cliente, 'propuesta'), 'propuesta'));
     chips.push(chip('💰 Presupuesto', cliente.montoPresupuesto ? formatMoney(cliente.montoPresupuesto) : (cliente.presupuesto || 'sin cargar'), cliente.montoPresupuesto ? '' : 'chip-falta', 'editar'));
     chips.push(chip('📅 Fecha', cliente.estadoFecha || 'sin definir', '', ''));
     const seg = cliente.proximoSeguimiento;
-    chips.push(chip('📞 Próx. seguimiento', seg ? formatDate(seg) : 'sin agendar', seguimientoClass(seg) === 'seg-vencido' || !seg ? 'chip-falta' : '', ''));
+    const segVencido = seguimientoClass(seg) === 'seguimiento-urgente';
+    chips.push(chip('📞 Próx. seguimiento', seg ? formatDate(seg) : 'sin agendar', segVencido ? 'chip-urgente' : (!seg ? 'chip-falta' : ''), ''));
     cont.innerHTML = `<div class="tablero-l">Este evento tiene</div><div class="tablero-chips">${chips.join('')}</div>`;
     _wireChipsTablero(cont, cliente);
     return;
@@ -1091,22 +1134,32 @@ async function renderTableroEvento(cliente) {
   const pedido = (pedidos || []).find(p => p.idCliente === cliente.id);
 
   if (fase === 'produccion') {
-    chips.push(chip('⏱ Timing', pasosTiming ? `${pasosTiming} pasos` : 'sin armar', pasosTiming ? '' : 'chip-falta', 'timing'));
-    if (isSuperAdmin()) {
-      chips.push(chip('🍽 Pedido de cocina', pedido ? 'cargado' : 'sin cargar', pedido ? '' : 'chip-falta', 'cocina'));
-    }
+    // Orden fijo, siempre en el mismo lugar: la plata primero, despues lo que
+    // hay que tener listo en el orden en que vence (propuesta, cocina, timing).
     if (canManagePagos()) {
-      chips.push(chip('💵 Cobrado', presu ? `${formatMoney(cobrado)} de ${formatMoney(presu)}` : formatMoney(cobrado),
-        presu && cobrado >= presu ? 'chip-ok' : '', 'pagos'));
+      // Un evento confirmado no puede estar sin presupuesto ni en cero.
+      const rojoSiConfirmado = cliente.estado === 'Confirmado' ? 'chip-urgente' : 'chip-falta';
+      if (!presu) {
+        chips.push(chip('💵 Cobrado', 'sin presupuesto', rojoSiConfirmado, 'editar'));
+      } else {
+        chips.push(chip('💵 Cobrado', `${formatMoney(cobrado)} de ${formatMoney(presu)}`,
+          cobrado >= presu ? 'chip-ok' : (cobrado <= 0 ? rojoSiConfirmado : ''), 'pagos'));
+      }
+    }
+    chips.push(chip('📄 Propuesta', propArmada ? 'armada' : 'sin armar', propArmada ? '' : _claseFalta(cliente, 'propuesta'), 'propuesta'));
+    if (isSuperAdmin()) {
+      chips.push(chip('🍽 Pedido de cocina', pedido ? 'cargado' : 'sin cargar', pedido ? '' : _claseFalta(cliente, 'cocina'), 'cocina'));
+    }
+    chips.push(chip('⏱ Timing', pasosTiming ? `${pasosTiming} pasos` : 'sin armar', pasosTiming ? '' : _claseFalta(cliente, 'timing'), 'timing'));
+    if (canManagePagos()) {
       chips.push(chip('🧾 Gastos del evento', formatMoney(gastado), '', 'egresos'));
     }
-    chips.push(chip('📄 Propuesta', propArmada ? 'armada' : 'sin armar', propArmada ? '' : 'chip-falta', 'propuesta'));
   } else {
     // Ya paso: los numeros dejan de ser botones y pasan a ser el resultado.
     if (canManagePagos()) {
       const falta = presu - cobrado;
       chips.push(chip('💵 Cobrado', falta > 0 ? `${formatMoney(cobrado)} · faltan ${formatMoney(falta)}` : `${formatMoney(cobrado)} · completo`,
-        falta > 0 ? 'chip-falta' : 'chip-ok', 'pagos'));
+        falta > 0 ? 'chip-urgente' : 'chip-ok', 'pagos'));
       chips.push(chip('🧾 Gastó', formatMoney(gastado), 'chip-pasado', 'egresos'));
     }
     chips.push(chip('📄 Papeles del evento', 'para consultar', 'chip-pasado', 'propuesta'));
@@ -1258,29 +1311,23 @@ function renderClienteDetail(c) {
       </span>`;
   }
 
-  // Nota interna: siempre interna (data-internal en el contenedor), desaparece
-  // en Vista cliente. Editable acá mismo sin abrir el formulario de Editar.
-  const notaPanel = $('modal-nota-interna');
-  if (notaPanel) {
-    notaPanel.innerHTML = `
-      <div class="nota-top-l">Nota</div>
-      <textarea id="modal-nota-interna-text" class="nota-top-text" rows="2"
-        placeholder="Sobre este evento…">${esc(c.notaInterna || '')}</textarea>
-      <div class="nota-top-acciones">
-        <button type="button" class="btn btn-secondary btn-sm" onclick="guardarNotaInterna()">Guardar nota</button>
-        <span id="modal-nota-interna-status" class="nota-top-status"></span>
-      </div>`;
-  }
+  renderNotaEvento(c);
 
   // Al re-renderizar no queda ningún campo en edición: ocultar la barra de guardar.
   actualizarBarraGuardarCliente?.();
+}
+
+// Nota interna del evento: siempre interna (data-internal en el contenedor),
+// desaparece en Vista cliente.
+function renderNotaEvento(c) {
+  _renderNotaCompacta($('modal-nota-interna'), 'modal-nota-interna', c.notaInterna,
+    'Sobre este evento…', 'guardarNotaInterna');
 }
 
 window.guardarNotaInterna = async function() {
   const c = currentClienteModal;
   if (!c) return;
   const texto = ($('modal-nota-interna-text')?.value || '').trim();
-  const status = $('modal-nota-interna-status');
   try {
     await apiFetch(`/clientes/${c.rowIndex}`, {
       method: 'PUT',
@@ -1289,11 +1336,7 @@ window.guardarNotaInterna = async function() {
     c.notaInterna = texto;
     const idx = allClientes.findIndex(x => x.id === c.id);
     if (idx !== -1) allClientes[idx].notaInterna = texto;
-    if (status) {
-      status.textContent = '✓ Guardada';
-      status.classList.add('ok');
-      setTimeout(() => { status.textContent = ''; status.classList.remove('ok'); }, 2500);
-    }
+    renderNotaEvento(c);
   } catch (err) {
     toast('No se pudo guardar la nota: ' + err.message, 'error');
   }

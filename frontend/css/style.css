@@ -3896,6 +3896,26 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
   margin-top: 8px;
 }
 .nota-top-status { font-size: 0.85rem; color: #6b6252; }
+
+/* Nota compacta: vacia es solo "+ Nota"; con texto, 3 renglones y se abre al tocarla */
+.nota-top.nota-top-vacia { background: none; border: 0; padding: 0; margin-bottom: 10px; }
+.nota-vista {
+  display: block; width: 100%;
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; text-align: left; color: inherit; cursor: pointer;
+}
+.nota-top-vacia .nota-vista { width: auto; min-height: 44px; display: inline-flex; align-items: center; }
+.nota-top-vacia .nota-vista .nota-top-l { margin: 0; color: #8a5a12; }
+.nota-vista-txt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: #2f2b24;
+}
 .nota-top-status.ok { color: #1f6b4a; font-weight: 600; }
 
 /* --- Bloque de la persona --- */
@@ -3977,7 +3997,8 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
   margin-bottom: 8px;
 }
 .tablero-cargando { font-size: 0.9rem; color: #8a7c5e; font-style: italic; }
-.tablero-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Grilla pareja: cada pildora en su casillero, todas del mismo ancho. */
+.tablero-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
 .ev-chip {
   display: inline-flex;
   align-items: center;
@@ -3995,7 +4016,10 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .ev-chip:hover:not(:disabled) { background: #f6f1e6; border-color: #b07d2b; }
 .ev-chip:disabled { cursor: default; opacity: 1; }
 .ev-chip b { font-weight: 700; }
+.tablero-chips .ev-chip { justify-content: flex-start; text-align: left; }
 .chip-falta { background: #fbf5e9; border-color: #d9b96b; color: #6b4e12; }
+.chip-urgente { background: #fbeceb; border-color: #d98a84; color: #9b1c15; }
+.chip-urgente:hover:not(:disabled) { background: #f7dedc; border-color: #b3261e; }
 .chip-ok { background: #e6f2ec; border-color: #9dc7b3; color: #17553a; }
 .chip-pasado { background: #f2efe7; border-color: #d6cebe; color: #5f584c; }
 .chip-accion { background: #8a5a12; border-color: #8a5a12; color: #fff; }
