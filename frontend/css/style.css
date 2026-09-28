@@ -4227,3 +4227,13 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .edi-cuota-n { font-weight: 600; }
 .edi-cuota-vto { color: #7A7264; }
 .edi-cuota-val { font-weight: 700; }
+
+
+/* ===== LISTAS QUE SE ESCRIBEN ===== */
+/* El buscador reemplaza al desplegable en cualquier lista larga: tiene que
+   ocupar el mismo lugar que ocupaba el <select> donde estuviera metido. */
+.campo-con-editor .ev-combo { flex: 1; min-width: 0; }
+.egr-equipo-fila .ev-combo { flex: 2 1 180px; min-width: 0; }
+.cocina-duplicar-wrap .ev-combo { flex: 1; min-width: 220px; }
+.cocina-duplicar-wrap .ev-combo-list { min-width: 280px; }
+.timing-global-selector .ev-combo { flex: 1; min-width: 260px; max-width: 560px; }

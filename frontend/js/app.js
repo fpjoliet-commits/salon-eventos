@@ -394,6 +394,7 @@ async function abrirCocinaDelEvento(cliente) {
   const sel = $('cocina-evento-select');
   if (sel) {
     sel.value = cliente.id;
+    syncBuscador('cocina-evento-select');
     // Si el evento no esta en la lista (solo lista confirmados), al menos
     // dejamos el nombre y la fecha escritos para que no los tipee de nuevo.
     if (sel.value === cliente.id) sel.dispatchEvent(new Event('change'));
@@ -428,13 +429,16 @@ function initTimingGlobal() {
   const opt = c => {
     const fecha = c.fechaEvento ? formatDate(c.fechaEvento) : 'sin fecha';
     const estado = c.estado ? ` · ${c.estado}` : '';
-    return `<option value="${c.id}">${esc(c.apellidoNombre)} — ${fecha}${esc(estado)}</option>`;
+    const busca = `${c.apellidoNombre || ''} ${c.nombreAgasajado || ''} ${c.tipoEvento || ''} ${fecha}`;
+    return `<option value="${c.id}" data-search="${esc(busca)}">${esc(c.apellidoNombre)} — ${fecha}${esc(estado)}</option>`;
   };
   const grupo = (label, arr) => arr.length
     ? `<optgroup label="${label}">${arr.map(opt).join('')}</optgroup>` : '';
 
   sel.innerHTML = '<option value="">-- Seleccioná un cliente --</option>' +
     grupo('Próximos', proximos) + grupo('Pasados / sin fecha', pasados);
+  hacerBuscable('timing-cliente-select', 'Buscá por cliente o fecha…');
+  syncBuscador('timing-cliente-select');
 
   content.innerHTML = '';
 
@@ -764,7 +768,11 @@ $('btn-ver-timing')?.addEventListener('click', () => {
   irAlModulo('timing-global', c);
   setTimeout(() => {
     const sel = $('timing-cliente-select');
-    if (sel) { sel.value = c.id; sel.dispatchEvent(new Event('change')); }
+    if (sel) {
+      sel.value = c.id;
+      syncBuscador('timing-cliente-select');
+      sel.dispatchEvent(new Event('change'));
+    }
   }, 100);
 });
 
@@ -8663,6 +8671,8 @@ function populateEmpleadoSelect() {
   sel.innerHTML = '<option value="">Seleccioná...</option>' +
     allEmpleados.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('') +
     '<option value="__nuevo__">+ Agregar nuevo...</option>';
+  hacerBuscable('egr-empleado', 'Buscá la persona…');
+  syncBuscador('egr-empleado');
   refrescarFilasEquipo();
 }
 
@@ -8685,15 +8695,20 @@ function populateEgrEventoSelect(selId = 'egr-evento') {
       return `<option value="${esc(c.id)}" data-search="${esc(search)}">${esc(c.apellidoNombre || 'Sin nombre')}${esc(agas)}${f}</option>`;
     }).join('');
   sel.value = prev;
-  mejorarComboEvento(selId);
+  hacerBuscable(selId, selId === 'edi-cliente'
+    ? 'Buscá el cliente…' : 'Buscá por cliente o agasajado…');
   syncBuscador(selId);
 }
 
-/* Convierte un <select> de eventos en un buscador (typeahead) sin perder el
+/* Convierte cualquier <select> largo en un buscador (typeahead) sin perder el
    <select> como fuente de verdad: se oculta visualmente y un input filtra sus
-   opciones. Así todo el código que lee/escribe sel.value sigue igual. */
-function mejorarComboEvento(selId) {
-  const sel = $(selId);
+   opciones. Así todo el código que lee/escribe sel.value sigue igual.
+   Toda lista que crece con los anios (clientes, eventos, pedidos, empleados)
+   se escribe; scrollearla no es practico. */
+function _elSelect(ref) { return typeof ref === 'string' ? $(ref) : ref; }
+
+function hacerBuscable(ref, placeholder = 'Buscá…') {
+  const sel = _elSelect(ref);
   if (!sel || sel.dataset.comboWired) { return; }
   sel.dataset.comboWired = '1';
 
@@ -8707,7 +8722,7 @@ function mejorarComboEvento(selId) {
   input.type = 'text';
   input.className = 'ev-combo-input';
   input.autocomplete = 'off';
-  input.placeholder = selId === 'edi-cliente' ? 'Buscá el cliente…' : 'Buscá por cliente o agasajado…';
+  input.placeholder = placeholder;
   const lista = document.createElement('div');
   lista.className = 'ev-combo-list';
   lista.hidden = true;
@@ -8724,7 +8739,7 @@ function mejorarComboEvento(selId) {
   const elegir = (val) => {
     sel.value = val;
     sel.dispatchEvent(new Event('change', { bubbles: true }));
-    syncBuscador(selId);
+    syncBuscador(sel);
     cerrar();
   };
 
@@ -8766,8 +8781,8 @@ function mejorarComboEvento(selId) {
 }
 
 // Refleja en el input del buscador el texto de la opción seleccionada del <select>.
-function syncBuscador(selId) {
-  const sel = $(selId);
+function syncBuscador(ref) {
+  const sel = _elSelect(ref);
   const input = sel && sel._buscador;
   if (!input) return;
   const opt = sel.options[sel.selectedIndex];
@@ -8970,6 +8985,8 @@ function refrescarFilasEquipo() {
     sel.innerHTML = '<option value="">Quién…</option>' +
       allEmpleados.map(e => `<option value="${esc(e.id)}" data-rol="${esc(e.rolHabitual || '')}">${esc(e.nombre)}</option>`).join('');
     if (antes) sel.value = antes;
+    hacerBuscable(sel, 'Quién…');
+    syncBuscador(sel);
   });
 }
 
@@ -8977,6 +8994,8 @@ function sumarFilaEquipo() {
   const cont = $('egr-equipo-filas');
   if (!cont) return;
   cont.insertAdjacentHTML('beforeend', filaEquipoHTML(++_equipoFilas));
+  const nueva = cont.lastElementChild?.querySelector('.eq-emp');
+  if (nueva) hacerBuscable(nueva, 'Quién…');
   totalEquipo();
 }
 
@@ -11028,9 +11047,11 @@ function openFormularioPedido(pedido = null) {
     const confirmados = allClientes.filter(c => c.estado === 'Confirmado');
     sel.innerHTML = '<option value="">— Sin vincular —</option>' +
       confirmados.map(c =>
-        `<option value="${esc(c.id)}" data-nombre="${esc(c.apellidoNombre)}" data-fecha="${esc(c.fechaEvento || '')}">${esc(c.apellidoNombre)} – ${formatDate(c.fechaEvento)}</option>`
+        `<option value="${esc(c.id)}" data-nombre="${esc(c.apellidoNombre)}" data-fecha="${esc(c.fechaEvento || '')}" data-search="${esc(`${c.apellidoNombre || ''} ${c.nombreAgasajado || ''} ${formatDate(c.fechaEvento)}`)}">${esc(c.apellidoNombre)} – ${formatDate(c.fechaEvento)}</option>`
       ).join('');
     sel.value = pedido?.idCliente || '';
+    hacerBuscable('cocina-evento-select', 'Buscá el evento…');
+    syncBuscador('cocina-evento-select');
     sel.onchange = () => {
       const opt = sel.selectedOptions[0];
       if (opt?.dataset.nombre) {
@@ -11353,6 +11374,8 @@ function populateDuplicarSelect() {
       const meta = [p.fecha ? formatDate(p.fecha) : null, pax ? `${pax} inv.` : null].filter(Boolean).join(' · ');
       return `<option value="${p.rowIndex}">${esc(p.nombreEvento || '—')}${meta ? ' · ' + meta : ''}</option>`;
     }).join('');
+  hacerBuscable('cocina-duplicar-select', 'Repetir otro pedido…');
+  syncBuscador('cocina-duplicar-select');
   // Botón "Repetir último": el más reciente por fecha
   if (btnUltimo) {
     const ultimo = pedidos[0];
@@ -11373,7 +11396,8 @@ function duplicarPedidoAnterior(rowIndex) {
   _collapseAllCats(true);
   _applyPedidoVisibility();
   toast(`Pedido repetido de "${p.nombreEvento || 'pedido anterior'}". Editá lo que necesites; abrí la categoría que quieras cambiar.`);
-  const sel = $('cocina-duplicar-select'); if (sel) sel.value = '';
+  const sel = $('cocina-duplicar-select');
+  if (sel) { sel.value = ''; syncBuscador('cocina-duplicar-select'); }
 }
 
 // Cancelar el formulario de pedido. Si hay cantidades cargadas pide confirmación
