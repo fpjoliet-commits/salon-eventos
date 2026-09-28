@@ -773,7 +773,9 @@
   const VISTAS_CLIENTES = {
     btnId: 'btn-vistas',
     ref: '#btn-exportar-csv', mode: 'before',
-    filterIds: FILTROS,
+    // FILTROS se declara mas abajo: leerlo al vuelo evita que este objeto
+    // rompa la carga del archivo (y con ella uiConfirm/toastUndo).
+    get filterIds() { return FILTROS; },
     ordenKey: LS.orden, setOrden: v => { orden = v; },
     columnasKey: LS.columnas,
     storageKey: LS.vistas,

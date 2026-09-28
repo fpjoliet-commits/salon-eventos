@@ -678,18 +678,25 @@ function renderStats(clientes) {
 }
 
 // Filtros
+/* Nadie escribe los acentos en el buscador, y la mitad de los apellidos los
+   tienen. Se comparan los dos lados sin tildes. */
+function sinAcentos(v) {
+  return (v || '').toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function applyFilters() {
-  const search = $('search-input').value.toLowerCase();
+  const search = sinAcentos($('search-input').value);
   const estado = $('filter-estado').value;
   const evento = $('filter-evento').value;
   const origen = $('filter-origen').value;
 
   let filtered = allClientes.filter(c => {
     const matchSearch = !search ||
-      (c.apellidoNombre || '').toLowerCase().includes(search) ||
-      (c.nombreAgasajado || '').toLowerCase().includes(search) ||
+      sinAcentos(c.apellidoNombre).includes(search) ||
+      sinAcentos(c.nombreAgasajado).includes(search) ||
       (c.telefono || '').includes(search) ||
-      (c.gmail || '').toLowerCase().includes(search);
+      sinAcentos(c.gmail).includes(search);
     const matchEstado = !estado ||
       (estado === '__con_fecha__' ? !!c.proximoSeguimiento : c.estado === estado);
     const matchEvento = !evento || c.tipoEvento === evento;
@@ -3109,13 +3116,13 @@ function renderCuotas(cliente, cuotas) {
       ${pendientes.length ? `
         <button class="btn btn-sm btn-secondary" id="btn-pagar-sel">✓ Marcar seleccionadas como pagadas</button>
         <div class="ipc-inline">
+          ${isAdmin() ? `<button class="btn btn-sm btn-secondary" id="btn-indexacion" data-a="${esIPC ? 'fija' : 'ipc'}">${esIPC ? 'Pasar a fijas' : '📈 Pasar a IPC'}</button>` : ''}
           ${esIPC ? '' : `
             <input type="number" id="ipc-pct" placeholder="IPC %" min="0" max="100" step="0.1" style="width:90px">
             <button class="btn btn-sm btn-secondary" id="btn-ipc">Ajustar por %</button>
           `}
           <button class="btn btn-sm btn-secondary" id="btn-ajustar-val">Fijar valor</button>
           <input type="number" id="nuevo-valor" placeholder="Nuevo valor ${esUSD ? 'U$S' : '$'}" min="0" style="width:130px">
-          ${isAdmin() ? `<button class="btn btn-sm btn-secondary" id="btn-indexacion" data-a="${esIPC ? 'fija' : 'ipc'}">${esIPC ? 'Pasar a fijas' : '📈 Pasar a IPC'}</button>` : ''}
         </div>
       ` : ''}
       ${isAdmin() ? `<button class="btn btn-sm btn-danger" id="btn-reset-plan" style="margin-left:auto">Borrar plan</button>` : ''}
@@ -9628,7 +9635,10 @@ function renderEgresos() {
         <td class="num-cell mov-monto-in">+ ${formatMoneda(monto, m.moneda)}</td>
         <td class="egr-notas-cell">${esc(m.formaPago || '')}</td>
         <td class="muted-cell">${esc(nombreCargador(m.cargadoPor))}</td>
-        <td class="egr-acciones"></td>
+        <td class="egr-acciones">${isSuperAdmin()
+          ? `<button class="btn-ing-edit" data-row="${m.rowIndex}" title="Corregir">✏️</button>
+             <button class="btn-ing-del" data-row="${m.rowIndex}" title="Borrar">🗑️</button>`
+          : ''}</td>
       </tr>`;
     }
     const empInfo = m.nombreEmpleado
@@ -9696,7 +9706,7 @@ document.addEventListener('click', async e => {
   const desc = eg ? `${eg.concepto} — ${formatMoneda(parseFloat(eg.monto) || 0, eg.moneda)}` : 'este egreso';
   const ok = await uiConfirm({
     titulo: '¿Borrar este gasto?',
-    mensaje: `${desc}\n\nNo se puede deshacer.`,
+    mensaje: desc,
     confirmar: 'Sí, borrar',
     cancelar: 'No',
     tipo: 'danger',
@@ -9706,7 +9716,55 @@ document.addEventListener('click', async e => {
     await apiFetch(`/egresos/${rowIndex}`, { method: 'DELETE' });
     allEgresos = allEgresos.filter(x => x.rowIndex !== rowIndex);
     renderEgresos();
-    toast('Egreso borrado');
+    // La fila queda vacia pero en su lugar, asi que se puede volver a escribir.
+    toastUndo('Gasto borrado', async () => {
+      try {
+        await apiFetch(`/egresos/${rowIndex}/restaurar`, { method: 'PUT', body: eg });
+        await loadEgresos();
+        toast('Gasto restaurado');
+      } catch (err) { toast('No se pudo restaurar: ' + err.message, 'error'); }
+    });
+  } catch (err) { toast('Error al borrar: ' + err.message, 'error'); }
+});
+
+/* Corregir o borrar un cobro ya cargado. Hasta ahora el gasto se podia editar
+   desde el historial y el cobro no: una prueba vieja o un cero de mas quedaban
+   ahi para siempre. */
+document.addEventListener('click', async e => {
+  const ed = e.target.closest('.btn-ing-edit');
+  if (ed) {
+    const ing = allIngresos.find(x => x.rowIndex === parseInt(ed.dataset.row));
+    if (ing) openEditarIngreso(ing);
+    return;
+  }
+  const btn = e.target.closest('.btn-ing-del');
+  if (!btn) return;
+  const rowIndex = parseInt(btn.dataset.row);
+  const ing = allIngresos.find(x => x.rowIndex === rowIndex);
+  if (!ing) return;
+  const desc = `${ing.cliente || ing.tipoIngreso || 'Cobro'} — ${formatMoneda(parseFloat(ing.monto) || 0, ing.moneda)}`;
+  // Si pago cuotas, esas cuotas quedan tachadas igual: hay que avisarlo.
+  const aviso = ing.tipoIngreso === 'Cuota'
+    ? '\n\nLas cuotas que haya pagado siguen figurando como pagadas.' : '';
+  const ok = await uiConfirm({
+    titulo: '¿Borrar este cobro?',
+    mensaje: desc + aviso,
+    confirmar: 'Sí, borrar',
+    cancelar: 'No',
+    tipo: 'danger',
+  });
+  if (!ok) return;
+  try {
+    await apiFetch(`/ingresos/${rowIndex}`, { method: 'DELETE' });
+    allIngresos = allIngresos.filter(x => x.rowIndex !== rowIndex);
+    renderEgresos();
+    toastUndo('Cobro borrado', async () => {
+      try {
+        await apiFetch(`/ingresos/${rowIndex}/restaurar`, { method: 'PUT', body: ing });
+        await loadEgresos();
+        toast('Cobro restaurado');
+      } catch (err) { toast('No se pudo restaurar: ' + err.message, 'error'); }
+    });
   } catch (err) { toast('Error al borrar: ' + err.message, 'error'); }
 });
 
@@ -9833,7 +9891,15 @@ document.addEventListener('click', e => {
   if (egreso) openEditarEgreso(egreso);
 });
 
+let _ediYaConfirmado = false;
+
 function openEditarIngreso(ingreso) {
+  _ediYaConfirmado = ingreso.confirmado !== false;
+  const titulo = $('edi-titulo');
+  if (titulo) titulo.textContent = _ediYaConfirmado ? 'Corregir el cobro' : 'Revisar el cobro';
+  const submit = document.querySelector('#editar-ingreso-form button[type=submit]');
+  if (submit) submit.textContent = _ediYaConfirmado ? 'Guardar cambios' : 'Confirmar el cobro';
+  $('edi-guardar-btn')?.classList.toggle('hidden', _ediYaConfirmado);
   $('edi-row-index').value = ingreso.rowIndex;
   $('edi-fecha').value = ingreso.fecha || '';
   $('edi-monto').value = ingreso.monto || '';
@@ -9854,6 +9920,8 @@ function openEditarIngreso(ingreso) {
   cargarCuotasDelCobro();
 }
 
+// Un cobro ya cargado no vuelve a tachar cuotas: las que pago ya estan tachadas.
+
 /* Si el evento tiene plan de pago, ahi mismo se dice que cuotas cubre este
    cobro. Sin esto habia que confirmarlo aca y despues ir a la ficha a tachar
    las cuotas a mano, con el riesgo de cargar el pago dos veces. */
@@ -9864,7 +9932,7 @@ async function cargarCuotasDelCobro() {
   const id = $('edi-cliente').value;
   lista.innerHTML = '';
   box.classList.add('hidden');
-  if (!id) return;
+  if (!id || _ediYaConfirmado) return;
   let cuotas = [];
   try { cuotas = await apiFetch(`/cuotas/cliente/${id}`); } catch { return; }
   const pendientesDelPlan = (cuotas || []).filter(c => c.estado !== 'pagada');
@@ -9885,7 +9953,8 @@ async function submitEditarIngreso(ev, confirmar = true) {
   ev?.preventDefault();
   hide('edi-error');
   const rowIndex = parseInt($('edi-row-index').value);
-  const original = (pendientes.ingresos || []).find(x => x.rowIndex === rowIndex) || {};
+  const original = (pendientes.ingresos || []).find(x => x.rowIndex === rowIndex)
+    || allIngresos.find(x => x.rowIndex === rowIndex) || {};
   const monto = parseFloat($('edi-monto').value);
   if (!(monto > 0)) {
     show('edi-error');
@@ -9893,6 +9962,7 @@ async function submitEditarIngreso(ev, confirmar = true) {
     return;
   }
   const idCliente = $('edi-cliente').value;
+  const debeConfirmar = confirmar && !_ediYaConfirmado;
   if (confirmar && !idCliente) {
     show('edi-error');
     $('edi-error').textContent = 'Elegí de qué evento es este cobro.';
@@ -9909,6 +9979,7 @@ async function submitEditarIngreso(ev, confirmar = true) {
     monto,
     moneda: $('edi-moneda').value,
     tipoIngreso: marcadas.length ? 'Cuota' : $('edi-tipo').value,
+    confirmado: _ediYaConfirmado ? true : original.confirmado,
     formaPago: $('edi-forma').value,
     idCliente,                                // el server deriva cliente/fechaEvento
     notas: [$('edi-notas').value.trim(), confirmar ? detalle : ''].filter(Boolean).join(' — '),
@@ -9918,7 +9989,7 @@ async function submitEditarIngreso(ev, confirmar = true) {
   botones.forEach(b => { b.disabled = true; });
   try {
     await apiFetch(`/ingresos/${rowIndex}`, { method: 'PUT', body: updated });
-    if (confirmar) {
+    if (debeConfirmar) {
       if (marcadas.length) {
         // El cobro ya existe como fila: tachar las cuotas sin crear otro ingreso.
         await apiFetch('/cuotas/pagar', {
@@ -9934,7 +10005,7 @@ async function submitEditarIngreso(ev, confirmar = true) {
       await apiFetch(`/ingresos/${rowIndex}/confirmar`, { method: 'PUT' });
     }
     hide('modal-editar-ingreso');
-    toast(confirmar ? 'Cobro confirmado' : 'Cobro guardado');
+    toast(_ediYaConfirmado ? 'Cobro corregido' : (confirmar ? 'Cobro confirmado' : 'Cobro guardado'));
     egresosCargados = false;
     await Promise.all([loadEgresos(), loadPendientes()]);
     if (!confirmar) _flashPendiente(rowIndex);
@@ -9987,9 +10058,10 @@ document.addEventListener('click', async e => {
   // Descartar = borrar el borrador (cobro o gasto). Cada uno descarta lo suyo
   // (la bandeja ya muestra solo los propios).
   const queEs = tipo === 'ingreso' ? 'cobro' : 'gasto';
+  const arrP = tipo === 'ingreso' ? (pendientes.ingresos || []) : (pendientes.egresos || []);
+  const borrador = arrP.find(x => x.rowIndex === rowIndex);
   const ok = await uiConfirm({
     titulo: `¿Descartar este borrador de ${queEs}?`,
-    mensaje: 'No se puede deshacer.',
     confirmar: 'Sí, descartar',
     cancelar: 'No',
     tipo: 'danger',
@@ -9998,8 +10070,14 @@ document.addEventListener('click', async e => {
   btn.disabled = true;
   try {
     await apiFetch(`/${base}/${rowIndex}`, { method: 'DELETE' });
-    toast('Borrador descartado');
     await loadPendientes();
+    toastUndo('Borrador descartado', async () => {
+      try {
+        await apiFetch(`/${base}/${rowIndex}/restaurar`, { method: 'PUT', body: borrador });
+        await loadPendientes();
+        toast('Borrador recuperado');
+      } catch (err) { toast('No se pudo recuperar: ' + err.message, 'error'); }
+    });
   } catch (err) { btn.disabled = false; toast('Error: ' + err.message, 'error'); }
 });
 

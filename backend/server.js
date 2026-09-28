@@ -471,6 +471,14 @@ app.delete('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Deshacer el borrado de un cobro. La fila quedo vacia pero sigue ahi, asi que
+// se vuelve a escribir en su lugar y ningun rowIndex se corre.
+app.put('/api/ingresos/:rowIndex/restaurar', auth, adminOnly, validarRowIndex, async (req, res) => {
+  try {
+    res.json(await sheets.restaurarIngreso(parseInt(req.params.rowIndex), req.body));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Editar un cobro (usado para corregir borradores desde la bandeja "Por confirmar").
 app.put('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
   try {
@@ -1316,6 +1324,13 @@ app.put('/api/egresos/:rowIndex/confirmar', auth, adminOnly, async (req, res) =>
 app.delete('/api/egresos/:rowIndex', auth, superAdminOnly, async (req, res) => {
   try {
     res.json(await sheets.deleteEgreso(parseInt(req.params.rowIndex)));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Espejo del restaurar de cobros.
+app.put('/api/egresos/:rowIndex/restaurar', auth, adminOnly, validarRowIndex, async (req, res) => {
+  try {
+    res.json(await sheets.restaurarEgreso(parseInt(req.params.rowIndex), req.body));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

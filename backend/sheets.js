@@ -567,6 +567,25 @@ async function deleteIngreso(rowIndex) {
   return { ok: true };
 }
 
+// Devuelve a la vida una fila borrada: escribe A:P, con el id incluido.
+// updateIngreso no sirve para esto porque empieza en B y la fila quedaria sin id.
+async function restaurarIngreso(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
+    const fila = { ...data, rowIndex };
+    if (idx !== -1) memIngresos[idx] = fila; else memIngresos.push(fila);
+    return fila;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Ingresos!A${rowIndex}:P${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [ingresoToRow(data)] },
+  });
+  return { ...data, rowIndex };
+}
+
 // Edita un ingreso (columnas B:P, sin tocar el id ni forzar confirmado).
 // El confirmado se preserva desde data: el modal manda el valor original, asi
 // un borrador editado sigue siendo borrador y uno confirmado sigue confirmado.
@@ -1467,9 +1486,27 @@ async function deleteEgreso(rowIndex) {
     spreadsheetId: SPREADSHEET_ID,
     range: `Egresos!A${rowIndex}:S${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(17).fill('')] },
+    resource: { values: [Array(19).fill('')] },
   });
   return { ok: true };
+}
+
+// Espejo de restaurarIngreso: reescribe la fila entera, con el id.
+async function restaurarEgreso(rowIndex, data) {
+  if (!tieneCredenciales) {
+    const idx = memEgresos.findIndex(e => e.rowIndex === rowIndex);
+    const fila = { ...data, rowIndex };
+    if (idx !== -1) memEgresos[idx] = fila; else memEgresos.push(fila);
+    return fila;
+  }
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `Egresos!A${rowIndex}:S${rowIndex}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [egresoToRow(data)] },
+  });
+  return { ...data, rowIndex };
 }
 
 async function updateEgreso(rowIndex, data) {
@@ -2657,14 +2694,14 @@ async function patchEvento(rowIndex, patch) {
 module.exports = {
   getPersonas, addPersona, updatePersona,
   getClientes, addCliente, updateCliente, deleteEvento, patchEvento,
-  getIngresos, addIngreso, confirmarIngreso, updateIngreso, deleteIngreso, estadoCuenta, cobroEnPesos,
+  getIngresos, addIngreso, confirmarIngreso, updateIngreso, deleteIngreso, restaurarIngreso, estadoCuenta, cobroEnPesos,
   getRestricciones, addRestriccion, deleteRestriccion,
   getTimming, addTimmingItem, updateTimmingItem, deleteTimmingItem, updateTimmingVivo,
   getCuotasByCliente, getAllCuotas, createPlan, imputarPago, calcularImputacion,
   calcularCompraCubiertos, estadoCubiertos,
   getConfig, setConfig, pagarCuotas, aplicarIPC, agregarCuotas, setIndexacionPlan, aplicarIPCAutomatico, ajustarValorCuotas, cancelarPlan, confirmarCuotas,
   getEmpleados, addEmpleado, updateEmpleado,
-  getEgresos, addEgreso, updateEgreso, deleteEgreso, confirmarEgreso,
+  getEgresos, addEgreso, updateEgreso, deleteEgreso, restaurarEgreso, confirmarEgreso,
   getCatalogoItems, addCatalogoItem, updateCatalogoItem, deleteCatalogoItem, cambiarCategoriaItem,
   editarItemCatalogo, eliminarItemCatalogo,
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
