@@ -156,6 +156,17 @@ async function verificarFila(hoja, rowIndex, idEsperado) {
   if (actual !== String(idEsperado)) throw errorFilaMovida();
 }
 
+/* Lee la fila fresca y revisa que siga siendo la esperada (mismo control que
+   verificarFila). Devuelve la fila como objeto: sirve de "antes" en la auditoría. */
+async function leerFilaVerificada(hoja, rowIndex, idEsperado, hasta, rowTo) {
+  const r = await getSheets().spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID, range: `${hoja}!A${rowIndex}:${hasta}${rowIndex}`, sinCache: true,
+  });
+  const fila = rowTo(r.data.values?.[0] || [], rowIndex - 2);
+  if (idEsperado && fila.id !== String(idEsperado)) throw errorFilaMovida();
+  return fila;
+}
+
 function errorFilaMovida() {
   const e = new Error('La planilla cambió mientras tanto (se movieron filas). Recargá la pantalla y volvé a intentar.');
   e.status = 409;
@@ -788,6 +799,7 @@ async function addIngreso(data) {
   if (!tieneCredenciales) {
     ingreso.rowIndex = memIngresos.length + 2;
     memIngresos.push(ingreso);
+    auditarPlata('Cargó', 'Cobro', ingreso, data.cargadoPor);
     return ingreso;
   }
   const sheets = getSheets();
@@ -801,17 +813,18 @@ async function addIngreso(data) {
     });
     ingreso.rowIndex = nextRow;
   });
+  auditarPlata('Cargó', 'Cobro', ingreso, data.cargadoPor);
   return ingreso;
 }
 
 async function confirmarIngreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
-    if (idx !== -1) memIngresos[idx].confirmado = true;
+    if (idx !== -1) { memIngresos[idx].confirmado = true; auditarPlata('Confirmó', 'Cobro', memIngresos[idx], quien); }
     return;
   }
   const sheets = getSheets();
-  await verificarFila('Ingresos', rowIndex, idEsperado);
+  const antes = await leerFilaVerificada('Ingresos', rowIndex, idEsperado, 'U', rowToIngreso);
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: SPREADSHEET_ID,
     resource: { valueInputOption: 'USER_ENTERED', data: [
@@ -819,6 +832,7 @@ async function confirmarIngreso(rowIndex, idEsperado, quien = '') {
       { range: `Ingresos!S${rowIndex}:T${rowIndex}`, values: [[ahoraAR(), quien]] },
     ] },
   });
+  auditarPlata('Confirmó', 'Cobro', antes, quien);
 }
 
 // "Borrar" un cobro (descartar un borrador o sacar uno cargado mal). Un
@@ -828,17 +842,18 @@ async function confirmarIngreso(rowIndex, idEsperado, quien = '') {
 async function deleteIngreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(x => x.rowIndex === rowIndex);
-    if (idx !== -1) memIngresos[idx].anulado = true;
+    if (idx !== -1) { memIngresos[idx].anulado = true; auditarPlata('Anuló', 'Cobro', memIngresos[idx], quien); }
     return { ok: true };
   }
   const sheets = getSheets();
-  await verificarFila('Ingresos', rowIndex, idEsperado);
+  const antes = await leerFilaVerificada('Ingresos', rowIndex, idEsperado, 'U', rowToIngreso);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Ingresos!S${rowIndex}:U${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [[ahoraAR(), quien, '1']] },
   });
+  auditarPlata('Anuló', 'Cobro', antes, quien);
   return { ok: true };
 }
 
@@ -850,8 +865,10 @@ async function restaurarIngreso(rowIndex, data, quien = '') {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
     const fila = { ...data, rowIndex, anulado: false };
     if (idx !== -1) memIngresos[idx] = fila; else memIngresos.push(fila);
+    auditarPlata('Restauró', 'Cobro', fila, quien);
     return fila;
   }
+  auditarPlata('Restauró', 'Cobro', data, quien);
   // Lo normal: la fila sigue ahí, anulada. Deshacer = sacarle la marca.
   if (await desanular('Ingresos', 'S', 'U', rowIndex, data.id, quien)) return { ...data, rowIndex, anulado: false };
   // Cobros borrados antes del 28/09/2026 (fila vaciada): se reescriben
@@ -865,11 +882,14 @@ async function updateIngreso(rowIndex, data) {
   data = listas.normalizar('ingreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
-    if (idx !== -1) memIngresos[idx] = { ...memIngresos[idx], ...data, rowIndex };
+    if (idx !== -1) {
+      auditarPlata('Editó', 'Cobro', memIngresos[idx], data.modificadoPor, cambiosPlata('Cobro', memIngresos[idx], data));
+      memIngresos[idx] = { ...memIngresos[idx], ...data, rowIndex };
+    }
     return memIngresos[idx] || { ...data, rowIndex };
   }
   const sheets = getSheets();
-  await verificarFila('Ingresos', rowIndex, data.id);
+  const antes = await leerFilaVerificada('Ingresos', rowIndex, data.id, 'U', rowToIngreso);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Ingresos!B${rowIndex}:P${rowIndex}`,
@@ -885,6 +905,8 @@ async function updateIngreso(rowIndex, data) {
     },
   });
   await sellarModificacion('Ingresos', 'S', 'T', rowIndex, data.modificadoPor);
+  auditarPlata('Editó', 'Cobro', { ...antes, ...data }, data.modificadoPor,
+    cambiosPlata('Cobro', antes, { ...data, confirmado: data.confirmado !== false }));
   return { ...data, rowIndex };
 }
 
@@ -1777,6 +1799,7 @@ async function addEgreso(data) {
   if (!tieneCredenciales) {
     e.rowIndex = memEgresos.length + 2;
     memEgresos.push(e);
+    auditarPlata('Cargó', 'Gasto', e, data.cargadoPor);
     return e;
   }
   const sheets = getSheets();
@@ -1792,6 +1815,7 @@ async function addEgreso(data) {
     });
     e.rowIndex = nextRow;
   });
+  auditarPlata('Cargó', 'Gasto', e, data.cargadoPor);
   return e;
 }
 
@@ -1799,17 +1823,18 @@ async function addEgreso(data) {
 async function deleteEgreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
-    if (idx !== -1) memEgresos[idx].anulado = true;
+    if (idx !== -1) { memEgresos[idx].anulado = true; auditarPlata('Anuló', 'Gasto', memEgresos[idx], quien); }
     return { ok: true };
   }
   const sheets = getSheets();
-  await verificarFila('Egresos', rowIndex, idEsperado);
+  const antes = await leerFilaVerificada('Egresos', rowIndex, idEsperado, 'W', rowToEgreso);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Egresos!U${rowIndex}:W${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [[ahoraAR(), quien, '1']] },
   });
+  auditarPlata('Anuló', 'Gasto', antes, quien);
   return { ok: true };
 }
 
@@ -1820,8 +1845,10 @@ async function restaurarEgreso(rowIndex, data, quien = '') {
     const idx = memEgresos.findIndex(e => e.rowIndex === rowIndex);
     const fila = { ...data, rowIndex, anulado: false };
     if (idx !== -1) memEgresos[idx] = fila; else memEgresos.push(fila);
+    auditarPlata('Restauró', 'Gasto', fila, quien);
     return fila;
   }
+  auditarPlata('Restauró', 'Gasto', data, quien);
   // Lo normal: la fila sigue ahí, anulada. Deshacer = sacarle la marca.
   if (await desanular('Egresos', 'U', 'W', rowIndex, data.id, quien)) return { ...data, rowIndex, anulado: false };
   // Gastos borrados antes del 28/09/2026 (fila vaciada): se reescriben
@@ -1832,11 +1859,14 @@ async function updateEgreso(rowIndex, data) {
   data = listas.normalizar('egreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
-    if (idx !== -1) memEgresos[idx] = { ...memEgresos[idx], ...data, rowIndex };
+    if (idx !== -1) {
+      auditarPlata('Editó', 'Gasto', memEgresos[idx], data.modificadoPor, cambiosPlata('Gasto', memEgresos[idx], data));
+      memEgresos[idx] = { ...memEgresos[idx], ...data, rowIndex };
+    }
     return memEgresos[idx] || { ...data, rowIndex };
   }
   const sheets = getSheets();
-  await verificarFila('Egresos', rowIndex, data.id);
+  const antes = await leerFilaVerificada('Egresos', rowIndex, data.id, 'W', rowToEgreso);
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `Egresos!B${rowIndex}:P${rowIndex}`,
@@ -1853,6 +1883,9 @@ async function updateEgreso(rowIndex, data) {
     },
   });
   await sellarModificacion('Egresos', 'U', 'V', rowIndex, data.modificadoPor);
+  // El confirmado no se edita acá (queda como estaba): no se compara
+  const { confirmado: _c, ...editado } = data;
+  auditarPlata('Editó', 'Gasto', { ...antes, ...data }, data.modificadoPor, cambiosPlata('Gasto', antes, editado));
   return { ...data, rowIndex };
 }
 
@@ -1860,11 +1893,11 @@ async function updateEgreso(rowIndex, data) {
 async function confirmarEgreso(rowIndex, idEsperado, quien = '') {
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
-    if (idx !== -1) memEgresos[idx].confirmado = true;
+    if (idx !== -1) { memEgresos[idx].confirmado = true; auditarPlata('Confirmó', 'Gasto', memEgresos[idx], quien); }
     return;
   }
   const sheets = getSheets();
-  await verificarFila('Egresos', rowIndex, idEsperado);
+  const antes = await leerFilaVerificada('Egresos', rowIndex, idEsperado, 'W', rowToEgreso);
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: SPREADSHEET_ID,
     resource: { valueInputOption: 'USER_ENTERED', data: [
@@ -1872,6 +1905,7 @@ async function confirmarEgreso(rowIndex, idEsperado, quien = '') {
       { range: `Egresos!U${rowIndex}:V${rowIndex}`, values: [[ahoraAR(), quien]] },
     ] },
   });
+  auditarPlata('Confirmó', 'Gasto', antes, quien);
 }
 
 /* ===================== PAPELERA ===================== */
@@ -2846,6 +2880,49 @@ async function volcarEstados() {
   } catch (e) {
     console.error('⚠️  No se pudo escribir el cambio de estado:', e.message);
   }
+}
+
+/* ===================== AUDITORÍA DE PLATA =====================
+   Cada alta, edición, confirmación, anulación y restauración de un cobro o un
+   gasto deja una fila en Auditoria. Alta/confirmación/anulación: foto del
+   movimiento. Edición: solo lo que cambió, { campo: [antes, después] }. */
+const CAMPOS_PLATA = {
+  Cobro: ['tipoIngreso', 'monto', 'moneda', 'fecha', 'formaPago', 'idCliente', 'cliente', 'notas', 'cotizacion', 'montoARS', 'confirmado'],
+  Gasto: ['fecha', 'concepto', 'categoria', 'monto', 'moneda', 'proveedor', 'nombreEmpleado', 'idEvento', 'notas', 'cotizacion', 'montoARS', 'confirmado'],
+};
+const CAMPOS_NUMERICOS = ['monto', 'cotizacion', 'montoARS'];
+const valorPlata = (k, v) => {
+  if (v === undefined || v === null || v === '') return '';
+  if (typeof v === 'boolean') return v ? 'sí' : 'no';
+  if (CAMPOS_NUMERICOS.includes(k)) { const n = parseFloat(v); return n ? String(n) : ''; }
+  return String(v);
+};
+
+function fotoPlata(entidad, obj) {
+  const foto = {};
+  for (const k of CAMPOS_PLATA[entidad]) {
+    const v = valorPlata(k, obj?.[k]);
+    if (v !== '') foto[k] = v;
+  }
+  return foto;
+}
+
+function cambiosPlata(entidad, antes, despues) {
+  const cambios = {};
+  for (const k of CAMPOS_PLATA[entidad]) {
+    if (despues[k] === undefined) continue;          // lo que no se manda no cambia
+    const a = valorPlata(k, antes[k]), d = valorPlata(k, despues[k]);
+    if (a !== d) cambios[k] = [a, d];
+  }
+  return cambios;
+}
+
+function auditarPlata(accion, entidad, obj, quien, detalle) {
+  registrarAuditoria({
+    usuario: quien, accion, entidad, idEntidad: obj?.id,
+    nombre: entidad === 'Cobro' ? (obj?.cliente || '') : (obj?.concepto || ''),
+    detalle: detalle || fotoPlata(entidad, obj),
+  });
 }
 
 /* ===================== INIT SHEETS ===================== */
