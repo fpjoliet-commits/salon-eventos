@@ -49,8 +49,8 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 |---|---|---|---|
 | A | id | texto | `PER-…` |
 | B | apellidoNombre | texto | Nombre del cliente |
-| C | telefono | texto/número | Teléfono tal como se cargó |
-| D | gmail | texto | Mail (minúsculas desde el formulario web) |
+| C | telefono | texto | Desde el 28/09/2026, los argentinos en una sola forma: `+54 9 ` + 10 dígitos (área + número, sin 0 ni 15), p. ej. `+54 9 1123456789`. Extranjeros o no interpretables (fijo sin área, "15…" sin área) quedan como se cargaron. Los anteriores se normalizan en la Fase 5 |
+| D | gmail | texto | Mail, siempre en minúsculas y sin espacios (desde el 28/09/2026 en toda carga) |
 | E | redSocial | texto | Usuario de Instagram u otra red |
 | F | origen | lista | Cómo llegó: `Instagram`, `Facebook`, `WhatsApp`, `Google`, `TikTok`, `Referido`, `Pasó por la puerta`, `Otro`, `Formulario`, `Cal.com` |
 | G | tipoCliente | lista | `Nuevo`, `Excliente`, `Referido` |

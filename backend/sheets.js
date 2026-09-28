@@ -415,6 +415,7 @@ async function getPersonas() {
 }
 
 async function addPersona(data) {
+  data = listas.normalizar('persona', data); // teléfono y mail en su forma única
   const id = generateId('PER');
   const now = hoyAR();
   const persona = { ...data, id, fechaCarga: data.fechaCarga || now, modificadoEn: ahoraAR(), modificadoPor: data.cargadoPor || '' };
@@ -438,6 +439,7 @@ async function addPersona(data) {
 }
 
 async function updatePersona(rowIndex, data) {
+  data = listas.normalizar('persona', data); // teléfono y mail en su forma única
   if (!tieneCredenciales) {
     const idx = memPersonas.findIndex(p => p.rowIndex === rowIndex);
     if (idx !== -1) memPersonas[idx] = { ...memPersonas[idx], ...data };

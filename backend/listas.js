@@ -57,11 +57,37 @@ function oficial(campo, valor, lista) {
   return v;
 }
 
+/* Teléfono argentino en una sola forma: "+54 9 " + los 10 dígitos nacionales
+   (código de área + número, sin 0 ni 15). Así "011 15-2345-6789", "1123456789"
+   y "+54 9 11 2345 6789" son el mismo teléfono y se detectan duplicados. Los
+   espacios hacen que Sheets lo guarde como texto (si no, lo convierte a número).
+   Lo que no se puede interpretar (extranjero, fijo sin área) queda como vino. */
+function normalizarTelefono(tel) {
+  const crudo = String(tel ?? '').trim();
+  if (!crudo) return '';
+  let n = crudo.replace(/\D/g, '');
+  if (crudo.startsWith('+') && !n.startsWith('54')) return crudo;   // extranjero
+  n = n.replace(/^00/, '');
+  if (n.startsWith('54') && n.length >= 12) n = n.slice(2).replace(/^9/, '');
+  n = n.replace(/^0/, '');
+  // "15" después del código de área (2 a 4 dígitos): celular en formato local
+  if (n.length === 12) {
+    for (const k of [2, 3, 4]) {
+      if (n.slice(k, k + 2) === '15') { n = n.slice(0, k) + n.slice(k + 2); break; }
+    }
+  }
+  // Ningún código de área empieza con 15: "15 2345 6789" es un celular sin área
+  return n.length === 10 && !n.startsWith('15') ? `+54 9 ${n}` : crudo;
+}
+
 /* Devuelve una copia con los campos de lista llevados a su valor oficial */
 function normalizar(tabla, obj) {
   if (!obj || typeof obj !== 'object') return obj;
   const campos = LISTAS[tabla] || {};
   const nuevo = { ...obj };
+  // Datos de contacto (fichas de evento y de persona): una sola forma de escribirlos
+  if (typeof nuevo.telefono === 'string') nuevo.telefono = normalizarTelefono(nuevo.telefono);
+  if (typeof nuevo.gmail === 'string') nuevo.gmail = nuevo.gmail.trim().toLowerCase();
   for (const [campo, lista] of Object.entries(campos)) {
     if (campo in nuevo) nuevo[campo] = oficial(campo, nuevo[campo], lista);
   }
@@ -86,4 +112,4 @@ function oPorDefecto(tabla, campo, valor, porDefecto) {
   return lista.includes(v) ? v : porDefecto;
 }
 
-module.exports = { LISTAS, normalizar, validar, oPorDefecto };
+module.exports = { LISTAS, normalizar, normalizarTelefono, validar, oPorDefecto };

@@ -974,9 +974,9 @@ function renderPersonaBloque(cliente) {
   const box = $('cliente-persona-bloque');
   if (!box) return;
   const ed = (key, label, type, opts) => _campoEditable(cliente, key, label, type, opts);
-  const tel = (cliente.telefono || '').replace(/[^\d+]/g, '');
+  const tel = normalizarTelWhatsapp(cliente.telefono);
   const wsp = tel
-    ? `<a class="pb-accion" href="https://wa.me/${esc(tel.replace(/^\+/, ''))}" target="_blank" rel="noopener">${LOGO_WA}WhatsApp</a>`
+    ? `<a class="pb-accion" href="https://wa.me/${esc(tel)}" target="_blank" rel="noopener">${LOGO_WA}WhatsApp</a>`
     : '';
   box.innerHTML = `
     <div class="pb-titulo">Datos de contacto ${wsp}</div>
@@ -2492,12 +2492,12 @@ function renderSeguimientosView() {
     const t = tramo(dias);
     if (t === 'critico') dias90.push(c); else if (t === 'alto') dias30.push(c); else diasResto.push(c);
     const tel = c.telefono || '';
-    const waNum = tel.replace(/\D/g, '');
+    const waNum = normalizarTelWhatsapp(tel);
     const telCell = tel
       ? `<a href="tel:${tel}" class="seg-tel-link" onclick="event.stopPropagation()">${esc(tel)}</a>`
       : '<span class="seg-tel-vacio">sin teléfono</span>';
     const waLink = waNum
-      ? `<a href="https://wa.me/54${waNum}" target="_blank" class="seg-wa-btn" onclick="event.stopPropagation()" title="Escribir por WhatsApp">WhatsApp</a>`
+      ? `<a href="https://wa.me/${waNum}" target="_blank" class="seg-wa-btn" onclick="event.stopPropagation()" title="Escribir por WhatsApp">WhatsApp</a>`
       : '';
     return `<tr class="seg-fila" onclick="openClienteModal(window._cmap['${c.id}'])">
       <td class="seg-col-nombre">${esc(c.apellidoNombre || '—')}</td>
@@ -2746,9 +2746,10 @@ $('cliente-form').addEventListener('submit', async e => {
     }
 
     // Validar: teléfono duplicado (advertencia, no bloqueo)
-    const tel = (form.telefono.value || '').trim().replace(/\s/g, '');
+    // Comparados en formato WhatsApp: "011 15-2345-6789" y "+54 9 1123456789" son el mismo
+    const tel = normalizarTelWhatsapp(form.telefono.value);
     if (tel) {
-      const duplicadoTel = allPersonas.find(p => p.telefono && p.telefono.replace(/\s/g, '') === tel);
+      const duplicadoTel = allPersonas.find(p => p.telefono && normalizarTelWhatsapp(p.telefono) === tel);
       if (duplicadoTel) {
         const eventosExist = allClientes.filter(c => c.personaId === duplicadoTel.id);
         const eventosStr = eventosExist.map(c => `${c.tipoEvento || '?'} (${c.estado})`).join(', ');
@@ -8326,6 +8327,7 @@ ${tipo === 'contrato' ? (() => {
 function normalizarTelWhatsapp(tel) {
   let n = String(tel || '').replace(/\D/g, '');
   if (!n) return '';
+  if (String(tel).trim().startsWith('+') && !n.startsWith('54')) return n;  // extranjero: tal cual
   if (n.startsWith('54')) {
     // asegurar el 9 de celular después del 54
     if (!n.startsWith('549')) n = '549' + n.slice(2);
