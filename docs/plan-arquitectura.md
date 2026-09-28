@@ -48,33 +48,26 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 
 ## Pendiente
 
-**Acciones del usuario**
-- Confirmar que el backup de las 03:00 apareció en "Backups CRM Joliet".
+El código del plan está completo. Lo que falta son acciones de personas:
+
+**Lautaro**
+- Avisos por Telegram: cargar en Render `TELEGRAM_CHAT_ALERTAS` (su chat id) y `RESUMEN_SECRET`;
+  en el Apps Script del backup, `CRM_URL` y `RESUMEN_SECRET`, y volver a ejecutar `instalar`
+  (pasos en `docs/backup-planilla.md`).
+- Monitor externo (UptimeRobot o similar) contra `/api/salud`, que avise si el CRM se cae.
+- Cal.com: disponibilidad martes a sábado 17:30–20:00, turnos de 30 min (último 19:30).
+- Confirmar que el backup de las 03:00 aparece en "Backups CRM Joliet".
 - Reserva de prueba en Cal.com: confirmar que la URL del webhook tiene `?secret=...` y entra al CRM.
-- Superadmin: confirmar/descartar 2 cobros viejos del bot sin dueño en "Por confirmar".
 - Activar cuentas de Fabio y Lautaro: `node backend/hash-password.js "clave"` → cargar
   `PASSWORD_FABIO` / `PASSWORD_LAUTARO` en Render.
+- Decidir: Render pago (sin demora al abrir) y Looker Studio (gráficos) — ninguno es urgente.
 
-**Fase 4 — historia de cada venta**
-
-**Fase 5 — limpiar histórico** (script listo y probado en la copia; falta correrlo en la real)
-- A completar a mano (Mariana): 2 confirmados sin fecha (Amaya Barbara Lucía, Nicolás Pérez), cobro de $850.000 del 16/09 sin evento (¿duplicado del de RIOS LAURA?), teléfonos de Vanessa Verger y Rocío Di Palma.
-- Prueba de conexión con Looker Studio (solo leer) — acción del usuario.
-
-**Fase 6 — operación**
-- Alerta si se cae (monitor → Telegram). Apagado prolijo (vaciar cola de auditoría en SIGTERM).
-- Cerrar sesiones a distancia. Pruebas automáticas de cálculos de plata. Render pago (decide el usuario).
-- **Avisos por Telegram — SOLO a Lautaro** (nueva env var, p. ej. `TELEGRAM_CHAT_ALERTAS`;
-  hace falta su chat id). A Fabio/Mariana/Anita NO les llega nada técnico: lo que ellos
-  resuelven ya está en el CRM (bandeja "Por confirmar", píldoras de la ficha, seguimientos).
-  Regla: a cada uno le llega solo lo que puede resolver.
-  - *Urgente, en el momento, solo si algo se rompe:* CRM caído / Google sin conexión; falló el
-    backup nocturno; el bot no puede interpretar (Gemini caído o clave vencida); un cobro
-    falló y NO se pudieron devolver las cuotas (`conDevolucion` en server.js ya lo loguea).
-  - *Resumen semanal, lunes a la mañana, un solo mensaje:* datos con problemas (cobros sin
-    evento, fichas sin fecha, valores fuera de `listas.js` escritos a mano en la planilla, ids
-    duplicados), borradores del bot con más de 7 días, y una línea de salud (cargas, errores
-    del servidor, backups de la semana). Semana limpia = "✅ Semana sin problemas".
+**Mariana (datos a mano)**
+- Fecha de la fiesta de Amaya Barbara Lucía y Nicolás Pérez (confirmados sin fecha).
+- Silvina Ferreyra: ¿13/11 o 14/11? (nota interna en la ficha).
+- Cobro de $850.000 del 16/09 sin evento: ¿duplicado del de RIOS LAURA?
+- Teléfonos sin área: Vanessa Verger, Rocío Di Palma.
+- Superadmin: confirmar/descartar 2 cobros viejos del bot sin dueño en "Por confirmar".
 
 ## Herramientas de prueba usadas
 
