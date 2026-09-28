@@ -1,4 +1,5 @@
 const fs = require('fs');
+const listas = require('./listas');
 const path = require('path');
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
@@ -359,6 +360,7 @@ async function getClientes() {
 }
 
 async function addCliente(data) {
+  data = listas.normalizar('evento', data); // valores de lista siempre en su forma oficial
   const now = hoyAR();
   let persona;
 
@@ -433,6 +435,7 @@ async function addCliente(data) {
 }
 
 async function updateCliente(rowIndex, data) {
+  data = listas.normalizar('evento', data); // valores de lista siempre en su forma oficial
   // rowIndex = fila en hoja Eventos
   // data.personaRowIndex = fila en hoja Personas (si se envía, se actualiza la persona también)
   if (!tieneCredenciales) {
@@ -586,6 +589,7 @@ async function getIngresos() {
 }
 
 async function addIngreso(data) {
+  data = listas.normalizar('ingreso', data); // valores de lista siempre en su forma oficial
   const id = generateId('ING');
   // El bot manda confirmado:false explícito; si no viene, regla histórica (empleado = sin confirmar).
   const confirmado = data.confirmado !== undefined
@@ -649,6 +653,7 @@ async function deleteIngreso(rowIndex) {
 // Devuelve a la vida una fila borrada: escribe A:P, con el id incluido.
 // updateIngreso no sirve para esto porque empieza en B y la fila quedaria sin id.
 async function restaurarIngreso(rowIndex, data) {
+  data = listas.normalizar('ingreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
     const fila = { ...data, rowIndex };
@@ -669,6 +674,7 @@ async function restaurarIngreso(rowIndex, data) {
 // El confirmado se preserva desde data: el modal manda el valor original, asi
 // un borrador editado sigue siendo borrador y uno confirmado sigue confirmado.
 async function updateIngreso(rowIndex, data) {
+  data = listas.normalizar('ingreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memIngresos.findIndex(i => i.rowIndex === rowIndex);
     if (idx !== -1) memIngresos[idx] = { ...memIngresos[idx], ...data, rowIndex };
@@ -1524,6 +1530,7 @@ async function getEgresos() {
 }
 
 async function addEgreso(data) {
+  data = listas.normalizar('egreso', data); // valores de lista siempre en su forma oficial
   const id = generateId('EGR');
   const e = {
     ...data, id, periodo: periodoDe(data.fecha),
@@ -1572,6 +1579,7 @@ async function deleteEgreso(rowIndex) {
 
 // Espejo de restaurarIngreso: reescribe la fila entera, con el id.
 async function restaurarEgreso(rowIndex, data) {
+  data = listas.normalizar('egreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(e => e.rowIndex === rowIndex);
     const fila = { ...data, rowIndex };
@@ -1589,6 +1597,7 @@ async function restaurarEgreso(rowIndex, data) {
 }
 
 async function updateEgreso(rowIndex, data) {
+  data = listas.normalizar('egreso', data); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memEgresos.findIndex(x => x.rowIndex === rowIndex);
     if (idx !== -1) memEgresos[idx] = { ...memEgresos[idx], ...data, rowIndex };
@@ -2751,6 +2760,7 @@ async function initSheets() {
 
 // Actualiza solo campos específicos de un evento sin tocar el resto de la fila
 async function patchEvento(rowIndex, patch) {
+  patch = listas.normalizar('evento', patch); // valores de lista siempre en su forma oficial
   if (!tieneCredenciales) {
     const idx = memEventos.findIndex(e => e.rowIndex === rowIndex);
     if (idx !== -1) Object.assign(memEventos[idx], patch);

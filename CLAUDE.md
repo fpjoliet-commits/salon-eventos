@@ -55,6 +55,13 @@ Cocina/stock (superadmin): catálogo de ítems, stock actual y pedidos de cocina
 
 Estados de un cliente/evento: `Consulta | Visita agendada | Por cerrar | Confirmado | Realizado | Cancelado`
 
+**Listas cerradas:** los valores válidos de estado, tipo de evento, origen, turno,
+tipo/forma de cobro, categoría de gasto, etc. viven en `backend/listas.js` (única
+fuente de verdad). Todo lo que se guarda pasa por `normalizar()` (sinónimos →
+valor oficial, p. ej. "Cumpleaños de 15" → "XV años") y las rutas rechazan lo que
+no está en la lista. **Si se agrega una opción a un `<select>` de `index.html`,
+agregarla también en `listas.js`.**
+
 ## Módulos principales
 
 - **Ficha de cliente** (modal, 5 tabs): **Información · Plan de pago · Restricciones · Historial · Propuesta**

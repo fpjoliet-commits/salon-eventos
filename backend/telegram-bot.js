@@ -20,6 +20,7 @@
    ========================================================================== */
 
 const express = require('express');
+const listas = require('./listas');
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -206,9 +207,10 @@ async function crearBorrador(sheets, ext, usuario, clientes) {
 
   if (ext.tipo === 'ingreso') {
     const ing = await sheets.addIngreso({
-      tipoIngreso: ext.tipoIngreso || 'Otro',
+      // Si la IA devuelve algo fuera de la lista oficial, cae en el valor por defecto
+      tipoIngreso: listas.oPorDefecto('ingreso', 'tipoIngreso', ext.tipoIngreso, 'Otro'),
       monto, moneda, fecha,
-      formaPago: ext.formaPago || 'Efectivo',
+      formaPago: listas.oPorDefecto('ingreso', 'formaPago', ext.formaPago, 'Efectivo'),
       idCliente: match ? match.id : '',
       cliente: match ? match.apellidoNombre : '',
       fechaEvento: match ? (match.fechaEvento || '') : '',
@@ -223,7 +225,7 @@ async function crearBorrador(sheets, ext, usuario, clientes) {
   const egr = await sheets.addEgreso({
     fecha,
     concepto: ext.concepto || 'Gasto',
-    categoria: ext.categoria || 'Servicios',
+    categoria: listas.oPorDefecto('egreso', 'categoria', ext.categoria, 'Servicios'),
     nombreEmpleado: ext.nombreEmpleado || '',
     rolPago: ext.rolPago || '',
     monto, moneda,

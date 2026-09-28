@@ -15,6 +15,7 @@ if (!process.env.RENDER && process.env.SPREADSHEET_ID === ID_PLANILLA_REAL) {
 }
 
 const sheets = require('./sheets');
+const listas = require('./listas');
 
 const app = express();
 
@@ -216,9 +217,7 @@ function pendientesVisibles(items, req) {
    estados inventados, fechas basura). Esto no reemplaza la validación del
    formulario: la duplica del lado que manda. */
 
-const ESTADOS_VALIDOS = [
-  'Consulta', 'Visita agendada', 'Por cerrar', 'Confirmado', 'Realizado', 'Cancelado',
-];
+// Los valores válidos de estado, tipo de evento, etc. están en listas.js
 
 const LARGO_MAX = 500;          // tope general para cualquier texto
 const LARGO_MAX_LARGO = 3000;   // observaciones y campos de texto libre
@@ -249,9 +248,9 @@ function limpiarCliente(body) {
   if (!data.apellidoNombre) {
     return { error: 'Falta el nombre del cliente' };
   }
-  if (data.estado && !ESTADOS_VALIDOS.includes(data.estado)) {
-    return { error: `Estado inválido: "${data.estado}"` };
-  }
+  // Estado, tipo de evento, origen, turno, etc.: solo valores de la lista oficial
+  const errLista = listas.validar('evento', data);
+  if (errLista) return { error: errLista };
   for (const campo of ['fechaEvento', 'proximoSeguimiento']) {
     if (data[campo] !== undefined && !esFechaISO(data[campo])) {
       return { error: `La fecha de "${campo}" tiene que ser AAAA-MM-DD` };
@@ -428,10 +427,7 @@ function validarIngreso(body) {
   if (!esFechaISO(body.fecha) || !body.fecha) {
     return 'El cobro necesita una fecha válida (AAAA-MM-DD)';
   }
-  if (body.moneda && !['ARS', 'USD'].includes(body.moneda)) {
-    return `Moneda inválida: "${body.moneda}"`;
-  }
-  return null;
+  return listas.validar('ingreso', body);
 }
 
 app.post('/api/ingresos', auth, adminOnly, async (req, res) => {
@@ -493,6 +489,8 @@ app.put('/api/ingresos/:rowIndex/restaurar', auth, adminOnly, validarRowIndex, a
 
 // Editar un cobro (usado para corregir borradores desde la bandeja "Por confirmar").
 app.put('/api/ingresos/:rowIndex', auth, adminOnly, async (req, res) => {
+  const errLista = listas.validar('ingreso', req.body);
+  if (errLista) return res.status(400).json({ error: errLista });
   try {
     const { cliente, fechaEvento } = await datosEvento(req.body.idCliente);
     const actualizado = await sheets.updateIngreso(parseInt(req.params.rowIndex), {
@@ -1308,6 +1306,8 @@ app.get('/api/pendientes', auth, adminOnly, async (req, res) => {
 });
 
 app.post('/api/egresos', auth, adminOnly, async (req, res) => {
+  const errLista = listas.validar('egreso', req.body);
+  if (errLista) return res.status(400).json({ error: errLista });
   if (req.body.categoria === 'Materia Prima' && req.user.role !== 'superadmin')
     return res.status(403).json({ error: 'Solo el superadmin puede registrar Materia Prima' });
   try {
@@ -1319,6 +1319,8 @@ app.post('/api/egresos', auth, adminOnly, async (req, res) => {
 });
 
 app.put('/api/egresos/:rowIndex', auth, adminOnly, async (req, res) => {
+  const errLista = listas.validar('egreso', req.body);
+  if (errLista) return res.status(400).json({ error: errLista });
   try {
     const rowIndex = parseInt(req.params.rowIndex);
     const { etiqueta } = await datosEvento(req.body.idEvento);

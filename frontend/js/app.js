@@ -48,6 +48,17 @@ function formatDate(str) {
   return str;
 }
 
+// Pone un valor en un campo. Si es un <select> y el valor no está entre sus
+// opciones (un dato viejo o escrito distinto), lo agrega en vez de dejarlo en
+// blanco: antes el select quedaba vacío y al guardar la ficha se borraba el dato.
+function valorEnCampo(el, val) {
+  const v = val == null ? '' : String(val);
+  if (el.tagName === 'SELECT' && v && ![...el.options].some(o => o.value === v)) {
+    el.add(new Option(v, v));
+  }
+  el.value = v;
+}
+
 // "2026-09-28 18:22:34" (como guarda el servidor) → "28/09/2026 18:22".
 // Lo viejo ("28/9/2026, 18:22:34") se muestra tal cual.
 function formatFechaHora(str) {
@@ -1246,7 +1257,7 @@ function abrirNuevoEventoParaPersona(clienteBase) {
   $('edit-persona-id').value = clienteBase.personaId || '';
   $('edit-persona-row-index').value = clienteBase.personaRowIndex || '';
 
-  const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
+  const setVal = (name, val) => { if (form[name]) valorEnCampo(form[name], val); };
   setVal('apellidoNombre', clienteBase.apellidoNombre);
   setVal('telefono', clienteBase.telefono);
   setVal('gmail', clienteBase.gmail);
@@ -1390,7 +1401,7 @@ function iniciarEdicionCampoCliente(span) {
     control = document.createElement('select');
     const src = document.querySelector(`#cliente-form [name="${selectName}"]`);
     control.innerHTML = src ? src.innerHTML : '<option value="">—</option>';
-    control.value = actual;
+    valorEnCampo(control, actual);
   } else if (type === 'textarea') {
     control = document.createElement('textarea');
     control.rows = 2;
@@ -2643,7 +2654,7 @@ function seleccionarPersonaExistente(personaId) {
 
   // Pre-fill campos
   const form = $('cliente-form');
-  const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
+  const setVal = (name, val) => { if (form[name]) valorEnCampo(form[name], val); };
   setVal('apellidoNombre', persona.apellidoNombre);
   setVal('telefono', persona.telefono);
   setVal('gmail', persona.gmail);
@@ -2857,7 +2868,7 @@ function openEditForm(cliente) {
   hide('persona-search-section');
 
   const form = $('cliente-form');
-  const setVal = (name, val) => { if (form[name]) form[name].value = val || ''; };
+  const setVal = (name, val) => { if (form[name]) valorEnCampo(form[name], val); };
 
   setVal('estado', cliente.estado);
   setVal('apellidoNombre', cliente.apellidoNombre);
