@@ -1258,11 +1258,11 @@ app.post('/api/t/:slug', async (req, res) => {
 });
 
 // Migración única: Clientes → Personas + Eventos (admin y superadmin)
-app.post('/api/migrar-clientes', auth, adminOnly, async (req, res) => {
-  try {
-    const result = await sheets.migrarClientesAPersonasEventos();
-    res.json(result);
-  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+// La migración Clientes → Personas + Eventos ya se hizo. Volver a correrla
+// vaciaba Personas y Eventos y las rearmaba desde la hoja vieja "Clientes":
+// se perdía todo lo cargado desde entonces. Quedó desactivada.
+app.post('/api/migrar-clientes', auth, (req, res) => {
+  res.status(410).json({ error: 'La migración ya se hizo y está desactivada.' });
 });
 
 // Empleados

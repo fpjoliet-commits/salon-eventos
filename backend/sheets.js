@@ -2590,72 +2590,6 @@ async function deletePedidoCocina(rowIndex) {
   });
 }
 
-/* ===================== MIGRACIÓN Clientes → Personas+Eventos ===================== */
-async function migrarClientesAPersonasEventos() {
-  if (!tieneCredenciales) throw new Error('Solo se puede migrar con credenciales de Google.');
-  const sheets = getSheets();
-
-  // Leer hoja Clientes vieja
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Clientes!A2:X',
-  });
-  const rows = (res.data.values || []).filter(r => r[0]); // filtra filas con id
-  if (!rows.length) return { migradas: 0, msg: 'Hoja Clientes vacía o no existe.' };
-
-  // Limpiar AMBAS hojas (datos desde fila 2, preserva headers si existen)
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:L' });
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:W' });
-
-  // Escribir headers explícitamente para garantizar que los datos vayan a fila 2
-  // (si el sheet está vacío sin header, append pondría datos en fila 1 y getClientes() los perdería)
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A1:L1', valueInputOption: 'USER_ENTERED',
-    resource: { values: [['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor','notaPersona']] },
-  });
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A1:X1', valueInputOption: 'USER_ENTERED',
-    resource: { values: [['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna','modalidadPago','precioCubierto']] },
-  });
-
-  // Old Clientes columns (0-indexed):
-  // 0:id 1:estado 2:cargadoPor 3:fechaCarga 4:apellidoNombre 5:telefono 6:gmail
-  // 7:redSocial 8:tipoEvento 9:formato 10:fechaEvento 11:estadoFecha 12:cantidadInvitados
-  // 13:turno 14:tipoCliente 15:exclienteReferencia 16:exclienteNota 17:origen
-  // 18:presupuesto 19:montoPresupuesto 20:menuInfantil 21:otrosPedidos 22:observaciones 23:proximoSeguimiento
-
-  const personaRows = [];
-  const eventoRows = [];
-
-  for (const r of rows) {
-    const g = i => (r[i] || '');
-    const oldId = g(0);
-    const perId = `PER-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-
-    // Persona: id, apellidoNombre, telefono, gmail, redSocial, origen, tipoCliente,
-    //          exclienteReferencia, exclienteNota, fechaCarga, cargadoPor
-    personaRows.push([perId, g(4), g(5), g(6), g(7), g(17), g(14), g(15), g(16), g(3), g(2), '']);
-
-    // Evento usa el ID ORIGINAL del cliente (preserva vínculos con Ingresos/Timming)
-    // 23 columnas A-W (incluye nombreAgasajado en W)
-    eventoRows.push([oldId, perId, g(1), g(2), g(3), g(8), g(9), g(10), g(11), g(12), g(13),
-      g(18), g(19), g(20), g(21), g(22), g(23), '', '', '', '', '', '']);
-
-    await new Promise(r2 => setTimeout(r2, 1));
-  }
-
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID, range: 'Personas!A:L', valueInputOption: 'USER_ENTERED',
-    resource: { values: personaRows },
-  });
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A:W', valueInputOption: 'USER_ENTERED',
-    resource: { values: eventoRows },
-  });
-
-  return { migradas: rows.length };
-}
-
 /* ===================== AUDITORÍA =====================
    Registro de quién cambió qué y cuándo. Antes no había forma de saberlo:
    sólo quedaba `cargadoPor`, que dice quién creó el evento, no quién lo tocó
@@ -2930,7 +2864,6 @@ module.exports = {
   getPedidosCocina, addPedidoCocina, updatePedidoCocina, deletePedidoCocina,
   getStockActual, actualizarMinimoStock, actualizarStockActual, sincronizarStockConCatalogo, sincronizarCatalogoConInicial, sincronizarIngredientesStock,
   initSheets,
-  migrarClientesAPersonasEventos,
   registrarAuditoria, getAuditoria, fotoAuditoria,
   tieneCredenciales,
 };
