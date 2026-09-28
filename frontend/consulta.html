@@ -579,6 +579,7 @@
 
   // Mismo criterio que normalizarTelefono() de backend/listas.js: un celular
   // argentino tiene 10 dígitos (área + número). Un extranjero (+ que no es 54) pasa.
+  let telefonoAvisado = null;
   function telefonoCompleto(tel) {
     let n = tel.replace(/\D/g, '');
     if (tel.trim().startsWith('+') && !n.startsWith('54')) return n.length >= 8;
@@ -609,9 +610,12 @@
     if (!nombreSolo) { markErr('nombre');     showError('El nombre es obligatorio.'); return; }
     if (!apellido)   { markErr('apellido');   showError('El apellido es obligatorio.'); return; }
     if (!telefono)   { markErr('telefono');   showError('El teléfono es obligatorio.'); return; }
-    if (!telefonoCompleto(telefono)) {
+    // Aviso suave: la primera vez se explica; si insiste con el mismo número, se
+    // manda igual. Perder la consulta es peor que recibir un teléfono incompleto.
+    if (!telefonoCompleto(telefono) && telefonoAvisado !== telefono) {
+      telefonoAvisado = telefono;
       markErr('telefono');
-      showError('Poné el teléfono con código de área, sin 0 ni 15. Ej: 11 2345 6789');
+      showError('¿Le falta el código de área? Ej: 11 2345 6789. Si está bien así, tocá Enviar de nuevo.');
       return;
     }
     if (!email || !email.includes('@')) { markErr('email'); showError('Ingresá un email válido.'); return; }
