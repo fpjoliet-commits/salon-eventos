@@ -9395,7 +9395,7 @@ function setupEgresosForm() {
       movToggle.setAttribute('aria-expanded', String(abierto));
       movToggle.querySelector('.mov-toggle-eye').textContent = abierto ? '👁️' : '🙈';
       const est = movToggle.querySelector('.mov-toggle-estado');
-      if (est) est.textContent = abierto ? '(tocá para ocultar)' : '(oculto — tocá para ver)';
+      if (est) est.textContent = abierto ? 'Ocultar' : 'Mostrar';
     });
   }
 
