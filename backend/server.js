@@ -380,7 +380,8 @@ app.post('/api/clientes', auth, validarCliente, async (req, res) => {
 app.put('/api/clientes/:rowIndex', auth, validarRowIndex, validarCliente, async (req, res) => {
   try {
     const rowIndex = parseInt(req.params.rowIndex);
-    const result = await sheets.updateCliente(rowIndex, req.body);
+    // modificadoPor: quién edita (para el rastro y el aviso de edición simultánea)
+    const result = await sheets.updateCliente(rowIndex, { ...req.body, modificadoPor: quien(req) });
     sheets.registrarAuditoria({
       usuario: quien(req), accion: 'Editó', entidad: 'Evento',
       idEntidad: req.body.id, nombre: req.body.apellidoNombre,

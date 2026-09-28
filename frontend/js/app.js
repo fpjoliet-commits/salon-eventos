@@ -200,7 +200,20 @@ async function apiFetch(path, opts = {}) {
     $('login-form').reset();
     throw new Error('Sesión expirada. Por favor, ingresá nuevamente.');
   }
-  if (!res.ok) throw new Error(data.error || `Error del servidor (${res.status}). Probá de nuevo en un momento.`);
+  const esFicha = /^\/clientes\/\d+$/.test(path) && opts.method === 'PUT';
+  if (!res.ok) {
+    // Otra persona cambió la ficha: se trae la lista fresca para el próximo intento
+    if (res.status === 409 && esFicha && typeof loadClientes === 'function') loadClientes().catch(() => {});
+    throw new Error(data.error || `Error del servidor (${res.status}). Probá de nuevo en un momento.`);
+  }
+  // Guardado de una ficha: la versión nueva queda en memoria, así el próximo
+  // guardado de la misma persona no se toma como edición de otro.
+  if (esFicha && data.modificadoEn) {
+    const fila = parseInt(path.split('/')[2]);
+    const actualizar = c => { if (c && c.rowIndex === fila) { c.modificadoEn = data.modificadoEn; c.modificadoPor = data.modificadoPor; } };
+    (typeof allClientes !== 'undefined' ? allClientes : []).forEach(actualizar);
+    if (typeof currentClienteModal !== 'undefined') actualizar(currentClienteModal);
+  }
   return data;
 }
 
@@ -2845,6 +2858,7 @@ $('cliente-form').addEventListener('submit', async e => {
     // formulario; se preserva acá para que un Editar no la borre.
     notaInterna: (isEdit && currentClienteModal) ? (currentClienteModal.notaInterna || '') : '',
     cargadoPor: currentUser.usuario,
+    modificadoEn: (isEdit && currentClienteModal) ? (currentClienteModal.modificadoEn || '') : undefined,
   };
 
   try {
@@ -3613,6 +3627,9 @@ function buildClienteBody(c, overrides = {}) {
     notaPersona: c.notaPersona,
     cargadoPor: c.cargadoPor,
     fechaCarga: c.fechaCarga,
+    // La versión de la ficha que se tenía en pantalla: si otra persona la cambió
+    // después, el servidor avisa en vez de pisar sus cambios.
+    modificadoEn: c.modificadoEn || '',
     ...overrides,
   };
 }

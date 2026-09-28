@@ -125,11 +125,13 @@ async function verificarFila(hoja, rowIndex, idEsperado) {
     spreadsheetId: SPREADSHEET_ID, range: `${hoja}!A${rowIndex}`, sinCache: true,
   });
   const actual = String(r.data.values?.[0]?.[0] ?? '');
-  if (actual !== String(idEsperado)) {
-    const e = new Error('La planilla cambió mientras tanto (se movieron filas). Recargá la pantalla y volvé a intentar.');
-    e.status = 409;
-    throw e;
-  }
+  if (actual !== String(idEsperado)) throw errorFilaMovida();
+}
+
+function errorFilaMovida() {
+  const e = new Error('La planilla cambió mientras tanto (se movieron filas). Recargá la pantalla y volvé a intentar.');
+  e.status = 409;
+  return e;
 }
 
 function getSheets() {
@@ -263,6 +265,9 @@ function rowToPersona(row, index) {
     // Columna L: nota libre de la PERSONA (no del evento). Se muestra arriba de
     // todo en la ficha: es lo que hay que leer antes de llamarla.
     notaPersona: row[11] || '',
+    // Rastro: última modificación (fecha y hora argentina) y quién la hizo
+    modificadoEn: row[12] || '',
+    modificadoPor: row[13] || '',
   };
 }
 
@@ -271,6 +276,7 @@ function personaToRow(p) {
     p.id, p.apellidoNombre, p.telefono, p.gmail, p.redSocial,
     p.origen, p.tipoCliente, p.exclienteReferencia, p.exclienteNota,
     p.fechaCarga, p.cargadoPor, p.notaPersona,
+    p.modificadoEn, p.modificadoPor,
   ].map(v => v || '');
 }
 
@@ -316,6 +322,10 @@ function rowToEvento(row, index) {
     // afecta a los cubiertos todavia no pagados: los comprados quedan congelados
     // al precio que se pago, que es justamente lo que se le promete al cliente.
     precioCubierto: row[25] || '',
+    // Rastro: última modificación (fecha y hora argentina) y quién la hizo.
+    // También sirve para avisar si otra persona cambió la ficha mientras tanto.
+    modificadoEn: row[26] || '',
+    modificadoPor: row[27] || '',
   };
 }
 
@@ -328,6 +338,7 @@ function eventoToRow(e) {
     e.menuRecepcion, e.menuIslas, e.menuPrimerPlato, e.menuPrincipal, e.menuPostre,
     e.nombreAgasajado, e.notaInterna,
     e.modalidadPago || '', e.precioCubierto || '',
+    e.modificadoEn || '', e.modificadoPor || '',
   ].map(v => v || '');
 }
 
@@ -356,7 +367,7 @@ async function getPersonas() {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: 'Personas!A2:L',
+    range: 'Personas!A2:N',
   });
   return (res.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
 }
@@ -364,7 +375,7 @@ async function getPersonas() {
 async function addPersona(data) {
   const id = generateId('PER');
   const now = hoyAR();
-  const persona = { ...data, id, fechaCarga: data.fechaCarga || now };
+  const persona = { ...data, id, fechaCarga: data.fechaCarga || now, modificadoEn: ahoraAR(), modificadoPor: data.cargadoPor || '' };
   if (!tieneCredenciales) {
     persona.rowIndex = memPersonas.length + 2;
     memPersonas.push(persona);
@@ -375,7 +386,7 @@ async function addPersona(data) {
     const nextRow = await proximaFila('Personas');
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Personas!A${nextRow}:L${nextRow}`,
+      range: `Personas!A${nextRow}:N${nextRow}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [personaToRow(persona)] },
     });
@@ -393,7 +404,7 @@ async function updatePersona(rowIndex, data) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `Personas!A${rowIndex}:L${rowIndex}`,
+    range: `Personas!A${rowIndex}:N${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [personaToRow(data)] },
   });
@@ -414,8 +425,8 @@ async function getClientes() {
   }
   const sheets = getSheets();
   const [evRes, perRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:Z' }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:L' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Eventos!A2:AB' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Personas!A2:N' }),
   ]);
   const personas = (perRes.data.values || []).map((row, i) => rowToPersona(row, i)).filter(p => p.id);
   const personaMap = {};
@@ -457,6 +468,8 @@ async function addCliente(data) {
     estado: data.estado,
     cargadoPor: data.cargadoPor,
     fechaCarga: now,
+    modificadoEn: ahoraAR(),
+    modificadoPor: data.cargadoPor || '',
     tipoEvento: data.tipoEvento,
     formato: data.formato,
     fechaEvento: data.fechaEvento,
@@ -490,7 +503,7 @@ async function addCliente(data) {
     const nextRow = await proximaFila('Eventos');
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Eventos!A${nextRow}:Z${nextRow}`,
+      range: `Eventos!A${nextRow}:AB${nextRow}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [eventoToRow(evento)] },
     });
@@ -538,45 +551,72 @@ async function updateCliente(rowIndex, data) {
   }
 
   const sheets = getSheets();
-  await verificarFila('Eventos', rowIndex, data.id);
-  if (data.personaRowIndex) await verificarFila('Personas', data.personaRowIndex, data.personaId);
+  // Fila actual del evento y de la persona, con lectura fresca. Sirve para tres
+  // cosas: revisar que sigan siendo el mismo registro (se movieron filas?),
+  // avisar si otra persona la cambió mientras tanto, y CONSERVAR lo que el
+  // pedido no trae. Antes se reescribía la fila entera con lo que mandaba la
+  // pantalla, y el formulario "Editar" no manda menús, modalidad de pago,
+  // precio del cubierto, red social ni nota de la persona: se borraban.
+  const [evRes, perRes] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `Eventos!A${rowIndex}:AB${rowIndex}`, sinCache: true }),
+    data.personaRowIndex
+      ? sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `Personas!A${data.personaRowIndex}:N${data.personaRowIndex}`, sinCache: true })
+      : null,
+  ]);
+  const actualEv = rowToEvento(evRes.data.values?.[0] || [], rowIndex - 2);
+  const actualPer = perRes ? rowToPersona(perRes.data.values?.[0] || [], data.personaRowIndex - 2) : null;
+  if (data.id && actualEv.id !== String(data.id)) throw errorFilaMovida();
+  if (actualPer && data.personaId && actualPer.id !== String(data.personaId)) throw errorFilaMovida();
+
+  // Edición simultánea: la pantalla manda el modificadoEn que vio al abrir la
+  // ficha. Si desde entonces la cambió OTRA persona, no se pisa. Si fue la misma
+  // (otra pestaña, un guardado anterior) se sigue: no es un conflicto real.
+  const quien = data.modificadoPor || '';
+  if (data.modificadoEn !== undefined && actualEv.modificadoEn
+      && actualEv.modificadoEn !== data.modificadoEn
+      && actualEv.modificadoPor.toLowerCase() !== quien.toLowerCase()) {
+    const hora = (actualEv.modificadoEn.match(/\d{2}:\d{2}/) || [''])[0];
+    const e = new Error(`${actualEv.modificadoPor || 'Otra persona'} cambió esta ficha${hora ? ' a las ' + hora : ''} mientras la tenías abierta. Recargá para ver sus cambios y volvé a hacer el tuyo.`);
+    e.status = 409;
+    throw e;
+  }
+
+  const ahora = ahoraAR();
   const eventoData = {
-    id: data.id, personaId: data.personaId, estado: data.estado,
-    cargadoPor: data.cargadoPor, fechaCarga: data.fechaCarga,
-    tipoEvento: data.tipoEvento, formato: data.formato, fechaEvento: data.fechaEvento,
-    estadoFecha: data.estadoFecha, cantidadInvitados: data.cantidadInvitados,
-    turno: data.turno, presupuesto: data.presupuesto, montoPresupuesto: data.montoPresupuesto,
-    menuInfantil: data.menuInfantil, otrosPedidos: data.otrosPedidos,
-    observaciones: data.observaciones, proximoSeguimiento: data.proximoSeguimiento,
-    menuRecepcion: data.menuRecepcion, menuIslas: data.menuIslas,
-    menuPrimerPlato: data.menuPrimerPlato, menuPrincipal: data.menuPrincipal,
-    menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
-    notaInterna: data.notaInterna,
-    modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
+    ...actualEv,
+    ...soloDefinidos(data, CAMPOS_EVENTO_EDITABLES),
+    id: actualEv.id || data.id,
+    personaId: actualEv.personaId || data.personaId,
+    // Quién lo cargó y cuándo no cambian al editar
+    cargadoPor: actualEv.cargadoPor || data.cargadoPor,
+    fechaCarga: actualEv.fechaCarga || data.fechaCarga,
+    modificadoEn: ahora,
+    modificadoPor: quien,
   };
 
   const ops = [
     sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Eventos!A${rowIndex}:Z${rowIndex}`,
+      range: `Eventos!A${rowIndex}:AB${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [eventoToRow(eventoData)] },
     }),
   ];
 
-  if (data.personaRowIndex) {
+  if (actualPer) {
     const personaData = {
-      id: data.personaId,
-      apellidoNombre: data.apellidoNombre, telefono: data.telefono,
-      gmail: data.gmail, redSocial: data.redSocial, origen: data.origen,
-      tipoCliente: data.tipoCliente, exclienteReferencia: data.exclienteReferencia,
-      exclienteNota: data.exclienteNota, fechaCarga: data.fechaCarga,
-      cargadoPor: data.cargadoPor, notaPersona: data.notaPersona,
+      ...actualPer,
+      ...soloDefinidos(data, CAMPOS_PERSONA_EDITABLES),
+      id: actualPer.id || data.personaId,
+      fechaCarga: actualPer.fechaCarga || data.fechaCarga,
+      cargadoPor: actualPer.cargadoPor || data.cargadoPor,
+      modificadoEn: ahora,
+      modificadoPor: quien,
     };
     ops.push(
       sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Personas!A${data.personaRowIndex}:L${data.personaRowIndex}`,
+        range: `Personas!A${data.personaRowIndex}:N${data.personaRowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values: [personaToRow(personaData)] },
       })
@@ -584,7 +624,26 @@ async function updateCliente(rowIndex, data) {
   }
 
   await Promise.all(ops);
-  return data;
+  return { ...data, modificadoEn: ahora, modificadoPor: quien };
+}
+
+// Campos que una edición puede cambiar (id, persona, alta y rastro no)
+const CAMPOS_EVENTO_EDITABLES = [
+  'estado', 'tipoEvento', 'formato', 'fechaEvento', 'estadoFecha', 'cantidadInvitados',
+  'turno', 'presupuesto', 'montoPresupuesto', 'menuInfantil', 'otrosPedidos', 'observaciones',
+  'proximoSeguimiento', 'menuRecepcion', 'menuIslas', 'menuPrimerPlato', 'menuPrincipal',
+  'menuPostre', 'nombreAgasajado', 'notaInterna', 'modalidadPago', 'precioCubierto',
+];
+const CAMPOS_PERSONA_EDITABLES = [
+  'apellidoNombre', 'telefono', 'gmail', 'redSocial', 'origen', 'tipoCliente',
+  'exclienteReferencia', 'exclienteNota', 'notaPersona',
+];
+
+// Solo los campos que el pedido trae: lo que no vino se conserva como estaba
+function soloDefinidos(data, campos) {
+  const r = {};
+  for (const k of campos) if (data[k] !== undefined) r[k] = data[k];
+  return r;
 }
 
 /* ===================== INGRESOS ===================== */
@@ -1726,9 +1785,9 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     // Hasta Z: la nota, la modalidad y el precio del cubierto tambien son del evento.
-    range: `Eventos!A${rowIndex}:Z${rowIndex}`,
+    range: `Eventos!A${rowIndex}:AB${rowIndex}`,
     valueInputOption: 'USER_ENTERED',
-    resource: { values: [Array(26).fill('')] },
+    resource: { values: [Array(28).fill('')] },
   });
 
   // Si la Persona no tiene otros eventos, limpiar su fila también
@@ -1743,9 +1802,9 @@ async function deleteEvento(rowIndex, clienteData, usuario) {
     if (!otrosEventos.length) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Personas!A${clienteData.personaRowIndex}:L${clienteData.personaRowIndex}`,
+        range: `Personas!A${clienteData.personaRowIndex}:N${clienteData.personaRowIndex}`,
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [Array(12).fill('')] },
+        resource: { values: [Array(14).fill('')] },
       });
     }
   }
@@ -2738,8 +2797,8 @@ async function initSheets() {
     // Columnas que se fueron sumando sin encabezado: las herramientas de análisis
     // las mostraban como columnas sin nombre. Definición: docs/diccionario-de-datos.md
     const encabezadosCompletos = {
-      Eventos: ['A1:Z1', ['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna','modalidadPago','precioCubierto']],
-      Personas: ['A1:L1', ['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor','notaPersona']],
+      Eventos: ['A1:AB1', ['id','personaId','estado','cargadoPor','fechaCarga','tipoEvento','formato','fechaEvento','estadoFecha','cantidadInvitados','turno','presupuesto','montoPresupuesto','menuInfantil','otrosPedidos','observaciones','proximoSeguimiento','menuRecepcion','menuIslas','menuPrimerPlato','menuPrincipal','menuPostre','nombreAgasajado','notaInterna','modalidadPago','precioCubierto','modificadoEn','modificadoPor']],
+      Personas: ['A1:N1', ['id','apellidoNombre','telefono','gmail','redSocial','origen','tipoCliente','exclienteReferencia','exclienteNota','fechaCarga','cargadoPor','notaPersona','modificadoEn','modificadoPor']],
       Restricciones: ['A1:E1', ['id','idCliente','tipoRestriccion','cantidad','coronita']],
       Timming: ['A1:I1', ['id','idCliente','hora','actividad','tipo','descripcion','hecho','horaOriginal','notas']],
       Empleados: ['A1:D1', ['id','nombre','activo','rolHabitual']],
@@ -2846,6 +2905,8 @@ async function patchEvento(rowIndex, patch) {
   if (patch.proximoSeguimiento !== undefined)
     data.push({ range: `Eventos!Q${rowIndex}`, values: [[patch.proximoSeguimiento]] });
   if (data.length) {
+    // Rastro: quién tocó la ficha por última vez (Cal.com al agendar la visita)
+    data.push({ range: `Eventos!AA${rowIndex}:AB${rowIndex}`, values: [[ahoraAR(), patch.modificadoPor || 'Cal.com']] });
     await sh.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
       resource: { valueInputOption: 'USER_ENTERED', data },

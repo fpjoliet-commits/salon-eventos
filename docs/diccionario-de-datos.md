@@ -59,6 +59,8 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 | J | fechaCarga | fecha | Alta de la persona |
 | K | cargadoPor | texto | Quién la cargó |
 | L | notaPersona | texto | Nota libre sobre la persona (se lee antes de llamarla) |
+| M | modificadoEn | fecha y hora | Última modificación (desde 28/09/2026) |
+| N | modificadoPor | texto | Quién hizo la última modificación |
 
 ## Eventos — un evento por fila (el "cliente" del CRM)
 
@@ -86,6 +88,8 @@ Un "cliente" del CRM es **un evento**: una persona puede tener varios eventos.
 | X | notaInterna | texto | Nota interna del evento (no la ve el cliente) |
 | Y | modalidadPago | lista | `contado`, `cuotas`, `cubiertos` (vacío = sin definir) |
 | Z | precioCubierto | número | Precio del cubierto pactado para este evento |
+| AA | modificadoEn | fecha y hora | Última modificación (desde 28/09/2026). También evita que dos personas se pisen al editar la misma ficha |
+| AB | modificadoPor | texto | Quién hizo la última modificación (`Cal.com` si la tocó el agendamiento) |
 
 ## Ingresos — cobros
 
