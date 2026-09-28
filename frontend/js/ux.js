@@ -674,50 +674,55 @@
   }
 
   /* ============================================================
-     7b. VISTAS GUARDADAS (Clientes)
-     Una "vista" empaqueta filtros + orden + columnas con un nombre, para
-     no re-filtrar cada vez. Se recuerda por navegador (localStorage).
+     7b. VISTAS GUARDADAS (genérico, POR USUARIO)
+     Una "vista" empaqueta filtros + orden + columnas con un nombre, para no
+     re-filtrar cada vez. Se guardan por usuario logueado (la clave lleva el
+     nombre de usuario), así en un equipo compartido cada login ve las suyas.
      ============================================================ */
-  function leerVistas() {
-    try { return JSON.parse(localStorage.getItem(LS.vistas) || '[]') || []; } catch { return []; }
+  function usuarioActual() {
+    try { return (typeof currentUser !== 'undefined' && currentUser && currentUser.usuario) || 'anon'; }
+    catch { return 'anon'; }
   }
-  function guardarVistas(arr) {
-    try { localStorage.setItem(LS.vistas, JSON.stringify(arr)); } catch {}
+  function leerVistasD(D) {
+    try { return JSON.parse(localStorage.getItem(D.storageKey + '__' + usuarioActual()) || '[]') || []; }
+    catch { return []; }
   }
-  function capturarVistaActual() {
+  function guardarVistasD(D, arr) {
+    try { localStorage.setItem(D.storageKey + '__' + usuarioActual(), JSON.stringify(arr)); } catch {}
+  }
+  function capturarVistaD(D) {
     const filtros = {};
-    FILTROS.forEach(id => { const el = document.getElementById(id); if (el) filtros[id] = el.value; });
-    let columnas = null, ordenGuardado = null;
-    try { columnas = JSON.parse(localStorage.getItem(LS.columnas) || 'null'); } catch {}
-    try { ordenGuardado = JSON.parse(localStorage.getItem(LS.orden) || 'null'); } catch {}
-    return { filtros, orden: ordenGuardado, columnas };
+    D.filterIds.forEach(id => { const el = document.getElementById(id); if (el) filtros[id] = el.value; });
+    const snap = { filtros };
+    if (D.ordenKey) { try { snap.orden = JSON.parse(localStorage.getItem(D.ordenKey) || 'null'); } catch {} }
+    if (D.columnasKey) { try { snap.columnas = JSON.parse(localStorage.getItem(D.columnasKey) || 'null'); } catch {} }
+    return snap;
   }
-  function aplicarVista(v) {
-    FILTROS.forEach(id => { const el = document.getElementById(id); if (el) el.value = (v.filtros && v.filtros[id]) || ''; });
-    if (v.orden) { orden = v.orden; localStorage.setItem(LS.orden, JSON.stringify(v.orden)); }
-    if (v.columnas) { localStorage.setItem(LS.columnas, JSON.stringify(v.columnas)); }
-    subconjunto = null;
-    window.applyFilters?.();     // re-renderiza (aplica orden y columnas) y guarda filtros
-    pintarEstadoOrden();
+  function aplicarVistaD(D, v) {
+    D.filterIds.forEach(id => { const el = document.getElementById(id); if (el) el.value = (v.filtros && v.filtros[id]) || ''; });
+    if (D.ordenKey && v.orden) { localStorage.setItem(D.ordenKey, JSON.stringify(v.orden)); D.setOrden?.(v.orden); }
+    if (D.columnasKey && v.columnas) { localStorage.setItem(D.columnasKey, JSON.stringify(v.columnas)); }
+    D.aplicar();
   }
 
-  function montarMenuVistas() {
-    const exportBtn = document.getElementById('btn-exportar-csv');
-    if (!exportBtn || document.getElementById('btn-vistas')) return;
+  function montarMenuVistasGen(D) {
+    const ref = document.querySelector(D.ref);
+    if (!ref || document.getElementById(D.btnId)) return;
     const wrap = document.createElement('span');
     wrap.className = 'columnas-wrap';
     const btn = document.createElement('button');
-    btn.id = 'btn-vistas';
+    btn.id = D.btnId;
     btn.type = 'button';
-    btn.className = exportBtn.className;
+    btn.className = 'btn btn-sm';
     btn.textContent = '★ Vistas';
     const panel = document.createElement('div');
     panel.className = 'columnas-panel hidden';
     wrap.appendChild(btn); wrap.appendChild(panel);
-    exportBtn.parentNode.insertBefore(wrap, exportBtn);
+    if (D.mode === 'append') ref.appendChild(wrap);
+    else ref.parentNode.insertBefore(wrap, ref);
 
     const pintar = () => {
-      const vistas = leerVistas();
+      const vistas = leerVistasD(D);
       const filas = vistas.length
         ? vistas.map((v, i) => `
             <div class="columnas-row vista-row" data-i="${i}">
@@ -725,7 +730,7 @@
               <button type="button" class="vista-borrar" title="Borrar vista">✕</button>
             </div>`).join('')
         : `<div class="columnas-panel-sub" style="padding:4px 6px">Todavía no guardaste ninguna vista.</div>`;
-      panel.innerHTML = `<div class="columnas-panel-head">Vistas guardadas<br><span class="columnas-panel-sub">Filtros + columnas, con un nombre</span></div>`
+      panel.innerHTML = `<div class="columnas-panel-head">Vistas guardadas<br><span class="columnas-panel-sub">Tuyas · filtros + columnas, con un nombre</span></div>`
         + filas
         + `<div class="vista-guardar-row">
              <input type="text" class="vista-nombre-input" placeholder="Nombre de la vista actual…" maxlength="40">
@@ -741,31 +746,47 @@
     panel.addEventListener('click', e => {
       const aplicarBtn = e.target.closest('.vista-aplicar');
       if (aplicarBtn) {
-        const i = +aplicarBtn.closest('.vista-row').dataset.i;
-        const v = leerVistas()[i];
-        if (v) { aplicarVista(v); panel.classList.add('hidden'); window.toast?.(`Vista "${v.nombre}" aplicada`); }
+        const v = leerVistasD(D)[+aplicarBtn.closest('.vista-row').dataset.i];
+        if (v) { aplicarVistaD(D, v); panel.classList.add('hidden'); window.toast?.(`Vista "${v.nombre}" aplicada`); }
         return;
       }
       const borrarBtn = e.target.closest('.vista-borrar');
       if (borrarBtn) {
-        const i = +borrarBtn.closest('.vista-row').dataset.i;
-        const arr = leerVistas(); arr.splice(i, 1); guardarVistas(arr); pintar();
+        const arr = leerVistasD(D); arr.splice(+borrarBtn.closest('.vista-row').dataset.i, 1);
+        guardarVistasD(D, arr); pintar();
         return;
       }
       if (e.target.closest('.vista-guardar')) {
         const input = panel.querySelector('.vista-nombre-input');
         const nombre = (input?.value || '').trim();
         if (!nombre) { input?.focus(); return; }
-        const arr = leerVistas();
+        const arr = leerVistasD(D);
         const idx = arr.findIndex(v => v.nombre.toLowerCase() === nombre.toLowerCase());
-        const nueva = { nombre, ...capturarVistaActual() };
+        const nueva = { nombre, ...capturarVistaD(D) };
         if (idx >= 0) arr[idx] = nueva; else arr.push(nueva);
-        guardarVistas(arr);
-        pintar();
+        guardarVistasD(D, arr); pintar();
         window.toast?.(`Vista "${nombre}" guardada`);
       }
     });
   }
+
+  const VISTAS_CLIENTES = {
+    btnId: 'btn-vistas',
+    ref: '#btn-exportar-csv', mode: 'before',
+    filterIds: FILTROS,
+    ordenKey: LS.orden, setOrden: v => { orden = v; },
+    columnasKey: LS.columnas,
+    storageKey: LS.vistas,
+    aplicar: () => { subconjunto = null; window.applyFilters?.(); pintarEstadoOrden(); },
+  };
+  const VISTAS_MOV = {
+    btnId: 'btn-vistas-mov',
+    ref: '#mov-filtros', mode: 'append',
+    filterIds: ['egr-filtro-tipo', 'egr-filtro-mes', 'egr-filtro-destino', 'egr-filtro-cat', 'egr-filtro-moneda'],
+    columnasKey: 'crm_columnas_movimientos',
+    storageKey: 'crm_vistas_movimientos',
+    aplicar: () => { window.renderEgresos?.(); },
+  };
 
   /* --- CSV de la vista actual (respeta filtros y orden) --- */
   const CSV_COLS = [
@@ -1493,8 +1514,9 @@
     montarOrdenTabla();
     montarColumnaSeleccion();
     montarMenuColumnas();
-    montarMenuVistas();
     montarMenuColsGenerico(MOV_DESC);
+    montarMenuVistasGen(VISTAS_CLIENTES);
+    montarMenuVistasGen(VISTAS_MOV);
     montarFiltros();
     aplicarInputmodes();
     observarInputsNuevos();
