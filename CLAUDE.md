@@ -96,6 +96,9 @@ Estados de un cliente/evento: `Consulta | Visita agendada | Por cerrar | Confirm
 
 - El `rowIndex` (en Eventos, Personas, etc.) es la fila real de Sheets: empieza en 2 por el header.
 - En modo memoria (sin credenciales Google), los datos se pierden al reiniciar.
+- Backup: Apps Script dentro de la planilla copia todo cada noche a la carpeta de
+  Drive "Backups CRM Joliet" (últimas 30). Código y guía: `scripts/backup-planilla.gs`,
+  `docs/backup-planilla.md`.
 - Un borrador del bot es "huérfano" si su etiqueta no llega a ningún rol con acceso a
   la bandeja (p. ej. cargado por Anita): el superadmin los ve como red de seguridad.
 - El `dashboard/` es un dashboard de escritorio aparte; su `config.json` guarda la
