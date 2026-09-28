@@ -1481,7 +1481,9 @@ function checkRateLimit(ip) {
 /* El formulario público es la única puerta a la planilla sin login: cualquiera
    puede mandarle un pedido armado a mano, sin pasar por las validaciones de la
    pantalla. Se repiten acá, con las mismas opciones que ofrece consulta.html. */
-const TIPOS_EVENTO_FORM = ['Casamiento', 'Cumpleaños de 15', 'Cumpleaños', 'Bautismo', 'Corporativo', 'Otro'];
+// Los valores oficiales (los manda el formulario desde el 28/09/2026) y los nombres
+// viejos, por si alguien tiene la página vieja abierta: normalizar() los traduce.
+const TIPOS_EVENTO_FORM = ['Boda', 'XV años', 'Cumpleaños', 'Bautismo', 'Comunión', 'Egresados', 'Corporativo', 'Otro', 'Casamiento', 'Cumpleaños de 15'];
 const TURNOS_FORM = ['Noche', 'Tarde'];
 
 function validarLead(b) {

@@ -377,15 +377,20 @@
       <div class="form-grid">
 
         <!-- Nombre -->
-        <div class="form-group full">
-          <label>Nombre y apellido <span class="req">*</span></label>
-          <input type="text" name="nombre" placeholder="Ej: María González" autocomplete="name">
+        <div class="form-group">
+          <label>Nombre <span class="req">*</span></label>
+          <input type="text" name="nombre" placeholder="Ej: María" autocomplete="given-name">
+        </div>
+        <div class="form-group">
+          <label>Apellido <span class="req">*</span></label>
+          <input type="text" name="apellido" placeholder="Ej: González" autocomplete="family-name">
         </div>
 
         <!-- Teléfono -->
         <div class="form-group">
           <label>Teléfono <span class="req">*</span></label>
-          <input type="tel" name="telefono" placeholder="11-1234-5678" autocomplete="tel">
+          <input type="tel" name="telefono" placeholder="11 2345 6789" autocomplete="tel">
+          <span class="field-hint">Con código de área, sin 0 ni 15</span>
         </div>
 
         <!-- Email -->
@@ -401,12 +406,15 @@
           <label>Tipo de evento <span class="req">*</span></label>
           <select name="tipoEvento">
             <option value="">— Seleccioná —</option>
-            <option>Casamiento</option>
-            <option>Cumpleaños de 15</option>
-            <option>Cumpleaños</option>
-            <option>Bautismo</option>
-            <option>Corporativo</option>
-            <option>Otro</option>
+            <!-- value = valor oficial del CRM (backend/listas.js); el texto es lo que ve la persona -->
+            <option value="Boda">Casamiento</option>
+            <option value="XV años">Cumpleaños de 15</option>
+            <option value="Cumpleaños">Cumpleaños</option>
+            <option value="Bautismo">Bautismo</option>
+            <option value="Comunión">Comunión</option>
+            <option value="Egresados">Egresados</option>
+            <option value="Corporativo">Corporativo</option>
+            <option value="Otro">Otro</option>
           </select>
         </div>
 
@@ -448,7 +456,8 @@
             <option value="TikTok">TikTok</option>
             <option value="Facebook">Facebook</option>
             <option value="Google">Google</option>
-            <option value="Recomendacion">Me lo recomendaron</option>
+            <option value="Referido">Me lo recomendaron</option>
+            <option value="Pasó por la puerta">Pasé por la puerta</option>
             <option value="Otro">Otro</option>
           </select>
         </div>
@@ -568,11 +577,28 @@
     if (el) el.classList.add('err');
   }
 
+  // Mismo criterio que normalizarTelefono() de backend/listas.js: un celular
+  // argentino tiene 10 dígitos (área + número). Un extranjero (+ que no es 54) pasa.
+  function telefonoCompleto(tel) {
+    let n = tel.replace(/\D/g, '');
+    if (tel.trim().startsWith('+') && !n.startsWith('54')) return n.length >= 8;
+    n = n.replace(/^00/, '');
+    if (n.startsWith('54') && n.length >= 12) n = n.slice(2).replace(/^9/, '');
+    n = n.replace(/^0/, '');
+    if (n.length === 12) {
+      for (const k of [2, 3, 4]) if (n.slice(k, k + 2) === '15') { n = n.slice(0, k) + n.slice(k + 2); break; }
+    }
+    return n.length === 10 && !n.startsWith('15');
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearErrors();
 
-    const nombre            = form.elements.nombre.value.trim();
+    const nombreSolo        = form.elements.nombre.value.trim();
+    const apellido          = form.elements.apellido.value.trim();
+    // El CRM guarda "Apellido, Nombre" (así se ordena y se saluda por el nombre)
+    const nombre            = apellido && nombreSolo ? `${apellido}, ${nombreSolo}` : '';
     const telefono          = form.elements.telefono.value.trim();
     const email             = form.elements.email.value.trim();
     const tipoEvento        = form.elements.tipoEvento.value;
@@ -580,8 +606,14 @@
     const cantidadInvitados = form.elements.cantidadInvitados.value;
 
     // Validaciones del cliente
-    if (!nombre)     { markErr('nombre');     showError('El nombre es obligatorio.'); return; }
+    if (!nombreSolo) { markErr('nombre');     showError('El nombre es obligatorio.'); return; }
+    if (!apellido)   { markErr('apellido');   showError('El apellido es obligatorio.'); return; }
     if (!telefono)   { markErr('telefono');   showError('El teléfono es obligatorio.'); return; }
+    if (!telefonoCompleto(telefono)) {
+      markErr('telefono');
+      showError('Poné el teléfono con código de área, sin 0 ni 15. Ej: 11 2345 6789');
+      return;
+    }
     if (!email || !email.includes('@')) { markErr('email'); showError('Ingresá un email válido.'); return; }
     if (!tipoEvento) { markErr('tipoEvento'); showError('Seleccioná el tipo de evento.'); return; }
     if (!turno)      { markErr('turno');      showError('Seleccioná el turno.'); return; }

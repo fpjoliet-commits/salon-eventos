@@ -42,7 +42,9 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 | 6.1 | Avisos solo a Lautaro (`backend/alertas.js`): Google caído, Gemini sin cupo/clave, cobro sin devolver cuotas, backup fallido; resumen semanal de los lunes; `/api/salud`; apagado prolijo (SIGTERM vacía las colas) | 31934ee |
 | 6.2 | Cerrar sesiones a distancia: botón del superadmin, Config `sesionesDesde` (todas menos la propia) | 21787e9 |
 | 6.3 | Pruebas automáticas (`npm test`): imputación, cubiertos, cuenta, USD, copias del frontend iguales al servidor, teléfono, resumen | b1a48b8 |
-| 6.4 | Límites por IP con `CF-Connecting-IP` (X-Forwarded-For se podía falsear: verificado en producción) | (este) |
+| 6.4 | Límites por IP con `CF-Connecting-IP` (X-Forwarded-For se podía falsear: verificado en producción) | 5727f9d |
+| 5.2 | Limpieza aplicada en la REAL (28/09 19:46): 200 celdas + 11 Estados, 84/84 fichas, plata idéntica; respaldo en pestañas "Respaldo … 2026-09-28 19.46" | — |
+| 5.3 | Formulario web manda los valores oficiales (Boda, XV años, Referido), nombre y apellido separados ("Apellido, Nombre"), teléfono con área obligatorio | (este) |
 
 ## Pendiente
 
@@ -56,10 +58,7 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 **Fase 4 — historia de cada venta**
 
 **Fase 5 — limpiar histórico** (script listo y probado en la copia; falta correrlo en la real)
-- **Correr en la real** (acción del usuario, ~1 min): `node backend/limpiar-historico.js --real`
-  para ver qué cambiaría, y después `node backend/limpiar-historico.js --real --aplicar`. Hace
-  las pestañas de respaldo solo y se frena si cambia la cantidad de filas o la plata. Después,
-  pasarle a Mariana/Fabio la lista "A completar a mano" que imprime.
+- A completar a mano (Mariana): 2 confirmados sin fecha (Amaya Barbara Lucía, Nicolás Pérez), cobro de $850.000 del 16/09 sin evento (¿duplicado del de RIOS LAURA?), teléfonos de Vanessa Verger y Rocío Di Palma.
 - Prueba de conexión con Looker Studio (solo leer) — acción del usuario.
 
 **Fase 6 — operación**
