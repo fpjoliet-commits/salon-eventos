@@ -611,7 +611,7 @@ async function updateCliente(rowIndex, data) {
         menuPostre: data.menuPostre, nombreAgasajado: data.nombreAgasajado,
         notaInterna: data.notaInterna,
         modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
-    modalidadPago: data.modalidadPago, precioCubierto: data.precioCubierto,
+        motivoCancelacion: data.motivoCancelacion, notaCancelacion: data.notaCancelacion,
       };
     }
     if (data.personaRowIndex) {
@@ -886,11 +886,16 @@ async function restaurarIngreso(rowIndex, data, quien = '') {
     auditarPlata('Restauró', 'Cobro', fila, quien);
     return fila;
   }
-  auditarPlata('Restauró', 'Cobro', data, quien);
+  // La auditoría se anota recién cuando la restauración salió bien
   // Lo normal: la fila sigue ahí, anulada. Deshacer = sacarle la marca.
-  if (await desanular('Ingresos', 'S', 'U', rowIndex, data.id, quien)) return { ...data, rowIndex, anulado: false };
+  if (await desanular('Ingresos', 'S', 'U', rowIndex, data.id, quien)) {
+    auditarPlata('Restauró', 'Cobro', data, quien);
+    return { ...data, rowIndex, anulado: false };
+  }
   // Cobros borrados antes del 28/09/2026 (fila vaciada): se reescriben
-  return restaurarEnSuLugar('Ingresos', 'U', rowIndex, { ...data, anulado: false }, ingresoToRow);
+  const restaurado = await restaurarEnSuLugar('Ingresos', 'U', rowIndex, { ...data, anulado: false }, ingresoToRow);
+  auditarPlata('Restauró', 'Cobro', data, quien);
+  return restaurado;
 }
 
 // Edita un ingreso (columnas B:P, sin tocar el id ni forzar confirmado).
@@ -935,7 +940,9 @@ async function updateIngreso(rowIndex, data) {
  * ============================================================================= */
 let memConfig = {};
 
-async function getConfig() {
+// estricto: si Google falla, tira el error en vez de devolver {} (lo usa el
+// cierre de sesiones: "no pude leer" no puede confundirse con "no hay corte")
+async function getConfig({ estricto = false } = {}) {
   if (!tieneCredenciales) return { ...memConfig };
   const sheets = getSheets();
   try {
@@ -946,7 +953,7 @@ async function getConfig() {
     const cfg = {};
     (res.data.values || []).forEach(r => { if (r[0]) cfg[r[0]] = r[1] || ''; });
     return cfg;
-  } catch { return {}; }
+  } catch (e) { if (estricto) throw e; return {}; }
 }
 
 async function setConfig(clave, valor) {
@@ -1866,11 +1873,16 @@ async function restaurarEgreso(rowIndex, data, quien = '') {
     auditarPlata('Restauró', 'Gasto', fila, quien);
     return fila;
   }
-  auditarPlata('Restauró', 'Gasto', data, quien);
+  // La auditoría se anota recién cuando la restauración salió bien
   // Lo normal: la fila sigue ahí, anulada. Deshacer = sacarle la marca.
-  if (await desanular('Egresos', 'U', 'W', rowIndex, data.id, quien)) return { ...data, rowIndex, anulado: false };
+  if (await desanular('Egresos', 'U', 'W', rowIndex, data.id, quien)) {
+    auditarPlata('Restauró', 'Gasto', data, quien);
+    return { ...data, rowIndex, anulado: false };
+  }
   // Gastos borrados antes del 28/09/2026 (fila vaciada): se reescriben
-  return restaurarEnSuLugar('Egresos', 'W', rowIndex, { ...data, anulado: false }, egresoToRow);
+  const restaurado = await restaurarEnSuLugar('Egresos', 'W', rowIndex, { ...data, anulado: false }, egresoToRow);
+  auditarPlata('Restauró', 'Gasto', data, quien);
+  return restaurado;
 }
 
 async function updateEgreso(rowIndex, data) {
@@ -3107,8 +3119,12 @@ async function patchEvento(rowIndex, patch) {
     antes = rowToEvento(r.data.values?.[0] || [], rowIndex - 2);
   }
   const data = [];
-  if (patch.estado !== undefined)
+  if (patch.estado !== undefined) {
     data.push({ range: `Eventos!C${rowIndex}`, values: [[patch.estado]] });
+    // Si deja de estar Cancelado (p. ej. vuelve a agendar visita por Cal.com), el
+    // motivo de la cancelación vieja ya no corresponde. Queda en la hoja Estados.
+    if (patch.estado !== 'Cancelado') data.push({ range: `Eventos!AC${rowIndex}:AD${rowIndex}`, values: [['', '']] });
+  }
   if (patch.proximoSeguimiento !== undefined)
     data.push({ range: `Eventos!Q${rowIndex}`, values: [[patch.proximoSeguimiento]] });
   if (data.length) {

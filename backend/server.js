@@ -164,17 +164,27 @@ for (const [usuario, u] of Object.entries(USERS)) {
 /* Cerrar sesiones a distancia (tablet perdida, clave filtrada): Config guarda
    "sesionesDesde" (segundos). Todo token emitido antes deja de valer. Se lee
    de un caché que se refresca cada minuto, no en cada pedido. */
+// Si Google falla se mantiene el último valor conocido (antes una falla lo
+// ponía en 0 y las sesiones cerradas volvían a valer). Hasta la primera lectura
+// buena no se acepta ninguna sesión: recién arrancado, 0 dejaba pasar todo.
 let sesionesDesde = 0;
-async function refrescarCierreDeSesiones() {
-  try { sesionesDesde = Number((await sheets.getConfig()).sesionesDesde) || 0; }
-  catch { /* sin planilla: se mantiene el último valor */ }
+let cierreCargado = !sheets.tieneCredenciales;
+let cargaEnCurso = null;
+function refrescarCierreDeSesiones() {
+  cargaEnCurso = cargaEnCurso || sheets.getConfig({ estricto: true })
+    .then(cfg => { sesionesDesde = Number(cfg.sesionesDesde) || 0; cierreCargado = true; })
+    .catch(e => console.error('⚠️  No se pudo leer el cierre de sesiones:', e.message))
+    .finally(() => { cargaEnCurso = null; });
+  return cargaEnCurso;
 }
 refrescarCierreDeSesiones();
 setInterval(refrescarCierreDeSesiones, 60 * 1000).unref();
 
-function auth(req, res, next) {
+async function auth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Sin autenticación' });
+  if (!cierreCargado) await refrescarCierreDeSesiones();
+  if (!cierreCargado) return res.status(503).json({ error: 'No se pudo conectar con la planilla. Probá de nuevo en un momento.' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
     if (req.user.iat < sesionesDesde) return res.status(401).json({ error: 'La sesión se cerró. Volvé a entrar.' });
@@ -323,7 +333,7 @@ function validarRowIndex(req, res, next) {
 app.get('/api/salud', async (req, res) => {
   if (!sheets.tieneCredenciales) return res.status(503).json({ ok: false, error: 'Sin credenciales de Google' });
   try {
-    await sheets.getSheets().spreadsheets.values.get({ spreadsheetId: process.env.SPREADSHEET_ID, range: 'Config!A1', sinCache: true });
+    await sheets.getSheets().spreadsheets.values.get({ spreadsheetId: process.env.SPREADSHEET_ID, range: 'Config!A1' }); // con la memoria de 30 s: llamarlo mucho no gasta cuota de Google
     res.json({ ok: true });
   } catch (e) {
     res.status(503).json({ ok: false, error: 'Google Sheets no responde' });
@@ -332,9 +342,17 @@ app.get('/api/salud', async (req, res) => {
 
 // Avisos que dispara el Apps Script de backups (scripts/backup-planilla.gs):
 // fallo del backup y resumen semanal de los lunes. Protegidos con RESUMEN_SECRET.
+// Compara claves sin filtrar por tiempo de respuesta cuánto coincidió
+function igualSeguro(a, b) {
+  const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || ''));
+  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
+}
+// La clave va en el header X-Aviso-Secret (no queda en los registros de Render
+// como una URL). ?secret= se sigue aceptando para el script ya instalado.
 function claveDeAvisos(req, res, next) {
   const clave = process.env.RESUMEN_SECRET;
-  if (!clave || req.query.secret !== clave) return res.status(401).json({ error: 'No autorizado' });
+  const recibida = req.get('x-aviso-secret') || req.query.secret;
+  if (!clave || !igualSeguro(recibida, clave)) return res.status(401).json({ error: 'No autorizado' });
   next();
 }
 app.post('/api/avisos/externo', claveDeAvisos, async (req, res) => {
@@ -349,7 +367,7 @@ app.post('/api/avisos/resumen-semanal', claveDeAvisos, async (req, res) => {
     const backups = Number.isInteger(req.body?.backups) ? req.body.backups : null;
     const texto = construirResumen({ eventos, ingresos, egresos, backups });
     const enviado = await alertas.enviar(texto);
-    res.json({ ok: true, enviado, texto });
+    res.json({ ok: true, enviado }); // sin el texto: tiene nombres y montos
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
   }
@@ -370,9 +388,21 @@ const _loginAttempts = new Map();
    pone Cloudflare y pisa lo que mande el cliente. X-Forwarded-For NO sirve tal
    cual: un valor falso que manda el cliente queda PRIMERO ("1.2.3.4, <real>,
    <cloudflare>, <render>"), y con eso se esquivaban los límites por IP
-   (verificado en producción el 28/09/2026). Sin Cloudflare (local): el socket. */
+   (verificado en producción el 28/09/2026). Sin Cloudflare (local): el socket.
+   Si falta CF-Connecting-IP (otro dominio, cambio de Render), el socket es el
+   proxy de Render —la misma IP para todos: 10 intentos de cualquiera bloqueaban
+   a todos—; se usa el ÚLTIMO valor de X-Forwarded-For, que lo agrega el proxy
+   y el cliente no puede falsear. En producción, además, se avisa una vez. */
+let _avisoSinCloudflare = false;
 function clientIp(req) {
-  return String(req.headers['cf-connecting-ip'] || '').trim() || req.socket.remoteAddress;
+  const cf = String(req.headers['cf-connecting-ip'] || '').trim();
+  if (cf) return cf;
+  if (process.env.RENDER && !_avisoSinCloudflare) {
+    _avisoSinCloudflare = true;
+    alertas.avisar('sin-cloudflare', 'Llegan pedidos sin CF-Connecting-IP: los límites por IP usan X-Forwarded-For. Revisar Cloudflare/Render.').catch(() => {});
+  }
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean);
+  return xff[xff.length - 1] || req.socket.remoteAddress;
 }
 function loginRateLimited(ip) {
   const now = Date.now(), windowMs = 10 * 60 * 1000, max = 10;
@@ -1530,6 +1560,13 @@ app.get('/consulta', (req, res) => {
    - Si no (otro tipo de fiesta, o la anterior ya terminó/se canceló) → evento
      nuevo colgado de la misma persona. */
 const ESTADOS_EN_CURSO = ['Consulta', 'Visita agendada', 'Por cerrar'];
+let _colaLeads = Promise.resolve();
+function enFilaDeLeads(tarea) {
+  const actual = _colaLeads.catch(() => {}).then(tarea);
+  _colaLeads = actual;
+  return actual;
+}
+
 async function buscarConsultaPrevia(datos) {
   const tel = listas.normalizarTelefono(datos.telefono);
   const telDigitos = tel.replace(/\D/g, '');
@@ -1582,6 +1619,9 @@ app.post('/api/leads', async (req, res) => {
       cargadoPor: 'bot-formulario',
     };
 
+    // Búsqueda y alta en fila de a uno: con doble clic los dos envíos llegaban
+    // juntos, ninguno veía la ficha del otro y se creaban dos.
+    const resultado = await enFilaDeLeads(async () => {
     // ¿Ya la conocemos? (mismo teléfono o mismo mail)
     const { persona, abierto, yaHizoEvento } = await buscarConsultaPrevia(datos);
     if (abierto) {
@@ -1598,13 +1638,15 @@ app.post('/api/leads', async (req, res) => {
         modificadoPor: 'bot-formulario',
       });
       sheets.registrarAuditoria({ usuario: 'bot-formulario', accion: 'Volvió a consultar', entidad: 'Evento', idEntidad: abierto.id, nombre: abierto.apellidoNombre, detalle: nota });
-      return res.json({ ok: true, rowIndex: abierto.rowIndex });
+      return { rowIndex: abierto.rowIndex };
     }
     // Otro evento de alguien que ya conocemos: evento nuevo, misma persona
     const cliente = await sheets.addCliente(persona
       ? { ...datos, personaId: persona.id, ...(yaHizoEvento ? { tipoCliente: 'Excliente' } : {}) }
       : datos);
-    res.json({ ok: true, rowIndex: cliente.rowIndex });
+    return { rowIndex: cliente.rowIndex };
+    });
+    res.json({ ok: true, rowIndex: resultado.rowIndex });
   } catch (e) {
     console.error('Error en /api/leads:', e.message);
     res.status(500).json({ error: 'Error al registrar la consulta. Intentá más tarde.' });
@@ -1616,7 +1658,7 @@ app.post('/api/cal-booking', async (req, res) => {
   // Verificación opcional: si definís CAL_WEBHOOK_SECRET, el webhook debe llamarse
   // con ?secret=ESE_VALOR en la URL. Sin la variable, funciona como antes (no rompe).
   const expectedSecret = process.env.CAL_WEBHOOK_SECRET;
-  if (expectedSecret && req.query.secret !== expectedSecret) {
+  if (expectedSecret && !igualSeguro(req.query.secret, expectedSecret)) {
     return res.status(401).json({ error: 'Webhook no autorizado' });
   }
   try {

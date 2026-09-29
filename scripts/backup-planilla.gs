@@ -85,8 +85,10 @@ function avisarAlCRM(ruta, cuerpo) {
   const secreto = props.getProperty('RESUMEN_SECRET');
   if (!url || !secreto) { console.log('Sin CRM_URL / RESUMEN_SECRET: no se avisa.'); return; }
   // Render gratis tarda ~50 s en despertar: UrlFetch espera hasta 60 s
-  UrlFetchApp.fetch(url + ruta + '?secret=' + encodeURIComponent(secreto), {
+  // La clave va en un encabezado, no en la URL (así no queda en los registros)
+  UrlFetchApp.fetch(url + ruta, {
     method: 'post', contentType: 'application/json', payload: JSON.stringify(cuerpo), muteHttpExceptions: true,
+    headers: { 'X-Aviso-Secret': secreto },
   });
 }
 

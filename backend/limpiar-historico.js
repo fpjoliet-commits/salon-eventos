@@ -190,10 +190,24 @@ function reporteACompletar({ Eventos = [], Personas = [], Ingresos = [] }) {
   const hojas = meta.data.sheets.map(s => s.properties);
   console.log(`Planilla: "${titulo}"${APLICAR ? '' : '  (solo muestra, no escribe)'}\n`);
 
-  // Formato ISO de las columnas de fecha. Va antes de leer: así lo que se lee
-  // (y se compara con la hoja Estados) ya viene en ISO. Solo cambia cómo se ve.
+  // Con --aplicar: PRIMERO el respaldo de toda hoja que se puede tocar (datos o
+  // formato), después el formato ISO de las columnas de fecha y recién ahí leer
+  // y escribir. Antes el formato se aplicaba sin respaldo previo.
+  let antes = null;
   if (APLICAR) {
-    await api.batchUpdate({ spreadsheetId: ID, resource: { requests: pedidosDeFormato(hojas) } });
+    antes = await controles(api);
+    const formato = pedidosDeFormato(hojas);
+    const idsFormato = new Set(formato.map(r => r.repeatCell.range.sheetId));
+    const tocables = new Set([
+      ...Object.keys(REGLAS), 'Estados',
+      ...hojas.filter(h => idsFormato.has(h.sheetId)).map(h => h.title),
+    ].filter(t => hojas.some(h => h.title === t)));
+    const sufijo = new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).slice(0, 16).replace(':', '.');
+    await api.batchUpdate({ spreadsheetId: ID, resource: { requests: [...tocables].map(t => ({
+      duplicateSheet: { sourceSheetId: hojas.find(h => h.title === t).sheetId, newSheetName: `Respaldo ${t} ${sufijo}` },
+    })) } });
+    console.log(`Respaldo hecho: ${[...tocables].map(t => `"Respaldo ${t} ${sufijo}"`).join(', ')}`);
+    await api.batchUpdate({ spreadsheetId: ID, resource: { requests: formato } });
     console.log('Formato de fecha ISO fijado en las columnas de fecha.\n');
   }
 
@@ -238,17 +252,7 @@ function reporteACompletar({ Eventos = [], Personas = [], Ingresos = [] }) {
   if (!APLICAR) { console.log('\nPara aplicarlo, sumar --aplicar (también fija el formato ISO de las columnas de fecha).'); return; }
   if (!tieneEstados && nuevasEstados.length) throw new Error('Falta la hoja Estados: arrancar el servidor una vez (initSheets) y volver a correr.');
 
-  const antes = await controles(api);
-
-  // 1) Respaldo: cada hoja que se toca, duplicada como pestaña
-  const tocadas = new Set(escrituras.map(e => e.range.split('!')[0]));
-  if (nuevasEstados.length) tocadas.add('Estados');
-  const sufijo = new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).slice(0, 16).replace(':', '.');
-  await api.batchUpdate({ spreadsheetId: ID, resource: { requests: [...tocadas].map(t => ({
-    duplicateSheet: { sourceSheetId: hojas.find(h => h.title === t).sheetId, newSheetName: `Respaldo ${t} ${sufijo}` },
-  })) } });
-  console.log(`\nRespaldo hecho: ${[...tocadas].map(t => `"Respaldo ${t} ${sufijo}"`).join(', ')}`);
-
+  // 1) El respaldo ya se hizo arriba, antes de tocar nada
   // 2) Solo las celdas que cambian (de a 500 por pedido)
   for (let i = 0; i < escrituras.length; i += 500) {
     await api.values.batchUpdate({ spreadsheetId: ID, resource: { valueInputOption: 'USER_ENTERED', data: escrituras.slice(i, i + 500) } });
