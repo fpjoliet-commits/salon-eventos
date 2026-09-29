@@ -18,7 +18,8 @@
  * Con eso: si falla el backup avisa en el momento, y los lunes a las 8 pide al
  * CRM el resumen semanal (con cuántos backups se hicieron en la semana).
  *
- * Vigilancia del CRM: cada 30 minutos (de 8 a 23 h) revisa que el CRM responda.
+ * Vigilancia del CRM: cada 30 minutos, en el horario en que se usa (martes a
+ * sábado de 17:00 a 20:30), revisa que el CRM responda.
  * Si no responde, avisa DIRECTO por Telegram (no puede pasar por el CRM, que es
  * justamente lo que está caído). Necesita TELEGRAM_TOKEN y TELEGRAM_CHAT en las
  * mismas propiedades (los mismos valores que TELEGRAM_BOT_TOKEN y
@@ -90,10 +91,14 @@ function avisarAlCRM(ruta, cuerpo) {
 }
 
 // Cada 30 min: ¿el CRM responde? Render gratis se duerme y tarda ~50 s en
-// despertar, así que un primer intento fallido se reintenta antes de avisar.
+// despertar: dormido NO es caído (se espera que despierte y se reintenta a los
+// 30 s). Solo en el horario en que se usa: martes a sábado, 17:00 a 20:30
+// (media hora antes de abrir, para enterarse antes que Mariana).
 function vigilarCRM() {
-  const hora = Number(Utilities.formatDate(new Date(), ZONA, 'H'));
-  if (hora < 8 || hora >= 23) return;   // de noche nadie lo usa
+  const ahora = new Date();
+  const dia = Number(Utilities.formatDate(ahora, ZONA, 'u'));   // 1 = lunes … 7 = domingo
+  const minutos = Number(Utilities.formatDate(ahora, ZONA, 'H')) * 60 + Number(Utilities.formatDate(ahora, ZONA, 'm'));
+  if (dia < 2 || dia > 6 || minutos < 17 * 60 || minutos > 20 * 60 + 30) return;
   const props = PropertiesService.getScriptProperties();
   const url = props.getProperty('CRM_URL');
   if (!url) return;

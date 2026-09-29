@@ -55,7 +55,8 @@ Para probarlo sin esperar al lunes: elegir la función `resumenSemanal` y tocar 
 
 ## Vigilancia del CRM (desde 28/09/2026)
 
-`vigilarCRM` corre cada 30 minutos (de 8 a 23 h) y pide `/api/salud`. Si el CRM no
+`vigilarCRM` corre cada 30 minutos en el horario en que se usa el CRM (martes a
+sábado de 17:00 a 20:30) y pide `/api/salud`. Dormido no es caído: espera que Render despierte. Si el CRM no
 responde dos veces seguidas (con 30 s entre una y otra, por si Render estaba
 dormido), avisa por Telegram directo, sin pasar por el CRM. Avisa una sola vez
 mientras siga caído, y otra cuando vuelve. Propiedades necesarias, además de
