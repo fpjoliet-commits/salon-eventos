@@ -4269,3 +4269,15 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 
 /* Segundo botón del pie del menú (superadmin): cerrar sesiones a distancia */
 #cerrar-sesiones-btn { margin-top: 6px; }
+
+/* ── Letra y toques más grandes (revisión de usabilidad, 29/09/2026) ──
+   La ficha del cliente quedaba en 700 px con letra de 13 px en una tablet de
+   1280: se leía chica. En tablet (y pantallas de hasta 1400 px) se agranda
+   entera con zoom, que escala letra, botones y espacios parejo; el overlay ya
+   scrollea solo, así que nada queda fuera de alcance. En la PC grande no cambia. */
+@media (pointer: coarse), (max-width: 1400px) {
+  #modal-overlay > .modal { max-width: 860px; zoom: 1.18; }
+}
+.nav-item { font-size: 15px; }
+@media (pointer: coarse) { .nav-item { font-size: 16px; } }
+#cal-prev, #cal-next { min-width: 48px; min-height: 48px; font-size: 22px; line-height: 1; }

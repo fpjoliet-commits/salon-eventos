@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=20260929b-bot">
+  <link rel="stylesheet" href="css/style.css?v=20260929c-letra">
   <link rel="stylesheet" href="css/propuesta.css?v=20260929a-menu">
   <link rel="stylesheet" href="css/ux.css?v=20260929a-pdfvisor">
   <link rel="icon" type="image/png" href="/img/icons/favicon-48.png">
@@ -742,7 +742,6 @@
 
         <!-- ─── TAB: STOCK ACTUAL ─── -->
         <div id="cocina-tab-stock" class="cocina-tab-pane">
-          <div class="cocina-hint">💡 Acá se ve cuánto hay disponible de cada ítem en este momento. Se actualiza solo cuando cargás el sobrante post-evento. Lo que no tiene stock (como canapés o sanguches) no aparece acá porque se hace por pedido y se usa todo.</div>
           <div class="cocina-stock-tab-actions">
             <button id="cocina-actualizar-stock-btn" class="btn btn-primary btn-sm">📝 Actualizar stock</button>
             <button id="cocina-imprimir-planilla-btn" class="btn btn-secondary btn-sm">🖨️ Imprimir planilla</button>
@@ -787,7 +786,6 @@
               <h3>📆 Producción de la semana</h3>
               <button id="cocina-prod-cerrar-btn" class="btn btn-secondary btn-sm">Cerrar</button>
             </div>
-            <div class="cocina-hint cocina-hint-sm">💡 Suma todos los eventos del rango en <strong>una sola hoja por ítem</strong> y le resta el stock una única vez. El formal y el americano tienen secciones distintas: elegí el menú y tildá los eventos de ese tipo. La comanda del día del evento se imprime desde el Timing.</div>
             <div class="cocina-prod-rango">
               <label>Desde <input type="date" id="cocina-prod-desde"></label>
               <label>Hasta <input type="date" id="cocina-prod-hasta"></label>
@@ -809,7 +807,6 @@
             </div>
           </div>
 
-          <div class="cocina-hint">💡 <strong>Flujo de uso:</strong> antes de cada evento creás un pedido con lo que se va a preparar → cocina lo usa para producir → después del evento abrís el pedido y cargás lo que sobró con el botón "CARGAR STOCK". Eso actualiza automáticamente el stock disponible.</div>
 
           <!-- Lista de pedidos guardados -->
           <div id="cocina-lista-container">
@@ -820,7 +817,6 @@
 
           <!-- Formulario: Crear / Editar pedido -->
           <div id="cocina-form-wrap" class="cocina-panel hidden">
-            <div class="cocina-hint cocina-hint-sm">💡 Completá las cantidades. Usá "📦 Restar lo que ya tengo" para descontar del pedido lo que ya hay en depósito — así queda a la vista sólo lo que falta comprar.</div>
             <div class="cocina-panel-header">
               <h3 id="cocina-form-titulo">Nuevo pedido</h3>
               <button id="cocina-form-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
@@ -881,7 +877,6 @@
 
           <!-- Formulario: Control de stock post-evento -->
           <div id="cocina-relevamiento-wrap" class="cocina-panel hidden">
-            <div class="cocina-hint cocina-hint-sm">💡 Anotá cuánto sobró físicamente de cada ítem (contando tanto el stock anterior como lo que se preparó para este evento). El total disponible = stock previo + preparado. Al guardar, el stock queda actualizado con lo que pusiste en "Sobrante".</div>
             <div class="cocina-panel-header">
               <h3 id="cocina-relevamiento-titulo">Control de stock post-evento</h3>
               <button id="cocina-relevamiento-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
@@ -910,7 +905,6 @@
 
         <!-- ─── TAB: CATÁLOGO ─── -->
         <div id="cocina-tab-catalogo" class="cocina-tab-pane hidden">
-          <div class="cocina-hint">💡 El catálogo es la lista de todos los ítems disponibles para armar pedidos. Podés agregar ítems nuevos o desactivar los que ya no se usan. Los cambios se ven en la próxima vez que armés un pedido.</div>
           <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
             <button id="cocina-limpiar-duplicados-btn" class="btn btn-secondary btn-sm">🧹 Limpiar duplicados</button>
           </div>
@@ -1935,7 +1929,7 @@
   <!-- Contenido para imprimir (oculto en pantalla, visible al imprimir) -->
   <div id="propuesta-print-content" class="propuesta-print-content"></div>
 
-  <script src="js/app.js?v=20260929b-bot"></script>
+  <script src="js/app.js?v=20260929c-letra"></script>
   <script src="js/propuesta-ui.js?v=20260929a-cierre"></script>
   <!-- Capa de usabilidad: se carga última porque envuelve funciones de app.js -->
   <script src="js/ux.js?v=20260929a-corregir"></script>

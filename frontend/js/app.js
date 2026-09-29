@@ -10729,8 +10729,7 @@ function renderStockDashboard() {
     <input id="stock-add-nombre" class="stock-add-input" placeholder="Nombre del ítem" style="flex:2">
     <select id="stock-add-unidad" class="stock-add-sel">${UNITS_SD.map(u => `<option>${u}</option>`).join('')}</select>
     <button id="stock-add-btn" class="btn btn-primary btn-sm">Agregar</button>
-  </div>
-  <p class="stock-dash-hint">💡 Arrastrá un grupo <b>desde su título</b> para moverlo de lugar. Con el <b>✏️</b> de cada ítem podés cambiarle el nombre, la unidad, pasarlo a otro grupo o eliminarlo. En <b>mín.</b> ponés cuánto querés tener siempre de ese ítem: si baja de ahí, queda marcado en naranja para reponer.</p>`;
+  </div>`;
   // Resumen: qué hay que reponer según el mínimo de cada ítem.
   const sinStock = items.filter(i => i.cantidad === 0);
   const bajos = items.filter(i => i.cantidad > 0 && (parseFloat(i.minimo) || 0) > 0 && i.cantidad < parseFloat(i.minimo));
@@ -12216,7 +12215,6 @@ function abrirSelectorPlanilla({ titulo, storageKey, grupos, onConfirm, columnas
       <button class="modal-close" data-sp-close>✕</button>
     </div>
     <div class="modal-body">
-      <p class="cocina-hint">💡 Destildá lo que no quieras que aparezca en la hoja impresa. Se recuerda para la próxima vez.</p>
       <div class="sp-toolbar">
         <input type="search" class="sp-buscar" data-sp-buscar placeholder="🔍 Buscar ítem o grupo…">
         <button type="button" class="btn btn-secondary btn-sm" data-sp-all>Marcar todo</button>
