@@ -79,7 +79,7 @@ agregarla también en `listas.js`.**
     y crea ingreso; Seña/Saldo/Otro → solo crea ingreso. Cualquier moneda (ARS/USD).
     Cuotas indexables por IPC (INDEC vía datos.gob.ar).
   - **Historial** (admin/superadmin): ingresos del cliente, con toggle para ocultar montos.
-- **Calendario**: visible para admin y superadmin (no para operador/Anita).
+- **Calendario** (pantalla de Inicio): lo ven los tres roles, Anita incluida — es su Inicio desde 9a0dc88. Anita no ve plata, bandeja, Movimientos, Timing ni Cocina.
 - **Timing Planner** (admin+): timing por evento; imprime la comanda del día.
 - **Cocina** (superadmin): Stock actual · Pedido de semana · Catálogo · Compras.
 - **Egresos** (admin; materia prima solo superadmin).

@@ -4281,3 +4281,17 @@ tr.mov-ingreso td { background: rgba(22,163,74,.035); }
 .nav-item { font-size: 15px; }
 @media (pointer: coarse) { .nav-item { font-size: 16px; } }
 #cal-prev, #cal-next { min-width: 48px; min-height: 48px; font-size: 22px; line-height: 1; }
+
+/* ── Clientes en la tablet vertical ──
+   En 800 px entraban 6 de 10 columnas y el resto quedaba escondido a la derecha.
+   Se sacan las que ya están en la ficha (teléfono, origen, fecha de carga) y el
+   botón "Ver" (tocar la fila ya abre la ficha), y se compacta el resto. */
+@media (max-width: 900px) {
+  #view-clientes .data-table th[data-col-key="telefono"], #view-clientes .data-table td[data-col="telefono"],
+  #view-clientes .data-table th[data-col-key="origen"], #view-clientes .data-table td[data-col="origen"],
+  #view-clientes .data-table th[data-col-key="fechaCarga"], #view-clientes .data-table td[data-col="fechaCarga"],
+  #clientes-tbody .btn-ver { display: none !important; }
+  #view-clientes .data-table th, #view-clientes .data-table td { padding-left: 6px; padding-right: 6px; }
+  #view-clientes .data-table .th-sort { white-space: normal; text-align: left; }
+  #view-clientes .data-table td[data-col="apellidoNombre"] { max-width: 190px; overflow-wrap: anywhere; }
+}
