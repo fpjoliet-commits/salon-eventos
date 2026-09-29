@@ -91,6 +91,10 @@ agregarla también en `listas.js`.**
 - **Telegram** (`backend/telegram-bot.js`): **activo** si están las env vars. Cada dueño
   manda audio/texto → IA (Gemini) interpreta → crea un **borrador** (`confirmado:false`)
   de ingreso/egreso que cae en la bandeja "Por confirmar". El bot **nunca confirma solo**.
+  Carga directo, sin "Sí" en Telegram (se olvidaban de tocarlo); la respuesta trae un botón
+  "❌ Me equivoqué" que anula el borrador si nadie lo confirmó. Si en los últimos 7 días hay
+  otro movimiento igual (tipo, monto, moneda) avisa y lo marca en notas "⚠️ Posible duplicado"
+  (se ve en la bandeja); no frena la carga. Prueba: `GOOGLE_CREDENTIALS_JSON=x node scripts/simular_bot_telegram.js`.
   Webhook en `/api/webhook/telegram`. Setup: `docs/telegram-bot-setup.md`.
 - **WhatsApp** (`backend/whatsapp-bot.js`): **dormido** (código listo, falta alta en Meta).
   Bot reactivo sin IA (Cloud API). Config en `backend/bot-config.js`. Setup: `docs/whatsapp-bot-setup.md`.

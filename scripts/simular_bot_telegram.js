@@ -1,130 +1,72 @@
 /* Simulador del bot de Telegram — prueba el pipeline SIN Telegram ni Gemini.
-   Inyecta una interpretación falsa y verifica que se cree el borrador correcto
-   (confirmado:false) en la hoja correspondiente, con la atribución matcheada.
+   Inyecta una interpretación falsa y verifica que el borrador (confirmado:false)
+   se cree DIRECTO en la hoja correspondiente, con la atribución matcheada, el
+   aviso de posible duplicado y el botón "Me equivoqué".
 
-   Uso:  node scripts/simular_bot_telegram.js
-   Corre en modo memoria (sin credenciales de Google). */
+   Uso:  GOOGLE_CREDENTIALS_JSON=x node scripts/simular_bot_telegram.js
+   (el valor inválido fuerza el modo memoria: no toca ninguna planilla). */
 
 const sheets = require('../backend/sheets');
 const bot = require('../backend/telegram-bot');
 
-const chatMap = { '111': 'fabio' };
+const chatMap = { '111': 'Fabio' };
 const enviados = [];
-const sendText = async (chatId, text) => { enviados.push({ chatId, text }); };
+const sendText = async (chatId, text, opts = {}) => { enviados.push({ chatId, text, opts }); };
+const ultimo = () => enviados[enviados.length - 1];
+let fallas = 0;
+const check = (nombre, ok, extra = '') => { if (!ok) fallas++; console.log(`${ok ? '✓' : '✗'} ${nombre}${extra ? ' — ' + extra : ''}`); };
 
-// Cada caso trae la "interpretación" que devolvería la IA para ese mensaje.
 function updateTexto(texto) { return { update_id: Math.random(), message: { chat: { id: 111 }, text: texto } }; }
+function tocar(data) { return { update_id: Math.random(), callback_query: { id: 'cb', data, message: { chat: { id: 111 } } } }; }
+const deps = (ext) => ({ sheets, sendText, chatMap, interpretar: async () => ext, descargarVoz: async () => '', answerCallback: async () => {} });
 
 (async () => {
-  // Cliente para probar la atribución. Le ponemos un agasajado distinto al
-  // contratante, para probar que el bot matchea también por el festejado.
   await sheets.addCliente({ apellidoNombre: 'Pérez, Juan', nombreAgasajado: 'Sofía', fechaEvento: '2026-12-20', estado: 'Confirmado' });
 
-  const casos = [
-    {
-      nombre: 'GASTO de evento con cliente',
-      ext: { tipo: 'egreso', monto: 80000, moneda: 'ARS', categoria: 'Bebidas', concepto: 'Compra de bebidas', cliente: 'Pérez' },
-    },
-    {
-      nombre: 'GASTO general (luz, sin cliente)',
-      ext: { tipo: 'egreso', monto: 145000, moneda: 'ARS', categoria: 'Servicios', concepto: 'Factura de luz', cliente: null },
-    },
-    {
-      nombre: 'PAGO a empleado (Personal, con rol)',
-      ext: { tipo: 'egreso', monto: 40000, moneda: 'ARS', categoria: 'Personal', nombreEmpleado: 'Jamaica', rolPago: 'Ayudante de cocina', concepto: 'Pago a empleado', cliente: null },
-    },
-    {
-      nombre: 'COBRO seña en dólares',
-      ext: { tipo: 'ingreso', monto: 200, moneda: 'USD', tipoIngreso: 'Seña', formaPago: 'Efectivo', concepto: 'Seña', cliente: 'Perez Juan' },
-    },
-  ];
+  // 1) Un mensaje carga directo, sin pedir "Sí"
+  const r1 = await bot.processUpdate(updateTexto('seña de Pérez 200 dólares'), deps({ tipo: 'ingreso', monto: 200, moneda: 'USD', tipoIngreso: 'Seña', formaPago: 'Efectivo', concepto: 'Seña', cliente: 'Perez Juan' }));
+  check('Cobro cargado directo como borrador', r1.ok && r1.registro.confirmado === false && r1.match?.apellidoNombre === 'Pérez, Juan');
+  const boton = ultimo().opts.reply_markup?.inline_keyboard?.[0]?.[0];
+  check('Trae un solo botón "Me equivoqué"', boton && boton.callback_data.startsWith('anular:i:'), boton?.callback_data);
+  check('Sin aviso de duplicado la primera vez', !r1.duplicado && !ultimo().text.includes('Ojo'));
 
-  for (const c of casos) {
-    const deps = { sheets, sendText, chatMap, interpretar: async () => c.ext, descargarVoz: async () => '' };
-    // 1) mensaje -> el bot interpreta y PIDE confirmación (no carga todavía)
-    const paso1 = await bot.processUpdate(updateTexto('mensaje de prueba'), deps);
-    // 2) el usuario responde "sí" -> recién ahí carga el borrador
-    const paso2 = await bot.processUpdate(updateTexto('sí'), deps);
-    const reg = paso2.registro || {};
-    console.log(`\n▶ ${c.nombre}`);
-    console.log(`   paso1: ${paso1.pendiente ? 'pidió confirmación ✓' : JSON.stringify(paso1)}`);
-    console.log(`   paso2 (tras "sí"): tipo=${paso2.tipo} monto=${reg.monto} ${reg.moneda} confirmado=${reg.confirmado}` +
-                ` atribuido=${paso2.match ? paso2.match.apellidoNombre : '(ninguno)'}` +
-                `${reg.nombreEmpleado ? ' empleado=' + reg.nombreEmpleado + '/' + reg.rolPago : ''}`);
-  }
+  // 2) El mismo monto otra vez dentro de la semana: avisa y marca, pero carga igual
+  const r2 = await bot.processUpdate(updateTexto('otra vez la seña'), deps({ tipo: 'ingreso', monto: 200, moneda: 'USD', tipoIngreso: 'Seña', cliente: 'Perez' }));
+  check('Duplicado: igual se carga', r2.ok && r2.registro.confirmado === false);
+  check('Duplicado: avisa en el chat', ultimo().text.includes('⚠️ *Ojo:*'), ultimo().text.split('\n').pop());
+  check('Duplicado: queda marcado en la bandeja (notas)', String(r2.registro.notas).startsWith('⚠️ Posible duplicado'), r2.registro.notas);
 
-  // Caso extra: confirmar tocando el BOTÓN (callback_query) en vez de tipear.
-  const depsBtn = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 33000, moneda: 'ARS', categoria: 'Mantenimiento', concepto: 'arreglo' }), descargarVoz: async () => '', answerCallback: async () => {} };
-  const pBtn = await bot.processUpdate(updateTexto('arreglo 33 mil'), depsBtn);
-  const rBtn = await bot.processUpdate({ update_id: 999, callback_query: { id: 'cb1', data: 'conf_si:' + pBtn.draftId, message: { chat: { id: 111 } } } }, depsBtn);
-  console.log(`\n▶ Confirmar con BOTÓN: ${rBtn.ok ? 'cargó ✓ ($' + rBtn.registro.monto + ')' : 'FALLÓ'}`);
+  // 3) Mismo monto pero otra moneda o un gasto: no es duplicado
+  const r3 = await bot.processUpdate(updateTexto('gasto 200 dólares'), deps({ tipo: 'egreso', monto: 200, moneda: 'USD', categoria: 'Servicios', concepto: 'hosting' }));
+  check('Un gasto no choca con un cobro del mismo monto', r3.ok && !r3.duplicado);
 
-  // Caso extra: REINICIO del server entre la pregunta y el "Sí".
-  // El pendiente debe sobrevivir (está en Config), no perderse con la caché.
-  const depsReinicio = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 50000, moneda: 'ARS', categoria: 'Servicios', concepto: 'internet' }), descargarVoz: async () => '', answerCallback: async () => {} };
-  const pRe = await bot.processUpdate(updateTexto('internet 50 mil'), depsReinicio);
-  bot._vaciarCacheParaTest();   // ← simula que Render reinició (RAM vacía)
-  const rRe = await bot.processUpdate({ update_id: 1001, callback_query: { id: 'cb2', data: 'conf_si:' + pRe.draftId, message: { chat: { id: 111 } } } }, depsReinicio);
-  const regRe = rRe.registro || {};
-  console.log(`\n▶ Confirmar tras REINICIO: ${regRe.monto ? 'recuperó el pendiente y cargó ✓ ($' + regRe.monto + ')' : 'FALLÓ (se perdió el pendiente) ✗'}`);
+  // 4) "Me equivoqué" anula el borrador
+  const antes = (await sheets.getIngresos()).length;
+  const rA = await bot.processUpdate(tocar(boton.callback_data), deps({}));
+  check('Me equivoqué: anula', rA.anulado && (await sheets.getIngresos()).length === antes - 1);
+  const rA2 = await bot.processUpdate(tocar(boton.callback_data), deps({}));
+  check('Tocarlo dos veces no rompe nada', rA2.sin_pendiente);
 
-  // Caso extra: pide confirmación y el usuario dice "no" -> NO debe cargar nada.
-  const depsNo = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 99999, moneda: 'ARS', categoria: 'Servicios', concepto: 'no cargar' }), descargarVoz: async () => '' };
-  await bot.processUpdate(updateTexto('gasto trucho'), depsNo);
-  const rNo = await bot.processUpdate(updateTexto('no'), depsNo);
-  console.log(`\n▶ Rechazo con "no": ${rNo.cancelado ? 'descartado, no cargó ✓' : 'FALLÓ (cargó algo)'}`);
+  // 5) Si Mariana ya lo confirmó, el bot no lo borra
+  await sheets.confirmarIngreso(r2.registro.rowIndex, r2.registro.id, 'Mariana');
+  const rC = await bot.processUpdate(tocar(`anular:i:${r2.registro.rowIndex}:${r2.registro.id}`), deps({}));
+  check('Ya confirmado: no se borra desde el bot', rC.ya_confirmado);
 
-  // Match por AGASAJADO (unitario, con una lista fija de clientes).
-  const clientesFake = [
-    { id: 'c1', apellidoNombre: 'Pérez, Juan', nombreAgasajado: 'Sofía', fechaEvento: '2026-12-20' },
-    { id: 'c2', apellidoNombre: 'Gómez, Ana', nombreAgasajado: 'Tomás', fechaEvento: '2026-11-05' },
-  ];
-  const mAgas = bot.matchCliente('cumple de Sofía', clientesFake);
-  const mCli  = bot.matchCliente('los Gómez', clientesFake);
-  console.log(`\n▶ Match por AGASAJADO ("Sofía"): ${mAgas && mAgas.id === 'c1' ? 'encontró a Pérez ✓' : 'FALLÓ ✗'}`);
-  console.log(`▶ Match por CLIENTE ("Gómez"): ${mCli && mCli.id === 'c2' ? 'encontró a Gómez ✓' : 'FALLÓ ✗'}`);
+  // 6) Aclaración cobro/gasto: pregunta, y con el toque carga directo
+  const d = deps({ tipo: null, monto: 100000, moneda: 'ARS', concepto: 'Carrefour' });
+  const a1 = await bot.processUpdate(updateTexto('100 mil Carrefour'), d);
+  const a2 = await bot.processUpdate(tocar('aclara:' + a1.draftId + ':tipo:egreso'), d);
+  check('Aclaración: pregunta y después carga', a1.aclarando === 'tipo' && a2.ok && a2.tipo === 'egreso');
 
-  // ADICIONAL (mesa dulce): tipoIngreso "Otro" + concepto, atribuido al cliente.
-  const depsAdic = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'ingreso', monto: 60000, moneda: 'ARS', tipoIngreso: 'Otro', formaPago: 'Transferencia', concepto: 'Mesa dulce', cliente: 'Sofía' }), descargarVoz: async () => '' };
-  await bot.processUpdate(updateTexto('nos pagaron la mesa dulce del cumple de Sofía'), depsAdic);
-  const rAdic = await bot.processUpdate(updateTexto('sí'), depsAdic);
-  const regAd = rAdic.registro || {};
-  console.log(`▶ ADICIONAL mesa dulce: ${regAd.notas === 'Mesa dulce' ? 'concepto guardado ✓' : 'FALLÓ ✗'} atribuido=${rAdic.match ? rAdic.match.apellidoNombre : '(ninguno)'}`);
+  // 7) Botón "Sí" de un mensaje viejo que quedó en el chat: ya no hay pedido
+  const rViejo = await bot.processUpdate(tocar('conf_si:dviejo123'), deps({}));
+  check('Botón "Sí" viejo no carga nada', rViejo.sin_pendiente);
 
-  // ACLARACIÓN cobro/gasto: la IA no sabe el tipo (tipo=null) -> el bot pregunta
-  // con botones, se responde con el botón, y recién ahí pide confirmar.
-  const depsAcl = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: null, monto: 100000, moneda: 'ARS', concepto: 'Carrefour' }), descargarVoz: async () => '', answerCallback: async () => {} };
-  const a1 = await bot.processUpdate(updateTexto('100 mil Carrefour'), depsAcl);
-  const a2 = await bot.processUpdate({ update_id: 21, callback_query: { id: 'cbx', data: 'aclara:' + a1.draftId + ':tipo:egreso', message: { chat: { id: 111 } } } }, depsAcl);
-  const a3 = await bot.processUpdate(updateTexto('sí'), depsAcl);
-  console.log(`\n▶ ACLARA cobro/gasto: ${a1.aclarando === 'tipo' ? 'preguntó ✓' : 'FALLÓ ✗'}` +
-              ` → tras botón "gasto": ${a2.pendiente ? 'pidió confirmar ✓' : 'FALLÓ ✗'}` +
-              ` → tras "sí": ${a3.tipo === 'egreso' && (a3.registro||{}).monto === 100000 ? 'cargó gasto ✓' : 'FALLÓ ✗'}`);
+  // 8) Chat no habilitado: devuelve su número
+  const rOnb = await bot.processUpdate({ update_id: 7, message: { chat: { id: 987654321 }, text: 'hola' } }, deps({}));
+  check('Chat no habilitado devuelve el ID', rOnb.ignorado === 'chat_no_autorizado' && ultimo().text.includes('987654321'));
 
-  // MÚLTIPLES borradores en un mismo chat: dos mensajes seguidos crean dos borradores
-  // independientes; se confirma el PRIMERO por su ID (con el segundo aún pendiente) y
-  // después el segundo. Simula "mandó dos gastos sin esperar a confirmar el primero".
-  const depsM1 = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 11111, moneda: 'ARS', categoria: 'Servicios', concepto: 'gasto A' }), descargarVoz: async () => '', answerCallback: async () => {} };
-  const depsM2 = { sheets, sendText, chatMap, interpretar: async () => ({ tipo: 'egreso', monto: 22222, moneda: 'ARS', categoria: 'Bebidas', concepto: 'gasto B' }), descargarVoz: async () => '', answerCallback: async () => {} };
-  const m1 = await bot.processUpdate(updateTexto('gasto A'), depsM1);
-  const m2 = await bot.processUpdate(updateTexto('gasto B'), depsM2);
-  const cA = await bot.processUpdate({ update_id: 301, callback_query: { id: 'cbA', data: 'conf_si:' + m1.draftId, message: { chat: { id: 111 } } } }, depsM1);
-  const cB = await bot.processUpdate({ update_id: 302, callback_query: { id: 'cbB', data: 'conf_si:' + m2.draftId, message: { chat: { id: 111 } } } }, depsM2);
-  const okMulti = m1.draftId && m2.draftId && m1.draftId !== m2.draftId && (cA.registro || {}).monto === 11111 && (cB.registro || {}).monto === 22222;
-  console.log(`\n▶ MÚLTIPLES borradores: A=$${(cA.registro || {}).monto} B=$${(cB.registro || {}).monto} ${okMulti ? '✓ dos borradores independientes, confirmados por separado' : '✗ FALLÓ'}`);
-
-  // Chat NO habilitado: el bot debe responder con el chat_id para darlo de alta.
-  const enviadosOnb = [];
-  const depsOnb = { sheets, sendText: async (id, t) => enviadosOnb.push({ id, t }), chatMap, interpretar: async () => ({}), descargarVoz: async () => '' };
-  const rOnb = await bot.processUpdate({ update_id: 7, message: { chat: { id: 987654321 }, text: 'hola' } }, depsOnb);
-  const msgOnb = enviadosOnb[0]?.t || '';
-  console.log(`\n▶ Chat NO habilitado: ${rOnb.ignorado === 'chat_no_autorizado' && msgOnb.includes('987654321') ? 'devolvió el ID ✓' : 'FALLÓ ✗'}`);
-
-  const egresos = await sheets.getEgresos();
-  const ingresos = await sheets.getIngresos();
-  console.log('\n=== RESUMEN ===');
-  console.log('Egresos borrador (confirmado=false):', egresos.filter(e => e.confirmado === false).length, '/', egresos.length);
-  console.log('Ingresos borrador (confirmado=false):', ingresos.filter(i => i.confirmado === false).length, '/', ingresos.length);
-  console.log('Mensajes que hubiera enviado el bot:', enviados.length);
-  console.log('\nEjemplo de confirmación al usuario:\n' + enviados[0].text);
+  console.log('\nEjemplo del mensaje con duplicado:\n' + enviados.find(e => e.text.includes('Ojo')).text);
+  console.log(fallas ? `\n${fallas} FALLA(S)` : '\nTodo OK');
+  process.exit(fallas ? 1 : 0);
 })().catch(e => { console.error('ERR', e); process.exit(1); });

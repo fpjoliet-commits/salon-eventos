@@ -9943,6 +9943,13 @@ async function loadPendientes() {
   }
 }
 
+// El bot marca en notas "⚠️ Posible duplicado: …" si en la semana ya había
+// otro movimiento igual. Se muestra en la tarjeta para revisarlo antes de confirmar.
+function avisoDuplicado(notas) {
+  const n = String(notas || '');
+  return n.startsWith('⚠️ Posible duplicado') ? n.split(' — ')[0] : '';
+}
+
 function renderPendientes() {
   hide('pendientes-loading');
   pintarPendientesBadge();
@@ -9957,6 +9964,7 @@ function renderPendientes() {
       formaPago: i.formaPago || '', fecha: i.fecha, cargadoPor: i.cargadoPor,
       // Al salon le pagan por eventos: un cobro suelto no es un cobro todavia.
       sinEvento: !i.idCliente,
+      aviso: avisoDuplicado(i.notas),
     })),
     ...(pendientes.egresos || []).map(e => ({
       tipo: 'egreso', rowIndex: e.rowIndex,
@@ -9964,6 +9972,7 @@ function renderPendientes() {
       detalle: [e.categoria, e.idEvento ? (e.evento || e.idEvento) : 'Gasto general'].filter(Boolean).join(' · '),
       monto: parseFloat(e.monto) || 0, moneda: e.moneda || 'ARS',
       formaPago: '', fecha: e.fecha, cargadoPor: e.cargadoPor,
+      aviso: avisoDuplicado(e.notas),
     })),
   ];
 
@@ -9995,6 +10004,7 @@ function renderPendientes() {
       <div class="pend-main">
         <div class="pend-titulo">${titulo}</div>
         <div class="pend-detalle">${esc(it.detalle)}${forma}${quien}</div>
+        ${it.aviso ? `<div class="pend-aviso">${esc(it.aviso)}</div>` : ''}
       </div>
       <div class="pend-monto pend-monto-${it.tipo}">${signo} ${formatMoneda(it.monto, it.moneda)}</div>
       <div class="pend-acciones">${acciones}</div>

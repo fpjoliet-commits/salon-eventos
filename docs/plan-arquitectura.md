@@ -45,6 +45,7 @@ Tiene un cambio ajeno sin subir en `updateEgreso` (`Egresos!B${rowIndex}:S${rowI
 | 6.4 | Límites por IP con `CF-Connecting-IP` (X-Forwarded-For se podía falsear: verificado en producción) | 5727f9d |
 | 5.2 | Limpieza aplicada en la REAL (28/09 19:46): 200 celdas + 11 Estados, 84/84 fichas, plata idéntica; respaldo en pestañas "Respaldo … 2026-09-28 19.46" | — |
 | 5.3 | Formulario web manda los valores oficiales (Boda, XV años, Referido), nombre y apellido separados ("Apellido, Nombre"), teléfono con área obligatorio | (este) |
+| — | Bot: carga directa sin "Sí" + botón "Me equivoqué" + aviso de posible duplicado (7 días) | (este) |
 
 ## Pendiente
 

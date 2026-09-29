@@ -196,7 +196,7 @@ function parsearJSON(txt) {
 
 /* ─────────────────── Crear el borrador (testeable, sin red) ───────────────── */
 
-async function crearBorrador(sheets, ext, usuario, clientes) {
+async function crearBorrador(sheets, ext, usuario, clientes, aviso = '') {
   if (!ext || !(parseFloat(ext.monto) > 0)) {
     return { ok: false, motivo: 'sin_monto' };
   }
@@ -214,7 +214,7 @@ async function crearBorrador(sheets, ext, usuario, clientes) {
       idCliente: match ? match.id : '',
       cliente: match ? match.apellidoNombre : '',
       fechaEvento: match ? (match.fechaEvento || '') : '',
-      notas: ext.concepto || '',
+      notas: [aviso, ext.concepto].filter(Boolean).join(' — '),
       cargadoPor: usuario,
       confirmado: false,
     });
@@ -231,6 +231,7 @@ async function crearBorrador(sheets, ext, usuario, clientes) {
     monto, moneda,
     idEvento: match ? match.id : '',
     evento: match ? etiquetaEvento(match) : '',
+    notas: aviso,
     cargadoPor: usuario,
     confirmado: false,
   });
@@ -260,15 +261,6 @@ async function sendText(chatId, text, { fetchImpl = fetch, reply_markup } = {}) 
   }).catch(e => console.error('[telegram] sendText:', e.message));
 }
 
-// Botones inline Sí / No para la confirmación. Llevan el ID del borrador, así cada
-// mensaje confirma/descarta SU propio movimiento (aunque haya varios pendientes).
-const tecladoSino = (draftId) => ({
-  inline_keyboard: [[
-    { text: '✅ Sí, cargar', callback_data: 'conf_si:' + draftId },
-    { text: '❌ No', callback_data: 'conf_no:' + draftId },
-  ]],
-});
-
 // Corta el "relojito" del botón después de tocarlo.
 async function answerCallback(cqId, { fetchImpl = fetch } = {}) {
   if (!BOT_ACTIVO) return;
@@ -289,7 +281,8 @@ async function descargarVoz(fileId, { fetchImpl = fetch } = {}) {
 }
 
 /* ─────────────────── Borradores pendientes por Telegram ──────────────────────
-   El bot NO carga nada hasta que el usuario toca "Sí". Pueden ACUMULARSE varios
+   Solo quedan guardados los pedidos a medias (falta aclarar cobro/gasto) o
+   los que fallaron al escribir. Pueden ACUMULARSE varios
    borradores por chat: cada uno tiene su propio ID y sus propios botones, así el
    dueño manda tres audios seguidos y confirma cada uno cuando quiere, en cualquier
    orden, sin esperar. Cada borrador se guarda en su propia clave de Config
@@ -368,61 +361,100 @@ function primerFaltante(ext) {
   return null;
 }
 
-// Pregunta de confirmación con el resumen de lo entendido.
-function textoPreguntaConfirmar(ext, match) {
-  const esIngreso = ext.tipo === 'ingreso';
-  const tag = esIngreso ? 'COBRO' : 'GASTO';
-  const clase = esIngreso ? (ext.tipoIngreso || 'Otro') : (ext.categoria || 'General');
-  // Si matcheó por el agasajado (o el nombre dicho no es el del cliente), lo mostramos
-  // entre paréntesis para que se vea a qué evento fue.
-  const agas = match && match.nombreAgasajado ? ` (agasajado: ${match.nombreAgasajado})` : '';
-  const atrib = match
-    ? `\n• Cliente/evento: ${match.apellidoNombre}${agas}`
-    : '\n• ⚠️ Sin cliente reconocido — asignalo en el sistema al confirmar';
-  const persona = ext.nombreEmpleado
-    ? `\n• Empleado: ${ext.nombreEmpleado}${ext.rolPago ? ' (' + ext.rolPago + ')' : ''}` : '';
-  return `🧾 Entendí un *${tag}*:\n` +
-         `• Monto: $${Number(ext.monto).toLocaleString('es-AR')} ${ext.moneda === 'USD' ? 'USD' : 'ARS'}\n` +
-         `• ${clase}${ext.concepto ? ' — ' + ext.concepto : ''}${persona}${atrib}\n\n` +
-         `¿Lo cargo? Tocá un botón 👇 (o respondé *sí* / *no*).`;
-}
-
 // Confirmación final después de cargar el borrador.
-function textoCargado(borr) {
+function textoCargado(borr, ext, duplicado) {
   if (!borr.ok) return 'No pude cargarlo 🤔. Probá de nuevo.';
   const r = borr.registro;
   const tag = borr.tipo === 'ingreso' ? 'COBRO' : 'GASTO';
-  return `✅ Cargado: ${tag} de $${Number(r.monto).toLocaleString('es-AR')} ${r.moneda}.\n` +
-         `Quedó en *Por confirmar* del CRM para la confirmación final del admin.`;
+  const clase = borr.tipo === 'ingreso' ? (r.tipoIngreso || 'Otro') : (r.categoria || 'General');
+  const agas = borr.match && borr.match.nombreAgasajado ? ` (agasajado: ${borr.match.nombreAgasajado})` : '';
+  const atrib = borr.match
+    ? `\n• Cliente/evento: ${borr.match.apellidoNombre}${agas}`
+    : '\n• ⚠️ Sin cliente reconocido — se asigna en el CRM';
+  const persona = ext && ext.nombreEmpleado
+    ? `\n• Empleado: ${ext.nombreEmpleado}${ext.rolPago ? ' (' + ext.rolPago + ')' : ''}` : '';
+  const concepto = ext && ext.concepto ? ' — ' + ext.concepto : '';
+  const ojo = duplicado ? `\n\n⚠️ *Ojo:* ${textoDuplicado(borr.tipo, duplicado)}. ¿Es otro distinto? Si es el mismo, tocá *Me equivoqué*.` : '';
+  return `✅ Anoté un *${tag}*:\n` +
+         `• Monto: $${Number(r.monto).toLocaleString('es-AR')} ${r.moneda}\n` +
+         `• ${clase}${concepto}${persona}${atrib}\n\n` +
+         `Quedó en *Por confirmar* del CRM.${ojo}`;
 }
 
-// Carga UN borrador (por su ID). Usado por el botón "Sí" y por el "sí" tipeado.
-async function confirmarYCargar(sheets, chatId, usuario, enviar, draftId) {
-  const draft = draftId ? await leerDraft(sheets, chatId, draftId) : null;
-  if (!draft) {
-    await enviar(chatId, 'Ese movimiento ya no está (lo confirmaste, lo descartaste, o pasó mucho tiempo). Si hace falta, reenvialo 🙂');
-    return { sin_pendiente: true };
-  }
-  const clientes = await sheets.getClientes().catch(() => []);
+/* ─────────────── Aviso de posible duplicado (no frena la carga) ───────────────
+   Pasaba que un cobro se volvía a mandar días después (se olvidaban de que ya
+   estaba). Si en la última semana hay otro movimiento del mismo tipo, mismo
+   monto y misma moneda, se avisa en el chat y queda marcado en la bandeja. */
+const DIAS_DUPLICADO = 7;
 
-  // Si la escritura falla, el usuario tocó "Sí" y se queda esperando: sin este
-  // aviso creía que había quedado cargado. NO se borra el borrador, así puede
-  // reintentar tocando el botón otra vez sin volver a dictar todo.
+async function buscarDuplicado(sheets, ext) {
+  try {
+    const monto = parseFloat(ext.monto);
+    const moneda = ext.moneda === 'USD' ? 'USD' : 'ARS';
+    const lista = ext.tipo === 'ingreso' ? await sheets.getIngresos() : await sheets.getEgresos();
+    const desde = hoyISO(new Date(Date.now() - DIAS_DUPLICADO * 24 * 60 * 60 * 1000));
+    return lista
+      .filter(r => parseFloat(r.monto) === monto && (r.moneda || 'ARS') === moneda && String(r.fecha || '') >= desde)
+      .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))[0] || null;
+  } catch {
+    return null;   // si no se puede revisar, se carga igual
+  }
+}
+
+function textoDuplicado(tipo, d) {
+  const [, m, dd] = String(d.fecha || '').split('-');
+  const fecha = dd ? `${dd}/${m}` : d.fecha;
+  const de = d.cliente || d.evento || d.concepto || 'sin cliente';
+  const estado = d.confirmado ? '' : ', todavía por confirmar';
+  return `ya hay un ${tipo === 'ingreso' ? 'cobro' : 'gasto'} de $${Number(d.monto).toLocaleString('es-AR')} del ${fecha} (${de}${estado})`;
+}
+
+// Botón único debajo de lo cargado: lo anula si fue un error. Lleva tipo, fila e id.
+const tecladoMeEquivoque = (borr) => ({
+  inline_keyboard: [[
+    { text: '❌ Me equivoqué, borralo', callback_data: `anular:${borr.tipo === 'ingreso' ? 'i' : 'e'}:${borr.registro.rowIndex}:${borr.registro.id}` },
+  ]],
+});
+
+/* Carga el movimiento directo como borrador (confirmado:false) en "Por confirmar".
+   Antes había que tocar "Sí" en Telegram y muchas veces quedaba sin tocar: el
+   movimiento nunca llegaba al CRM. Ahora llega siempre, y el control real sigue
+   siendo el de la bandeja (el bot nunca confirma). */
+async function cargar(sheets, chatId, usuario, enviar, ext, draftId) {
+  const clientes = await sheets.getClientes().catch(() => []);
+  const duplicado = await buscarDuplicado(sheets, ext);
+  const aviso = duplicado ? `⚠️ Posible duplicado: ${textoDuplicado(ext.tipo, duplicado)}` : '';
+
+  // Si la escritura falla, se guarda el pedido para reintentar con un toque
+  // sin volver a dictar todo.
   let borr;
   try {
-    borr = await crearBorrador(sheets, draft.ext, usuario, clientes);
+    borr = await crearBorrador(sheets, ext, usuario, clientes, aviso);
   } catch (e) {
     console.error('[telegram] crearBorrador:', e.message);
+    await guardarDraft(sheets, chatId, draftId, ext, '');
     await enviar(chatId,
       '⚠️ *No pude guardarlo* — hubo un problema con la planilla.\n\n' +
-      'No se cargó nada. Tocá *Sí* de nuevo para reintentar (me acuerdo del movimiento), ' +
-      'o cargalo a mano en el CRM.');
+      'No se cargó nada. Tocá *Reintentar* (me acuerdo del movimiento), o cargalo a mano en el CRM.',
+      { reply_markup: { inline_keyboard: [[{ text: '🔁 Reintentar', callback_data: 'conf_si:' + draftId }]] } });
     return { ok: false, error: e.message };
   }
 
   await borrarDraft(sheets, chatId, draftId);
-  await enviar(chatId, textoCargado(borr));
-  return borr;
+  await enviar(chatId, textoCargado(borr, ext, duplicado), borr.ok ? { reply_markup: tecladoMeEquivoque(borr) } : {});
+  return { ...borr, duplicado };
+}
+
+// Carga UN pedido guardado (por su ID): botón "Reintentar" y los botones "Sí"
+// de mensajes viejos que hayan quedado en el chat.
+async function confirmarYCargar(sheets, chatId, usuario, enviar, draftId) {
+  const draft = draftId ? await leerDraft(sheets, chatId, draftId) : null;
+  if (!draft) {
+    await enviar(chatId, 'Ese movimiento ya no está (ya se cargó, se descartó, o pasó mucho tiempo). Si hace falta, reenvialo 🙂');
+    return { sin_pendiente: true };
+  }
+  if (primerFaltante(draft.ext)) return continuarConAclaraciones(sheets, chatId, usuario, enviar, draft.ext, draftId);
+  return cargar(sheets, chatId, usuario, enviar, draft.ext, draftId);
 }
 async function cancelarPendiente(sheets, chatId, enviar, draftId) {
   if (draftId) await borrarDraft(sheets, chatId, draftId);
@@ -430,30 +462,56 @@ async function cancelarPendiente(sheets, chatId, enviar, draftId) {
   return { cancelado: true };
 }
 
-// Con el ext (parcial o completo) y el ID del borrador: si falta aclarar algo, lo
-// pregunta con botones; si está completo, muestra el resumen y pide confirmación.
-async function continuarConAclaraciones(sheets, chatId, enviar, ext, draftId) {
+// Botón "Me equivoqué": anula el borrador, solo si nadie lo confirmó todavía.
+async function anularDesdeBot(sheets, chatId, usuario, enviar, data) {
+  const [, t, , id] = data.split(':');
+  const esIngreso = t === 'i';
+  let lista;
+  try { lista = esIngreso ? await sheets.getIngresos() : await sheets.getEgresos(); }
+  catch (e) {
+    await enviar(chatId, '⚠️ No pude revisar la planilla ahora. Probá de nuevo en un rato, o borralo en el CRM.');
+    return { ok: false, error: e.message };
+  }
+  const r = lista.find(x => x.id === id);
+  if (!r) {
+    await enviar(chatId, 'Ese movimiento ya no está (ya lo borraron) 👍');
+    return { sin_pendiente: true };
+  }
+  if (r.confirmado) {
+    await enviar(chatId, 'Ese ya lo *confirmaron* en el CRM, así que no lo borro desde acá. Avisale a Mariana para que lo corrija.');
+    return { ya_confirmado: true };
+  }
+  try {
+    await (esIngreso ? sheets.deleteIngreso : sheets.deleteEgreso)(r.rowIndex, id, usuario);
+  } catch (e) {
+    console.error('[telegram] anular:', e.message);
+    await enviar(chatId, '⚠️ No pude borrarlo ahora. Probá de nuevo en un rato, o borralo en el CRM.');
+    return { ok: false, error: e.message };
+  }
+  await enviar(chatId, 'Listo, lo borré 👍 No quedó nada cargado.');
+  return { anulado: true };
+}
+
+// Con el ext (parcial o completo) y el ID del pedido: si falta aclarar algo, lo
+// pregunta con botones; si está completo, lo carga directo.
+async function continuarConAclaraciones(sheets, chatId, usuario, enviar, ext, draftId) {
   const falta = primerFaltante(ext);
   if (falta) {
     await guardarDraft(sheets, chatId, draftId, ext, falta);
     await enviar(chatId, PREGUNTAS[falta].texto, { reply_markup: PREGUNTAS[falta].teclado(draftId) });
     return { aclarando: falta, draftId };
   }
-  const clientes = await sheets.getClientes().catch(() => []);
-  const match = ext.cliente ? matchCliente(ext.cliente, clientes) : null;
-  await guardarDraft(sheets, chatId, draftId, ext, '');
-  await enviar(chatId, textoPreguntaConfirmar(ext, match), { reply_markup: tecladoSino(draftId) });
-  return { pendiente: ext, draftId };
+  return cargar(sheets, chatId, usuario, enviar, ext, draftId);
 }
 
 // Aplica la respuesta de un botón de aclaración (callback "aclara:<draftId>:campo:valor").
-async function responderAclaracion(data, sheets, chatId, enviar) {
+async function responderAclaracion(data, sheets, chatId, usuario, enviar) {
   const [, draftId, campo, valor] = data.split(':');
   const draft = draftId ? await leerDraft(sheets, chatId, draftId) : null;
   if (!draft) { await enviar(chatId, 'Ese movimiento ya no está. Si hace falta, reenvialo 🙂'); return { sin_pendiente: true }; }
   const ext = { ...draft.ext };
   if (campo === 'tipo') ext.tipo = valor;
-  return continuarConAclaraciones(sheets, chatId, enviar, ext, draftId);
+  return continuarConAclaraciones(sheets, chatId, usuario, enviar, ext, draftId);
 }
 
 // De dónde sacar el chat para avisar, venga el update como mensaje o como botón.
@@ -484,7 +542,8 @@ async function processUpdate(update, deps) {
     const data = cq.data || '';
     if (data.startsWith('conf_si:')) return confirmarYCargar(sheets, chatId, usuario, enviar, data.slice(8));
     if (data.startsWith('conf_no:')) return cancelarPendiente(sheets, chatId, enviar, data.slice(8));
-    if (data.startsWith('aclara:')) return responderAclaracion(data, sheets, chatId, enviar);
+    if (data.startsWith('aclara:')) return responderAclaracion(data, sheets, chatId, usuario, enviar);
+    if (data.startsWith('anular:')) return anularDesdeBot(sheets, chatId, usuario, enviar, data);
     return { ignorado: 'callback_desconocido' };
   }
 
@@ -519,8 +578,8 @@ async function processUpdate(update, deps) {
     }
     const ultimo = drafts[0];
     if (ultimo.faltante === 'tipo') {
-      if (PALABRAS_COBRO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...ultimo.ext, tipo: 'ingreso' }, ultimo.draftId);
-      if (PALABRAS_GASTO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, enviar, { ...ultimo.ext, tipo: 'egreso' }, ultimo.draftId);
+      if (PALABRAS_COBRO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, usuario, enviar, { ...ultimo.ext, tipo: 'ingreso' }, ultimo.draftId);
+      if (PALABRAS_GASTO.has(textoPlano)) return continuarConAclaraciones(sheets, chatId, usuario, enviar, { ...ultimo.ext, tipo: 'egreso' }, ultimo.draftId);
     }
     if (PALABRAS_SI.has(textoPlano)) return confirmarYCargar(sheets, chatId, usuario, enviar, ultimo.draftId);
     if (PALABRAS_NO.has(textoPlano)) return cancelarPendiente(sheets, chatId, enviar, ultimo.draftId);
@@ -572,8 +631,8 @@ async function processUpdate(update, deps) {
 
   // Se entendió el monto. Es un movimiento NUEVO: le damos su propio ID y se suma a
   // los que ya haya pendientes (no pisa a los anteriores). Si falta aclarar algo
-  // (ej. cobro/gasto) lo pregunta; si no, pide confirmación. Nada se carga hasta el "Sí".
-  return continuarConAclaraciones(sheets, chatId, enviar, ext, nuevoDraftId());
+  // (ej. cobro/gasto) lo pregunta; si no, lo carga directo como borrador.
+  return continuarConAclaraciones(sheets, chatId, usuario, enviar, ext, nuevoDraftId());
 }
 
 /* ─────────────────────── Router de Express (webhook) ───────────────────────── */
