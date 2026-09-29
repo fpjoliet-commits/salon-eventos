@@ -2528,6 +2528,15 @@ function _segShell() {
     ['seg-buscar', 'seg-filtro-estado', 'seg-filtro-tramo'].forEach(id => { const el = $(id); if (el) el.value = ''; });
     renderSeguimientosView();
   });
+  // Abrir la ficha al tocar la fila (delegado y robusto: no depende de _cmap ni de
+  // onclick inline, así funciona siempre, incluso filtrando). Los links no abren.
+  $('seguimientos-tbody')?.addEventListener('click', e => {
+    if (e.target.closest('a, button')) return;
+    const tr = e.target.closest('tr.seg-fila'); if (!tr) return;
+    const id = tr.dataset.id;
+    const c = (window._cmap && window._cmap[id]) || allClientes.find(x => x.id === id);
+    if (c) openClienteModal(c);
+  });
   window.uxColumnasSetup?.(SEG_COL_DESC);
 }
 
@@ -2589,7 +2598,7 @@ function renderSeguimientosView() {
     const waLink = waNum
       ? `<a href="https://wa.me/${waNum}" target="_blank" class="seg-wa-btn" onclick="event.stopPropagation()" title="Escribir por WhatsApp">WhatsApp</a>`
       : '';
-    return `<tr class="seg-fila" onclick="openClienteModal(window._cmap['${c.id}'])">
+    return `<tr class="seg-fila" data-id="${esc(c.id)}">
       <td class="seg-col-nombre">${esc(c.apellidoNombre || '—')}</td>
       <td class="seg-col-estado">${estadoBadge(c.estado)}</td>
       <td class="seg-col-evento">${esc(c.tipoEvento || '—')}</td>
