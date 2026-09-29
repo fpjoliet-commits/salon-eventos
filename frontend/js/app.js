@@ -2473,11 +2473,70 @@ function initSeguimientos() {
   renderSeguimientosView();
 }
 
-function renderSeguimientosView() {
-  const con = $('seguimientos-content');
-  if (!con) return;
+const SEG_COL_DESC = {
+  table: '#seguimientos-content .seg-table',
+  columnas: [
+    { key: 'cliente',  label: 'Cliente' },
+    { key: 'estado',   label: 'Estado' },
+    { key: 'evento',   label: 'Tipo de evento' },
+    { key: 'dias',     label: 'Inactividad' },
+    { key: 'contacto', label: 'Contacto' },
+  ],
+  storageKey: 'crm_columnas_seguimientos',
+  btnInto: '#seg-filtros',
+};
 
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
+// Arma una sola vez el "shell" (filtros + tabla vacía + resumen). Después sólo se
+// re-dibuja el <tbody>, así el sistema de columnas y los filtros sobreviven.
+function _segShell() {
+  const con = $('seguimientos-content'); if (!con) return;
+  con.innerHTML = `
+    <div class="seg-resumen" id="seg-resumen"></div>
+    <div class="seg-filtros egresos-filtros" id="seg-filtros">
+      <input type="search" id="seg-buscar" class="search-input" placeholder="Buscar cliente…" style="min-width:180px">
+      <select id="seg-filtro-estado" class="filter-select">
+        <option value="">Estado</option>
+        <option>Consulta</option><option>Visita agendada</option><option>Por cerrar</option>
+      </select>
+      <select id="seg-filtro-tramo" class="filter-select">
+        <option value="">Inactividad</option>
+        <option value="critico">90 días o más</option>
+        <option value="alto">30 a 89 días</option>
+        <option value="medio">14 a 29 días</option>
+      </select>
+      <button type="button" id="seg-limpiar-filtros" class="btn btn-sm">Ver todo</button>
+    </div>
+    <p class="seg-view-info">Hacé clic en una fila para abrir el perfil del cliente.</p>
+    <div class="table-wrap seg-table-wrap">
+      <table class="data-table seg-table">
+        <thead><tr>
+          <th>Cliente</th>
+          <th>Estado</th>
+          <th>Tipo de evento</th>
+          <th class="seg-col-dias">Inactividad</th>
+          <th class="seg-col-contacto">Contacto</th>
+        </tr></thead>
+        <tbody id="seguimientos-tbody"></tbody>
+      </table>
+    </div>
+    <p class="seg-empty hidden" id="seg-empty-msg" style="padding:24px 0">Ningún cliente coincide con el filtro.</p>`;
+  ['seg-buscar', 'seg-filtro-estado', 'seg-filtro-tramo'].forEach(id => {
+    $(id)?.addEventListener('input', renderSeguimientosView);
+    $(id)?.addEventListener('change', renderSeguimientosView);
+  });
+  $('seg-limpiar-filtros')?.addEventListener('click', () => {
+    ['seg-buscar', 'seg-filtro-estado', 'seg-filtro-tramo'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    renderSeguimientosView();
+  });
+  window.uxColumnasSetup?.(SEG_COL_DESC);
+}
+
+function renderSeguimientosView() {
+  const con = $('seguimientos-content'); if (!con) return;
+  if (!$('seguimientos-tbody')) _segShell();
+
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const tramo = d => (d >= 90 ? 'critico' : d >= 30 ? 'alto' : 'medio');
 
   const stale = allClientes.filter(c => {
     if (['Confirmado', 'Realizado', 'Cancelado'].includes(c.estado)) return false;
@@ -2493,21 +2552,35 @@ function renderSeguimientosView() {
     const fa = parseFechaCarga(a.fechaCarga) || new Date(0);
     const fb = parseFechaCarga(b.fechaCarga) || new Date(0);
     return fa - fb;
-  });
-
-  if (!stale.length) {
-    con.innerHTML = '<p class="seg-empty" style="padding:40px 0">✓ Ningún cliente sin actividad reciente</p>';
-    return;
-  }
-
-  const tramo = d => (d >= 90 ? 'critico' : d >= 30 ? 'alto' : 'medio');
-  const dias90 = [], dias30 = [], diasResto = [];
-
-  const rows = stale.map(c => {
+  }).map(c => {
     const fc = parseFechaCarga(c.fechaCarga);
     const dias = fc ? Math.round((hoy - fc) / 86400000) : 0;
-    const t = tramo(dias);
-    if (t === 'critico') dias90.push(c); else if (t === 'alto') dias30.push(c); else diasResto.push(c);
+    return { c, fc, dias, t: tramo(dias) };
+  });
+
+  // Los chips cuentan el total sin actividad (no el filtrado).
+  const n90 = stale.filter(x => x.t === 'critico').length;
+  const n30 = stale.filter(x => x.t === 'alto').length;
+  const nR = stale.filter(x => x.t === 'medio').length;
+  const resumen = $('seg-resumen');
+  if (resumen) resumen.innerHTML = `
+    <div class="seg-chip seg-chip-critico"><span class="seg-chip-num">${n90}</span><span class="seg-chip-lbl">90 días o más</span></div>
+    <div class="seg-chip seg-chip-alto"><span class="seg-chip-num">${n30}</span><span class="seg-chip-lbl">entre 30 y 89 días</span></div>
+    <div class="seg-chip seg-chip-medio"><span class="seg-chip-num">${nR}</span><span class="seg-chip-lbl">entre 14 y 29 días</span></div>
+    <div class="seg-chip seg-chip-total"><span class="seg-chip-num">${stale.length}</span><span class="seg-chip-lbl">total sin actividad</span></div>`;
+
+  // Filtros
+  const q = ($('seg-buscar')?.value || '').trim().toLowerCase();
+  const fe = $('seg-filtro-estado')?.value || '';
+  const ft = $('seg-filtro-tramo')?.value || '';
+  const vis = stale.filter(x => {
+    if (fe && x.c.estado !== fe) return false;
+    if (ft && x.t !== ft) return false;
+    if (q && !((x.c.apellidoNombre || '').toLowerCase().includes(q) || (x.c.telefono || '').includes(q))) return false;
+    return true;
+  });
+
+  const rows = vis.map(({ c, fc, dias, t }) => {
     const tel = c.telefono || '';
     const waNum = normalizarTelWhatsapp(tel);
     const telCell = tel
@@ -2525,26 +2598,10 @@ function renderSeguimientosView() {
     </tr>`;
   }).join('');
 
-  con.innerHTML = `
-    <div class="seg-resumen">
-      <div class="seg-chip seg-chip-critico"><span class="seg-chip-num">${dias90.length}</span><span class="seg-chip-lbl">90 días o más</span></div>
-      <div class="seg-chip seg-chip-alto"><span class="seg-chip-num">${dias30.length}</span><span class="seg-chip-lbl">entre 30 y 89 días</span></div>
-      <div class="seg-chip seg-chip-medio"><span class="seg-chip-num">${diasResto.length}</span><span class="seg-chip-lbl">entre 14 y 29 días</span></div>
-      <div class="seg-chip seg-chip-total"><span class="seg-chip-num">${stale.length}</span><span class="seg-chip-lbl">total sin actividad</span></div>
-    </div>
-    <p class="seg-view-info">Hacé clic en una fila para abrir el perfil del cliente.</p>
-    <div class="table-wrap seg-table-wrap">
-      <table class="data-table seg-table">
-        <thead><tr>
-          <th>Cliente</th>
-          <th>Estado</th>
-          <th>Tipo de evento</th>
-          <th class="seg-col-dias">Inactividad</th>
-          <th class="seg-col-contacto">Contacto</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+  const tbody = $('seguimientos-tbody');
+  if (tbody) tbody.innerHTML = rows;
+  $('seg-empty-msg')?.classList.toggle('hidden', vis.length > 0);
+  window.uxColumnasRefrescar?.(SEG_COL_DESC);
 }
 
 /* ===================== FORM CLIENTE ===================== */

@@ -601,7 +601,9 @@
     });
     table.querySelectorAll('tbody tr').forEach(tr => {
       const kids = [...tr.children];
-      const actionsTd = tr.querySelector('.egr-acciones') || tr.querySelector('.acciones-col') || kids[kids.length - 1];
+      // Solo tratamos como "acciones" a una celda marcada como tal; si la tabla
+      // no tiene columna de acciones (p. ej. Seguimientos), no excluimos la última.
+      const actionsTd = tr.querySelector('.egr-acciones') || tr.querySelector('.acciones-col') || null;
       const dataTds = kids.filter(td => td !== actionsTd && !td.classList.contains('td-check'));
       dataTds.forEach((td, i) => { if (!td.dataset.col && columnas[i]) td.dataset.col = columnas[i].key; });
       const tdByKey = {};
@@ -1582,6 +1584,10 @@
   window.uxRenderInicio = renderInicio;
   window.uxExportarCSV = exportarCSV;
   window.uxAplicarEscala = aplicarEscala;
+  // Motor de columnas reutilizable por otras vistas (ej. Seguimientos, en app.js).
+  // D = { table, columnas:[{key,label}], storageKey, btnInto }
+  window.uxColumnasSetup = D => { montarMenuColsGenerico(D); refrescarColsTabla(D); };
+  window.uxColumnasRefrescar = D => refrescarColsTabla(D);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
