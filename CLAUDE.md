@@ -97,7 +97,9 @@ agregarla también en `listas.js`.**
   (se ve en la bandeja); no frena la carga. Prueba: `GOOGLE_CREDENTIALS_JSON=x node scripts/simular_bot_telegram.js`.
   Webhook en `/api/webhook/telegram`. Setup: `docs/telegram-bot-setup.md`.
 - **WhatsApp** (`backend/whatsapp-bot.js`): **dormido** (código listo, falta alta en Meta).
-  Bot reactivo sin IA (Cloud API). Config en `backend/bot-config.js`. Setup: `docs/whatsapp-bot-setup.md`.
+  Bot reactivo sin IA (Cloud API), asistente "Joy": lista + botones + fotos. Config
+  editable en `backend/bot-config.js`; respuestas FAQ en `docs/bot-faq-respuestas.md`.
+  Simulador: `node scripts/simular_bot_whatsapp.js`. Falta solo el alta en Meta.
 
 ## Deploy — subir cambios al CRM
 

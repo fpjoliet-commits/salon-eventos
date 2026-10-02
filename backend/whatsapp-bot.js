@@ -1,19 +1,12 @@
 /* =============================================================================
-   BOT DE WHATSAPP  —  WhatsApp Cloud API (oficial de Meta)
+   BOT DE WHATSAPP (Joy)  —  WhatsApp Cloud API (oficial de Meta)
    =============================================================================
-   Bot REACTIVO y SIN IA. La gente escribe primero; el bot responde con un menú
-   numerado, contesta preguntas frecuentes, agenda visitas (vía Cal.com, que ya
-   alimenta el CRM) y deriva a una persona SOLO en el horario configurado.
+   Bot REACTIVO y SIN IA. Menú por botones/lista interactiva, respuestas de
+   preguntas frecuentes con fotos, agenda de visitas (Cal.com → CRM) y derivación
+   a una persona SOLO en el horario configurado. Nunca habla de precios.
 
-   Todo vive detrás de variables de entorno: si no están seteadas, el módulo
-   queda dormido y no toca nada. Ver docs/whatsapp-bot-setup.md.
-
-   Variables de entorno:
-     WHATSAPP_TOKEN            token permanente del System User de Meta
-     WHATSAPP_PHONE_NUMBER_ID  id del número (NO el número en sí)
-     WHATSAPP_VERIFY_TOKEN     texto inventado por vos para validar el webhook
-     WHATSAPP_APP_SECRET       (opcional) secreto de la app, para verificar firma
-     GRAPH_API_VERSION         (opcional) por defecto v21.0
+   Todo vive detrás de variables de entorno WHATSAPP_*. Si faltan, el módulo
+   queda dormido. Contenido editable en bot-config.js. Alta en Meta: ver el chat.
    ========================================================================== */
 
 const crypto = require('crypto');
@@ -26,68 +19,52 @@ const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
 const GRAPH_VERSION = process.env.GRAPH_API_VERSION || 'v21.0';
 
-// El bot está "activo" solo si tiene lo mínimo para hablar con Meta.
 const BOT_ACTIVO = Boolean(TOKEN && PHONE_NUMBER_ID && VERIFY_TOKEN);
 
-/* ─────────────────────── Estado de conversación ───────────────────────────
-   En memoria, con vencimiento. Si Render reinicia, la charla vuelve a empezar
-   por el menú: es aceptable y mantiene todo gratis y simple. */
-const STATE_TTL_MS = 6 * 60 * 60 * 1000;   // 6 horas
-const _conv = new Map();                    // telefono -> { paso, leadCreado, visto }
+/* ─────────────────────── Estado de conversación ─────────────────────────── */
+const STATE_TTL_MS = 6 * 60 * 60 * 1000;
+const _conv = new Map();
 
 function getState(telefono) {
   const now = Date.now();
   const e = _conv.get(telefono);
   if (e && now - e.visto < STATE_TTL_MS) { e.visto = now; return e; }
-  const nuevo = { paso: 'menu', leadCreado: false, visto: now };
+  const nuevo = { leadCreado: false, visto: now };
   _conv.set(telefono, nuevo);
   return nuevo;
 }
-
-// Limpieza perezosa para que el Map no crezca infinito.
 function limpiarViejos() {
   const now = Date.now();
   for (const [k, v] of _conv) if (now - v.visto > STATE_TTL_MS) _conv.delete(k);
 }
 
-/* ─────────────────────── Horario de derivación ────────────────────────────── */
-
-// Devuelve { dia (0-6), minutos (desde medianoche) } en la zona horaria configurada.
+/* ─────────────────────── Horario de derivación ───────────────────────────── */
 function ahoraLocal(tz, date = new Date()) {
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
   });
   const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
   const diasMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const dia = diasMap[parts.weekday];
   let hora = parseInt(parts.hour, 10);
-  if (hora === 24) hora = 0;                 // algunos runtimes dan "24" a medianoche
-  const minutos = hora * 60 + parseInt(parts.minute, 10);
-  return { dia, minutos };
+  if (hora === 24) hora = 0;
+  return { dia: diasMap[parts.weekday], minutos: hora * 60 + parseInt(parts.minute, 10) };
 }
-
-const aMinutos = hhmm => {
-  const [h, m] = hhmm.split(':').map(Number);
-  return h * 60 + m;
-};
+const aMinutos = hhmm => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
 
 function estaEnHorarioDerivacion(date = new Date()) {
   const cfg = config.horarioDerivacion;
   const { dia, minutos } = ahoraLocal(cfg.timezone, date);
-  const rangos = cfg.dias[dia] || [];
-  return rangos.some(([desde, hasta]) => minutos >= aMinutos(desde) && minutos < aMinutos(hasta));
+  return (cfg.dias[dia] || []).some(([d, h]) => minutos >= aMinutos(d) && minutos < aMinutos(h));
 }
 
-// Texto humano del próximo horario de atención (para el mensaje fuera de horario).
 const NOMBRE_DIA = ['el domingo', 'el lunes', 'el martes', 'el miércoles', 'el jueves', 'el viernes', 'el sábado'];
 function proximoHorarioTexto(date = new Date()) {
   const cfg = config.horarioDerivacion;
   const { dia, minutos } = ahoraLocal(cfg.timezone, date);
   for (let salto = 0; salto < 7; salto++) {
     const d = (dia + salto) % 7;
-    const rangos = cfg.dias[d] || [];
-    for (const [desde] of rangos) {
-      if (salto === 0 && minutos >= aMinutos(desde)) continue; // ya pasó hoy
+    for (const [desde] of (cfg.dias[d] || [])) {
+      if (salto === 0 && minutos >= aMinutos(desde)) continue;
       const cuando = salto === 0 ? 'hoy' : (salto === 1 ? 'mañana' : NOMBRE_DIA[d]);
       return `${cuando} a partir de las ${desde} hs`;
     }
@@ -95,151 +72,157 @@ function proximoHorarioTexto(date = new Date()) {
   return 'en el próximo horario de atención';
 }
 
-/* ─────────────────────── Envío de mensajes a Meta ─────────────────────────── */
-
-async function sendText(to, body) {
-  if (!BOT_ACTIVO) { console.warn('[bot] sendText ignorado: bot inactivo'); return; }
+/* ─────────────────────── Envío a Meta ─────────────────────────────────────
+   Un único POST; el "mensaje" cambia según el tipo. */
+async function enviarMeta(payload) {
+  if (!BOT_ACTIVO) { console.warn('[bot] envío ignorado: bot inactivo'); return; }
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${PHONE_NUMBER_ID}/messages`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body },
-    }),
+    body: JSON.stringify({ messaging_product: 'whatsapp', ...payload }),
   });
-  if (!res.ok) {
-    const detalle = await res.text().catch(() => '');
-    console.error(`[bot] Meta rechazó el envío (${res.status}): ${detalle}`);
-  }
+  if (!res.ok) console.error(`[bot] Meta rechazó (${res.status}): ${await res.text().catch(() => '')}`);
 }
 
-/* ─────────────────────── Lógica del bot (testeable) ────────────────────────
-   processMessage NO habla con la red: recibe deps y devuelve la lista de
-   respuestas de texto. Así el simulador la ejecuta sin número real.
-   deps = { sheets, ahora?, crearLead? } */
+const sendText = (to, body) => enviarMeta({ to, type: 'text', text: { body } });
+const sendImage = (to, link, caption) => enviarMeta({ to, type: 'image', image: { link, caption } });
 
-async function crearLeadCRM(sheets, telefono, nombre, observaciones) {
+function sendButtons(to, body, botones) {
+  return enviarMeta({
+    to, type: 'interactive',
+    interactive: {
+      type: 'button', body: { text: body },
+      action: { buttons: botones.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })) },
+    },
+  });
+}
+
+function sendList(to) {
+  const m = config.menu;
+  const saludo = config.saludo
+    .replace('{asistente}', config.nombreAsistente)
+    .replace('{salon}', config.nombreSalon);
+  return enviarMeta({
+    to, type: 'interactive',
+    interactive: {
+      type: 'list',
+      header: { type: 'text', text: m.header },
+      body: { text: saludo },
+      footer: { text: m.footer },
+      action: {
+        button: m.boton,
+        sections: [{ title: 'Opciones', rows: m.filas }],
+      },
+    },
+  });
+}
+
+/* ─────────────────────── CRM ─────────────────────────────────────────────── */
+async function crearLeadCRM(sheets, telefono, observaciones) {
   try {
     const data = {
-      apellidoNombre: nombre || `WhatsApp ${telefono}`,
-      telefono,
-      estado: 'Consulta',
-      origen: 'WhatsApp',
-      observaciones: observaciones || '',
-      cargadoPor: 'bot-whatsapp',
+      apellidoNombre: `WhatsApp ${telefono}`,
+      telefono, estado: 'Consulta', origen: 'WhatsApp',
+      observaciones: observaciones || '', cargadoPor: 'bot-whatsapp',
     };
     const cliente = await sheets.addCliente(data);
     if (sheets.registrarAuditoria) {
       sheets.registrarAuditoria({
         usuario: 'bot-whatsapp', accion: 'Creó', entidad: 'Evento',
-        idEntidad: cliente.id, nombre: data.apellidoNombre,
-        detalle: 'Lead entrante por WhatsApp',
+        idEntidad: cliente.id, nombre: data.apellidoNombre, detalle: 'Lead entrante por WhatsApp',
       });
     }
     return cliente;
-  } catch (e) {
-    console.error('[bot] no se pudo crear lead:', e.message);
-    return null;
-  }
+  } catch (e) { console.error('[bot] no se pudo crear lead:', e.message); return null; }
 }
 
-// Normaliza el texto del usuario: minúsculas, sin espacios extremos, sin tildes.
+/* ─────────────────────── Lógica (testeable) ───────────────────────────────
+   processMessage devuelve una lista de ACCIONES; el webhook (o el simulador)
+   las renderiza. Acciones: {kind:'menu'} | {kind:'image',path,caption} |
+   {kind:'buttons',body,buttons} | {kind:'text',body}. */
+
+const T = () => config.textos;
+function navBotones(ids) {
+  const mapa = { agendar: T().btnAgendar, hablar: T().btnHablar, menu: T().btnMenu };
+  return ids.map(id => ({ id, title: mapa[id] }));
+}
+
 function normalizar(t) {
-  return (t || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return (t || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
+const SALUDOS = ['hola', 'buenas', 'buenos dias', 'buenas tardes', 'buenas noches', 'buen dia', 'hi', 'ola'];
 
-const SALUDOS = ['hola', 'buenas', 'buenos dias', 'buenas tardes', 'buenas noches', 'hi', 'buen dia'];
-
-async function processMessage(telefono, textoCrudo, deps) {
+async function processMessage(telefono, input, deps) {
   const { sheets } = deps;
   const ahora = deps.ahora || new Date();
   const crearLead = deps.crearLead || crearLeadCRM;
-  const t = config.textos;
   const st = deps.state || getState(telefono);
-  const texto = normalizar(textoCrudo);
-  const salidas = [];
 
-  // "menu" / saludo → siempre vuelve al menú.
-  if (texto === 'menu' || texto === 'menú' || SALUDOS.includes(texto)) {
-    st.paso = 'menu';
-    salidas.push(t.menu);
-    return salidas;
+  // La intención viene del id del botón/lista, o del texto escrito.
+  let intent = input.id || null;
+  if (!intent) {
+    const t = normalizar(input.text);
+    if (t === 'menu' || SALUDOS.includes(t)) intent = 'menu';
   }
 
-  // Paso especial: estábamos esperando que escriba una fecha (opción 5).
-  if (st.paso === 'esperando_fecha') {
-    st.paso = 'menu';
-    if (!st.leadCreado) {
-      await crearLead(sheets, telefono, null, `Consulta de disponibilidad por WhatsApp: "${textoCrudo}"`);
-      st.leadCreado = true;
-    }
-    salidas.push(
-      `¡Gracias! 📅 Anoté tu consulta para *${textoCrudo}*.\n` +
-      'El equipo te confirma la disponibilidad a la brevedad.\n\n' +
-      'Si querés, podés agendar una visita mientras tanto escribiendo *6*.'
-    );
-    return salidas;
+  // Categorías informativas.
+  if (config.respuestas[intent]) {
+    const r = config.respuestas[intent];
+    const nav = { kind: 'buttons', body: T().navPregunta, buttons: navBotones(['agendar', 'hablar', 'menu']) };
+    if (r.foto) return [{ kind: 'image', path: r.foto, caption: r.texto }, nav];
+    // Sin foto: el texto va como cuerpo del mensaje de botones (una sola burbuja).
+    return [{ kind: 'buttons', body: r.texto, buttons: navBotones(['agendar', 'hablar', 'menu']) }];
   }
 
-  // Menú principal por número.
-  switch (texto) {
-    case '1': case '2': case '3': case '4':
-      salidas.push(config.faq[texto] + '\n\n_Escribí *menu* para volver._');
-      return salidas;
+  if (intent === 'agendar') {
+    if (!st.leadCreado) { await crearLead(sheets, telefono, 'Pidió agendar visita por WhatsApp'); st.leadCreado = true; }
+    const texto = config.agendar.texto.replace('{link}', config.linkAgendaVisita);
+    const nav = { kind: 'buttons', body: T().navPregunta, buttons: navBotones(['hablar', 'menu']) };
+    return config.agendar.foto
+      ? [{ kind: 'image', path: config.agendar.foto, caption: texto }, nav]
+      : [{ kind: 'buttons', body: texto, buttons: navBotones(['hablar', 'menu']) }];
+  }
 
-    case '5': // Disponibilidad de fecha
-      st.paso = 'esperando_fecha';
-      salidas.push('Decime la *fecha* que te interesa (por ej. "15 de marzo 2026") y qué tipo de evento es. 📆');
-      return salidas;
-
-    case '6': // Agendar visita
-      if (!st.leadCreado) {
-        await crearLead(sheets, telefono, null, 'Pidió agendar visita por WhatsApp');
-        st.leadCreado = true;
-      }
-      salidas.push(
-        '¡Genial! 🏛️ Reservá el día y horario que mejor te quede desde acá:\n' +
-        config.linkAgendaVisita + '\n\n' +
-        'Cuando lo confirmes, queda agendado automáticamente. ¡Te esperamos!'
-      );
-      return salidas;
-
-    case '7': { // Hablar con una persona
-      if (!st.leadCreado) {
-        await crearLead(sheets, telefono, null, 'Pidió hablar con una persona por WhatsApp');
-        st.leadCreado = true;
-      }
-      if (estaEnHorarioDerivacion(ahora)) {
-        salidas.push(t.derivacionEnHorario);
-      } else {
-        salidas.push(t.derivacionFueraHorario.replace('{proximo}', proximoHorarioTexto(ahora)));
-      }
-      return salidas;
+  if (intent === 'hablar') {
+    if (!st.leadCreado) { await crearLead(sheets, telefono, 'Pidió hablar con una persona por WhatsApp'); st.leadCreado = true; }
+    let body;
+    if (estaEnHorarioDerivacion(ahora)) {
+      body = config.derivacion.enHorario;
+    } else {
+      body = config.derivacion.fueraHorario
+        .replace('{proximo}', proximoHorarioTexto(ahora))
+        .replace('{instagram}', config.contacto.instagram)
+        .replace('{mail}', config.contacto.mail);
     }
+    return [{ kind: 'buttons', body, buttons: navBotones(['agendar', 'menu']) }];
+  }
 
-    default:
-      salidas.push(t.noEntendido);
-      return salidas;
+  if (intent === 'menu') return [{ kind: 'menu' }];
+
+  // No se entendió: mostramos el menú directamente (menos fricción).
+  return [{ kind: 'menu' }];
+}
+
+/* ─────────────────────── Renderizado real (a Meta) ────────────────────────── */
+async function renderAccion(to, accion) {
+  switch (accion.kind) {
+    case 'menu':    return sendList(to);
+    case 'image':   return sendImage(to, config.publicBaseUrl + accion.path, accion.caption);
+    case 'buttons': return sendButtons(to, accion.body, accion.buttons);
+    case 'text':    return sendText(to, accion.body);
   }
 }
 
-/* ─────────────────────── Router de Express (webhook) ───────────────────────── */
-
+/* ─────────────────────── Webhook ──────────────────────────────────────────── */
 function verificarFirma(req) {
-  if (!APP_SECRET) return true; // sin secreto configurado, no verificamos (dev)
+  if (!APP_SECRET) return true;
   const firma = req.get('x-hub-signature-256');
   if (!firma || !req.rawBody) return false;
   const esperado = 'sha256=' + crypto.createHmac('sha256', APP_SECRET).update(req.rawBody).digest('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperado));
-  } catch { return false; }
+  try { return crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(esperado)); } catch { return false; }
 }
 
-// Anti-duplicados: Meta reintenta webhooks. Recordamos los ids ya procesados.
 const _vistos = new Set();
 function yaVisto(id) {
   if (!id) return false;
@@ -249,65 +232,52 @@ function yaVisto(id) {
   return false;
 }
 
+// Extrae { id, text } de un mensaje entrante (texto o respuesta interactiva).
+function leerMensaje(msg) {
+  if (msg.type === 'interactive') {
+    const i = msg.interactive;
+    if (i?.list_reply) return { id: i.list_reply.id, text: i.list_reply.title };
+    if (i?.button_reply) return { id: i.button_reply.id, text: i.button_reply.title };
+  }
+  return { id: null, text: msg.text?.body || '' };
+}
+
 function crearRouter(sheets) {
   const router = express.Router();
 
-  // GET: verificación del webhook (Meta lo llama una vez al configurarlo).
   router.get('/webhook/whatsapp', (req, res) => {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
       console.log('[bot] webhook verificado por Meta');
-      return res.status(200).send(challenge);
+      return res.status(200).send(req.query['hub.challenge']);
     }
     return res.sendStatus(403);
   });
 
-  // POST: llegada de mensajes.
   router.post('/webhook/whatsapp', async (req, res) => {
     if (!verificarFirma(req)) return res.sendStatus(401);
-    res.sendStatus(200); // respondemos rápido; procesamos después
-
+    res.sendStatus(200);
     try {
-      const entry = req.body?.entry?.[0];
-      const value = entry?.changes?.[0]?.value;
+      const value = req.body?.entry?.[0]?.changes?.[0]?.value;
       const mensajes = value?.messages;
-      if (!Array.isArray(mensajes)) return; // status updates, etc.
-
-      const perfilNombre = value?.contacts?.[0]?.profile?.name;
-
+      if (!Array.isArray(mensajes)) return;
       for (const msg of mensajes) {
         if (yaVisto(msg.id)) continue;
         const from = msg.from;
-        const texto = msg.text?.body || (msg.button?.text) || (msg.interactive?.button_reply?.title) || '';
-        if (!texto) {
-          await sendText(from, config.textos.noEntendido);
-          continue;
-        }
         const st = getState(from);
-        if (perfilNombre && !st.nombre) st.nombre = perfilNombre;
-        const respuestas = await processMessage(from, texto, { sheets, state: st });
-        for (const r of respuestas) await sendText(from, r);
+        const input = leerMensaje(msg);
+        const acciones = await processMessage(from, input, { sheets, state: st });
+        for (const a of acciones) await renderAccion(from, a);
       }
       limpiarViejos();
-    } catch (e) {
-      console.error('[bot] error procesando webhook:', e.message);
-    }
+    } catch (e) { console.error('[bot] error procesando webhook:', e.message); }
   });
 
   return router;
 }
 
 module.exports = {
-  BOT_ACTIVO,
-  crearRouter,
-  sendText,
-  // Exportados para el simulador / tests:
-  processMessage,
-  estaEnHorarioDerivacion,
-  proximoHorarioTexto,
-  ahoraLocal,
-  getState,
+  BOT_ACTIVO, crearRouter, sendText,
+  // Para el simulador / tests:
+  processMessage, estaEnHorarioDerivacion, proximoHorarioTexto, ahoraLocal, getState,
   _resetState: () => _conv.clear(),
 };
